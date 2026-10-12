@@ -1,6 +1,6 @@
 // @ts-check
 /**
- * Battle Flow — DECISION (ARCHITECTURE.md §2): THE CAST RIDERS (registry.js CAST_RIDERS — Wild Magic Surge,
+ * By the Books — DECISION (ARCHITECTURE.md §2): THE CAST RIDERS (registry.js CAST_RIDERS — Wild Magic Surge,
  * Inspiring Smite): which spell a rider answers, the surge's outcome and its words, a hand-out's arithmetic. Pure.
  */
 

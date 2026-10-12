@@ -1,6 +1,6 @@
 # ARCHITECTURE.md — how the code holds the north stars
 
-> **The binding structure.** [DESIGN.md](DESIGN.md) says what Battle Flow is for; this page
+> **The binding structure.** [DESIGN.md](DESIGN.md) says what By the Books is for; this page
 > says how the code is required to be shaped so it stays that way. Every rule here traces to a
 > north star or a binding rule (N1–N4, R1–R5).
 >
@@ -11,7 +11,7 @@
 
 ## 1. The shape in one paragraph
 
-Battle Flow is a set of **stateless hook handlers** that read persisted documents, consult
+By the Books is a set of **stateless hook handlers** that read persisted documents, consult
 **registries**, and write persisted documents. There is no workflow object, no session state,
 no cross-client messaging. A feature is: a trigger that stamps a flag, one or more views that
 render that flag, and a resolver that acts on it and stamps a receipt. Everything else —
@@ -124,6 +124,45 @@ resumable's `drives` are gates, and are checked to be. `isOwner` is not one: a G
 
 **All persisted module state is a flag on a document.** There is no other store.
 
+**The scope is the package id, and it has a past** (3.0.0, 2026-10-11, issue #6). Every write goes
+to `flags.fvtt-mod-bythebooks.*`; every read goes through `readFlag(doc, key)` in
+[core.js](scripts/core.js), which reads the new scope and falls back, key by key, to
+`flags.fvtt-mod-battleflow.*`, the scope the module wrote as Battle Flow until 2.17.0. Its twin
+`clearFlag(doc, key)` removes a key from the new scope and from the old one while that still holds
+it; it is used where a chat card's key is unset (saves/demand.js), so an old value cannot read back. The fallback
+stays for good: chat messages are never migrated, and an old card keeps its old flags forever.
+`queueFlagWrite` reads through `readFlag`, so a write to an old card carries its legacy state into
+the new scope. The moment gate (events.js `observeMessage`) reads both scopes merged per key, so a
+2.x card resolved before the upgrade is not published again after it. The two places that read a module class off a stored card's HTML (d20-folds.js,
+polish.js's target block) match both names.
+
+Everything but chat moves once, by the **GM-load migration** ([migrate.js](scripts/migrate.js),
+its pure plan in [decide/migrate.js](scripts/decide/migrate.js), pinned by
+[tests/decide-migrate.test.js](tests/decide-migrate.test.js)). On `ready` on the active GM's
+client (retried on `userConnected` when no GM was active), it moves the old scope to the new on
+actors, their items and effects and the items' effects; scenes, tokens (unlinked token deltas
+too), regions, combats, combatants, world items and users. Where a document already holds the new
+scope, only the keys missing from it are copied (the new scope wins per key, as `readFlag` does),
+and the old scope is always removed: a document never keeps both. An empty old scope is removed
+but not counted in the summary. An emanation RegionBehavior of type
+`fvtt-mod-battleflow.emanation` is retyped in place to `fvtt-mod-bythebooks.emanation` (Foundry
+14's `ForcedReplacement` for its system data), else recreated and the old one deleted; a recreated
+behaviour carries `flags.fvtt-mod-bythebooks.migratedFrom = <old id>`, so a retried load never
+doubles it. Each top-level step, and each region's behaviours, runs in its own try/catch: one
+failure is logged, the rest carries on, and the next load retries what failed. Once regions have moved it fires
+`fvtt-mod-bythebooks.emanationsChanged` so the auras re-sweep. Every world Setting
+`fvtt-mod-battleflow.<key>` whose key the module registers moves to `fvtt-mod-bythebooks.<key>`
+and the old document is deleted; an unregistered legacy key stays and is logged. The client
+settings are copied in localStorage at `init` on every client (never while passive), which is why
+`migrate` is the FIRST row in the dispatcher's `ORDER`: the copy runs before settings register.
+Every migration write carries the options mark `bythebooksMigration: true` (§7), the synthetic
+`updateActor` / `updateToken` a token-delta write raises included; it posts one
+summary when something moved, and a second run finds nothing to do.
+
+⚠ **Deliberately unchanged by the rename:** the `data-bf-*` DOM anchors, the `bf-*` classes, the
+`bfEmanation` status id and the `bf-suite-*.lock` file name. Cards and effects stored before 3.0.0
+carry them, so they keep the old short form.
+
 | Where | Shape | Why there |
 | --- | --- | --- |
 | **Attack / usage message** | the moment flag (`hold`, `mastery`, `saves`, `precision`, `volley`, …); `chipSpend` — the chips this attack roll used up; `reminder` — what the gate showed before this roll, the net, the press | The moment belongs to the thing that caused it; a spent chip is explained on the roll that spent it (R5); a roll that went out with Advantage says why |
@@ -138,7 +177,7 @@ resumable's `drives` are gates, and are checked to be. `isOwner` is not one: a G
 | **Response message** | `respondsTo` + the answer | A player can only write their *own* message — this is the answer channel that needs no permission. See **the relay** below |
 | **Actor** | `cleaveArm`; the chips — the mastery marks (`Vexed`, `Sapped`, `Slowed`), the once-per-turn chits (`Cleave`, Sneak Attack, a clock rider, Steady Aim, `shield:<key>` for Death Armor, `emanation:<regionId>`), the use chips (`mastery = "use"`, `useKey` the row — Evasive Footwork, Lunging Attack) and **the Reaction** (`Reaction — used`) — as ActiveEffects carrying `start` + `duration.expiry`, each fingerprinted by `flags.<module>.mastery = <key>`; the shield MARK (`flags.<module>.shield = {key, itemUuid, spellLevel, scaling}` — Armor of Agathys, the pack ships no effect) | Per-creature, per-turn state. ⚠ A chip's clock is the PLATFORM's (v14 `duration.expiry`, judged against `start.combatant` — RULINGS.md *Chips and clocks*); the module writes the window once and never counts turns. The Cleave chit's `start` is the turn IN PROGRESS and its liveness is a stamp comparison (`chitStamp` vs `combatStamp`) — the platform's expiry is its tidy |
 | **Applied effect** | provenance markers | Which module path created it, so revert knows |
-| **Region** (on a scene; since dnd5e 6.0 the region IS the area — drawn nowhere: locked, visibility LAYER_UNLOCKED, the user's rulings of 2026-09-18/19) | `emanation` — `{kind: "feature"\|"spell", key, tokenId, itemUuid, initial: [tokenIds asked by the cast's own demand]}`; its one Battle Flow behaviour (`fvtt-mod-battleflow.emanation`, a document subtype declared in `module.json`) carries the row's key, the source token and item, the reach, the upcast level and the pack's effect with the source's numbers resolved; `remind` and `heal` are read off the row, not stored | The AREA is the platform's document: attached to its token, membership computed by Foundry, events raised by Foundry. The module's state on it is which row it is and what it hands out. A member's copy is an ActiveEffect carrying `emanation: {regionId, key}` — the fingerprint the floor keys on, one per creature per region |
+| **Region** (on a scene; since dnd5e 6.0 the region IS the area — drawn nowhere: locked, visibility LAYER_UNLOCKED, the user's rulings of 2026-09-18/19) | `emanation` — `{kind: "feature"\|"spell", key, tokenId, itemUuid, initial: [tokenIds asked by the cast's own demand]}`; its one By the Books behaviour (`fvtt-mod-bythebooks.emanation`, a document subtype declared in `module.json`; `fvtt-mod-battleflow.emanation` before 3.0.0, converted by the migration) carries the row's key, the source token and item, the reach, the upcast level and the pack's effect with the source's numbers resolved; `remind` and `heal` are read off the row, not stored | The AREA is the platform's document: attached to its token, membership computed by Foundry, events raised by Foundry. The module's state on it is which row it is and what it hands out. A member's copy is an ActiveEffect carrying `emanation: {regionId, key}` — the fingerprint the floor keys on, one per creature per region |
 
 ### The four state laws
 
@@ -654,7 +693,7 @@ so no caller can edit a table.
 
 ## 7. Module layout and dependency rules
 
-`scripts/battleflow.js` is the only `esmodules` entry; it imports its siblings in a deliberate
+`scripts/bythebooks.js` is the only `esmodules` entry; it imports its siblings in a deliberate
 order. Plain ES modules, no build step.
 
 **`scripts/decide/` — the pure layer, and what each module holds.** ⚠ **It has ZERO imports**,
@@ -685,6 +724,7 @@ there needs `game` or `canvas`, it is EDGE and belongs one layer up (§2 rule 1)
 | [decide/rescue-hit.js](scripts/decide/rescue-hit.js) | the `roll` interrupt (Slice A, 2026-09-24): `d20ModeOf`, `d20Faces`, `needsSecondD20`, `disadvantageOutcome` (Disadvantage on a roll already made — the lower of two d20s; Advantage cancels to the FIRST die; already at Disadvantage moves nothing; a natural 20 can be undone), `critStands` (a crit doubles one damage roll only while it stands for every hit target), `rescueRows` / `liveRows` / `rescueTitle` (the popup's rows, their cost or their reason as the tag), `bentLines` (the attacker's card), `rescueSpendText`, `plainRule` |
 | [decide/dice-chips.js](scripts/decide/dice-chips.js) | the dice that rise (2026-09-26, RULINGS *The dice that rise — THE RULE*): `rollChips`, `reductionRise`, `rerollRise`, `eitherRise`, `foldRise`, `acChips`, and `changedDice` (the dice the platform changed on its own, off the rolls' JSON — a RETIRED `rerolled` result pairs with the next live one; a live one whose `count` beats its face is a floor; NOTES §2 *How dnd5e 6.0 marks the dice it changes*) |
 | [decide/damage-dice.js](scripts/decide/damage-dice.js) | the damage-dice folds' patch (2026-09-24): `rerollFaces` (Empowered's per die, lifted out of metamagic.js), `weaponDiceOf` / `setFormula` / `setTotal` (the activity's own dice, never a rider's), `eitherOutcome` (the higher set stands, a tie keeps the first), `eitherPatch` (both sets on the roll, the loser struck), `eitherDue` (once per turn), `eitherCardLine` |
+| [decide/migrate.js](scripts/decide/migrate.js) | the rename's migration plan (3.0.0, §4): which documents carry the old scope, what each moves to, the emanation behaviour's new type, the world settings' new keys; idempotent, a second plan over a migrated world is empty |
 | [decide/moments.js](scripts/decide/moments.js) | `MOMENT_RECORDS` (every flag key that means *something resolved* — its word(s), what resolving means, `resolved(record, ctx)` → the markers and plain facts), `STATE_KEYS` (every other key, with its reason), `MOMENT_WORDS` / `MOMENT_KINDS` (the contract's vocabulary), `resolvedMoments`, `newMoments`, `momentId` — the moment gate's data (*The moment events*, below). ⚠ Classifies, never curates: a key is a resolve or state, a fact about the code |
 | [decide/shields.js](scripts/decide/shields.js) | `shieldDue` (is a damage shield due on this hit — melee, within the activity's reach, once per turn, while the temp HP stand), `shieldReach`, `shieldType` (the type the standing effect decides), `shieldEffectNames`, `durationSeconds` |
 | [decide/effect-view.js](scripts/decide/effect-view.js) | the effect view's rows from plain facts: `listed`, `changeSign`, `toneOf` (tone is a pattern, not a list), `effectRows`, `sheetRows`, `rowAction`, `panelGroups`, `everyRow`, `allRows`, `marksHeldBy` |
@@ -717,7 +757,7 @@ stay at the EDGE. **Do not "tidy" those strings back into the view.**
 
 | Depth | Layer | Files |
 | --- | --- | --- |
-| 6 | entry | `battleflow.js` |
+| 6 | entry | `bythebooks.js` |
 | 5 | **machines** | hold/ (one machine, a directory — below) · saves/ (one machine, a directory) · mastery · topple · chip-spend · precision · riposte · hew · bash-offer · command · concentration · volleys · cast · hit-riders · d20-folds · receipts · polish · resources · reminders (the gate machine — attack, save and check gates) · stats · sneak · clock-riders · use-chips · emanations · hit-menu · damage-shields · damage-casts · superiority-uses · metamagic (the Sorcerer's options in the cast dialog, the points spent on the card) · dice-changers (one popup per damage roll, a row per feature that changes the landed dice — Empowered Spell, Savage Attacker, Piercer; 2026-09-27, out of metamagic and the retired damage-either) · effect-view (a creature's buffs and debuffs on the bar, the hover card and the held key; the bar's fold is the one write, the platform's own document edit under the owner's permission; RULINGS.md *The effect view*) |
 | 4 | **services** | `auto-apply.js` · `effect-riders.js` · `auto-damage.js` — the consequence chokepoints (§2) · `area-ask.js` — the ask at the area, one question two machines route through (metamagic, saves; 2026-09-24) |
 | 3 | spine | `ui.js` · `shared.js` · `geometry.js` · `settings.js` · `lookup.js` (the sheet and document readers) · `holds.js` (the hold registry — what another module asks before it plays) · `events.js` (the moment events — what the module publishes when a moment resolves) · `dice-rise.js` (the dice that rise — the one renderer of chips over a token, and the `diceRise` flag listener every client plays; 2026-09-26) |
@@ -781,7 +821,16 @@ sideways edge: the shared part went down to the service.
 Every hook the module listens to goes through **one dispatcher**, [dispatch.js](scripts/dispatch.js):
 a file registers with `listen(hook, key, fn)` (or `listenOnce`), `key` its own scripts-relative
 path, and the dispatcher holds ONE platform listener per hook name and runs the module's handlers
-behind it in the order of its `ORDER` table — the same order on every hook. Some same-hook
+behind it in the order of its `ORDER` table — the same order on every hook. Two gates sit at
+the dispatch entry (3.0.0). **The migration mark:** every document create, update and delete hook,
+the `pre*` ones included, whose arguments carry `bythebooksMigration` (`MIGRATION_MARK`,
+`isMigrationWrite`) is dropped on every client, so a flag moving scope never looks like a moment. Unmarked
+writes keep running during the move, so a turn advanced mid-migration is not lost. **The passive gate:** `isPassive()`, asked at the first
+dispatch and kept, is true while the old package (`fvtt-mod-battleflow`, the module's name until
+2.17.0) is active. Then only the rows in `PASSIVE_KEEPS` run: `init|settings`, `init|emanations`
+(the RegionBehavior type stays registered, so regions stay valid) and `ready|migrate`, which shows
+the GM a permanent warning to disable Battle Flow and reload, and returns. The emanations' region
+event handlers return early too. Two copies live at once would apply every damage twice. Some same-hook
 orderings are behavioral (a veto runs before the capture it protects; a card's rows render in
 handler order), and the table is where they are decided, not the import graph. `Hooks.on`
 appears in dispatch.js and nowhere else; `npm run hooks` (`tools/check-hook-order.mjs`) fails
@@ -805,8 +854,8 @@ a cycle could still be in its dead zone.
 
 ### The public API — the only surface another module may read (2026-09-09)
 
-`game.modules.get("fvtt-mod-battleflow").api`. ⚠ **Everything else in this tree is private**, and
-the rule runs both ways: **Battle Flow imports no other module and calls into none.** A table may
+`game.modules.get("fvtt-mod-bythebooks").api`. ⚠ **Everything else in this tree is private**, and
+the rule runs both ways: **By the Books imports no other module and calls into none.** A table may
 install this module alone, or with FX Studio, or with neither — nothing here may assume a
 neighbour. What other modules need is *published*, never *reached for*.
 
@@ -816,7 +865,7 @@ neighbour. What other modules need is *published*, never *reached for*.
 | `volleyRegistry` | [volley-registry.js](scripts/volley-registry.js) | volley membership, read-only, same rule |
 | `acknowledgeMoment` | [ui.js](scripts/ui.js) | resolve a card's pending presentation (law 3) |
 | `holdFor(subject)` · `castHold(uuid)` · `holds` | [holds.js](scripts/holds.js) | **the hold** — below |
-| `moments` and the hooks `battleflow.moment` · `battleflow.<event>` | [events.js](scripts/events.js) | **the moment events** — below; version 2, a GATE over the module's own records ([decide/moments.js](scripts/decide/moments.js)), every resolve published |
+| `moments` and the hooks `bythebooks.moment` · `bythebooks.<event>` | [events.js](scripts/events.js) | **the moment events** — below; version 2, a GATE over the module's own records ([decide/moments.js](scripts/decide/moments.js)), every resolve published |
 
 **The hold** has a consumer outside this repo, so its contract is written here. While a cast
 waits on a question only the landed area can answer (Careful Spell: *who does the spell
@@ -838,7 +887,7 @@ identical; [tests/holds.test.js](tests/holds.test.js) pins the distinction and t
 
 `castHold` is an alias of `holdFor` that FX Studio shipped against and **is kept forever**.
 `holds` is `{ version, keys }`, so a consumer can tell contracts apart without probing. The hooks
-beside it: `battleflow.holdOpened` when one is raised, `battleflow.castReleased` when one
+beside it: `bythebooks.holdOpened` when one is raised, `bythebooks.castReleased` when one
 settles. ⚠ **The release is on `preCreateChatMessage`, never on `createChatMessage`** — create
 hooks fire DURING the create, so a consumer would find the hold still open for the very card
 that lifts it.
@@ -855,8 +904,16 @@ the one place a decision popup opens.
 The mirror of the hold: the hold tells a neighbour *not yet*, the events tell it *now, and here
 is what*. An ability used through the module's own popups posts no usage card (a maneuver die
 rides the damage roll, Parry rides the hold's answer), so [events.js](scripts/events.js) fires
-**`battleflow.moment`** with a plain payload, then **`battleflow.<event>`** with the same
+**`bythebooks.moment`** with a plain payload, then **`bythebooks.<event>`** with the same
 payload, at the point the moment resolved.
+
+**The names follow the package id** (3.0.0): `bythebooks.moment`, `bythebooks.<event>`,
+`bythebooks.armorBlock`, `bythebooks.styleDice`, `bythebooks.holdOpened`,
+`bythebooks.castReleased`, `bythebooks.areaAskAnswered` and `bythebooks.deferredUsageCard`, all
+fired through core.js's one `publish(name, …args)`. **3.0.0 fires each a second time under its old
+`battleflow.*` name** (the module was Battle Flow until 2.17.0), so a reader (FX Studio's
+`readers/bythebooks.js`) moves on its own schedule; the old emit is dropped in the next minor
+release. The internal `fvtt-mod-bythebooks.effectViewChanged` follows the id.
 
 **The user's ruling: every resolve publishes, through a gate, so nothing is missed as the module
 grows; what plays is FX Studio's manager's call.** By §4 law 3 a resolve IS a record landing on a
@@ -942,10 +999,12 @@ three per-client preferences. Two of the nine, Roll Results Players See and Bloo
 Token, own dnd5e's Visibility menu (`attackRollVisibility`, `challengeVisibility`, `bloodied`): the
 active GM writes the mapped values ([decide/visibility.js](scripts/decide/visibility.js)) on `ready`
 and on change, and only a key that differs, because dnd5e's own default hides every attack result
-while Battle Flow's receipt has already announced the damage. `npm run registry` checks that `S` in [core.js](scripts/core.js) and the registrations
+while By the Books' receipt has already announced the damage. `npm run registry` checks that `S` in [core.js](scripts/core.js) and the registrations
 in [settings.js](scripts/settings.js) agree. `tools/verify-settings.mjs` reads the
 shipped defaults from the registrations themselves, so there is no second copy to keep in step. A Foundry default applies only where a setting has never been
 written, so a default flip never touches an existing world.
+While the module is passive (§7, Battle Flow still active), the visibility sync (`syncVisibility`)
+does nothing.
 
 ### Rules
 
@@ -975,7 +1034,7 @@ The module rides **public hooks and document writes only** (R3). The seams it de
 | `dnd5e.rollAttack` | the attack trigger — fires on the rolling client, after the message exists |
 | `dnd5e.postUseActivity` | the use trigger — spell holds, save demands, volleys, cast payloads; a listed `roll` row's own activity used from the sheet answers the oldest pending hold that asks this defender with the row live (hold/answer.js — Lucky's "Disadvantage" is no Reaction, so it is asked before the activation gate); a scoped tactical fold's ARMING (d20-folds.js: Tactical Assessment or Ambush used from the sheet — the die rolled in the open, a chip carrying the number on the actor, a notice naming the check; `dnd5e.rollSkill` / `dnd5e.rollInitiative` fold the number in when the check the scope names lands) |
 | `dnd5e.preRollDamage` | injecting rider damage parts (crit doubling comes free — see NOTES): the marks (hit-riders.js), the Sneak Attack dice after their Cunning Strike costs (sneak.js), the clock riders (clock-riders.js) and Commander's Strike's ride (command.js — the chip the elect put on the ally carries the fighter's die; the ally's own attack's damage folds it into the base roll, spends the chip and the Reaction, and stamps `commandRide`; no driven attack, no relay); the automatic Critical Hit — `config.isCritical = true` on a hit within 5 feet of a Paralyzed or Unconscious target (auto-damage.js `critFor`, the ONE crit source the offer's badge and both roll paths read), and since 2026-09-24 `config.isCritical = false` for a natural 20 a defender's `roll` answer undid. ⚠ **The roll count** (Slice A, 2026-09-24): auto-damage.js's handler runs FIRST on the hook (dispatch.js ORDER), so it stamps `weaponRolls` — how many rolls are the activity's own — before any rider pushes one; Savage Attacker rerolls those. dice-changers.js's registration sits later on the hook and stamps the `diceChange` birth flag (`due` / `spent`, a row per feature), reading nothing a rider writes |
-| `dnd5e.preRollAttack` · `dnd5e.preRollSavingThrow` · `dnd5e.preRollAbilityCheck` | the three gates (attack, save, check): judged before the dice, the system's own dialog forced open and given Battle Flow's fieldsets — **the dialog is the system's own, we add one fieldset and set its default** (RULINGS.md *The gate before the roll*); all TEMPLATED names, pinned in `check-hook-dispatch` and asserted FIRED by their suites. Initiative rides the check hook too and is skipped by its `initiativeDialog` hookName. The same judge (`reminders.js` `judgeRoll`) runs in the volley aim popup per ray, and the ray's record rides the roll's own message data |
+| `dnd5e.preRollAttack` · `dnd5e.preRollSavingThrow` · `dnd5e.preRollAbilityCheck` | the three gates (attack, save, check): judged before the dice, the system's own dialog forced open and given By the Books' fieldsets — **the dialog is the system's own, we add one fieldset and set its default** (RULINGS.md *The gate before the roll*); all TEMPLATED names, pinned in `check-hook-dispatch` and asserted FIRED by their suites. Initiative rides the check hook too and is skipped by its `initiativeDialog` hookName. The same judge (`reminders.js` `judgeRoll`) runs in the volley aim popup per ray, and the ray's record rides the roll's own message data |
 | `renderRollConfigurationDialog` (core) | the section drawn into the system's roll dialogs on each render — the attack gate's, the save gate's and the save demand's fieldsets, the Fails button; polish.js's target block rides the same hook |
 | `dnd5e.postRollConfiguration` | the record of what the gate showed and what was pressed, stamped on the roll's message data after the dialog closes with rolls in hand |
 | `dnd5e.rollDamage` / `createChatMessage` | the application trigger on the elect; the dice changers' offer on the ROLLER's client (dice-changers.js promotes `due` → `pending` once the roll is not `attackHoldPending`; the hold's release write reaches it as `updateChatMessage`). ⚠ dnd5e dispatches the damage hook TWICE per roll (NOTES §2): an in-flight set keeps the offer single |

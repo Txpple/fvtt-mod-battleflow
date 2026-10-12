@@ -1,5 +1,5 @@
 /**
- * Battle Flow — MACHINE (ARCHITECTURE.md §7): the saving throws. ONE machine on ONE `saves` flag,
+ * By the Books — MACHINE (ARCHITECTURE.md §7): the saving throws. ONE machine on ONE `saves` flag,
  * a directory whose only public face is this file. The caster stamps the demand; each target rolls
  * on the client that owns it; the elect folds against the DC STORED AT CAST TIME and applies.
  * The parts' hooks run in dispatch.js's ORDER, not in this list's; cross-part calls are hoisted

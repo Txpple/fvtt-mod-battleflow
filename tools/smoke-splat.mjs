@@ -1,6 +1,6 @@
 // SMOKE — THE SPLAT BOOKS (RULINGS *Arcana Unleashed*; audits/plans/splat-books.md): the books' rows on the live box,
-// each lent by its compendium uuid for the section and taken back. Fixtures: BF Test Attacker (hostile) swings at BF Test
-// Halfling; BF Test PC Attacker shoots BF Test Victim. Sections: `--section N`, `--list`. Fixtures and teardown ALWAYS run.
+// each lent by its compendium uuid for the section and taken back. Fixtures: BTB Test Attacker (hostile) swings at BTB Test
+// Halfling; BTB Test PC Attacker shoots BTB Test Victim. Sections: `--section N`, `--list`. Fixtures and teardown ALWAYS run.
 //
 //   node tools/smoke-splat.mjs [--section N ...] [--list]
 import { announcePlan, connectSuite, finish, sectionArg, sectionPlan } from './harness.mjs';
@@ -27,13 +27,13 @@ export const COVERS = [
 ];
 
 const SECTIONS = {
-  1: 'THE SURVIVOR COLLISION: BF Test Halfling lent Ravenloft\'s Survivor (a feat, not the Fighter\'s class feature) — a Bloodied turn start heals nothing (no Heroic Rally card), and a Death Saving Throw of 18 is no critical success',
-  2: 'ARCANE SHOT: BF Test PC Attacker lent Arcane Shot (2 uses), Beguiling Shot and Bursting Shot; a Longbow hit opens the group "Arcane Shot"; Beguiling Shot ticked — the Wisdom save demanded at the Victim with its dice, a use spent; the next hit this turn greys the group; a Longsword hit shows no group',
+  1: 'THE SURVIVOR COLLISION: BTB Test Halfling lent Ravenloft\'s Survivor (a feat, not the Fighter\'s class feature) — a Bloodied turn start heals nothing (no Heroic Rally card), and a Death Saving Throw of 18 is no critical success',
+  2: 'ARCANE SHOT: BTB Test PC Attacker lent Arcane Shot (2 uses), Beguiling Shot and Bursting Shot; a Longbow hit opens the group "Arcane Shot"; Beguiling Shot ticked — the Wisdom save demanded at the Victim with its dice, a use spent; the next hit this turn greys the group; a Longsword hit shows no group',
   3: 'HARVEST UNDEAD — THE BLOODIED MOMENT: the Halfling at 400 of 400 takes a hit — no rebuke; at 201 of 400 the hit makes it Bloodied — the rebuke card offers Harvest Undead',
   4: 'INSTINCTIVE CHARM: the Attacker\'s hit on the Halfling (5 ft) offers the rebuke; Use demands the Wisdom save of the Attacker',
   5: 'EVER-READY SHOT: Arcane Shot at 1 of 3, Ever-Ready Shot lent; the PC Attacker\'s Initiative asks "use it now?"; Yes brings ONE use back (2 of 3)',
   // HEROES OF FAERÛN (RULINGS *Heroes of Faerûn*)
-  6: 'BLOODTHIRST — THE BLOODIED MOMENT WATCHED: the Halfling lent Bloodthirst; the PC Attacker\'s hit takes the Victim (an enemy 10 ft from the Halfling) from 201 to half or fewer — the Halfling\'s rebuke card "BF Test Victim is Bloodied" offers Bloodthirst; a hit that leaves the Victim above half offers nothing',
+  6: 'BLOODTHIRST — THE BLOODIED MOMENT WATCHED: the Halfling lent Bloodthirst; the PC Attacker\'s hit takes the Victim (an enemy 10 ft from the Halfling) from 201 to half or fewer — the Halfling\'s rebuke card "BTB Test Victim is Bloodied" offers Bloodthirst; a hit that leaves the Victim above half offers nothing',
   7: 'ELEMENTAL REBUKE: the Halfling lent it (1 use); the Attacker\'s hit opens the hold popup with the rebuke; Cast halves the damage on the receipt, spends the use and demands the Attacker\'s Dexterity save (it fails and takes the Rebuke\'s own damage)',
   8: 'SHARED RESILIENCE: the PC Attacker lent it and Indomitable (2 uses), 10 ft from the Halfling; the Halfling FAILS a demanded save — the fighter\'s bystander popup; Answer rerolls the Halfling\'s d20 and adds the fighter\'s level, an Indomitable use spent',
   9: 'FRIGID EXPLORER: the PC Attacker lent it; a Longsword hit\'s offer carries the ticked "Polar Strikes" (its cold die rides); the Victim with Cold Resistance takes the cold in FULL (Biting Cold ignores it)',
@@ -54,7 +54,7 @@ const f = await connectSuite({ tag: 'splat', watchdogMs: 600_000 });
 announcePlan('splat', plan, pulled);
 
 const out = await f.evaluate(async ({ sections, titles }) => {
-  const MOD = 'fvtt-mod-battleflow';
+  const MOD = 'fvtt-mod-bythebooks';
   const results = [];
   const log = [];
   const skips = [];
@@ -72,7 +72,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
 
   const modDoc = game.modules.get(MOD);
   if (!modDoc?.active) return { fatal: `module active=${modDoc?.active}` };
-  const { FEATURE_TYPES, HIT_GROUPS } = await import('/modules/fvtt-mod-battleflow/scripts/decide/registry.js');
+  const { FEATURE_TYPES, HIT_GROUPS } = await import('/modules/fvtt-mod-bythebooks/scripts/decide/registry.js');
   if (!FEATURE_TYPES?.Survivor || !HIT_GROUPS['arcane-shot']) return { fatal: 'the splat rows are not in the loaded code — OLD code (deploy --local, reload the box)' };
 
   const SETTING_KEYS = ['autoDamage', 'autoApply', 'playerRollDamage', 'damageTimer', 'dramaticBeat', 'requireTarget',
@@ -80,12 +80,12 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   const prior = Object.fromEntries(SETTING_KEYS.map(k => [k, game.settings.get(MOD, k)]));
   const set = (k, v) => game.settings.set(MOD, k, v);
 
-  const scene = game.scenes.getName('Battle Flow Test Range');
-  const attacker = game.actors.getName('BF Test Attacker');
-  const halfling = game.actors.getName('BF Test Halfling');
-  const pcAttacker = game.actors.getName('BF Test PC Attacker');
-  const victim = game.actors.getName('BF Test Victim');
-  if (!scene || !attacker || !halfling || !pcAttacker || !victim) return { fatal: 'missing fixture: the range, BF Test Attacker, Halfling, PC Attacker or Victim — run tools/fixture-suite.mjs' };
+  const scene = game.scenes.getName('By the Books Test Range');
+  const attacker = game.actors.getName('BTB Test Attacker');
+  const halfling = game.actors.getName('BTB Test Halfling');
+  const pcAttacker = game.actors.getName('BTB Test PC Attacker');
+  const victim = game.actors.getName('BTB Test Victim');
+  if (!scene || !attacker || !halfling || !pcAttacker || !victim) return { fatal: 'missing fixture: the range, BTB Test Attacker, Halfling, PC Attacker or Victim — run tools/fixture-suite.mjs' };
 
   const created = { tokens: [], items: [], combats: [] };
   const lentBy = new Map();
@@ -134,7 +134,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       for (const [actorId, data] of Object.entries(priorActor)) await game.actors.get(actorId)?.update(data);
       game.user.targets.forEach(t => { t.setTarget(false, { releaseOthers: true }); });
       const mine = game.messages.filter(m => (m.timestamp >= suiteStart)
-        && (m.speaker?.alias?.startsWith?.('BF Test') || m.speaker?.alias === 'Battle Flow' || Object.keys(m.flags?.[MOD] ?? {}).length));
+        && (m.speaker?.alias?.startsWith?.('BTB Test') || m.speaker?.alias === 'By the Books' || Object.keys(m.flags?.[MOD] ?? {}).length));
       if (mine.length) await ChatMessage.deleteDocuments(mine.map(m => m.id));
     } catch (err) {
       log.push(`TEARDOWN ERROR: ${err?.message}`);
@@ -239,7 +239,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     const rebukePopup = () => popups().find(app => /^Reaction — /.test(titleOf(app))) ?? null;
     const rebukeCards = (t, actor) => since(t, 'rebuke').filter(m => m.getFlag(MOD, 'rebuke')?.actorUuid === actor.uuid);
     const hWeapon = attacker.items.find(i => (i.type === 'weapon') && i.system.activities?.some?.(a => a.type === 'attack'));
-    if (!hWeapon) return { fatal: 'BF Test Attacker has no weapon attack' };
+    if (!hWeapon) return { fatal: 'BTB Test Attacker has no weapon attack' };
     keep(halfling, { 'system.attributes.hp.value': halfling.system._source.attributes.hp.value, 'system.attributes.hp.max': halfling.system._source.attributes.hp.max,
       'system.attributes.hp.temp': halfling.system._source.attributes.hp.temp, 'system.attributes.ac.override': halfling.system._source.attributes.ac.override ?? null,
       'system.attributes.death.success': 0, 'system.attributes.death.failure': 0 });
@@ -497,7 +497,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           if (r1.offer) await rollOffer(r1.offer, r1.msg); else await settleDamage(r1.msg);
           const card = await waitFor(() => rebukeCards(t1, halfling)[0] ?? null, 8000);
           const flag = card?.getFlag(MOD, 'rebuke');
-          ok('6b. the hit that makes the Victim Bloodied: the Halfling\'s rebuke card "BF Test Victim is Bloodied" offers Bloodthirst (the Victim its target, 10 ft)',
+          ok('6b. the hit that makes the Victim Bloodied: the Halfling\'s rebuke card "BTB Test Victim is Bloodied" offers Bloodthirst (the Victim its target, 10 ft)',
             !!card && flag?.watch && (flag.sourceUuid === victim.uuid) && (flag.options ?? []).some(o => o.name === 'Bloodthirst') && (flag.distance === 10) && (hp(victim) <= 200) && (hp(victim) > 0),
             `hp=${hp(victim)} flag=${JSON.stringify(flag ?? null).slice(0, 300)}`);
           const pop = await waitFor(rebukePopup, 5000);
@@ -610,8 +610,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           const rolled = rolls?.[0]?.parent ?? null;
           const pop = await waitFor(() => popups().find(app => /Shared Resilience/.test(textOf(app.element)) && app.element?.querySelector?.('button[data-action="answer"]')) ?? null, 8000);
           const bflag = rolled?.getFlag(MOD, 'bystanderRoll');
-          const { poolOf } = await import('/modules/fvtt-mod-battleflow/scripts/shared.js');
-          const { bystanderRows } = await import('/modules/fvtt-mod-battleflow/scripts/lookup.js');
+          const { poolOf } = await import('/modules/fvtt-mod-bythebooks/scripts/shared.js');
+          const { bystanderRows } = await import('/modules/fvtt-mod-bythebooks/scripts/lookup.js');
           const sharedAct = [...(pcAttacker.items.get(shared.id)?.system?.activities ?? [])][0] ?? null;
           const debug = `rows=${JSON.stringify(bystanderRows('save'))} pool=${poolOf(pcAttacker, sharedAct)?.name ?? null}/${poolOf(pcAttacker, sharedAct)?.system?.uses?.value ?? null} entry=${JSON.stringify(card?.getFlag(MOD, 'saves')?.targets?.find(x => x.uuid === halfling.uuid) ?? null).slice(0, 200)} dc=${card?.getFlag(MOD, 'saves')?.dc} rolledFlags=${JSON.stringify(Object.keys(rolled?.flags?.[MOD] ?? {}))}`;
           ok('8a. the Halfling fails Hold Person\'s save 10 ft from the fighter: the fighter is asked (Shared Resilience — a reroll + the fighter\'s level)',

@@ -1,7 +1,7 @@
 // Goliath smoke suite: Large Form's token size, the rebuke family within its range (Storm's
 // Thunder), Stone's Endurance held before ANY damage lands, and Sentinel's Guardian and Halt.
-// Fixtures (tools/fixture-suite.mjs): BF Test Goliath (friendly), lent the PHB's items for the run;
-// BF Test Victim (hostile) the damager; BF Test Cleric for §5. Everything written is restored.
+// Fixtures (tools/fixture-suite.mjs): BTB Test Goliath (friendly), lent the PHB's items for the run;
+// BTB Test Victim (hostile) the damager; BTB Test Cleric for §5. Everything written is restored.
 import { announcePlan, connectSuite, finish, sectionArg, sectionPlan } from './harness.mjs';
 
 // The coverage map (tools/coverage-map.mjs) parses this; ⚠ never import a suite (it connects on evaluation).
@@ -29,7 +29,7 @@ const f = await connectSuite({ tag: 'goliath', watchdogMs: 600_000 });
 announcePlan('goliath', plan, pulled);
 
 const out = await f.evaluate(async ({ sections, titles }) => {
-  const MOD = 'fvtt-mod-battleflow';
+  const MOD = 'fvtt-mod-bythebooks';
   const results = [];
   const log = [];
   const skips = [];
@@ -55,10 +55,10 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   const set = (k, v) => game.settings.set(MOD, k, v);
   const def = k => game.settings.settings.get(`${MOD}.${k}`)?.default;
 
-  const scene = game.scenes.getName('Battle Flow Test Range');
-  const victim = game.actors.getName('BF Test Victim');
-  const gol = game.actors.getName('BF Test Goliath');
-  if (!scene || !victim || !gol) return { fatal: 'missing fixture: scene, BF Test Victim or BF Test Goliath — run tools/fixture-suite.mjs' };
+  const scene = game.scenes.getName('By the Books Test Range');
+  const victim = game.actors.getName('BTB Test Victim');
+  const gol = game.actors.getName('BTB Test Goliath');
+  if (!scene || !victim || !gol) return { fatal: 'missing fixture: scene, BTB Test Victim or BTB Test Goliath — run tools/fixture-suite.mjs' };
 
   const created = { tokens: [], items: [] };
   const priorActor = {};
@@ -91,7 +91,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       for (const [actorId, data] of Object.entries(priorActor)) await game.actors.get(actorId)?.update(data);
       game.user.targets.forEach(t => { t.setTarget(false, { releaseOthers: true }); });
       const mine = game.messages.filter(m => (m.timestamp >= suiteStart)
-        && (m.speaker?.alias?.startsWith?.('BF Test') || m.speaker?.alias === 'Battle Flow' || Object.keys(m.flags?.[MOD] ?? {}).length));
+        && (m.speaker?.alias?.startsWith?.('BTB Test') || m.speaker?.alias === 'By the Books' || Object.keys(m.flags?.[MOD] ?? {}).length));
       if (mine.length) await ChatMessage.deleteDocuments(mine.map(m => m.id));
     } catch (err) {
       log.push(`TEARDOWN ERROR: ${err?.message}`);
@@ -164,7 +164,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       button?.click();
       return !!button;
     };
-    const damagerCard = async () => ChatMessage.create({ speaker: ChatMessage.getSpeaker({ actor: victim }), content: 'BF Test — the damager\'s card' });
+    const damagerCard = async () => ChatMessage.create({ speaker: ChatMessage.getSpeaker({ actor: victim }), content: 'BTB Test — the damager\'s card' });
 
     // ---- 1. Large Form
     if (want(1)) {
@@ -233,8 +233,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const share = () => [{ value: 12, type: 'fire', properties: new Set() }];
       // The same share twice, as a save's damage reaches the applier: one card, one landing.
       await Promise.all([
-        applyDamagesWithReceipt(card, [{ uuid: gol.uuid, name: gol.name }], share(), { note: 'BF Test' }),
-        applyDamagesWithReceipt(card, [{ uuid: gol.uuid, name: gol.name }], share(), { note: 'BF Test' })
+        applyDamagesWithReceipt(card, [{ uuid: gol.uuid, name: gol.name }], share(), { note: 'BTB Test' }),
+        applyDamagesWithReceipt(card, [{ uuid: gol.uuid, name: gol.name }], share(), { note: 'BTB Test' })
       ]);
       const hold = await waitFor(() => flagged(t0, 'damageHold'), 6000);
       await sleep(1000);   // load-bearing: time for a WRONG second card to appear
@@ -274,8 +274,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       if (!doc) return { fatal: 'section 5: no Sentinel in dnd-players-handbook.feats', results, log, skips };
       const [sentinel] = await gol.createEmbeddedDocuments('Item', [doc.toObject()]);
       created.items.push(sentinel.id);
-      const cleric = game.actors.getName('BF Test Cleric');
-      if (!cleric) return { fatal: 'section 5: missing fixture BF Test Cleric — run tools/fixture-suite.mjs', results, log, skips };
+      const cleric = game.actors.getName('BTB Test Cleric');
+      if (!cleric) return { fatal: 'section 5: missing fixture BTB Test Cleric — run tools/fixture-suite.mjs', results, log, skips };
       const strayCleric = scene.tokens.filter(t => t.actorId === cleric.id).map(t => t.id);
       if (strayCleric.length) await scene.deleteEmbeddedDocuments('Token', strayCleric);
       priorActor[cleric.id] = { 'system.attributes.hp.value': cleric.system._source.attributes.hp.value };
@@ -290,7 +290,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       await sleep(600);
       const act = victim.items.contents.flatMap(i => [...(i.system?.activities ?? [])]).find(a => a.type === 'attack') ?? null;
       if (!act) {
-        skips.push('§5: BF Test Victim carries no attack activity — Sentinel unexercised');
+        skips.push('§5: BTB Test Victim carries no attack activity — Sentinel unexercised');
       } else {
         // The Victim's attack DAMAGE, on its own card (an attack's damage: the ward's `hit` fact), landed on the Cleric.
         game.user.targets.forEach(t => { t.setTarget(false, { releaseOthers: false }); });
@@ -347,7 +347,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     }
 
     // ---- 6–8. the GM's side
-    const monster = game.actors.getName('BF Test Monster');
+    const monster = game.actors.getName('BTB Test Monster');
     const lendMM = async (actor, name) => {
       const pack = game.packs.get('dnd-monster-manual.features');
       const hit = (await pack?.getIndex())?.find(e => e.name === name);
@@ -356,7 +356,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       if (actor === gol) created.items.push(item.id);
       return item;
     };
-    if ((want(6) || want(8)) && !monster) skips.push('§6/§8: BF Test Monster missing — run tools/fixture-suite.mjs');
+    if ((want(6) || want(8)) && !monster) skips.push('§6/§8: BTB Test Monster missing — run tools/fixture-suite.mjs');
 
     if (want(6) && monster) {
       let sticky = null;
@@ -414,7 +414,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         absorb = await lendMM(gol, 'Elemental Absorption');
         const typedCard = async type => {
           const roll = await new CONFIG.Dice.DamageRoll('5', {}, { type, isCritical: false }).evaluate();
-          return ChatMessage.create({ speaker: ChatMessage.getSpeaker({ actor: victim }), rolls: [roll], flavor: `BF test — ${type}` });
+          return ChatMessage.create({ speaker: ChatMessage.getSpeaker({ actor: victim }), rolls: [roll], flavor: `BTB test — ${type}` });
         };
         const t0 = Date.now();
         await gol.applyDamage([{ value: 5, type: 'fire', properties: new Set() }], { originatingMessage: await typedCard('fire'), isDelta: true });

@@ -1,9 +1,9 @@
 // @ts-check
 /**
- * Battle Flow — auto-roll damage on hit (the attacker's client) and the damage offer popup.
+ * By the Books — auto-roll damage on hit (the attacker's client) and the damage offer popup.
  * Owns the one crit judgement (`critFor`). Split shape (ARCHITECTURE.md §7).
  */
-import { MODULE_ID, TITLE, S, setting, decisionWindow, drivesMomentFor } from "./core.js";
+import { MODULE_ID, readFlag, TITLE, S, setting, decisionWindow, drivesMomentFor } from "./core.js";
 import { missShareFor, resolveUuid } from "./lookup.js";
 import { hitTargets } from "./shared.js";
 import { TONE, esc, popupKey, bfCard, momentBarHTML } from "./decide/present.js";
@@ -52,7 +52,7 @@ listen("dnd5e.rollAttack", "auto-damage", async (rolls, { subject }) => {
   // A hold pauses the APPLICATION, never the dice: the roll is born attackHoldPending.
   await stampHoldIfInterrupted(attackMessage, rolls[0], hits);
   // Except a crit a Disadvantage reaction could undo: `damageAfterHold` rolls it.
-  if ( attackMessage.getFlag(MODULE_ID, "hold")?.critAtStake ) return;
+  if ( readFlag(attackMessage, "hold")?.critAtStake ) return;
   return offerOrRollDamage(subject, attackMessage);
 });
 
@@ -71,7 +71,7 @@ const rescueComing = (subject, message, roll) => missWaits.some(fn => {
 
 /** The attack-card flags that hold a miss open while pending. */
 const MISS_HOLDERS = ["hold", "d20fold", "precision"];
-const missSettled = message => MISS_HOLDERS.every(k => message.getFlag(MODULE_ID, k)?.status !== "pending");
+const missSettled = message => MISS_HOLDERS.every(k => readFlag(message, k)?.status !== "pending");
 const missShareRolled = new Set();
 
 /** The miss's damage, rolled like a hit's (the applier deals the share); once, and never beside a hit's roll. */
@@ -80,7 +80,7 @@ async function rollMissShare(activity, attackMessage) {
   if ( hitTargets(attackMessage).length || !missSettled(attackMessage) ) return;
   // A rescue still to stamp (its flag not yet landed) holds it too.
   if ( rescueComing(activity, attackMessage, attackMessage.rolls?.[0]) ) return;
-  if ( game.messages.contents.some(m => (m.type === "damage") && (m.getFlag(MODULE_ID, "attackFor") === attackMessage.id)) ) return;
+  if ( game.messages.contents.some(m => (m.type === "damage") && (readFlag(m, "attackFor") === attackMessage.id)) ) return;
   missShareRolled.add(attackMessage.id);
   await rollDamageForAttack(activity, attackMessage);
 }
@@ -126,7 +126,7 @@ export async function damageAfterHold(attackMessage) {
   try {
     if ( !hitTargets(attackMessage).length ) return;
     // Rolled already (a fold on the same miss got there first): never twice.
-    if ( game.messages.contents.some(m => (m.type === "damage") && (m.getFlag(MODULE_ID, "attackFor") === attackMessage.id)) ) return;
+    if ( game.messages.contents.some(m => (m.type === "damage") && (readFlag(m, "attackFor") === attackMessage.id)) ) return;
     const activity = attackMessage.getAssociatedActivity?.() ?? null;
     if ( !activity ) {
       console.warn(`${TITLE} | The held crit's damage has no activity to roll from — roll it from the card.`);
@@ -193,7 +193,7 @@ function foldedCritStands(attackMessage, hits) {
   const roll = attackMessage?.rolls?.[0];
   const own = roll?.isCritical === true;
   try {
-    const folds = foldsFrom(key => attackMessage.getFlag(MODULE_ID, key));
+    const folds = foldsFrom(key => readFlag(attackMessage, key));
     const base = { total: roll?.total, isCritical: own, isFumble: roll?.isFumble === true };
     return hits.every(t => foldedRoll(base, folds.filter(f => f.uuid === t.uuid)).isCritical);
   } catch(err) {
@@ -239,7 +239,7 @@ listen("dnd5e.preRollDamage", "auto-damage", (config, _dialog, message) => {
 
 // The damage card says why it doubled (R5).
 listen("dnd5e.renderChatMessage", "auto-damage", (message, html) => {
-  const auto = message.getFlag(MODULE_ID, "autoCrit");
+  const auto = readFlag(message, "autoCrit");
   if ( !auto?.sources?.length ) return;
   const line = document.createElement("div");
   line.style.cssText = "margin:0.3rem 0;font-size:var(--font-size-12,12px);line-height:1.5;";
@@ -258,7 +258,7 @@ export async function rollDamageForAttack(activity, attackMessage) {
     const originId = originIdOf(attackMessage) ?? attackMessage.id;
     // `attackFor` names the exact attack (a volley's rays share one usage card). The hold is read at
     // ROLL time, so one resolved while the popup sat open applies straight.
-    const holdPending = attackMessage.getFlag(MODULE_ID, "hold")?.status === "pending";
+    const holdPending = readFlag(attackMessage, "hold")?.status === "pending";
     // ⚠ Stamps ride NESTED under `flags`: data with both nested and dotted module flags keeps only the nested.
     await activity.rollDamage(
       { ability, ammunition, attackMode, isCritical },
@@ -278,7 +278,7 @@ export async function rollDamageForAttack(activity, attackMessage) {
 export async function rollDamageForSave(activity, card) {
   try {
     // The upcast: the demand's (an emanation's demand is a plain card), else the usage card's.
-    const scaling = Number(card.getFlag(MODULE_ID, "saves")?.scaling ?? card.system?.scaling ?? 0);
+    const scaling = Number(readFlag(card, "saves")?.scaling ?? card.system?.scaling ?? 0);
     // ⚠ The card's OWN targets ride the roll: dnd5e snapshots the client's live targets, which may have changed.
     const data = foundry.utils.expandObject(originData(card.id));
     const aimed = card._source?.system?.targets;
@@ -394,8 +394,8 @@ export async function offerDamageRoll(activity, attackMessage) {
   const parts = offerPartsFor(attackMessage, activity, { isCritical });
 
   // The popup leads with the hit (ARCHITECTURE.md §5 law 10).
-  const riposte = !!attackMessage.getFlag(MODULE_ID, "riposteFor");
-  const precisionUsed = attackMessage.getFlag(MODULE_ID, "precision")?.outcome === "used";
+  const riposte = !!readFlag(attackMessage, "riposteFor");
+  const precisionUsed = readFlag(attackMessage, "precision")?.outcome === "used";
   const headline = isCritical
     ? (riposte ? "Critical riposte! — roll damage" : "Critical hit! — roll damage")
     : (riposte ? "Your riposte hit! — roll damage" : "You hit! — roll damage");

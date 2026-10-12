@@ -1,4 +1,4 @@
-<title>Battle Flow Metamagic</title>
+<title>By the Books Metamagic</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Signika:wght@400;600;700&display=swap">
 <style>
   :root{
@@ -76,7 +76,7 @@
 <div class="wrap">
   <header class="top">
     <div>
-      <div class="eyebrow">Battle Flow · prototype · 2026-09-09 · nothing here is ruled</div>
+      <div class="eyebrow">By the Books · prototype · 2026-09-09 · nothing here is ruled</div>
       <h1>Metamagic: the pick rides the cast, the spend rides the card</h1>
     </div>
     <p>Three moments. The cast dialog carries the cast-time options as one group; Empowered is a fold on the damage roll; Seeking is a fold on the miss. Rules quoted are the 2024 PHB pack's own text. Tick rows, watch the button.</p>
@@ -169,7 +169,7 @@ function castDialog(sc){
     <div class="fg"><span>Spell Slot</span><select><option>Level ${s.slot} (2 of 3)</option><option>Level ${s.slot+1} (1 of 1)</option></select></div>
     <div class="fg"><span>Consume Slot</span><label><input type="checkbox" checked> Yes</label></div>
     ${s.save ? `<div class="fg"><span>Template</span><label><input type="checkbox" checked> Place on cast</label></div>` : ""}
-    <fieldset><legend>Battle Flow — Metamagic</legend>
+    <fieldset><legend>By the Books — Metamagic</legend>
       <div class="pool"><span>${sc.who}</span><span><b>Sorcery Points: ${sc.sp} of ${sc.spMax}</b>${spend?` · spends ${spend}`:""}</span></div>
       ${rows}
       ${sc.sp===0 ? `<p style="font-size:11.5px;color:var(--ink-3);margin:4px 0 0">No Sorcery Points — the rows stay, greyed, so the sheet is not the only place that says so.</p>` : ""}

@@ -1,11 +1,11 @@
 /**
- * Battle Flow — SERVICE (ARCHITECTURE §7): the ask at the area. A question about the creatures in
+ * By the Books — SERVICE (ARCHITECTURE §7): the ask at the area. A question about the creatures in
  * a placed area goes to the caster (a popup, a clock that keeps the default); the answer fills the
  * save demand. Customers: metamagic (RULINGS *Metamagic*) and chosen areas (RULINGS *Spells that
  * choose their targets*) raise it via `newAsk`/`raiseAsk`, and may add an ANSWER PART
  * (`registerAskAnswerPart`). ⚠ The flag KEY stays `metamagicAsk`: stored on cards, read by the moment registry.
  */
-import { MODULE_ID, TITLE, statContext, queueFlagWrite, canAnswerFor, decisionWindow } from "./core.js";
+import { MODULE_ID, readFlag, TITLE, publish, statContext, queueFlagWrite, canAnswerFor, decisionWindow } from "./core.js";
 import { itemNamed, resolveUuid } from "./lookup.js";
 import { isPartyMember } from "./shared.js";
 import { tokenForUuid } from "./geometry.js";
@@ -73,7 +73,7 @@ const askTimers = new Map();
 
 listen("dnd5e.renderChatMessage", "area-ask", (message, html) => {
   try {
-    const ask = message.getFlag(MODULE_ID, AREA_ASK_FLAG);
+    const ask = readFlag(message, AREA_ASK_FLAG);
     if ( !ask ) return;
     const content = html.querySelector?.(SURFACES.messageContent) ?? html;
     if ( !content || content.querySelector(".bf-metamagic-ask") ) return;
@@ -95,7 +95,7 @@ listen("dnd5e.renderChatMessage", "area-ask", (message, html) => {
 /** The ask's popup, defaults ticked: ticks for Careful and a chosen area, a radio for Heightened
  * (beside each row when a chosen area carries Heightened: one popup, not two). */
 export async function showAreaAsk(message) {
-  const ask = message.getFlag(MODULE_ID, AREA_ASK_FLAG);
+  const ask = readFlag(message, AREA_ASK_FLAG);
   if ( !ask || (ask.status !== "pending") ) return;
   const caster = resolveUuid(ask.casterUuid);
   if ( !caster ) return;
@@ -148,10 +148,10 @@ listenOnce("ready", "area-ask", () => document.addEventListener("change", ev => 
 }));
 
 /** The answer (the ticks, or the defaults at the clock): records written, answer parts consulted,
- * the save demand filled and clocked, then `battleflow.areaAskAnswered` for the deferred dice. */
+ * the save demand filled and clocked, then `bythebooks.areaAskAnswered` for the deferred dice. */
 export async function answerAsk(message, picked, { timedOut = false, mark = null } = {}) {
   try {
-    const ask = message.getFlag(MODULE_ID, AREA_ASK_FLAG);
+    const ask = readFlag(message, AREA_ASK_FLAG);
     if ( !ask || (ask.status !== "pending") ) return;
     const outcome = askOutcome(ask, picked, { mark, timedOut });
     const rule = (ask.kind === "choose") ? (ask.heightened?.rule ?? "") : (ask.rule ?? "");
@@ -182,7 +182,7 @@ export async function answerAsk(message, picked, { timedOut = false, mark = null
       if ( outcome.mark ) flag.demand = { ...(flag.demand ?? {}), heightened: { ...outcome.mark, caster: ask.casterName ?? null, rule: heightenedRule } };
       if ( !flag.targets.length ) flag.status = "done";   // everyone spared
     });
-    Hooks.callAll("battleflow.areaAskAnswered", message);
+    publish("areaAskAnswered", message);
   } catch(err) {
     console.error(`${TITLE} | The ask at the area could not be answered — the demand waits; the card's Answer button reopens it.`, err);
   }
@@ -190,7 +190,7 @@ export async function answerAsk(message, picked, { timedOut = false, mark = null
 
 // An answered ask closes its popup (law 4) and stands its clock down.
 listen("updateChatMessage", "area-ask", message => {
-  const ask = message.getFlag(MODULE_ID, AREA_ASK_FLAG);
+  const ask = readFlag(message, AREA_ASK_FLAG);
   if ( !ask || (ask.status === "pending") ) return;
   disarmAskTimer(askTimers, message.id);
   const open = livePopups.get(popupKey(message.id, AREA_ASK_FLAG));

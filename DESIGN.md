@@ -1,6 +1,6 @@
 # DESIGN.md — the north star
 
-> **What Battle Flow is for, and how it is allowed to grow.** Every feature, setting and
+> **What By the Books is for, and how it is allowed to grow.** Every feature, setting and
 > refactor must trace back to this page. When a decision is ambiguous, this document wins.
 > When this document and the code disagree, that is a bug in one of them — surface it.
 >
@@ -13,12 +13,27 @@
 
 ## 1. Mission
 
-**Battle Flow makes D&D 5e battles flow.** Attack → hit → damage → save → effect resolves
-itself, and the table only touches the moments that are genuinely theirs.
+**By the Books plays the 2024 rules from the sheet.** A player who does not know a rule still gets
+it, as written, with a receipt: attack → hit → damage → save → effect resolves itself, and the
+table only touches the moments that are genuinely theirs. *The 2024 rules, played from the sheet;
+every automatic step with a receipt and a revert; offered, never enforced.*
+
+A rule belongs here when three things hold (the charter, issue #6, 2026-10-10):
+
+- **it comes from one of the six books** (PHB, DMG, MM, Heroes of Faerûn, Arcana Unleashed,
+  Ravenloft: The Horrors Within), and every row cites its book;
+- **it rides a use or an effect from the sheet**;
+- **it lands with a receipt and a revert**, and the only interface is chat cards and popups.
+
+The fight is where that shows most, not the boundary: rest grants, token senses (Stonecunning),
+token sizes (Large Form, Enlarge/Reduce) and the Light cantrip on a targeted token pass the same
+test. The module offers; it never enforces. Its companion is Open Roll 5e: Errata: Errata is where
+the book is wrong (vendor bugs, held until the vendor fixes them), By the Books is where the book is
+right, which is why a vendor bug never becomes a rule here.
 
 The system — dnd5e on Foundry VTT — already owns the hard math: hit determination against AC,
 resistance-correct damage, real saving throws, effect application, concentration linkage. Every
-link of that chain ends at a **button**. Battle Flow's job is **pressing the buttons whose
+link of that chain ends at a **button**. By the Books' job is **pressing the buttons whose
 outcomes are already determined**, while:
 
 - **pausing** where a human genuinely gets a say (the reaction window, the choice),
@@ -67,7 +82,7 @@ Someone who has never played 5e can take their turn without knowing which chat c
 - **Nothing is a required answer.** Every moment has a default outcome and a clock; the human's
   control *preempts* the default. A table is never blocked on a player who stepped away unless
   it explicitly chooses to be (timer 0).
-- **The players' side comes first** (the user, 2026-09-26): Battle Flow makes life easier for the
+- **The players' side comes first** (the user, 2026-09-26): By the Books makes life easier for the
   players, makes the fight feel more tactical for them, and puts in front of them the rule
   opportunities they would otherwise forget — a reaction, a mastery, a feat's rider. When work
   competes, a player-facing flow beats a GM-side one ("as a DM i dont need monster flows as much
@@ -87,7 +102,8 @@ Combat should move. Every design choice is weighed against whether it makes the 
 
 ## 3. Scope
 
-**Battle Flow is a combat-resolution module for D&D 5e 2024, built by dogfooding.**
+**By the Books is the D&D 5e 2024 rules played from the sheet, built by dogfooding.** The membership
+test is §1's three conditions; being in a fight is not one of them.
 
 - **The rules target is 5e 2024 as the dnd5e system ships it.** Curated lists are built by
   sweeping the official compendia, not by asking what the party owns. A spell that exists and
@@ -104,12 +120,12 @@ Combat should move. Every design choice is weighed against whether it makes the 
 - **Every feature must be individually deletable** the day the system ships it natively. Being
   made redundant is the success condition.
 
-### What Battle Flow is not
+### What By the Books is not
 
 It is deliberately not midi-qol. midi solves automation with a ~50,000-line workflow engine, a
 flags platform, three hard dependencies, wholesale replacement of eight document classes, and a
 serial in-memory workflow that blocks on cross-client prompts — the source of its race conditions
-and its undo system. Battle Flow solves the same chain with about thirty thousand lines of plain ES modules,
+and its undo system. By the Books solves the same chain with about thirty thousand lines of plain ES modules,
 curated lists instead of platforms, and zero dependencies. The trade is safe because midi's own current code
 mostly *orchestrates native dnd5e machinery* — so a small module can orchestrate the same public
 hooks directly. (The source-level evaluation that established this is `RESEARCH.md` in git

@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Battle Flow Session 0 Classes</title>
+<title>By the Books Session 0 Classes</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Signika:wght@400;600;700&display=swap">
 <style>
   /* the house prototype look — scenes along the top, a mock screen (canvas + chat log), rulings down the side */
@@ -161,7 +161,7 @@
 <div class="wrap">
   <header class="top">
     <div>
-      <div class="eyebrow">Battle Flow · prototype · 2026-09-29 · Session 0, the PHB classes · for ruling, nothing built</div>
+      <div class="eyebrow">By the Books · prototype · 2026-09-29 · Session 0, the PHB classes · for ruling, nothing built</div>
       <h1>Five shapes: the bystander's bend, its noise gate, Portent, the cast riders, Brutal Strike</h1>
     </div>
     <p>The UI-shaped items of the classes plan, each drawn in its states. Pick a scene along the top; where a scene has a before and after, tick a row and press the button. The canvas shows the map, the chat log the cards, the orange panels the rulings to make. The rule text in every fold is the 2024 wording as the build will read it off the pack.</p>
@@ -549,7 +549,7 @@
   };
 
   S.n6 = () => ({
-    stage: stage(mapN() + `<div class="settings"><div class="title">Configure Settings — Battle Flow (this client)</div><div class="body">
+    stage: stage(mapN() + `<div class="settings"><div class="title">Configure Settings — By the Books (this client)</div><div class="body">
       <div class="situ">Bystander prompts</div>
       <div class="opt"><input type="radio" name="bys" id="bys-margin" checked><label for="bys-margin"><b>When it can change the outcome</b> — the margin gate</label></div>
       <div class="opt"><input type="radio" name="bys" id="bys-always"><label for="bys-always"><b>Every time</b> — no gate</label></div>
@@ -595,13 +595,13 @@
   };
 
   /* ---------- B · Portent ---------- */
-  const mapB = (extra="") => tok(120,120,"DR","Young Green Dragon",{extra}) + tok(360,300,"WZ","BF Test Wizard",{pc:true}) + tok(260,330,"GR","Aster",{pc:true});
+  const mapB = (extra="") => tok(120,120,"DR","Young Green Dragon",{extra}) + tok(360,300,"WZ","BTB Test Wizard",{pc:true}) + tok(260,330,"GR","Aster",{pc:true});
   S.b1 = () => ({
     stage: stage(mapB(), "After the Long Rest the rest card shows the two dice; the effect view keeps them as chips on the wizard until they are used."),
-    chat: log(msg("BF Test Wizard", card("neutral","Long Rest","Portent","BF Test Wizard",[`two d20s rolled and kept: <span class="pchip">17</span><span class="pchip">3</span>`, `<span class="chip">Portent — 2 dice kept until the next Long Rest</span>`]))),
+    chat: log(msg("BTB Test Wizard", card("neutral","Long Rest","Portent","BTB Test Wizard",[`two d20s rolled and kept: <span class="pchip">17</span><span class="pchip">3</span>`, `<span class="chip">Portent — 2 dice kept until the next Long Rest</span>`]))),
     side: panel("What this is", ["<b>The rest grant rolls the dice</b> (Resourceful's seam, <code>REST_GRANTS</code> <code>grant: \"dice\"</code>); the faces live on the feature (its uses count them, a flag keeps the faces).", "<b>The effect view</b> lists \"Portent 17 · 3\" on the bar and the hover card — the wizard always sees what is in hand.", "<b>Greater Portent</b> is the same row with three dice."]) });
   S.b2 = () => ({
-    stage: stage(mapB() + `<div class="dlg"><div class="title">Wisdom Saving Throw — BF Test Wizard</div><div class="body">
+    stage: stage(mapB() + `<div class="dlg"><div class="title">Wisdom Saving Throw — BTB Test Wizard</div><div class="body">
       <div class="fg"><span>Frightful Presence</span><span>DC 15</span></div>
       <fieldset class="gate"><legend>Before you roll <span class="net norm">Normal</span></legend>
         ${row("portent","Portent — use the 17","no die rolled","a stored die · 2 left")}
@@ -610,18 +610,18 @@
       <div class="rollbtns"><button class="btn">Advantage</button><button class="btn primary">Normal</button><button class="btn">Disadvantage</button></div>
       <div class="situ" style="margin-top:8px">Ticked, the roll goes out with the stored face in place of the d20 — nothing rolled, the chip gone, the card saying \"Portent — 17\".</div>
     </div></div>`, "The wizard's own roll: the tick sits in the system's dialog beside the gate's section (Lucky's buy box seam), BEFORE the roll — as the rule says."),
-    chat: log(msg("BF Test Wizard", card("good","Saving throw — Portent","Wisdom · DC 15","BF Test Wizard",[`Portent <b>17</b> +2 = <b>19</b> vs DC 15 <span class="verdict miss">SAVED</span>`, `<span class="chip used">Portent — the 17 used · 1 left</span>`]))),
+    chat: log(msg("BTB Test Wizard", card("good","Saving throw — Portent","Wisdom · DC 15","BTB Test Wizard",[`Portent <b>17</b> +2 = <b>19</b> vs DC 15 <span class="verdict miss">SAVED</span>`, `<span class="chip used">Portent — the 17 used · 1 left</span>`]))),
     side: panel("What this shows", ["<b>Before the roll, for its own D20 Tests.</b> A tick per stored die in the roll dialog; the platform never rolls the d20 — the <code>set</code> fold REPLACES it (the contribution is <code>replace</code>, the spend the stored die).", "<b>Once per turn</b> is the rider chit.", "<b>The record</b> is the <code>d20fold</code> the folds already write, <code>set: 17</code> beside <code>die</code> / <code>reroll</code>."])
       + fix("Measure first (risk 5)", "The buy box pre-empts the dialog's MODE; a stored face pre-empts the ROLL. Confirm dnd5e's dialog lets the module hand the roll a fixed d20 term before building the tick; if it cannot, the wizard's own roll is offered AFTER like an enemy's (B3).")
       + rulings(["<b>Q6 — any D20 Test the wizard can see</b> (drawn: the whole scene, sight not judged), or the wizard's own only?"]) });
   S.b3 = () => ({
-    stage: stage(mapB() + popup("Portent — BF Test Wizard",
+    stage: stage(mapB() + popup("Portent — BTB Test Wizard",
       head("wiz","The dragon's attack at Aster","Bite · d20 18 +7 = 25 vs AC 16 — a hit") + bar(20)
       + row("portent","Portent — replace the 18 with the 3","3 +7 = 10","a stored die · 1 left")
       + `<div class="btnrow"><button class="btn primary" disabled>Answer</button><button class="btn" data-act="pass">Pass</button></div>`),
       "Another creature's roll: the bystander's popup (group A) after the roll, one row per stored die worth using."),
-    chat: log(atk("Young Green Dragon","Bite","Aster",`d20 18 +7 = <b>25</b> vs AC 16 <span class="verdict hit">HIT</span>`,"pending"), `<div class="msg"><span class="chip">waiting on Aster, BF Test Wizard · 20s</span></div>`),
-    side: panel("What this shows", ["<b>The same bystander popup as Cutting Words,</b> the row a stored die; the bent card reads \"Portent (BF Test Wizard) — 18 → 3, MISS\".", "<b>\"Before the roll\" bends to after</b> for another creature's roll — the register's row for every bystander; the wizard sees the face, as Lucky's ruling of 2026-09-25 accepted.", "<b>A die worth nothing is not offered:</b> a stored 17 against a roll of 18 that hit shows no row; against a save the wizard wants failed it does."]) });
+    chat: log(atk("Young Green Dragon","Bite","Aster",`d20 18 +7 = <b>25</b> vs AC 16 <span class="verdict hit">HIT</span>`,"pending"), `<div class="msg"><span class="chip">waiting on Aster, BTB Test Wizard · 20s</span></div>`),
+    side: panel("What this shows", ["<b>The same bystander popup as Cutting Words,</b> the row a stored die; the bent card reads \"Portent (BTB Test Wizard) — 18 → 3, MISS\".", "<b>\"Before the roll\" bends to after</b> for another creature's roll — the register's row for every bystander; the wizard sees the face, as Lucky's ruling of 2026-09-25 accepted.", "<b>A die worth nothing is not offered:</b> a stored 17 against a roll of 18 that hit shows no row; against a save the wizard wants failed it does."]) });
 
   /* ---------- C · the cast riders ---------- */
   const mapC = () => tok(140,150,"BB","Bugbear Warrior") + tok(330,290,"WM","Wild Mage",{pc:true}) + tok(230,320,"GR","Aster",{pc:true});

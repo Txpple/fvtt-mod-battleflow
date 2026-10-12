@@ -1,9 +1,9 @@
 /**
- * Battle Flow — MACHINE, part of scripts/saves/ (ARCHITECTURE.md §7): the VERDICT — the fold against
+ * By the Books — MACHINE, part of scripts/saves/ (ARCHITECTURE.md §7): the VERDICT — the fold against
  * the stored DC, the die-less folds, the demand's registration, and the legendary-resistance flip.
  * index.js is the directory's only public face.
  */
-import { MODULE_ID, TITLE, drivesMomentFor, queueFlagWrite } from "../core.js";
+import { readFlag, TITLE, drivesMomentFor, queueFlagWrite } from "../core.js";
 import { resistedOf } from "../decide/card.js";
 import { SAVE_FOLDS, foldedSave, foldsFrom } from "../decide/verdict.js";
 import { registerDemand, demandAnsweredBy, registerWithheld, withholds } from "../ui.js";
@@ -123,13 +123,13 @@ export async function foldSaveAnswer(card, uuid, rollMessage) {
     if ( typeof total !== "number" ) return;
     // `resisted` too: legendary resistance may beat the fold to the message (a resume after a reload).
     const forced = resistedOf(rollMessage);
-    const timedOut = rollMessage.getFlag(MODULE_ID, "timedOut") === true;
+    const timedOut = readFlag(rollMessage, "timedOut") === true;
 
     /* ⚠ THE D20 FOLD OFFER: WITHHOLD, DO NOT UNDO. The verdict applies the instant it folds, so an
      * offer pauses it here, gated on the FAILURE. The registry FAILS OPEN; `saveFolds` releases on
      * the early return so the resume can re-enter. */
     if ( !forced && !timedOut ) {
-      const dc = card.getFlag(MODULE_ID, "saves")?.dc;
+      const dc = readFlag(card, "saves")?.dc;
       if ( await withholds(rollMessage, { by: "saves", card, uuid, total, dc }) ) return;
     }
     // ⚠ THROUGH THE SERIALIZER: two targets can fold at once; a clone-mutate-set drops one.
@@ -143,12 +143,12 @@ export async function foldSaveAnswer(card, uuid, rollMessage) {
       // Through the fold seam (`SAVE_FOLDS`). ⚠ Folds are read off the ROLL message, not the card.
       const judged = foldedSave({
         total, dc: current.dc, forced,
-        folds: foldsFrom(key => rollMessage.getFlag(MODULE_ID, key), SAVE_FOLDS)
+        folds: foldsFrom(key => readFlag(rollMessage, key), SAVE_FOLDS)
       });
       entry.outcome = judged.outcome;
       entry.total = judged.total;
       if ( judged.made && !forced ) {
-        entry.madeBy = (rollMessage.getFlag(MODULE_ID, "d20fold")?.spends ?? []).find(s => s.kind === "succeed")?.label ?? "succeeded instead";
+        entry.madeBy = (readFlag(rollMessage, "d20fold")?.spends ?? []).find(s => s.kind === "succeed")?.label ?? "succeeded instead";
       }
       entry.rollMessageId = rollMessage.id;
       // Evasion's shape (EVASIONS): the row that applies is stamped by name — Evasion, or Avoidance.
@@ -183,7 +183,7 @@ export async function foldSaveAnswer(card, uuid, rollMessage) {
 export async function flipForcedSave(rollMessage) {
   try {
     for ( const card of game.messages.contents ) {
-      const flag = card.getFlag(MODULE_ID, "saves");
+      const flag = readFlag(card, "saves");
       const found = flag?.targets?.find(t => t.rollMessageId === rollMessage.id);
       if ( !found ) continue;
       if ( found.outcome !== "failed" ) return;
@@ -213,9 +213,9 @@ export async function flipForcedSave(rollMessage) {
 
 async function unwindFailedConsequences(card, entry) {
   // Remove what only a failure grants, by NAME (the applied document's id is per-target).
-  const flag = card.getFlag(MODULE_ID, "saves");
+  const flag = readFlag(card, "saves");
   const keep = new Set(flag?.effectNames?.always ?? []);
-  const receipt = card.getFlag(MODULE_ID, "effectReceipt");
+  const receipt = readFlag(card, "effectReceipt");
   for ( const e of (receipt?.targets?.find(t => t.uuid === entry.uuid)?.effects ?? []) ) {
     if ( e.reverted || keep.has(e.name) ) continue;
     await revertEffect(card, entry.uuid, e.id);
@@ -225,7 +225,7 @@ async function unwindFailedConsequences(card, entry) {
   // Revert the damage, then re-apply at the success multiplier DIRECTLY (the deliberate exception to
   // the reconcile guard).
   for ( const dmg of saveDamageMessages(card) ) {
-    const had = dmg.getFlag(MODULE_ID, "receipt")?.targets
+    const had = readFlag(dmg, "receipt")?.targets
       ?.find(t => (t.uuid === entry.uuid) && !t.reverted);
     if ( !had ) continue;
     await revertTarget(dmg, entry.uuid);

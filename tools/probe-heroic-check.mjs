@@ -10,7 +10,7 @@ const TAG = "probe-heroic-check";
 const f = await connectSuite({ tag: TAG, watchdogMs: 180_000, env: loadEnv() });
 
 const out = await f.evaluate(async () => {
-  const MOD = "fvtt-mod-battleflow";
+  const MOD = "fvtt-mod-bythebooks";
   const sleep = ms => new Promise(r => setTimeout(r, ms));
   const until = async (fn, ms = 10_000) => {
     const end = Date.now() + ms;
@@ -18,8 +18,8 @@ const out = await f.evaluate(async () => {
     return null;
   };
   const report = { module: game.modules.get(MOD)?.version, steps: [] };
-  const fighter = game.actors.getName("BF Test Fighter");
-  if ( !fighter ) return { fatal: "no BF Test Fighter — run tools/fixture-d20-folds.mjs" };
+  const fighter = game.actors.getName("BTB Test Fighter");
+  if ( !fighter ) return { fatal: "no BTB Test Fighter — run tools/fixture-d20-folds.mjs" };
   const priorInspiration = fighter.system.attributes.inspiration;
   const priorTimer = game.settings.get(MOD, "holdTimer");
   const made = [];

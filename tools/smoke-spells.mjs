@@ -4,7 +4,7 @@
 // receipt and the card says so; a failure keeps it; damage raises Tasha's with Advantage; Otto's is offered
 // as the bearer's action; Flesh to Stone counts its failures to Petrified).
 //
-// Fixtures: BF Test Cleric (tools/fixture-suite.mjs) is lent the PHB's spells; BF Test Victim is the one
+// Fixtures: BTB Test Cleric (tools/fixture-suite.mjs) is lent the PHB's spells; BTB Test Victim is the one
 // they land on, its own linked token placed on the test range. Settings, lent items, effects, hit points,
 // the combat and messages are put back. The demanded saves ROLL THEMSELVES here (`saveRolls` auto), the
 // verdict steered by the Victim's Wisdom save bonus (±30).
@@ -39,7 +39,7 @@ const f = await connectSuite({ tag: 'spells', watchdogMs: 600_000 });
 announcePlan('spells', plan, pulled);
 
 const out = await f.evaluate(async ({ sections, titles }) => {
-  const MOD = 'fvtt-mod-battleflow';
+  const MOD = 'fvtt-mod-bythebooks';
   const results = [];
   const log = [];
   const skips = [];
@@ -60,10 +60,10 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   const prior = Object.fromEntries(SETTING_KEYS.map(k => [k, game.settings.get(MOD, k)]));
   const set = (k, v) => game.settings.set(MOD, k, v);
 
-  const scene = game.scenes.getName('Battle Flow Test Range');
-  const cleric = game.actors.getName('BF Test Cleric');
-  const victim = game.actors.getName('BF Test Victim');
-  if (!scene || !cleric || !victim) return { fatal: 'missing fixture: the test range, BF Test Cleric or BF Test Victim — run tools/fixture-suite.mjs' };
+  const scene = game.scenes.getName('By the Books Test Range');
+  const cleric = game.actors.getName('BTB Test Cleric');
+  const victim = game.actors.getName('BTB Test Victim');
+  if (!scene || !cleric || !victim) return { fatal: 'missing fixture: the test range, BTB Test Cleric or BTB Test Victim — run tools/fixture-suite.mjs' };
 
   const lent = [];
   const placed = [];
@@ -604,8 +604,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         const stamp = `${combat.id}:${combat.round}:${combat.turn}`;
         const prior = { value: hpNow(), temp: 0, tempmax: 0 };
         await victim.applyDamage([{ value: 8, type: 'fire' }]);
-        await ChatMessage.create({ speaker: ChatMessage.getSpeaker({ actor: cleric }), content: '<p>BF test — 8 fire to the Victim</p>',
-          flags: { [MOD]: { receipt: { targets: [{ uuid: victim.uuid, name: victim.name, img: null, note: 'BF test fire', prior, delta: { value: -8, temp: 0 }, taken: 8,
+        await ChatMessage.create({ speaker: ChatMessage.getSpeaker({ actor: cleric }), content: '<p>BTB test — 8 fire to the Victim</p>',
+          flags: { [MOD]: { receipt: { targets: [{ uuid: victim.uuid, name: victim.name, img: null, note: 'BTB test fire', prior, delta: { value: -8, temp: 0 }, taken: 8,
             parts: [{ type: 'fire', amount: 8 }], traits: [], reverted: false, combat: stamp, sourceUuid: cleric.uuid }] } } } });
         const hpAfterFire = hpNow();
         await combat.nextTurn();   // the Cleric — round 2

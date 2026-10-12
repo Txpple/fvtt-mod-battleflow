@@ -1,6 +1,6 @@
 // @ts-check
 /**
- * Battle Flow — DECISION layer (ARCHITECTURE.md §2): the turn-start grant (registry.js TURN_GRANTS) —
+ * By the Books — DECISION layer (ARCHITECTURE.md §2): the turn-start grant (registry.js TURN_GRANTS) —
  * which row a landed effect answers, whether this turn is paid, and the card's words. No `game`.
  */
 const lower = (/** @type {unknown} */ s) => String(s ?? "").toLowerCase();

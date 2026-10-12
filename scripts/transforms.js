@@ -1,5 +1,5 @@
 /**
- * Battle Flow — MACHINE (ARCHITECTURE.md §7): TRANSFORMS (issue #2) — Wild Shape and the polymorph
+ * By the Books — MACHINE (ARCHITECTURE.md §7): TRANSFORMS (issue #2) — Wild Shape and the polymorph
  * spells. dnd5e's transform activity opens the whole compendium browser at the use, transforms from a
  * card button only for a user who holds Create Actor in a world with Allow Transformation on, models no
  * Known Forms, and ends no form. Here a listed activity (TRANSFORMS) keeps the system's own use — the
@@ -11,7 +11,7 @@
  * Incapacitated, 0 Hit Points, the Temporary Hit Points gone. The Long Rest offers the one known-form
  * swap through the mastery record's road (RULINGS *Wild Shape and the polymorph spells*).
  */
-import { MODULE_ID, TITLE, isActiveGM, queueFlagWrite, canAnswerFor, statContext } from "./core.js";
+import { MODULE_ID, readFlag, TITLE, isActiveGM, queueFlagWrite, canAnswerFor, statContext } from "./core.js";
 import { cardActivity, lower, resolveUuid, featureNamed } from "./lookup.js";
 import { TRANSFORMS, transformEntries, listedNames, tableIndex } from "./decide/registry.js";
 import { poolRuleOf, capOfTarget, knownSlotsOf, knownHolderOf, knownState, learnedList, restKnownList, transformRecord,
@@ -31,7 +31,7 @@ const FORM_FLAG = "form";
 const KNOWN_FORMS_FLAG = "knownForms";
 const LAST_FORM_FLAG = "lastForm";
 /** The profile id the system is handed in place of the real one, so its chooser never opens. */
-const NO_PROFILE = "battleflow";
+const NO_PROFILE = "bythebooks";
 const { rowFor } = tableIndex(TRANSFORMS);
 const listed = () => listedNames(transformEntries());
 
@@ -67,7 +67,7 @@ listen("dnd5e.preActivityConsumption", "transforms", (activity, usageConfig) => 
 /* --- the record on the use's card ------------------------------------------------------------ */
 
 /** The Known Forms list on the holder item, as plain rows. */
-const knownOf = item => [...(item?.getFlag?.(MODULE_ID, KNOWN_FORMS_FLAG) ?? [])].map(k => ({ uuid: k.uuid, name: k.name ?? "", img: k.img ?? null }));
+const knownOf = item => [...(readFlag(item, KNOWN_FORMS_FLAG) ?? [])].map(k => ({ uuid: k.uuid, name: k.name ?? "", img: k.img ?? null }));
 
 /** The item that holds a row's Known Forms on this actor (Circle Forms spends Wild Shape's), or null. */
 function knownHolderItem(actor, key) {
@@ -116,7 +116,7 @@ async function stampRecord(activity, usageConfig, message, row) {
     profile: profile ? { id: profile._id, cr: capOf(activity, profile), types: [...(profile.types ?? [])], sizes: [...(profile.sizes ?? [])],
       movement: [...(profile.movement ?? [])], uuid: profile.uuid || null, name: profile.name ?? "" } : null,
     self, targets, targetCap: self ? null : capFromTarget(targets[0]),
-    known, slots: knownSlotsOf(TRANSFORMS, row.key), lastForm: holder?.getFlag?.(MODULE_ID, LAST_FORM_FLAG) ?? null,
+    known, slots: knownSlotsOf(TRANSFORMS, row.key), lastForm: readFlag(holder, LAST_FORM_FLAG) ?? null,
     concentrationId: message.system?.concentration || null, sceneId: tok?.parent?.id ?? canvas.scene?.id ?? null
   });
   await message.setFlag(MODULE_ID, TRANSFORM_FLAG, { ...record, ...statContext(actor.uuid) });
@@ -209,7 +209,7 @@ function pickFrom(form, pool, field) {
 }
 
 async function showFormPopup(message) {
-  const flag = message.getFlag(MODULE_ID, TRANSFORM_FLAG);
+  const flag = readFlag(message, TRANSFORM_FLAG);
   if ( flag?.status !== "asked" ) return;
   const user = resolveUuid(flag.sourceUuid);
   if ( !user ) return;
@@ -249,7 +249,7 @@ function lockRows(root) {
 
 /** The GM's change of a landed form (RULINGS: the caster picks, the GM may override from the card). */
 async function showChangePopup(message) {
-  const flag = message.getFlag(MODULE_ID, TRANSFORM_FLAG);
+  const flag = readFlag(message, TRANSFORM_FLAG);
   if ( !flag?.applied || flag.ended || !game.user.isGM ) return;
   const pool = await poolFor(flag);
   const { html, capLabel } = await galleryHTML(flag, pool, { field: "bf-form-change", gm: true });
@@ -296,7 +296,7 @@ function activityFor(actor, flag, message) {
 const originalOf = actor => (actor?.isPolymorphed && !actor.isToken) ? (game.actors.get(actor.getFlag("dnd5e", "originalActor")) ?? actor) : actor;
 
 /** Our form effect on a creature, or null. */
-const formEffectOn = actor => [...(actor?.effects ?? [])].find(e => !!e.getFlag(MODULE_ID, FORM_FLAG)) ?? null;
+const formEffectOn = actor => [...(actor?.effects ?? [])].find(e => !!readFlag(e, FORM_FLAG)) ?? null;
 
 /**
  * One creature into the form: a standing form of ours reverted first ("until you use Wild Shape
@@ -334,7 +334,7 @@ async function landTransform(message) {
     claimed = true;
   });
   if ( !claimed ) return;
-  const flag = message.getFlag(MODULE_ID, TRANSFORM_FLAG);
+  const flag = readFlag(message, TRANSFORM_FLAG);
   const landed = [];
   let outcome = "landed";
   let failure = null;
@@ -384,7 +384,7 @@ async function changeTransform(message) {
     claimed = true;
   });
   if ( !claimed ) return;
-  const flag = message.getFlag(MODULE_ID, TRANSFORM_FLAG);
+  const flag = readFlag(message, TRANSFORM_FLAG);
   const pick = { uuid: flag.changeAsked.uuid, name: flag.changeAsked.name, img: flag.changeAsked.img ?? null };
   const landed = [];
   let failure = null;
@@ -424,12 +424,12 @@ const reverting = new Set();
  * @param {{ why: string, word: string }} ended
  */
 async function revertForm(actor, ended) {
-  const form = formEffectOn(actor)?.getFlag(MODULE_ID, FORM_FLAG) ?? null;
+  const form = readFlag(formEffectOn(actor), FORM_FLAG) ?? null;
   const key = actor.isToken ? actor.token.uuid : actor.id;
   if ( !actor.isPolymorphed || reverting.has(key) ) return;
   reverting.add(key);
   const message = form?.messageId ? game.messages.get(form.messageId) : null;
-  const flag = message?.getFlag(MODULE_ID, TRANSFORM_FLAG) ?? null;
+  const flag = readFlag(message, TRANSFORM_FLAG) ?? null;
   const formName = flag?.pick?.name ?? actor.name;
   const who = actor.isToken ? (actor.token?.name ?? actor.name) : (originalOf(actor)?.name ?? actor.name);
   try {
@@ -456,7 +456,7 @@ async function revertForm(actor, ended) {
 // The hours ran out: Foundry marks the effect expired on the GM client, dnd5e deletes it there; either way the elect reverts.
 listen("updateActiveEffect", "transforms", (effect, changes) => {
   try {
-    if ( (changes?.duration?.expired !== true) || !effect.getFlag(MODULE_ID, FORM_FLAG) || !isActiveGM() ) return;
+    if ( (changes?.duration?.expired !== true) || !readFlag(effect, FORM_FLAG) || !isActiveGM() ) return;
     const actor = effect.parent;
     if ( actor instanceof Actor ) void revertForm(actor, { word: "clock", why: "the time ran out" });
   } catch(err) { console.error(`${TITLE} | The form's clock could not end it.`, err); }
@@ -465,7 +465,7 @@ listen("updateActiveEffect", "transforms", (effect, changes) => {
 // The effect removed — Revert on the bar, Concentration's end taking its dependent, a hand: the form ends with it.
 listen("deleteActiveEffect", "transforms", effect => {
   try {
-    if ( !effect.getFlag(MODULE_ID, FORM_FLAG) || !isActiveGM() ) return;
+    if ( !readFlag(effect, FORM_FLAG) || !isActiveGM() ) return;
     const actor = effect.parent;
     if ( !(actor instanceof Actor) ) return;
     if ( !actor.isToken && !game.actors.get(actor.id) ) return;   // the copy itself is going: a revert already ran
@@ -478,7 +478,7 @@ listen("deleteActiveEffect", "transforms", effect => {
 listen("updateActor", "transforms", (actor, changes) => {
   try {
     if ( !isActiveGM() || !(actor instanceof Actor) ) return;
-    const form = formEffectOn(actor)?.getFlag(MODULE_ID, FORM_FLAG);
+    const form = readFlag(formEffectOn(actor), FORM_FLAG);
     if ( !form ) return;
     const hp = changes?.system?.attributes?.hp;
     if ( !hp || !(("value" in hp) || ("temp" in hp)) ) return;
@@ -492,8 +492,8 @@ listen("createActiveEffect", "transforms", effect => {
   try {
     if ( !isActiveGM() ) return;
     const actor = effect.parent;
-    if ( !(actor instanceof Actor) || effect.getFlag(MODULE_ID, FORM_FLAG) ) return;
-    const form = formEffectOn(actor)?.getFlag(MODULE_ID, FORM_FLAG);
+    if ( !(actor instanceof Actor) || readFlag(effect, FORM_FLAG) ) return;
+    const form = readFlag(formEffectOn(actor), FORM_FLAG);
     if ( !form ) return;
     const ended = endOfForm(TRANSFORMS[form.key]?.ends ?? [], { statuses: [...(effect.statuses ?? [])] });
     if ( ended ) void revertForm(actor, ended);
@@ -509,7 +509,7 @@ async function askRevert(message) {
 }
 
 async function driveRevert(message) {
-  const flag = message.getFlag(MODULE_ID, TRANSFORM_FLAG);
+  const flag = readFlag(message, TRANSFORM_FLAG);
   let any = false;
   for ( const l of flag.landed ?? [] ) {
     const actor = resolveUuid(l.actorUuid);
@@ -525,7 +525,7 @@ registerResumable(TRANSFORM_FLAG, {
     || (flag.applied && !flag.ended && ((flag.revertAsked === true) || (!!flag.changeAsked && !flag.changing)))),
   drives: () => isActiveGM(),
   drive: async message => {
-    const flag = message.getFlag(MODULE_ID, TRANSFORM_FLAG);
+    const flag = readFlag(message, TRANSFORM_FLAG);
     if ( !flag.applied ) await landTransform(message);
     else if ( flag.revertAsked ) await driveRevert(message);
     else if ( flag.changeAsked ) await changeTransform(message);
@@ -536,7 +536,7 @@ registerResumable(TRANSFORM_FLAG, {
 
 function drawTransform(message, html, flag) {
   const row = document.createElement("div");
-  row.className = "battleflow-transform";
+  row.className = "bythebooks-transform";
   const user = resolveUuid(flag.sourceUuid);
   const mine = canAnswerFor(user);
   const who = flag.self ? flag.sourceName : (flag.targets ?? []).map(t => t.name).join(", ");
@@ -614,7 +614,7 @@ listen("dnd5e.restCompleted", "transforms", (actor, result, config) => {
 
 /** The owner's answer — a swap (`out`, `into`), the open slots filled (`adds`), or a keep; the card's owner writes it, anyone else relays. */
 export async function answerFormSwap(message, { out = null, into = null, adds = null, declined = false } = {}) {
-  const flag = message.getFlag(MODULE_ID, FORM_SWAP_FLAG);
+  const flag = readFlag(message, FORM_SWAP_FLAG);
   if ( flag?.status !== "pending" ) return;
   const answer = declined ? { declined: true } : { out, into, adds: [...(adds ?? [])] };
   if ( message.isOwner || isActiveGM() ) {
@@ -653,7 +653,7 @@ async function landFormSwap(message) {
     claimed = true;
   });
   if ( !claimed ) return;
-  const flag = message.getFlag(MODULE_ID, FORM_SWAP_FLAG);
+  const flag = readFlag(message, FORM_SWAP_FLAG);
   let outcome = "kept";
   let after = null;
   try {
@@ -697,7 +697,7 @@ async function knownRowsHTML(known, pool, { field = null, lastForm = null } = {}
 }
 
 async function showSwapPopup(message) {
-  const flag = message.getFlag(MODULE_ID, FORM_SWAP_FLAG);
+  const flag = readFlag(message, FORM_SWAP_FLAG);
   if ( flag?.status !== "pending" ) return;
   const actor = resolveUuid(flag.actorUuid);
   if ( !actor ) return;
@@ -784,7 +784,7 @@ async function showSwapDone(message, flag) {
 
 function drawSwap(message, html, flag) {
   const row = document.createElement("div");
-  row.className = "battleflow-transform";
+  row.className = "bythebooks-transform";
   const actor = resolveUuid(flag.actorUuid);
   if ( flag.status === "pending" ) {
     if ( !canAnswerFor(actor) ) return;
@@ -808,9 +808,9 @@ function drawSwap(message, html, flag) {
 
 listen("dnd5e.renderChatMessage", "transforms", (message, html) => {
   try {
-    const flag = message.getFlag(MODULE_ID, TRANSFORM_FLAG);
+    const flag = readFlag(message, TRANSFORM_FLAG);
     if ( flag ) drawTransform(message, html, flag);
-    const swap = message.getFlag(MODULE_ID, FORM_SWAP_FLAG);
+    const swap = readFlag(message, FORM_SWAP_FLAG);
     if ( swap ) drawSwap(message, html, swap);
   } catch(err) {
     console.error(`${TITLE} | The transform's row could not be drawn.`, err);

@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Battle Flow Wild Shape picker</title>
+<title>By the Books Wild Shape picker</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Signika:wght@400;600;700&display=swap">
 <style>
   /* the house prototype look — scenes along the top, a mock screen (canvas + chat log), the options and rulings down the side. Dark by choice. */
@@ -298,13 +298,13 @@
   }
 
   function offer(name, sub, situ, body, primary, enabled, hint, extra = "") {
-    return `<div class="offer ${extra}">${titleBar("Battle Flow · the form")}<div class="body">
+    return `<div class="offer ${extra}">${titleBar("By the Books · the form")}<div class="body">
       <div class="head"><div class="img"></div><div><h2>${name}</h2><div class="sub">${sub}</div></div></div>
       ${situ ? `<div class="situ">${situ}</div>` : ""}${body}
       <div class="btnrow"><button type="button" class="btn primary" id="go" ${enabled ? "" : "disabled"}>${primary}</button><button type="button" class="btn">Cancel</button><span class="hint">${hint}</span></div>
     </div></div>`;
   }
-  const confirmPopup = (title, lines) => `<div class="offer confirm">${titleBar("Battle Flow")}<div class="body"><div class="head"><div class="img"></div><div><h2>${title}</h2><div class="sub">what you have now</div></div></div>${lines}<div class="btnrow"><button type="button" class="btn primary" id="ok">OK</button></div></div></div>`;
+  const confirmPopup = (title, lines) => `<div class="offer confirm">${titleBar("By the Books")}<div class="body"><div class="head"><div class="img"></div><div><h2>${title}</h2><div class="sub">what you have now</div></div></div>${lines}<div class="btnrow"><button type="button" class="btn primary" id="ok">OK</button></div></div></div>`;
   const msg = (spk, cls, e, t, s, l) => `<div class="msg"><div class="spk">${spk}</div><div class="bf ${cls}"><div class="e">${e}</div><div class="t">${t}</div>${s ? `<div class="s">${s}</div>` : ""}${l ? `<div class="l">${l}</div>` : ""}</div></div>`;
   const knownLine = () => S.known.map(k => `<b>${k}</b>`).join(" · ");
 
@@ -313,23 +313,23 @@
     l2: {
       caption: () => O.known === "enforce" ? "Enforced (A): the four known forms are the offer, each in the summons' ruled row; the rest of the pool is a count and a link, or greyed rows, by the toggle. Last used is marked. Nothing to search when the choice is four." : "Pinned (B): the four known forms sit on top as pins, the whole eligible pool stays open below with the search and the speed filter. Zero paperwork, not RAW.",
       stage: () => tok(300, 380, "pc", "Tamsin") + offer("Wild Shape", `${RULE.l2.who} · ${RULE.l2.label} · ${RULE.l2.uses} · Bonus Action`, null, gallery(RULE.l2), S.pick ? `Become the ${S.pick.toLowerCase()}` : "Become…", !!S.pick, S.pick ? "the GM's client transforms you" : "answer first"),
-      log: () => S.pick ? msg("Tamsin", "pending", "Battle Flow · transform", `Wild Shape · ${S.pick}`, "1 hour · a use spent · 1 of 2 left", `<div><span class="chip wait">waiting for the GM's client</span> the preset wildshape · keeps mind, HP, class features · merges saves and skills</div>`) : msg("Tamsin", "neutral", "Battle Flow", "Wild Shape", "the card posts once a form is picked", "")
+      log: () => S.pick ? msg("Tamsin", "pending", "By the Books · transform", `Wild Shape · ${S.pick}`, "1 hour · a use spent · 1 of 2 left", `<div><span class="chip wait">waiting for the GM's client</span> the preset wildshape · keeps mind, HP, class features · merges saves and skills</div>`) : msg("Tamsin", "neutral", "By the Books", "Wild Shape", "the card posts once a form is picked", "")
     },
     empty: {
       caption: () => "A new druid, or one the fill could not complete: an empty known slot is filled from the pool at the use itself, in the same popup. The pick becomes a known form and the use proceeds. The mastery record's precedent: the gap is put right where it is met, not ignored.",
       stage: () => { const keep = S.known; S.known = ["Wolf", "Rat", "Riding Horse"]; const out = tok(300, 380, "pc", "Tamsin") + offer("Wild Shape", `${RULE.l2.who} · ${RULE.l2.label} · ${RULE.l2.uses} · Bonus Action`, `One known form is <b>empty</b>. Pick one from the pool and it is yours; then pick the form to take.`, gallery(RULE.l2), S.fillPick ? `Learn the ${S.fillPick}, then become…` : "Fill the slot first", !!S.fillPick, S.fillPick ? "it becomes your fourth known form" : "answer first"); S.known = keep; return out; },
-      log: () => msg("Tamsin", "neutral", "Battle Flow", "Wild Shape", "3 known forms of 4 · the slot is filled at the use", "")
+      log: () => msg("Tamsin", "neutral", "By the Books", "Wild Shape", "3 known forms of 4 · the slot is filled at the use", "")
     },
     moon: {
       caption: () => "Moon 9 in the same shape: the cap is CR 3 (floor of level over 3), Fly allowed from level 8, so the fly filter appears. The speed filter is for the moment the table actually has: a river to cross. The Moon's AC floor and temp HP come from dnd5e's own preset, untouched.",
       stage: () => tok(300, 380, "pc", "Tamsin") + offer("Circle Forms", `${RULE.moon.who} · ${RULE.moon.label} · ${RULE.moon.uses} · Bonus Action`, `AC 13 + Wis if higher · <b>27 temp HP</b> as the form lands (dnd5e's wildshape preset)`, (() => { const keep = S.known; S.known = ["Brown Bear", "Giant Eagle", "Killer Whale", "Giant Spider"]; const out = gallery(RULE.moon); S.known = keep; return out; })(), S.pick ? `Become the ${S.pick.toLowerCase()}` : "Become…", !!S.pick, S.pick ? "the GM's client transforms you" : "answer first"),
-      log: () => S.pick ? msg("Tamsin", "pending", "Battle Flow · transform", `Circle Forms · ${S.pick}`, "4 hours · a Wild Shape use spent", `<div><span class="chip wait">waiting for the GM's client</span> preset wildshape · minimum AC 13 + Wis · temp HP 3 × level</div>`) : msg("Tamsin", "neutral", "Battle Flow", "Circle Forms", "the card posts once a form is picked", "")
+      log: () => S.pick ? msg("Tamsin", "pending", "By the Books · transform", `Circle Forms · ${S.pick}`, "4 hours · a Wild Shape use spent", `<div><span class="chip wait">waiting for the GM's client</span> preset wildshape · minimum AC 13 + Wis · temp HP 3 × level</div>`) : msg("Tamsin", "neutral", "By the Books", "Circle Forms", "the card posts once a form is picked", "")
     },
     poly: {
       caption: () => "Polymorph: no known forms, the whole pool open, the cap read from the target (the pack ships it blank). The caster picks (ruled); the GM can override from the card before the elect transforms. The temp HP are the beast's HP, from the polymorph preset.",
       stage: () => tok(300, 380, "pc", "Aster") + (S.saved ? tok(520, 250, "form", S.polyPick || "Frog") : tok(520, 250, "", "Ogre")) + (!S.saved ? offer("Polymorph", `${RULE.poly.who} · ${RULE.poly.label} · Wisdom save DC 15 · Concentration, 1 hour`, `Target: <b>the Ogre</b> · CR 2 · 59 HP · its HP and mind stay, its body goes. The cap is the target's CR.`,
         `<div class="grp-l">The form<small>${eligible(RULE.poly).length} eligible · the whole pool</small></div>` + tools(RULE.poly, eligible(RULE.poly)) + sortPool(filtered(eligible(RULE.poly))).map(f => row(f, { picked: S.pick === f[0] })).join(""), S.pick ? `Cast · the Ogre becomes a ${S.pick}` : "Cast", !!S.pick, S.pick ? "the save first; the GM can change the form on the card" : "answer first") : ""),
-      log: () => msg("Aster", "pending", "Battle Flow · demand", "Polymorph · Wisdom save DC 15", `Ogre${S.pick && !S.saved ? ` · into a ${S.pick}` : S.polyPick ? ` · into a ${S.polyPick}` : ""}`, S.saved
+      log: () => msg("Aster", "pending", "By the Books · demand", "Polymorph · Wisdom save DC 15", `Ogre${S.pick && !S.saved ? ` · into a ${S.pick}` : S.polyPick ? ` · into a ${S.polyPick}` : ""}`, S.saved
         ? `<div>Ogre · 7 <span class="verdict fail">failed</span></div><div><b>Transformed by the GM's client</b> into a ${S.polyPick} · ${byName(S.polyPick)?.[5] ?? ""} temp HP · concentration 1 hour</div>`
         : `<div><span class="cardbtn" id="rollsave">Roll the save (GM)</span> <span class="cardbtn">Change the form (GM)</span></div>`)
     },
@@ -340,11 +340,11 @@
           `<div class="grp-l">Swap out<small>${S.swapOut ? `${S.swapOut} goes` : "pick one, or keep all four"}</small></div>` + S.known.map(byName).map(f => row(f, { picked: S.swapOut === f[0], name: "out", data: "out" })).join("") +
           `<div class="grp-l">Swap in<small>${S.swapIn ? `${S.swapIn} comes` : `${eligible(RULE.l2).length - 4} in the pool`}</small></div>` + tools(RULE.l2, eligible(RULE.l2)) + sortPool(filtered(eligible(RULE.l2).filter(f => !S.known.includes(f[0])))).map(f => row(f, { picked: S.swapIn === f[0], name: "in", data: "in" })).join(""),
           S.swapOut && S.swapIn ? `Swap ${S.swapOut} for ${S.swapIn}` : "Swap", !!(S.swapOut && S.swapIn), "", "") + `<div class="offer" style="top:auto;bottom:60px;left:auto;right:24px;width:200px;padding:0"><div class="body" style="padding:8px"><button type="button" class="btn" style="width:100%">Keep as you are</button></div></div>`),
-      log: () => msg("Tamsin", "good", "Battle Flow · rest", "Long rest", "Wild Shape uses restored · 2 of 2", S.swapped ? `<div>Known forms: ${S.swapOut} → <b>${S.swapIn}</b></div>` : `<div><span class="cardbtn">Swap a known form</span> <span class="kbd">one swap, this rest</span></div>`)
+      log: () => msg("Tamsin", "good", "By the Books · rest", "Long rest", "Wild Shape uses restored · 2 of 2", S.swapped ? `<div>Known forms: ${S.swapOut} → <b>${S.swapIn}</b></div>` : `<div><span class="cardbtn">Swap a known form</span> <span class="kbd">one swap, this rest</span></div>`)
     },
     record: {
       caption: () => "The record off the Wild Shape item's own card, the mastery record's shape: a way to see the current list any time. Nothing to pick; the rows are the same rows, read-only, with the rule line and when the next swap comes.",
-      stage: () => tok(300, 380, "pc", "Tamsin") + `<div class="offer" style="width:520px">${titleBar("Battle Flow · the record")}<div class="body"><div class="head"><div class="img"></div><div><h2>Wild Shape · known forms</h2><div class="sub">Tamsin · Druid 2 · ${RULE.l2.label.split(" · ").slice(0, 2).join(" · ")} · 4 known · one swap per Long Rest</div></div></div>
+      stage: () => tok(300, 380, "pc", "Tamsin") + `<div class="offer" style="width:520px">${titleBar("By the Books · the record")}<div class="body"><div class="head"><div class="img"></div><div><h2>Wild Shape · known forms</h2><div class="sub">Tamsin · Druid 2 · ${RULE.l2.label.split(" · ").slice(0, 2).join(" · ")} · 4 known · one swap per Long Rest</div></div></div>
         <div class="rec">${S.known.map(byName).map(f => row(f, { status: f[0] === S.lastUsed ? "last used" : "", input: "hidden" })).join("")}</div>
         <div class="situ" style="margin-top:8px">At level 6 the cap rises to CR ½; at 8, CR 1 and flying forms. A known form above the cap never happens: the pool is filtered before it is offered.</div>
         <div class="btnrow"><button type="button" class="btn primary" id="ok">OK</button></div></div></div>`,

@@ -1,8 +1,8 @@
 /**
- * Battle Flow — MACHINE, part of scripts/saves/ (ARCHITECTURE.md §7): the CONSEQUENCES per target,
+ * By the Books — MACHINE, part of scripts/saves/ (ARCHITECTURE.md §7): the CONSEQUENCES per target,
  * receipted — effects per outcome, status presses, Evasion, chained damage at the verdict's multiplier.
  */
-import { MODULE_ID, TITLE, queueFlagWrite, canApplyTo, whisperNoGM, statContext } from "../core.js";
+import { readFlag, TITLE, queueFlagWrite, canApplyTo, whisperNoGM, statContext } from "../core.js";
 import { ruleHTML } from "../rule-text.js";
 import { bfCard } from "../decide/present.js";
 import { applicableProfiles, cardActivity, enchantedAs, featureNamed, lower, namesAnswering, resolveUuid } from "../lookup.js";
@@ -52,13 +52,13 @@ export async function applySaveConsequences(card, uuid, rollMessage = null) {
   if ( saveApplications.has(key) ) return;
   saveApplications.add(key);
   try {
-    let flag = card.getFlag(MODULE_ID, "saves");
+    let flag = readFlag(card, "saves");
     let entry = flag?.targets?.find(t => t.uuid === uuid);
     if ( !entry?.done || entry.applied ) return;
     if ( !rollMessage && entry.rollMessageId ) rollMessage = game.messages.get(entry.rollMessageId);
     if ( rollMessage ) await dramaticVerdictPause(rollMessage);
 
-    flag = card.getFlag(MODULE_ID, "saves"); // the pause is wide — re-read before acting
+    flag = readFlag(card, "saves"); // the pause is wide — re-read before acting
     entry = flag?.targets?.find(t => t.uuid === uuid);
     if ( !entry?.done || entry.applied ) return;
 
@@ -72,7 +72,7 @@ export async function applySaveConsequences(card, uuid, rollMessage = null) {
 
     // A fold CHOICE (Interpose, the bash) holds the pass; `applied` stays false so the floors resume it.
     if ( await gateSaveChoice(card, flag, entry) ) return;
-    flag = card.getFlag(MODULE_ID, "saves");   // the choice write moved the flag — re-read
+    flag = readFlag(card, "saves");   // the choice write moved the flag — re-read
     entry = flag?.targets?.find(t => t.uuid === uuid);
     if ( !entry?.done || entry.applied ) return;
 
@@ -141,8 +141,8 @@ async function applyFailDamage(card, flag, entry) {
   if ( !fd || (entry.outcome !== "failed") ) return;
   let amount = Number(fd.amount);
   if ( !Number.isFinite(amount) && (fd.equalTo === "taken") && fd.attackId && fd.takenBy ) {
-    amount = game.messages.contents.filter(m => m.getFlag(MODULE_ID, "attackFor") === fd.attackId)
-      .flatMap(m => (m.getFlag(MODULE_ID, "receipt")?.targets ?? []).filter(t => (t.uuid === fd.takenBy) && !t.reverted))
+    amount = game.messages.contents.filter(m => readFlag(m, "attackFor") === fd.attackId)
+      .flatMap(m => (readFlag(m, "receipt")?.targets ?? []).filter(t => (t.uuid === fd.takenBy) && !t.reverted))
       .reduce((n, t) => n + (Number(t.taken) || 0), 0);
   }
   const by = fd.by ?? flag.item?.name ?? "the reaction";
@@ -281,7 +281,7 @@ const saveDamageApplications = new Set();
 
 /** Every chained roll on every DONE, unreceipted target; the receipt gate makes it idempotent. */
 export async function reconcileSaveDamage(card, onlyUuid = null) {
-  const flag = card.getFlag(MODULE_ID, "saves");
+  const flag = readFlag(card, "saves");
   if ( !flag ) return;
   // No damage dimension: an enricher click chains to the card too, and the native tray owns it.
   if ( !flag.hasDamage ) return;
@@ -293,7 +293,7 @@ export async function reconcileSaveDamage(card, onlyUuid = null) {
       const key = `${damageMessage.id}|${entry.uuid}`;
       if ( saveDamageApplications.has(key) ) continue;
       // ANY receipt entry, reverted included, is handled: a manual ↩ revert sticks.
-      if ( damageMessage.getFlag(MODULE_ID, "receipt")?.targets
+      if ( readFlag(damageMessage, "receipt")?.targets
         ?.some(t => t.uuid === entry.uuid) ) continue;
       saveDamageApplications.add(key);
       try {

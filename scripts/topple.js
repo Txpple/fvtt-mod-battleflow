@@ -1,8 +1,8 @@
 /**
- * Battle Flow — MACHINE (ARCHITECTURE.md §7): the Topple demand, the `topple` flag's lifecycle off
+ * By the Books — MACHINE (ARCHITECTURE.md §7): the Topple demand, the `topple` flag's lifecycle off
  * mastery.js's card (supersede, dialog, buzzer, fold, Prone press, GM button). Neither imports the other.
  */
-import { MODULE_ID, TITLE, isActiveGM, drivesMomentFor, canApplyTo, whisperNoGM, queueFlagWrite,
+import { MODULE_ID, readFlag, TITLE, isActiveGM, drivesMomentFor, canApplyTo, whisperNoGM, queueFlagWrite,
   canAnswerFor } from "./core.js";
 import { resolveUuid } from "./lookup.js";
 import { forceStatus, rollConfigFor } from "./shared.js";
@@ -16,12 +16,12 @@ import { listen } from "./dispatch.js";
 /* ⚠ The twin-ask supersede: `isActiveGM()` is per-USER, so two sessions on one account both stamp
  * the ask. An ask with an ELDER twin (timestamp, then id) deletes itself, the same on every client. */
 listen("createChatMessage", "topple", message => {
-  const flag = message.getFlag(MODULE_ID, "topple");
+  const flag = readFlag(message, "topple");
   if ( !flag?.sourceMessageId ) return;
   if ( !drivesMomentFor(flag?.attackerUuid) ) return;
   const elder = game.messages.contents.some(m => {
     if ( m.id === message.id ) return false;
-    if ( m.getFlag(MODULE_ID, "topple")?.sourceMessageId !== flag.sourceMessageId ) return false;
+    if ( readFlag(m, "topple")?.sourceMessageId !== flag.sourceMessageId ) return false;
     return (m.timestamp < message.timestamp)
       || ((m.timestamp === message.timestamp) && (m.id < message.id));
   });
@@ -45,16 +45,16 @@ async function showTopplePopup(message, _topple, target) {
   if ( toppleDialogsOpening.has(key) ) return;
   toppleDialogsOpening.add(key);
   try {
-    const flag = message.getFlag(MODULE_ID, "topple");
+    const flag = readFlag(message, "topple");
     const entry = flag?.targets?.find(t => t.uuid === target.uuid);
     if ( !entry || entry.done ) return;
     const actor = await fromUuid(target.uuid);
     if ( !(actor instanceof Actor) || !canAnswerFor(actor) ) return;
     const demand = new DialogCarried({
       cardId: message.id, key, failed: null,
-      owed: card => { const e = card.getFlag(MODULE_ID, "topple")?.targets?.find(t => t.uuid === target.uuid); return !!e && !e.done; },
+      owed: card => { const e = readFlag(card, "topple")?.targets?.find(t => t.uuid === target.uuid); return !!e && !e.done; },
       present: card => ({
-        img: card.getFlag(MODULE_ID, "topple")?.weapon?.img ?? null,
+        img: readFlag(card, "topple")?.weapon?.img ?? null,
         eyebrow: "Weapon Mastery — Topple",
         title: `${target.name}: Constitution save, DC ${flag.dc}`,
         subtitle: `${flag.weapon?.name ?? "The weapon"} demands it.`,
@@ -62,7 +62,7 @@ async function showTopplePopup(message, _topple, target) {
         tone: "pending"
       }),
       // The topple flag has no `status`; holdBarHTML gates on one, so hand it a pending view.
-      bar: card => ({ status: "pending", ...card.getFlag(MODULE_ID, "topple") })
+      bar: card => ({ status: "pending", ...readFlag(card, "topple") })
     });
     const rolls = await actor.rollSavingThrow(
       { ability: flag.ability || "con", target: flag.dc },
@@ -93,13 +93,13 @@ async function markToppleAutoFailed(message, uuid, sources = []) {
     own.answeredAt = Date.now();
   });
   if ( !claimed ) return;
-  if ( (message.getFlag(MODULE_ID, "topple")?.targets ?? []).every(t => t.done) ) disarmToppleTimer(message.id);
+  if ( (readFlag(message, "topple")?.targets ?? []).every(t => t.done) ) disarmToppleTimer(message.id);
   await applyToppleFailure(message, uuid);
 }
 
 /** Roll one pending topple target's save, chained to the card; the buzzer passes `timedOut`. */
 async function rollToppleSave(message, target, { mode = null, bonus = null, timedOut = false } = {}) {
-  const flag = message.getFlag(MODULE_ID, "topple");
+  const flag = readFlag(message, "topple");
   const entry = flag?.targets?.find(t => t.uuid === target.uuid);
   if ( !entry || entry.done ) return;
   const actor = await fromUuid(target.uuid);
@@ -119,7 +119,7 @@ async function rollToppleSave(message, target, { mode = null, bonus = null, time
 const toppleTimers = new Map();
 
 function armToppleTimer(message) {
-  const flag = message?.getFlag(MODULE_ID, "topple");
+  const flag = readFlag(message, "topple");
   if ( !flag?.deadline || !drivesMomentFor(flag?.attackerUuid) ) return;
   if ( !(flag.targets ?? []).some(t => !t.done) ) return;
   armDeadline(toppleTimers, message.id, flag.deadline, fireToppleTimer);
@@ -130,7 +130,7 @@ const disarmToppleTimer = messageId => disarmDeadline(toppleTimers, messageId);
 async function fireToppleTimer(messageId) {
   try {
     const card = game.messages.get(messageId);
-    const flag = card?.getFlag(MODULE_ID, "topple");
+    const flag = readFlag(card, "topple");
     if ( !flag ) return;
     for ( const t of (flag.targets ?? []) ) {
       if ( t.done ) continue;
@@ -170,7 +170,7 @@ listen("createChatMessage", "topple", message => {
 
 /** The failure's press, announcement and `applied` receipt; idempotent by `applied`, so crash-resume re-drives it. */
 async function applyToppleFailure(card, uuid) {
-  const flag = foundry.utils.deepClone(card.getFlag(MODULE_ID, "topple"));
+  const flag = foundry.utils.deepClone(readFlag(card, "topple"));
   const entry = flag?.targets?.find(t => t.uuid === uuid);
   if ( !entry || (entry.outcome !== "prone") || entry.applied ) return;
   const actor = resolveUuid(uuid);
@@ -218,7 +218,7 @@ async function foldToppleSave(saveMessage) {
     if ( found?.flagKey !== "topple" ) return;
     // Whole-log; the oldest pending card answers first.
     for ( const { card } of found.matches ) {
-      const flag = foundry.utils.deepClone(card.getFlag(MODULE_ID, "topple"));
+      const flag = foundry.utils.deepClone(readFlag(card, "topple"));
       if ( !(flag?.dc > 0) ) continue;
       if ( flag.ability && (abilityOf(saveMessage) !== flag.ability) ) continue;
       const entry = flag.targets?.find(t => !t.done && (t.uuid === actor.uuid));
@@ -233,14 +233,14 @@ async function foldToppleSave(saveMessage) {
         own.done = true;
         own.outcome = success ? "saved" : "prone";
         own.total = total;
-        if ( saveMessage.getFlag(MODULE_ID, "timedOut") ) own.timedOut = true;
+        if ( readFlag(saveMessage, "timedOut") ) own.timedOut = true;
         // answeredAt is crash-resume's clock; a success has nothing to resume.
         own.answeredAt = Date.now();
         if ( success ) own.applied = true;
       });
       if ( !claimed ) continue;
       // ⚠ Re-read, not `flag`: the pre-write clone still shows this target pending.
-      if ( (card.getFlag(MODULE_ID, "topple")?.targets ?? []).every(t => t.done) ) {
+      if ( (readFlag(card, "topple")?.targets ?? []).every(t => t.done) ) {
         disarmToppleTimer(card.id);
       }
       if ( !success ) {
@@ -256,7 +256,7 @@ async function foldToppleSave(saveMessage) {
             img: flag.weapon?.img, eyebrow: "Weapon Mastery — Topple", tone: "neutral",
             title: `Topple — ${entry.name} stays standing`,
             subtitle: `Constitution save ${total} vs DC ${flag.dc}`
-              + `${saveMessage.getFlag(MODULE_ID, "timedOut") ? " — rolled by the timer" : ""}`
+              + `${readFlag(saveMessage, "timedOut") ? " — rolled by the timer" : ""}`
           })
         });
       }
@@ -269,7 +269,7 @@ async function foldToppleSave(saveMessage) {
 
 // Every client closes a done entry's popup; the buzzer disarms when nothing is pending.
 listen("updateChatMessage", "topple", message => {
-  const topple = message.getFlag(MODULE_ID, "topple");
+  const topple = readFlag(message, "topple");
   if ( topple ) {
     for ( const t of (topple.targets ?? []) ) {
       if ( !t.done ) continue;
@@ -288,7 +288,7 @@ listen("deleteChatMessage", "topple", message => {
 
 // The Topple card's rows: the bar, a Roll button per target, the GM's Prone button.
 listen("dnd5e.renderChatMessage", "topple", (message, html) => {
-  const topple = message.getFlag(MODULE_ID, "topple");
+  const topple = readFlag(message, "topple");
   if ( topple?.targets?.length ) {
     // The buzzer re-arms on render from the absolute deadline, so a reload resumes the clock.
     if ( topple.deadline && topple.targets.some(t => !t.done) ) {
@@ -315,7 +315,7 @@ listen("dnd5e.renderChatMessage", "topple", (message, html) => {
           void showTopplePopup(message, topple, t);
         }
         html.querySelector(SURFACES.messageContent)?.appendChild(momentButton(`Roll save — ${t.name}`, () => {
-          void showTopplePopup(message, message.getFlag(MODULE_ID, "topple"), t);
+          void showTopplePopup(message, readFlag(message, "topple"), t);
         }));
       }
 
@@ -323,7 +323,7 @@ listen("dnd5e.renderChatMessage", "topple", (message, html) => {
         html.querySelector(SURFACES.messageContent)?.appendChild(momentButton(`${t.name} failed — Prone`, async () => {
           const live = await fromUuid(t.uuid);
           if ( live instanceof Actor ) await forceStatus(live, "prone",
-            { origin: message.getFlag(MODULE_ID, "topple")?.attackerUuid ?? null });
+            { origin: readFlag(message, "topple")?.attackerUuid ?? null });
           await queueFlagWrite(message, "topple", live2 => {
             const entry = live2.targets?.find(x => x.uuid === t.uuid);
             if ( !entry ) return false;

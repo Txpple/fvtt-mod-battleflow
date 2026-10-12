@@ -1,5 +1,5 @@
 /**
- * Battle Flow — DECISION (ARCHITECTURE.md §2): THE DICE CHIPS — which dice rise on the canvas
+ * By the Books — DECISION (ARCHITECTURE.md §2): THE DICE CHIPS — which dice rise on the canvas
  * (RULINGS *The dice that rise*). The record is `flags.<module>.diceRise`; dice-rise.js draws it.
  */
 

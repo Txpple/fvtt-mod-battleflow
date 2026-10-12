@@ -10,7 +10,7 @@ import { readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-const src = process.argv.find((a, i) => i >= 2 && !a.startsWith('--')) || join(tmpdir(), 'battleflow-corpus-raw.json');
+const src = process.argv.find((a, i) => i >= 2 && !a.startsWith('--')) || join(tmpdir(), 'bythebooks-corpus-raw.json');
 const all = process.argv.includes('--all');
 const { rows, dnd5e, foundry } = JSON.parse(readFileSync(src, 'utf8'));
 const OUTWARD = new Set(['creature', 'ally', 'enemy', 'any', 'space', 'object']);

@@ -2,7 +2,7 @@
 // `!!(system.isSuppressed ?? duration.expired)`: an expired effect is SUPPRESSED, not deleted
 // (NOTES: expiry is mark, not delete), and dnd5e applies none of its changes. A gate testing only
 // `!e.disabled` reads an expired barrier as standing. One Shield cast plus a turn boundary reproduces it.
-// Prints, asserts nothing, on the GM-owned BF Test Shielder in a throwaway combat; everything it
+// Prints, asserts nothing, on the GM-owned BTB Test Shielder in a throwaway combat; everything it
 // creates is undone in `finally`, and pinned settings are handed back.
 //
 //   node tools/probe-shield-leftover.mjs
@@ -12,7 +12,7 @@ const TAG = "probe-shield-leftover";
 const f = await connectSuite({ tag: TAG, watchdogMs: 300_000, env: loadEnv() });
 
 const out = await f.evaluate(async () => {
-  const MOD = "fvtt-mod-battleflow";
+  const MOD = "fvtt-mod-bythebooks";
   const sleep = ms => new Promise(r => setTimeout(r, ms));
   const waitFor = async (fn, ms = 12000) => {
     const end = Date.now() + ms;
@@ -28,15 +28,15 @@ const out = await f.evaluate(async () => {
   const prior = Object.fromEntries(SETTING_KEYS.map(k => [k, game.settings.get(MOD, k)]));
   const set = (k, v) => game.settings.set(MOD, k, v);
 
-  const scene = game.scenes.getName("Battle Flow Test Range");
-  const attacker = game.actors.getName("BF Test Attacker");
-  const mage = game.actors.getName("BF Test Mage");
-  if ( !scene || !attacker || !mage ) return { fatal: "missing fixture: the range, BF Test Attacker or the Mage — run tools/fixture-suite.mjs" };
+  const scene = game.scenes.getName("By the Books Test Range");
+  const attacker = game.actors.getName("BTB Test Attacker");
+  const mage = game.actors.getName("BTB Test Mage");
+  if ( !scene || !attacker || !mage ) return { fatal: "missing fixture: the range, BTB Test Attacker or the Mage — run tools/fixture-suite.mjs" };
   const priorActiveScene = game.scenes.active?.id ?? null;
   const priorActiveCombats = game.combats.filter(c => c.active).map(c => c.id);
 
-  const { hasReactionEffect, findInterrupt } = await import("/modules/fvtt-mod-battleflow/scripts/hold/lookup.js");
-  const { livePopups } = await import("/modules/fvtt-mod-battleflow/scripts/ui.js");
+  const { hasReactionEffect, findInterrupt } = await import("/modules/fvtt-mod-bythebooks/scripts/hold/lookup.js");
+  const { livePopups } = await import("/modules/fvtt-mod-bythebooks/scripts/ui.js");
 
   let combat = null, attackerTok = null, shielder = null, shielderTok = null, shielderHP = null;
   const barrierOf = actor => (actor?.effects ?? []).find(e => e.name === "Imperceptible Barrier") ?? null;
@@ -53,7 +53,7 @@ const out = await f.evaluate(async () => {
 
   const cleanupMessages = async () => {
     const mine = game.messages.filter(m => (m.timestamp >= started)
-      && (m.speaker?.alias?.startsWith?.("BF Test") || m.speaker?.alias === "Battle Flow" || Object.keys(m.flags?.[MOD] ?? {}).length));
+      && (m.speaker?.alias?.startsWith?.("BTB Test") || m.speaker?.alias === "By the Books" || Object.keys(m.flags?.[MOD] ?? {}).length));
     if ( mine.length ) await ChatMessage.deleteDocuments(mine.map(m => m.id)).catch(() => {});
   };
 
@@ -68,12 +68,12 @@ const out = await f.evaluate(async () => {
     await waitFor(() => canvas.ready);
 
     // The stand-in: a GM-owned, linked copy of the Mage.
-    shielder = game.actors.getName("BF Test Shielder");
+    shielder = game.actors.getName("BTB Test Shielder");
     if ( !shielder ) {
       const data = mage.toObject(); delete data._id;
-      data.name = "BF Test Shielder"; data.ownership = { default: 0 };
-      data.prototypeToken.actorLink = true; data.prototypeToken.name = "BF Test Shielder";
-      shielder = await Actor.create(data); log("created BF Test Shielder");
+      data.name = "BTB Test Shielder"; data.ownership = { default: 0 };
+      data.prototypeToken.actorLink = true; data.prototypeToken.name = "BTB Test Shielder";
+      shielder = await Actor.create(data); log("created BTB Test Shielder");
     }
     shielderTok = scene.tokens.find(t => t.actorId === shielder.id) ?? null;
     if ( !shielderTok ) [shielderTok] = await scene.createEmbeddedDocuments("Token", [foundry.utils.mergeObject(shielder.prototypeToken.toObject(), { x: 1500, y: 1000, actorId: shielder.id, actorLink: true }, { inplace: false })]);

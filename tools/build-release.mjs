@@ -1,6 +1,6 @@
 // THE RELEASE ZIP — the gate first, then the archive, then the archive read back (NOTES §5 *Release*).
 //
-//   node tools/build-release.mjs                 build dist/fvtt-mod-battleflow.zip from the tree
+//   node tools/build-release.mjs                 build dist/fvtt-mod-bythebooks.zip from the tree
 //   node tools/build-release.mjs --tag v2.6.0    and refuse unless module.json's version is 2.6.0
 //
 // CI runs it on a pushed tag (.github/workflows/release.yml) and publishes what it builds; run by
@@ -22,8 +22,8 @@ import { fileURLToPath } from "node:url";
 import { crc32, deflateRawSync, inflateRawSync } from "node:zlib";
 
 const REPO = dirname(dirname(fileURLToPath(import.meta.url)));
-const OUT = join(REPO, "dist", "fvtt-mod-battleflow.zip");
-const ENTRY = "scripts/battleflow.js";
+const OUT = join(REPO, "dist", "fvtt-mod-bythebooks.zip");
+const ENTRY = "scripts/bythebooks.js";
 
 const fail = msg => {
   console.error(`build-release: ${msg}`);
@@ -167,5 +167,5 @@ for (const [name, data] of back) {
 }
 if (problems.length) fail(`do not ship this archive:\n  ${problems.join("\n  ")}`);
 
-console.log(`fvtt-mod-battleflow v${version} -> ${relative(REPO, OUT).split("\\").join("/")}`);
+console.log(`fvtt-mod-bythebooks v${version} -> ${relative(REPO, OUT).split("\\").join("/")}`);
 console.log(`${zip.length.toLocaleString("en-US")} bytes, ${back.size} entries, ${imports} relative imports resolved, every entry equal to the tree`);

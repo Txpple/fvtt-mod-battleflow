@@ -1,11 +1,11 @@
 /**
- * Battle Flow — MACHINE (ARCHITECTURE.md §7): THE STORED DICE (STORED_DICE — Portent). At the rest the row's d20s
+ * By the Books — MACHINE (ARCHITECTURE.md §7): THE STORED DICE (STORED_DICE — Portent). At the rest the row's d20s
  * are rolled and kept as a chip on the bearer ("Portent — 17 · 3", the effect view lists it); a face is spent to
  * REPLACE a D20 Test's d20, once per turn. The bearer's OWN roll: a tick per face in the roll's dialog, BEFORE the
  * roll (the rule's order) — the d20 rolled pinned to the face. Another creature's roll: the bystander's bend
  * (INTERRUPT_ROLLS `bend: "set"`, hold/ and bystanders.js), after the roll — the register's bend.
  */
-import { MODULE_ID, TITLE } from "./core.js";
+import { MODULE_ID, readFlag, TITLE } from "./core.js";
 import { featureNamed, lower } from "./lookup.js";
 import { STORED_DICE, listedNames, storedDiceEntries } from "./decide/registry.js";
 import { storedChipName } from "./decide/stored-dice.js";
@@ -48,13 +48,13 @@ listen("dnd5e.restCompleted", "stored-dice", (actor, result, config) => {
         const faces = roll.dice[0].results.map(r => r.result);
         // B4 — an omen row's chip says which omen the face is (Cosmic Omen: even Weal, odd Woe); its face is never spent.
         const name = row.omen ? `${key} — ${(faces[0] % 2 === 0) ? "Weal" : "Woe"} (${faces[0]})` : storedChipName(key, faces);
-        const stale = actor.effects.filter(e => e.getFlag(MODULE_ID, STORED_FLAG)?.key === key).map(e => e.id);
+        const stale = actor.effects.filter(e => readFlag(e, STORED_FLAG)?.key === key).map(e => e.id);
         if ( stale.length ) await actor.deleteEmbeddedDocuments("ActiveEffect", stale);
         await ActiveEffect.implementation.create({
           name, img: item.img ?? "icons/svg/d20.svg", origin: item.uuid, transfer: false, disabled: false,
           description: row.omen
-            ? `<p>Written by Battle Flow at the rest: ${esc(key)}'s roll — ${(faces[0] % 2 === 0) ? "even, Weal: your Reaction adds 1d6 to a creature's D20 Test" : "odd, Woe: your Reaction subtracts 1d6 from a creature's D20 Test"} within 30 feet. Rolled again at the next Long Rest.</p>`
-            : `<p>Written by Battle Flow at the rest: ${esc(key)}'s dice, each spent once to replace a d20. Lost at the next ${restType === "long" ? "Long" : "Short"} Rest.</p>`,
+            ? `<p>Written by By the Books at the rest: ${esc(key)}'s roll — ${(faces[0] % 2 === 0) ? "even, Weal: your Reaction adds 1d6 to a creature's D20 Test" : "odd, Woe: your Reaction subtracts 1d6 from a creature's D20 Test"} within 30 feet. Rolled again at the next Long Rest.</p>`
+            : `<p>Written by By the Books at the rest: ${esc(key)}'s dice, each spent once to replace a d20. Lost at the next ${restType === "long" ? "Long" : "Short"} Rest.</p>`,
           flags: { [MODULE_ID]: { [STORED_FLAG]: { key, faces, turn: null } } }
         }, { parent: actor });
         rolled.push({ key, faces });
@@ -76,7 +76,7 @@ function carry(config, dialog, actor, testKind) {
     if ( !(row.tests ?? []).includes(testKind) ) continue;
     const chip = storedChipOf(actor, key);
     if ( !chip || !storedFacesUsable(chip, row) ) continue;
-    for ( const face of chip.getFlag(MODULE_ID, STORED_FLAG)?.faces ?? [] ) faces.push({ key, face, rule: row.rule });
+    for ( const face of readFlag(chip, STORED_FLAG)?.faces ?? [] ) faces.push({ key, face, rule: row.rule });
   }
   if ( !faces.length ) return;
   const stored = new DialogCarried({ faces, armed: null, actorUuid: actor.uuid });
@@ -107,7 +107,7 @@ function drawStored(app) {
   const box = document.createElement("fieldset");
   box.dataset.bfStored = "";
   box.style.cssText = "margin:0.4rem 0;padding:0.3rem 0.5rem;";
-  box.innerHTML = `<legend>Battle Flow — before the roll</legend>` + stored.faces.map((f, i) => `
+  box.innerHTML = `<legend>By the Books — before the roll</legend>` + stored.faces.map((f, i) => `
     <label style="display:flex;align-items:center;gap:0.4rem;margin:0.15rem 0;cursor:pointer;">
       <input type="checkbox" name="bf-stored" value="${i}" ${stored.armed === i ? "checked" : ""} style="margin:0;">
       <span><strong>${esc(f.key)}</strong> — use the ${f.face}</span>
@@ -154,8 +154,8 @@ listen("dnd5e.renderChatMessage", "stored-dice", (message, html) => {
   try {
     const content = html.querySelector?.(SURFACES.messageContent) ?? html;
     if ( !content ) return;
-    const rested = message.getFlag(MODULE_ID, REST_LINE);
-    const used = message.getFlag(MODULE_ID, USED_LINE);
+    const rested = readFlag(message, REST_LINE);
+    const used = readFlag(message, USED_LINE);
     const said = rested?.length ? rested.map(r => STORED_DICE[r.key]?.omen ? `${r.key} — ${(r.faces[0] % 2 === 0) ? "Weal" : "Woe"} (${r.faces[0]})` : `${r.key} — ${r.faces.join(" and ")} kept`).join(" · ")
       : used ? `${used.key} — the d20 is the ${used.face}` : null;
     if ( !said || content.querySelector(".bf-stored-line") ) return;

@@ -1,6 +1,6 @@
 // @ts-check
 /**
- * Battle Flow — DECISION (ARCHITECTURE.md §2): which pending DEMAND a roll answers, by its
+ * By the Books — DECISION (ARCHITECTURE.md §2): which pending DEMAND a roll answers, by its
  * `respondsTo` stamp, its chain, or bare by actor and ability. A bare roll answers one machine, by
  * `priority`: concentration, then saves, then Topple. Also the saves flag's constructors and reader.
  */

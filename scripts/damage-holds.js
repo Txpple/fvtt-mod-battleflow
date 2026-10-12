@@ -1,11 +1,11 @@
 /**
- * Battle Flow — MACHINE (ARCHITECTURE.md §7): the DAMAGE HOLD — an `any` reduction (Stone's
+ * By the Books — MACHINE (ARCHITECTURE.md §7): the DAMAGE HOLD — an `any` reduction (Stone's
  * Endurance) or an `ally` guard's (Interception), asked before ANY module-applied damage lands.
  * A share claimed at auto-apply.js `registerDamageClaim` WAITS on its own card; the keeper lands
  * it short by the roll (`held`, never claimed twice). ⚠ Card buttons and sheet edits are never
  * held (RULINGS *Where the table bends the rule*). Order: save multiplier, reduction, resistances.
  */
-import { MODULE_ID, TITLE, keepsMessage, queueFlagWrite, canAnswerFor, statContext, decisionWindow } from "./core.js";
+import { MODULE_ID, readFlag, TITLE, keepsMessage, queueFlagWrite, canAnswerFor, statContext, decisionWindow } from "./core.js";
 import { lower, itemNamed, resolveUuid, reductionFor, holdsFor, featureNamed, activityNamed } from "./lookup.js";
 import { alliesWithin, tokenForUuid } from "./geometry.js";
 import { interruptEntries } from "./decide/registry.js";
@@ -122,7 +122,7 @@ registerDamageClaim((receiptMessage, target, actor, damages, { multiplier = 1, n
   if ( !(Number(actor.system?.attributes?.hp?.value ?? 0) > 0) ) return false;
   const attack = resolveAttackMessage(receiptMessage);
   // An attack hit the attack hold already asked this target about stays the hold's.
-  const heldByAttack = !!attack?.getFlag(MODULE_ID, "hold")?.targets?.some(t => t.uuid === target.uuid);
+  const heldByAttack = !!readFlag(attack, "hold")?.targets?.some(t => t.uuid === target.uuid);
   const found = (own && !reactionSpent(actor) && !heldByAttack) ? anyReductionOf(actor) : null;
   if ( !found ) {
     // An ATTACK's damage to a creature with a guard beside it is held for the guards to answer (an `any` guard on any damage).
@@ -183,7 +183,7 @@ async function stampHold(receiptMessage, target, actor, damages, { multiplier, n
 
 
 function armTimer(message) {
-  const flag = message?.getFlag(MODULE_ID, HOLD_FLAG);
+  const flag = readFlag(message, HOLD_FLAG);
   if ( (flag?.status !== "pending") || !flag.deadline || !keepsMessage(message) ) return;
   armDeadline(timers, message.id, flag.deadline, async () => {
     const live = game.messages.get(message.id);
@@ -224,7 +224,7 @@ async function answerHold(message, answer, who = null) {
   if ( answering.has(message.id) ) return;
   answering.add(message.id);
   try {
-    const flag = message.getFlag(MODULE_ID, HOLD_FLAG);
+    const flag = readFlag(message, HOLD_FLAG);
     if ( flag?.status !== "pending" ) return;
     // A guard answers for itself: its item, its formula, its Reaction.
     const guard = who ? (flag.guards ?? []).find(g => g.actorUuid === who) : null;
@@ -307,7 +307,7 @@ async function landHeld(message) {
     claimed = true;
   });
   if ( !claimed ) return;
-  const flag = message.getFlag(MODULE_ID, HOLD_FLAG);
+  const flag = readFlag(message, HOLD_FLAG);
   const receipt = game.messages.get(flag.receiptId) ?? message;
   const multiplier = Number(flag.multiplier ?? 1);
   let damages = unpackDamages(flag.damages);
@@ -348,7 +348,7 @@ const verbLabel = row => { const v = row?.verb ?? "intercept"; return v.charAt(0
 
 /** A guard's own popup, keyed apart, closed by any intercept or its own pass. */
 async function showGuardPopup(message, guard) {
-  const flag = message.getFlag(MODULE_ID, HOLD_FLAG);
+  const flag = readFlag(message, HOLD_FLAG);
   if ( (flag?.status !== "pending") || guard.passed ) return;
   const actor = resolveUuid(guard.actorUuid);
   const row = INTERRUPT_REDUCTIONS[flag.reaction];
@@ -367,7 +367,7 @@ async function showGuardPopup(message, guard) {
 }
 
 async function showPopup(message) {
-  const flag = message.getFlag(MODULE_ID, HOLD_FLAG);
+  const flag = readFlag(message, HOLD_FLAG);
   if ( flag?.status !== "pending" ) return;
   if ( flag.guards?.length ) {
     for ( const guard of flag.guards ) if ( !guard.passed && canAnswerFor(resolveUuid(guard.actorUuid)) ) await showGuardPopup(message, guard);
@@ -403,7 +403,7 @@ function holdLine(flag) {
 
 listen("dnd5e.renderChatMessage", "damage-holds", (message, html) => {
   try {
-    const flag = message.getFlag(MODULE_ID, HOLD_FLAG);
+    const flag = readFlag(message, HOLD_FLAG);
     if ( !flag ) return;
     const content = html.querySelector?.(SURFACES.messageContent) ?? html;
     if ( !content || content.querySelector(".bf-damage-hold-line") ) return;
@@ -430,7 +430,7 @@ listen("dnd5e.renderChatMessage", "damage-holds", (message, html) => {
 
 // An answer anywhere closes the popup everywhere; the clock stands down with it.
 listen("updateChatMessage", "damage-holds", message => {
-  const flag = message.getFlag(MODULE_ID, HOLD_FLAG);
+  const flag = readFlag(message, HOLD_FLAG);
   if ( !flag ) return;
   if ( flag.status === "pending" ) { armTimer(message); closeGuardPopups(message, flag, false); return; }
   disarmDeadline(timers, message.id);

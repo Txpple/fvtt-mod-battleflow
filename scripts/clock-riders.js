@@ -1,7 +1,7 @@
 /**
- * Battle Flow — damage riders on the combat clock: a feature's extra damage rides the hit when the round or the turn says so.
+ * By the Books — damage riders on the combat clock: a feature's extra damage rides the hit when the round or the turn says so.
  */
-import { MODULE_ID, TITLE, activeCombatFor, canAnswerFor, drivesMomentFor, queueFlagWrite, statContext } from "./core.js";
+import { MODULE_ID, readFlag, TITLE, activeCombatFor, canAnswerFor, drivesMomentFor, queueFlagWrite, statContext } from "./core.js";
 import { ruleHTML } from "./rule-text.js";
 import { lower, featureNamed, itemNamed, activityNamed, activityOfType, asiAssigned, cardActivity, resolveUuid, dealtTypesOf, pactWeaponFits, wieldsAs, wornNamed } from "./lookup.js";
 import { coatSaveAbility } from "./decide/chips.js";
@@ -53,7 +53,7 @@ const FORM_FLAG = "formChip";
 function formOn(actor, row) {
   if ( !row.forms ) return null;
   return standingForm(row, (actor?.effects ?? []).map(e => ({ name: e.name, active: !!e.active,
-    chip: e.getFlag(MODULE_ID, FORM_FLAG)?.form ?? null })));
+    chip: readFlag(e, FORM_FLAG)?.form ?? null })));
 }
 
 /** A row's extra damage as a formula: the row's own `amount` (the text's token), else its activity's first part. */
@@ -89,7 +89,7 @@ function enchantedFor(attacker, item, feature, row) {
 function naturalTwentyOf(attackMessage) {
   const face = attackMessage?.rolls?.[0]?.dice?.[0]?.results?.find(r => (r.active !== false) && !r.discarded)?.result ?? null;
   if ( face === 20 ) return true;
-  const spends = attackMessage?.getFlag?.(MODULE_ID, "d20fold")?.spends ?? [];
+  const spends = readFlag(attackMessage, "d20fold")?.spends ?? [];
   return spends.some(s => Number.isFinite(s?.twenty?.total) || (s?.reroll?.isCritical === true));
 }
 
@@ -130,7 +130,7 @@ function targetsFit(hits, maxSize) {
 
 /** The flag a feature keeps its OPTION in — the choice the sheet never records (Hunter's Prey). */
 const OPTION_FLAG = "option";
-const optionOf = feature => feature?.getFlag?.(MODULE_ID, OPTION_FLAG) ?? null;
+const optionOf = feature => readFlag(feature, OPTION_FLAG) ?? null;
 
 /**
  * An `inspired` row: the attacker's own Inspired die, granted by a bard who holds the row's feature (Combat
@@ -180,7 +180,7 @@ function clockRidersFor(attackMessage, activity, roll = {}) {
   const hits = attackMessage ? hitTargets(attackMessage) : [];
   const facts = {
     inCombat: !!combat, round: combat?.round ?? null,
-    sneakArmed: !!attackMessage?.getFlag(MODULE_ID, "sneak")?.armed,
+    sneakArmed: !!readFlag(attackMessage, "sneak")?.armed,
     raging: attacker.effects.some(e => e.active && ((lower(e.name) === "rage") || e.statuses?.has?.("raging"))),
     reckless: attacker.effects.some(e => e.active && (lower(e.name) === "reckless")),
     targetDamaged: targetDamagedOf(hits),
@@ -189,7 +189,7 @@ function clockRidersFor(attackMessage, activity, roll = {}) {
     // a Critical Hit: the attack's own d20, or the damage roll made critical (a Paralyzed target's)
     critical: !!attackMessage?.rolls?.[0]?.isCritical || (roll.critical === true),
     // an Opportunity Attack: one the module drove says so; an off-turn melee attack in combat may be one
-    opportunity: attackMessage?.getFlag(MODULE_ID, "opportunity") ? "driven"
+    opportunity: readFlag(attackMessage, "opportunity") ? "driven"
       : (combat?.started && combat.combatant && (combat.combatant.actor?.uuid !== attacker.uuid)
         && (activity?.attack?.type?.value === "melee")) ? "offTurn" : null
   };
@@ -367,7 +367,7 @@ listen("dnd5e.preRollDamage", "clock-riders", (config, _dialog, message) => {
     const attackMessage = attackMessageForDamage(config, message);
     if ( !attackMessage ) return;
     // Only ticked riders ride; no pick recorded (a driven roll, no offer): every due rider rides.
-    const pick = attackMessage.getFlag(MODULE_ID, "clockPick");
+    const pick = readFlag(attackMessage, "clockPick");
     const picked = Array.isArray(pick) ? new Set(pick) : null;
     const riders = clockRidersFor(attackMessage, activity, { dealt: dealtTypesOfRolls(config.rolls),
       critical: (config.isCritical === true) || (config.rolls?.[0]?.options?.isCritical === true) })
@@ -451,7 +451,7 @@ listen("dnd5e.preRollDamage", "clock-riders", (config, _dialog, message) => {
 /** A rider row with `effects` or `lands` lands them on the hit targets once the damage message exists,
  * on the elect, receipted — the hit menu's path, the row's `clock` pinned to the attacker. */
 async function settleRiderEffects(message) {
-  const cr = message.getFlag(MODULE_ID, "clockRiders");
+  const cr = readFlag(message, "clockRiders");
   const rows = (cr?.riders ?? []).filter(r => r.effects || r.lands || r.random || r.save || r.tempHp || r.exhaustion || r.endsMark);
   if ( !rows.length || cr.effectsApplied ) return;
   if ( !drivesMomentFor(cr.sourceUuid ?? null) ) return;
@@ -540,10 +540,10 @@ registerResumable("clockRiders", {
 
 /** Once the receipt lands: a `destroy` row's hit creature left at or below its number is destroyed (0 Hit Points, Dead). */
 async function destroyAfterReceipt(message) {
-  const cr = message.getFlag(MODULE_ID, "clockRiders");
+  const cr = readFlag(message, "clockRiders");
   const rows = (cr?.riders ?? []).filter(r => (Number(r.destroy) > 0) && !r.destroyed);
   if ( !rows.length || !drivesMomentFor(cr.sourceUuid ?? null) ) return;
-  const receipt = message.getFlag(MODULE_ID, "receipt");
+  const receipt = readFlag(message, "receipt");
   const landed = (receipt?.targets ?? []).filter(t => !t.reverted);
   if ( !landed.length ) return;
   let claimed = false;
@@ -575,7 +575,7 @@ async function destroyAfterReceipt(message) {
 
 listen("updateChatMessage", "clock-riders", message => {
   try {
-    if ( message.getFlag(MODULE_ID, "receipt") && message.getFlag(MODULE_ID, "clockRiders")?.riders?.some?.(r => r.destroy && !r.destroyed) ) {
+    if ( readFlag(message, "receipt") && readFlag(message, "clockRiders")?.riders?.some?.(r => r.destroy && !r.destroyed) ) {
       void destroyAfterReceipt(message).catch(err => console.error(`${TITLE} | The destroy could not land — set it by hand.`, err));
     }
   } catch(err) { console.warn(`${TITLE} | The destroy check failed.`, err); }
@@ -584,7 +584,7 @@ listen("updateChatMessage", "clock-riders", message => {
 // The card says it (R5): an item's property rode this hit — what it does, and what it did.
 listen("dnd5e.renderChatMessage", "clock-riders", (message, html) => {
   try {
-    const cr = message.getFlag(MODULE_ID, "clockRiders");
+    const cr = readFlag(message, "clockRiders");
     const rows = (cr?.riders ?? []).filter(r => r.always);
     if ( !rows.length ) return;
     const content = html.querySelector?.(SURFACES.messageContent) ?? html;
@@ -621,11 +621,11 @@ listen("dnd5e.postUseActivity", "clock-riders", activity => {
 });
 
 async function writeFormChip(actor, activity, key, row, form) {
-  const stale = actor.effects.filter(e => e.getFlag(MODULE_ID, FORM_FLAG)?.riderKey === key);
+  const stale = actor.effects.filter(e => readFlag(e, FORM_FLAG)?.riderKey === key);
   if ( stale.length ) await actor.deleteEmbeddedDocuments("ActiveEffect", stale.map(e => e.id)).catch(() => {});
   await ActiveEffect.implementation.create({
     name: `${row.feature}: ${form.form}`, img: activity.item.img ?? "icons/svg/aura.svg",
-    description: `${await ruleHTML(row.rule)}<p>Written by Battle Flow when ${form.form} was used: the transformation stands while this does. Delete it to end the transformation early.</p>`,
+    description: `${await ruleHTML(row.rule)}<p>Written by By the Books when ${form.form} was used: the transformation stands while this does. Delete it to end the transformation early.</p>`,
     origin: activity.item.uuid, disabled: false, transfer: false,
     duration: activity.duration?.getEffectData?.() ?? {},
     flags: { [MODULE_ID]: { [FORM_FLAG]: { riderKey: key, form: lower(form.form) } } }
@@ -638,7 +638,7 @@ async function writeFormChip(actor, activity, key, row, form) {
 
 listen("dnd5e.renderChatMessage", "clock-riders", (message, html) => {
   try {
-    const cr = message.getFlag(MODULE_ID, "clockRiders");
+    const cr = readFlag(message, "clockRiders");
     const rows = (cr?.riders ?? []).filter(r => r.follow);
     if ( !rows.length ) return;
     const content = html.querySelector?.(SURFACES.messageContent) ?? html;
@@ -677,7 +677,7 @@ async function pickThen(message, key, option, attacker) {
   });
   if ( !won || !option.activity ) return;
   try {
-    const cr = message.getFlag(MODULE_ID, "clockRiders");
+    const cr = readFlag(message, "clockRiders");
     const r = cr.riders.find(x => x.key === key);
     const feature = featureNamed(attacker, r.follow.feature);
     const act = feature ? activityNamed(feature, option.activity) : null;
@@ -747,7 +747,7 @@ function spellRidersFor(caster, damaged = [], sneakArmed = false) {
 
 listen("dnd5e.renderChatMessage", "clock-riders", (message, html) => {
   try {
-    const picked = message.getFlag(MODULE_ID, SPELL_FLAG) ?? {};
+    const picked = readFlag(message, SPELL_FLAG) ?? {};
     // What was picked, on every client (R5): the card names where the extra went.
     for ( const p of Object.values(picked) ) {
       if ( !p?.targetName ) continue;
@@ -758,7 +758,7 @@ listen("dnd5e.renderChatMessage", "clock-riders", (message, html) => {
         lines: [ruleLine(p.rule)] });
       html.querySelector(SURFACES.messageContent)?.appendChild(line);
     }
-    const receipt = message.getFlag(MODULE_ID, "receipt");
+    const receipt = readFlag(message, "receipt");
     const damaged = [...new Map((receipt?.targets ?? []).filter(t => !t.reverted && (Number(t.taken) > 0)).map(t => [t.uuid, t])).values()];
     if ( !damaged.length ) return;
     const activity = cardActivity(message);
@@ -767,8 +767,8 @@ listen("dnd5e.renderChatMessage", "clock-riders", (message, html) => {
     // A `spells` row reads a no-attack spell's card alone; a `spread` row any damage card of the bearer's.
     const spellCard = (activity?.item?.type === "spell") && (activity.type !== "attack");
     // RAVENLOFT — the Sneak Attack armed on the attack this damage answers (Wails from the Grave's spread).
-    const sneakArmed = !!game.messages.get(message.getFlag(MODULE_ID, "attackFor") ?? message.getFlag(MODULE_ID, "clockRiders")?.attackId ?? "")?.getFlag?.(MODULE_ID, "sneak")?.armed
-      || !!message.getFlag(MODULE_ID, "sneakDamage");
+    const sneakArmed = !!readFlag(game.messages.get(readFlag(message, "attackFor") ?? readFlag(message, "clockRiders")?.attackId ?? ""), "sneak")?.armed
+      || !!readFlag(message, "sneakDamage");
     for ( const r of spellRidersFor(caster, damaged, sneakArmed) ) {
       if ( picked[r.key] || (!r.row.spread && !spellCard) ) continue;
       const row = document.createElement("div");
@@ -789,7 +789,7 @@ listen("dnd5e.renderChatMessage", "clock-riders", (message, html) => {
 // (the sheet's own consumption — a Hit Point Die); the owner's, once per card.
 listen("dnd5e.renderChatMessage", "clock-riders", (message, html) => {
   try {
-    const cr = message.getFlag(MODULE_ID, "clockRiders");
+    const cr = readFlag(message, "clockRiders");
     const offered = (cr?.riders ?? []).filter(r => r.offers && !r.offerUsed);
     if ( !offered.length ) return;
     const attacker = resolveUuid(cr.sourceUuid ?? null);
@@ -810,7 +810,7 @@ listen("dnd5e.renderChatMessage", "clock-riders", (message, html) => {
       row.appendChild(momentButton("Use it", () => void (async () => {
         const token = attacker.getActiveTokens?.()?.[0] ?? null;
         await withTargets(token ? [token] : [], () => act.use({}, { configure: false }, {}));
-        const current = message.getFlag(MODULE_ID, "clockRiders");
+        const current = readFlag(message, "clockRiders");
         if ( current && message.canUserModify?.(game.user, "update") ) {
           await message.setFlag(MODULE_ID, "clockRiders", { ...current, riders: current.riders.map(x => (x.key === r.key) ? { ...x, offerUsed: true } : x) });
         }
@@ -832,7 +832,7 @@ async function pickSpellRider(message, r, target, caster) {
 
 /** On the elect: land each pick on its own card, spend the turn, mark it applied. */
 async function driveSpellRider(message) {
-  const picks = Object.values(message.getFlag(MODULE_ID, SPELL_FLAG) ?? {}).filter(p => p?.targetUuid && !p.applied && !p.claimed);
+  const picks = Object.values(readFlag(message, SPELL_FLAG) ?? {}).filter(p => p?.targetUuid && !p.applied && !p.claimed);
   for ( const p of picks ) {
     let claimed = false;
     await queueFlagWrite(message, SPELL_FLAG, current => {
@@ -888,7 +888,7 @@ registerResumable(SPELL_FLAG, {
 /* --- the card says it (R5) -------------------------------------------------------------------- */
 
 listen("dnd5e.renderChatMessage", "clock-riders", (message, html) => {
-  const cr = message.getFlag(MODULE_ID, "clockRiders");
+  const cr = readFlag(message, "clockRiders");
   if ( !cr?.riders?.length ) return;
   for ( const r of cr.riders ) {
     const line = document.createElement("div");

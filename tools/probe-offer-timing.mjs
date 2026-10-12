@@ -5,7 +5,7 @@ import { connectSuite, disposeSafely, loadEnv } from "./harness.mjs";
 const env = loadEnv();
 const f = await connectSuite({ tag: "probe-offer", watchdogMs: 180_000, requireElect: false, env });
 const out = await f.evaluate(async () => {
-  const MOD = "fvtt-mod-battleflow";
+  const MOD = "fvtt-mod-bythebooks";
   const sleep = ms => new Promise(r => setTimeout(r, ms));
   const t = [];
   const mark = (label, t0) => t.push(`${label}: ${(performance.now() - t0).toFixed(0)}ms`);
@@ -13,13 +13,13 @@ const out = await f.evaluate(async () => {
   const origError = console.error;
   console.error = (...args) => { errors.push(args.map(a => (a instanceof Error) ? `${a.message}\n${a.stack}` : String(a)).join(" ").slice(0, 600)); origError(...args); };
   // 1. the imports, cold and warm
-  for ( const spec of ["/modules/fvtt-mod-battleflow/scripts/sneak.js", "/modules/fvtt-mod-battleflow/scripts/clock-riders.js", "/modules/fvtt-mod-battleflow/scripts/mastery.js"] ) {
+  for ( const spec of ["/modules/fvtt-mod-bythebooks/scripts/sneak.js", "/modules/fvtt-mod-bythebooks/scripts/clock-riders.js", "/modules/fvtt-mod-bythebooks/scripts/mastery.js"] ) {
     const t0 = performance.now(); await import(spec); mark(`import ${spec.split("/").pop()}`, t0);
   }
   // 2. the hook path, timed
-  const scene = game.scenes.getName("Battle Flow Test Range");
-  const attacker = game.actors.getName("BF Test Attacker");
-  const victim = game.actors.getName("BF Test Victim");
+  const scene = game.scenes.getName("By the Books Test Range");
+  const attacker = game.actors.getName("BTB Test Attacker");
+  const victim = game.actors.getName("BTB Test Victim");
   if (canvas.scene?.id !== scene.id) await scene.view();
   for (let i = 0; i < 40 && !canvas.ready; i++) await sleep(250);
   const at = canvas.tokens.placeables.find(x => x.actor?.id === attacker.id || x.document.actorId === attacker.id);
@@ -50,7 +50,7 @@ const out = await f.evaluate(async () => {
   await sleep(1500);
   await game.settings.set(MOD, "playerRollDamage", prior.prd);
   await game.settings.set(MOD, "autoDamage", prior.ad);
-  const mine = game.messages.filter(m => m.timestamp >= Date.now() - 60000 && (Object.keys(m.flags?.[MOD] ?? {}).length || m.speaker?.alias?.startsWith?.("BF Test")));
+  const mine = game.messages.filter(m => m.timestamp >= Date.now() - 60000 && (Object.keys(m.flags?.[MOD] ?? {}).length || m.speaker?.alias?.startsWith?.("BTB Test")));
   if (mine.length) await ChatMessage.deleteDocuments(mine.map(m => m.id)).catch(() => {});
   vt?.setTarget(false, { releaseOthers: true });
   console.error = origError;

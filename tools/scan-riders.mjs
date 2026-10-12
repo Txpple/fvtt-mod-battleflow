@@ -101,7 +101,7 @@ const result = await f.evaluate(async () => {
   return { rows, errors, packStats };
 }, null);
 
-const out = process.argv[2] || join(tmpdir(), 'battleflow-riders-raw.json');
+const out = process.argv[2] || join(tmpdir(), 'bythebooks-riders-raw.json');
 writeFileSync(out, JSON.stringify(result, null, 2));
 
 console.log('\n# pack coverage (packs with at least one rider)');

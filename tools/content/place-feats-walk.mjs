@@ -1,4 +1,4 @@
-// Build the PHB feats walk (groups 1–3, RULINGS *The PHB feats — groups 1–3*) on its own scene, Battle Flow Walk.
+// Build the PHB feats walk (groups 1–3, RULINGS *The PHB feats — groups 1–3*) on its own scene, By the Books Walk.
 // CLEARS every token on the walk scene, then builds one walker per feat and the dummies each rule needs:
 //   melee (north):  Slasher W, Piercer E, Crusher N of the Dummy; the Huge Dummy beside Crusher
 //                   (its push must NOT be offered — two sizes larger); Poisoner beside the
@@ -6,7 +6,7 @@
 //   ranged (south): Sharpshooter, Spell Sniper, Crossbow Expert in a column on the west edge; the
 //                   Point-Blank Dummy adjacent to Crossbow Expert only; the Half Cover Dummy 30 ft
 //                   east; the Far Dummy 90 ft east (a Shortbow's long range, Ray of Frost + 60)
-// The walkers are CLEAN copies of BF Test Fighter / BF Test Sorcerer — the class item and a few
+// The walkers are CLEAN copies of BTB Test Fighter / BTB Test Sorcerer — the class item and a few
 // core features only: no subclass, no masteries, no other style or feat, so every line on a card is
 // the feat under test. Linked tokens; idempotent (the walk's actors are rebuilt, not duplicated).
 // A content tool, not a suite — it asserts nothing. ⚠ Disconnect the MCP bridge first.
@@ -17,7 +17,7 @@ const out = await f.evaluate(async () => {
   const log = [];
   // ⚠ The walk's OWN scene, built here, never a campaign's map (2026-10-07: these once cleared a campaign scene).
   // 4200 × 3500 at a 140 px grid: every SPOT below is in that grid's squares.
-  const WALK = 'Battle Flow Walk';
+  const WALK = 'By the Books Walk';
   let scene = game.scenes.getName(WALK);
   if (!scene) {
     const sceneFolder = game.folders.find(x => (x.name === 'Test Suite') && (x.type === 'Scene'))
@@ -27,9 +27,9 @@ const out = await f.evaluate(async () => {
       ownership: { default: 2 } });
     log.push(`created the ${WALK} scene`);
   }
-  const fighter = game.actors.getName('BF Test Fighter');
-  const sorcerer = game.actors.getName('BF Test Sorcerer');
-  if (!fighter || !sorcerer) return { error: 'BF Test Fighter or BF Test Sorcerer is missing — run fixture-suite first' };
+  const fighter = game.actors.getName('BTB Test Fighter');
+  const sorcerer = game.actors.getName('BTB Test Sorcerer');
+  if (!fighter || !sorcerer) return { error: 'BTB Test Fighter or BTB Test Sorcerer is missing — run fixture-suite first' };
   const folder = game.folders.find(x => (x.name === 'Test Suite') && (x.type === 'Actor'))
     ?? await Folder.create({ name: 'Test Suite', type: 'Actor', color: '#4b5563' });
 
@@ -54,28 +54,28 @@ const out = await f.evaluate(async () => {
 
   // --- 2. the walk's actors, rebuilt fresh
   const WALKERS = {
-    'BF Feat Slasher': { base: 'fighter', feat: 'Slasher', dex: 12, items: [['Longsword', 'weapon', true]] },
-    'BF Feat Crusher': { base: 'fighter', feat: 'Crusher', dex: 12, items: [['Mace', 'weapon', true], ['Warhammer', 'weapon', false], ['Dagger', 'weapon', false]] },
-    'BF Feat Piercer': { base: 'fighter', feat: 'Piercer', dex: 16, items: [['Rapier', 'weapon', true], ['Shortsword', 'weapon', false]] },
-    'BF Feat Poisoner': { base: 'fighter', feat: 'Poisoner', dex: 16,
+    'BTB Feat Slasher': { base: 'fighter', feat: 'Slasher', dex: 12, items: [['Longsword', 'weapon', true]] },
+    'BTB Feat Crusher': { base: 'fighter', feat: 'Crusher', dex: 12, items: [['Mace', 'weapon', true], ['Warhammer', 'weapon', false], ['Dagger', 'weapon', false]] },
+    'BTB Feat Piercer': { base: 'fighter', feat: 'Piercer', dex: 16, items: [['Rapier', 'weapon', true], ['Shortsword', 'weapon', false]] },
+    'BTB Feat Poisoner': { base: 'fighter', feat: 'Poisoner', dex: 16,
       items: [['Poison Spray', 'spell', true], ['Dagger', 'weapon', true], ['Poison, Basic', 'consumable', false, 3], ['Poisoner\'s Kit', 'tool', false]] },
-    'BF Feat Sharpshooter': { base: 'fighter', feat: 'Sharpshooter', dex: 16,
+    'BTB Feat Sharpshooter': { base: 'fighter', feat: 'Sharpshooter', dex: 16,
       items: [['Longbow', 'weapon', true], ['Shortbow', 'weapon', false], ['Dart', 'weapon', false, 10], ['Dagger', 'weapon', false], ['Arrows', 'consumable', false, 40]] },
-    'BF Feat Crossbow Expert': { base: 'fighter', feat: 'Crossbow Expert', dex: 16,
+    'BTB Feat Crossbow Expert': { base: 'fighter', feat: 'Crossbow Expert', dex: 16,
       items: [['Hand Crossbow', 'weapon', true], ['Dagger', 'weapon', true], ['Light Crossbow', 'weapon', false], ['Dart', 'weapon', false, 10], ['Bolts', 'consumable', false, 40]] },
-    'BF Feat Elemental Adept': { base: 'sorcerer', feat: 'Elemental Adept', rename: 'Elemental Adept (Fire)',
+    'BTB Feat Elemental Adept': { base: 'sorcerer', feat: 'Elemental Adept', rename: 'Elemental Adept (Fire)',
       items: [['Fire Bolt', 'spell', true], ['Burning Hands', 'spell', true], ['Scorching Ray', 'spell', true], ['Chromatic Orb', 'spell', true], ['Ray of Frost', 'spell', true]] },
-    'BF Feat Spell Sniper': { base: 'sorcerer', feat: 'Spell Sniper',
+    'BTB Feat Spell Sniper': { base: 'sorcerer', feat: 'Spell Sniper',
       items: [['Fire Bolt', 'spell', true], ['Ray of Frost', 'spell', true], ['Chromatic Orb', 'spell', true]] }
   };
   const KEEP = { fighter: ['Second Wind', 'Action Surge', 'Extra Attack'], sorcerer: [] };
   const DUMMIES = {
-    'BF Walk Dummy': {},
-    'BF Walk Dummy (Resists Fire, Poison)': { dr: ['fire', 'poison'] },
-    'BF Walk Dummy (Huge)': { size: 'huge', cells: 3 },
-    'BF Walk Dummy (Half Cover)': { status: 'coverHalf' },
-    'BF Walk Dummy (Point-Blank)': {},
-    'BF Walk Dummy (Far)': {}
+    'BTB Walk Dummy': {},
+    'BTB Walk Dummy (Resists Fire, Poison)': { dr: ['fire', 'poison'] },
+    'BTB Walk Dummy (Huge)': { size: 'huge', cells: 3 },
+    'BTB Walk Dummy (Half Cover)': { status: 'coverHalf' },
+    'BTB Walk Dummy (Point-Blank)': {},
+    'BTB Walk Dummy (Far)': {}
   };
   const stale = game.actors.filter(a => (a.name in WALKERS) || (a.name in DUMMIES)).map(a => a.id);
   if (stale.length) await Actor.deleteDocuments(stale);
@@ -86,8 +86,8 @@ const out = await f.evaluate(async () => {
     delete o._id;
     o.items = o.items.filter(i => (i.type === 'class') || keep.includes(i.name));
     o.effects = [];
-    if (o.flags) delete o.flags['fvtt-mod-battleflow'];
-    if (o.flags) delete o.flags.battleflow;
+    if (o.flags) delete o.flags['fvtt-mod-bythebooks'];
+    if (o.flags) delete o.flags.bythebooks;
     foundry.utils.setProperty(o, 'system.traits.weaponProf.mastery.value', []);
     foundry.utils.setProperty(o, 'system.traits.dr.value', []);
     foundry.utils.setProperty(o, 'system.attributes.inspiration', false);   // the base fixture's Heroic Inspiration would fold a missed attack
@@ -141,20 +141,20 @@ const out = await f.evaluate(async () => {
 
   // --- 3. placed
   const SPOTS = {
-    'BF Walk Dummy': [1820, 1400],
-    'BF Feat Slasher': [1680, 1400],
-    'BF Feat Piercer': [1960, 1400],
-    'BF Feat Crusher': [1820, 1260],
-    'BF Walk Dummy (Huge)': [1400, 980],
-    'BF Walk Dummy (Resists Fire, Poison)': [1820, 1820],
-    'BF Feat Poisoner': [1680, 1820],
-    'BF Feat Elemental Adept': [2240, 1820],
-    'BF Feat Sharpshooter': [980, 2380],
-    'BF Feat Spell Sniper': [980, 2660],
-    'BF Feat Crossbow Expert': [980, 2940],
-    'BF Walk Dummy (Point-Blank)': [1120, 2940],
-    'BF Walk Dummy (Half Cover)': [1820, 2520],
-    'BF Walk Dummy (Far)': [3500, 2520]
+    'BTB Walk Dummy': [1820, 1400],
+    'BTB Feat Slasher': [1680, 1400],
+    'BTB Feat Piercer': [1960, 1400],
+    'BTB Feat Crusher': [1820, 1260],
+    'BTB Walk Dummy (Huge)': [1400, 980],
+    'BTB Walk Dummy (Resists Fire, Poison)': [1820, 1820],
+    'BTB Feat Poisoner': [1680, 1820],
+    'BTB Feat Elemental Adept': [2240, 1820],
+    'BTB Feat Sharpshooter': [980, 2380],
+    'BTB Feat Spell Sniper': [980, 2660],
+    'BTB Feat Crossbow Expert': [980, 2940],
+    'BTB Walk Dummy (Point-Blank)': [1120, 2940],
+    'BTB Walk Dummy (Half Cover)': [1820, 2520],
+    'BTB Walk Dummy (Far)': [3500, 2520]
   };
   const tokens = [];
   for (const [name, [x, y]] of Object.entries(SPOTS)) {

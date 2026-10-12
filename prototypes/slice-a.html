@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Battle Flow Slice A</title>
+<title>By the Books Slice A</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Signika:wght@400;600;700&display=swap">
 <style>
   :root{
@@ -123,7 +123,7 @@
 <div class="wrap">
   <header class="top">
     <div>
-      <div class="eyebrow">Battle Flow · prototype · 2026-09-24 · Slice A · for ruling, nothing built</div>
+      <div class="eyebrow">By the Books · prototype · 2026-09-24 · Slice A · for ruling, nothing built</div>
       <h1>Slice A: Savage Attacker on the hit, and Disadvantage as a rescue of the hit</h1>
     </div>
     <p>Two new shapes, each drawn in every state. Pick a scene along the top. Where a scene has a before and after, tick a row and press the button; the chat log on the right shows what the table sees. The rule text in each fold is the 2024 wording as the build will read it off the pack.</p>
@@ -188,22 +188,22 @@
   const head = (img, h, sub) => `<div class="head"><div class="img ${img}"></div><div><h2>${h}</h2><div class="sub">${sub}</div></div></div>`;
 
   /* ---------- the attack cards (shape 2) ---------- */
-  const atkHit = (first=12, crit=false) => msg("Goblin Boss", card(crit?"crit":"pending","Attack — held for a reaction","Scimitar",`Goblin Boss → ${state.def?.name ?? "BF Test Halfling"}`,
+  const atkHit = (first=12, crit=false) => msg("Goblin Boss", card(crit?"crit":"pending","Attack — held for a reaction","Scimitar",`Goblin Boss → ${state.def?.name ?? "BTB Test Halfling"}`,
     [crit ? `d20 <b>20</b> +5 = <b>25</b> vs AC 15 <span class="verdict crit">natural 20 — CRIT</span>` : `d20 ${first} +5 = <b>${first+5}</b> vs AC 15 <span class="verdict hit">HIT</span>`,
-     `<span class="chip">waiting on ${state.def?.name ?? "BF Test Halfling"} · 20s</span>`]));
+     `<span class="chip">waiting on ${state.def?.name ?? "BTB Test Halfling"} · 20s</span>`]));
   function atkBent(src, first, second, { crit=false, spend="" } = {}){
     const f = first+5, sd = second+5, low = Math.min(first, second), tot = low+5;
     const hit = tot >= 15 || (low === 20);
     const firstLbl = crit ? `d20 <s class="old">20 (25) CRIT</s>` : `d20 <s class="old">${first} (${f})</s>`;
     const kept = second <= first ? `the second d20 shows <b>${second}</b> (+5) = <b>${sd}</b>` : `the second d20 shows <b>${second}</b> (+5) = ${sd} — the lower stands: <b>${f}</b>`;
     const verdict = crit ? `<span class="verdict hit">a hit, no longer a crit</span>` : hit ? `<span class="verdict hit">still a HIT</span>` : `<span class="verdict miss">MISS</span>`;
-    return msg("Goblin Boss", card(hit?"bad":"good", `Attack — Disadvantage · ${src}`, "Scimitar", `Goblin Boss → ${state.def?.name ?? "BF Test Halfling"}`,
+    return msg("Goblin Boss", card(hit?"bad":"good", `Attack — Disadvantage · ${src}`, "Scimitar", `Goblin Boss → ${state.def?.name ?? "BTB Test Halfling"}`,
       [`${firstLbl} → ${kept} vs AC 15 ${verdict}`]))
-      + msg(state.def?.name ?? "BF Test Halfling", card("good", `Reaction — ${src}`, src, state.def?.name ?? "BF Test Halfling", [spend]));
+      + msg(state.def?.name ?? "BTB Test Halfling", card("good", `Reaction — ${src}`, src, state.def?.name ?? "BTB Test Halfling", [spend]));
   }
 
   /* ---------- the damage cards (shape 1) ---------- */
-  const dmgCard = (lines, tone="pending", e="Damage — waiting on Savage Attacker") => msg("BF Test Fighter", card(tone, e, "Longsword", "BF Test Fighter → Bugbear Warrior", lines));
+  const dmgCard = (lines, tone="pending", e="Damage — waiting on Savage Attacker") => msg("BTB Test Fighter", card(tone, e, "Longsword", "BTB Test Fighter → Bugbear Warrior", lines));
 
   /* ---------- scenes ---------- */
   const S = {};
@@ -212,33 +212,33 @@
     if ( state.done === "roll" ) return S.s1b();
     if ( state.done === "keep" ) return {
       pop:`<div class="nothing">The popup closed. The first roll stands and Savage Attacker is still unused this turn.</div>`,
-      chat: log(msg("BF Test Fighter", card("bad","Attack","Longsword","BF Test Fighter → Bugbear Warrior",[`d20 14 +7 = <b>21</b> vs AC 16 <span class="verdict hit">HIT</span>`])),
+      chat: log(msg("BTB Test Fighter", card("bad","Attack","Longsword","BTB Test Fighter → Bugbear Warrior",[`d20 14 +7 = <b>21</b> vs AC 16 <span class="verdict hit">HIT</span>`])),
         dmgCard([`1d8 + 4 → <b>9</b> (5 + 4) — applied`, `<span class="chip">Savage Attacker — not used, still ready this turn</span>`],"neutral","Damage")),
       side: sideSavage(true) };
     return {
-      pop: popup("Savage Attacker — BF Test Fighter",
+      pop: popup("Savage Attacker — BTB Test Fighter",
         head("fighter","9 damage — roll it again?","Longsword · 1d8 + 4 → 9 (5 + 4)") + bar(20)
         + row("savage","Savage Attacker","1d8 again","once per turn")
         + `<div class="btnrow"><button class="btn primary" data-act="roll" ${state.pick?"":"disabled"}>Roll again</button><button class="btn" data-act="keep">Keep the roll</button></div>`),
-      chat: log(msg("BF Test Fighter", card("bad","Attack","Longsword","BF Test Fighter → Bugbear Warrior",[`d20 14 +7 = <b>21</b> vs AC 16 <span class="verdict hit">HIT</span>`])),
+      chat: log(msg("BTB Test Fighter", card("bad","Attack","Longsword","BTB Test Fighter → Bugbear Warrior",[`d20 14 +7 = <b>21</b> vs AC 16 <span class="verdict hit">HIT</span>`])),
         dmgCard([`1d8 + 4 → <b>9</b> (5 + 4)`, `<span class="chip">held — the damage waits for the answer · 20s</span>`])),
       side: sideSavage(true) };
   };
   S.s1b = () => ({
     pop:`<div class="nothing">The popup is gone the moment "Roll again" is pressed. The second set is rolled in the open and the higher set is kept, no second question.</div>`,
-    chat: log(msg("BF Test Fighter", card("bad","Attack","Longsword","BF Test Fighter → Bugbear Warrior",[`d20 14 +7 = <b>21</b> vs AC 16 <span class="verdict hit">HIT</span>`])),
+    chat: log(msg("BTB Test Fighter", card("bad","Attack","Longsword","BTB Test Fighter → Bugbear Warrior",[`d20 14 +7 = <b>21</b> vs AC 16 <span class="verdict hit">HIT</span>`])),
       dmgCard([`1d8 → <s class="old">5</s>, again → <b>7</b> — the higher stands: <b>11</b> (7 + 4)`, `the +4 is added once, after the pick — only the weapon's die was rolled again`, `<span class="chip used">Savage Attacker — used this turn</span>`], "good", "Damage — applied")),
     side: sideSavage(false, "higher") });
   S.s1bl = () => ({
     pop:`<div class="nothing">Same press, the other outcome: the second die came up lower, so the first roll stands. Savage Attacker is still spent for the turn.</div>`,
-    chat: log(msg("BF Test Fighter", card("bad","Attack","Longsword","BF Test Fighter → Bugbear Warrior",[`d20 14 +7 = <b>21</b> vs AC 16 <span class="verdict hit">HIT</span>`])),
+    chat: log(msg("BTB Test Fighter", card("bad","Attack","Longsword","BTB Test Fighter → Bugbear Warrior",[`d20 14 +7 = <b>21</b> vs AC 16 <span class="verdict hit">HIT</span>`])),
       dmgCard([`1d8 → <b>5</b>, again → <s class="old">2</s> — the first stands: <b>9</b> (5 + 4)`, `<span class="chip used">Savage Attacker — used this turn</span>`], "good", "Damage — applied")),
     side: sideSavage(false, "lower") });
   S.s1c = () => ({
     pop:`<div class="nothing">Second hit, same turn: no popup. Once per turn is spent, so there is nothing to ask.</div>`,
     chat: log(
       dmgCard([`1d8 → <s class="old">5</s>, again → <b>7</b> — the higher stands: <b>11</b>`, `<span class="chip used">Savage Attacker — used this turn</span>`], "good", "Damage — applied · first attack"),
-      msg("BF Test Fighter", card("bad","Attack","Longsword","BF Test Fighter → Bugbear Warrior",[`d20 9 +7 = <b>16</b> vs AC 16 <span class="verdict hit">HIT</span>`])),
+      msg("BTB Test Fighter", card("bad","Attack","Longsword","BTB Test Fighter → Bugbear Warrior",[`d20 9 +7 = <b>16</b> vs AC 16 <span class="verdict hit">HIT</span>`])),
       dmgCard([`1d8 + 4 → <b>10</b> (6 + 4) — applied`, `<span class="chip used">Savage Attacker — used this turn</span>`], "neutral", "Damage — second attack")),
     side: `<div class="panel"><h3>What this shows</h3><ul>
       <li><b>No popup on the second hit.</b> The feature is spent for the turn, so the hit rolls and applies as it always has.</li>
@@ -247,17 +247,17 @@
     </ul></div>` });
   S.s1d = () => {
     const rolled = state.done === "roll";
-    if ( state.done === "keep" ) return { pop:`<div class="nothing">Kept: 2d6 + 4 → 9 stands, and Savage Attacker is still ready this turn.</div>`, chat: log(msg("BF Test Fighter", card("neutral","Damage","Greatsword","BF Test Fighter → Bugbear Warrior",[`2d6 + 4 → <b>9</b> (3 + 2 + 4) — applied`, `<span class="chip">Savage Attacker — not used, still ready this turn</span>`]))), side: `<div class="panel"><button class="reset" data-act="reset">Back to the popup</button></div>` };
+    if ( state.done === "keep" ) return { pop:`<div class="nothing">Kept: 2d6 + 4 → 9 stands, and Savage Attacker is still ready this turn.</div>`, chat: log(msg("BTB Test Fighter", card("neutral","Damage","Greatsword","BTB Test Fighter → Bugbear Warrior",[`2d6 + 4 → <b>9</b> (3 + 2 + 4) — applied`, `<span class="chip">Savage Attacker — not used, still ready this turn</span>`]))), side: `<div class="panel"><button class="reset" data-act="reset">Back to the popup</button></div>` };
     return {
       pop: rolled ? `<div class="nothing">Both dice rolled again as one set. The set totals are compared, never die by die.</div>`
-        : popup("Savage Attacker — BF Test Fighter",
+        : popup("Savage Attacker — BTB Test Fighter",
           head("fighter","9 damage — roll it again?","Greatsword · 2d6 + 4 → 9 (3 + 2 + 4)") + bar(20)
           + row("savage","Savage Attacker","2d6 again","once per turn")
           + `<div class="btnrow"><button class="btn primary" data-act="roll" ${state.pick?"":"disabled"}>Roll again</button><button class="btn" data-act="keep">Keep the roll</button></div>`),
-      chat: log(msg("BF Test Fighter", card("bad","Attack","Greatsword","BF Test Fighter → Bugbear Warrior",[`d20 15 +7 = <b>22</b> vs AC 16 <span class="verdict hit">HIT</span>`])),
-        rolled ? msg("BF Test Fighter", card("good","Damage — applied","Greatsword","BF Test Fighter → Bugbear Warrior",
+      chat: log(msg("BTB Test Fighter", card("bad","Attack","Greatsword","BTB Test Fighter → Bugbear Warrior",[`d20 15 +7 = <b>22</b> vs AC 16 <span class="verdict hit">HIT</span>`])),
+        rolled ? msg("BTB Test Fighter", card("good","Damage — applied","Greatsword","BTB Test Fighter → Bugbear Warrior",
             [`2d6 → <s class="old">3 + 2 = 5</s>, again → <b>6 + 4 = 10</b> — the higher set stands: <b>14</b> (10 + 4)`, `<span class="chip used">Savage Attacker — used this turn</span>`]))
-          : msg("BF Test Fighter", card("pending","Damage — waiting on Savage Attacker","Greatsword","BF Test Fighter → Bugbear Warrior",[`2d6 + 4 → <b>9</b> (3 + 2 + 4)`, `<span class="chip">held — the damage waits for the answer · 20s</span>`]))),
+          : msg("BTB Test Fighter", card("pending","Damage — waiting on Savage Attacker","Greatsword","BTB Test Fighter → Bugbear Warrior",[`2d6 + 4 → <b>9</b> (3 + 2 + 4)`, `<span class="chip">held — the damage waits for the answer · 20s</span>`]))),
       side: `<div class="panel"><h3>What this shows</h3><ul>
         <li><b>The weapon's dice are one set.</b> A 2d6 weapon rolls both dice again and the two totals are compared: 5 against 10, the 10 stands. No mixing the best die from each set.</li>
         <li><b>The modifier stays outside.</b> +4 is added once, to whichever set stands.</li>
@@ -286,21 +286,21 @@
   S.gate = () => ({
     pop: popup("Scimitar: Usage",
       head("", "Scimitar", "Goblin Boss · Attack") +
-      `<div class="fg" style="margin-top:10px"><span>Target</span><select><option>BF Test Halfling</option></select></div>
+      `<div class="fg" style="margin-top:10px"><span>Target</span><select><option>BTB Test Halfling</option></select></div>
        <div class="fg"><span>Situational bonus</span><select><option>none</option></select></div>
        <div class="rollbtns"><button class="btn">Advantage</button><button class="btn primary">Normal</button><button class="btn">Disadvantage</button></div>
        <div class="gone">No Lucky, no Warding Flare, no Shadowy Dodge here. The attacker rolls untouched.</div>`),
     chat: log(`<div class="nothing" style="margin-top:20px">nothing yet: no card, no popup for the defender</div>`),
     side: `<div class="panel"><h3>The timing you ruled</h3><ul>
-      <li><b>Nothing appears before the roll.</b> The attacker's roll dialog is the system's own, with no Battle Flow row on it and no popup for the defender.</li>
+      <li><b>Nothing appears before the roll.</b> The attacker's roll dialog is the system's own, with no By the Books row on it and no popup for the defender.</li>
       <li><b>The defender is asked after the verdict,</b> only when the attack has hit. The same place Shield is asked today: after the hit lands, before damage applies.</li>
       <li><b>A miss asks nothing.</b> Disadvantage on a roll that already missed changes nothing, so no row appears.</li>
     </ul></div>
     <div class="panel"><h3>Why not before the roll</h3><p>Asking before the roll means asking on every attack at every defender, most of which miss anyway. Asking on the hit means one question, only when it matters, in the popup the table already knows.</p></div>` });
 
   const DEF = {
-    halfling:{ name:"BF Test Halfling", img:"halfling" },
-    warden:{ name:"BF Test Warden", img:"warden" }
+    halfling:{ name:"BTB Test Halfling", img:"halfling" },
+    warden:{ name:"BTB Test Warden", img:"warden" }
   };
   function rescuePopup(def, rows, { crit=false } = {}){
     return popup(`Rescue the hit — ${def.name}`,
@@ -343,8 +343,8 @@
       </ul></div>
       <div class="panel"><button class="reset" data-act="allout">Show every row out</button></div>` };
   };
-  S.s2a3out = () => ({ pop: popup("Rescue the hit — BF Test Warden",
-      head("warden","Goblin Boss hit you","Scimitar · BF Test Warden · Reaction") + bar(20)
+  S.s2a3out = () => ({ pop: popup("Rescue the hit — BTB Test Warden",
+      head("warden","Goblin Boss hit you","Scimitar · BTB Test Warden · Reaction") + bar(20)
       + `<div class="situ"><b>17</b> vs AC <b>15</b> — a hit.</div>`
       + row("flare","Warding Flare","Disadvantage","no uses left",{off:true,no:true})
       + row("dodge","Shadowy Dodge","Disadvantage","Reaction spent this round",{off:true,no:true})
@@ -372,7 +372,7 @@
     const def = state.def;
     if ( which === "pass" ) return { pop:`<div class="nothing">Passed. The hit lands and damage applies as today.</div>`, chat: passCard(def), side: backPanel() };
     if ( which === "shield" ) return { pop:`<div class="nothing">Shield is cast natively (the slot spent by the system), exactly as today.</div>`,
-      chat: log(msg("Goblin Boss", card("good","Attack","Scimitar","Goblin Boss → BF Test Halfling",[`d20 12 +5 = <b>17</b> vs AC <s class="old">15</s> <b>20</b> <span class="verdict miss">MISS</span>`])),
+      chat: log(msg("Goblin Boss", card("good","Attack","Scimitar","Goblin Boss → BTB Test Halfling",[`d20 12 +5 = <b>17</b> vs AC <s class="old">15</s> <b>20</b> <span class="verdict miss">MISS</span>`])),
         msg(def.name, card("good","Reaction — cast","Shield",def.name,["AC is now <b>20</b>."]))), side: backPanel() };
     const src = { lucky:"Lucky", flare:"Warding Flare", dodge:"Shadowy Dodge" }[which];
     const spend = { lucky:"1 Luck Point spent · Luck Points: 2 of 3 remaining", flare:"Reaction spent · Warding Flare: 1 of 2 remaining", dodge:"Reaction spent · teleport up to 30 feet if you wish (the table moves the token)" }[which];
@@ -390,9 +390,9 @@
     </ul></div>` }; };
   S.s2b2 = () => { state.def = DEF.halfling; return {
     pop:`<div class="nothing">After <b>Lucky</b>: the second d20 shows 14. That is higher, so the first roll is still the lower and it stands.</div>`,
-    chat: log(msg("Goblin Boss", card("bad","Attack — Disadvantage · Lucky","Scimitar","Goblin Boss → BF Test Halfling",
+    chat: log(msg("Goblin Boss", card("bad","Attack — Disadvantage · Lucky","Scimitar","Goblin Boss → BTB Test Halfling",
         [`d20 <b>12</b> (17), second d20 <s class="old">14 (19)</s> — the lower stands: <b>17</b> vs AC 15 <span class="verdict hit">still a HIT</span>`])),
-      msg("BF Test Halfling", card("bad","Reaction — Lucky","Lucky","BF Test Halfling",["1 Luck Point spent · Luck Points: 2 of 3 remaining", "It did not turn the hit."]))),
+      msg("BTB Test Halfling", card("bad","Reaction — Lucky","Lucky","BTB Test Halfling",["1 Luck Point spent · Luck Points: 2 of 3 remaining", "It did not turn the hit."]))),
     side: `<div class="panel"><h3>What this shows</h3><ul>
       <li><b>Disadvantage keeps the lower,</b> so a higher second die changes nothing: the 17 stands and the hit lands.</li>
       <li><b>The point is still spent.</b> Lucky's cost is paid when it is used, whatever the die shows.</li>
@@ -402,9 +402,9 @@
     state.def = DEF.halfling;
     if ( state.done && state.done !== "pass" && state.done !== "shield" ) return {
       pop:`<div class="nothing">The second d20 shows 11. The lower stands: a plain hit, no longer a crit.</div>`,
-      chat: log(msg("Goblin Boss", card("bad","Attack — Disadvantage · Lucky","Scimitar","Goblin Boss → BF Test Halfling",
+      chat: log(msg("Goblin Boss", card("bad","Attack — Disadvantage · Lucky","Scimitar","Goblin Boss → BTB Test Halfling",
           [`d20 <s class="old">20 (25) CRIT</s> → the second d20 shows <b>11</b> → <b>16</b> vs AC 15 <span class="verdict hit">a hit, no longer a crit</span>`, "damage is rolled once, not doubled"])),
-        msg("BF Test Halfling", card("good","Reaction — Lucky","Lucky","BF Test Halfling",["1 Luck Point spent · Luck Points: 2 of 3 remaining"]))),
+        msg("BTB Test Halfling", card("good","Reaction — Lucky","Lucky","BTB Test Halfling",["1 Luck Point spent · Luck Points: 2 of 3 remaining"]))),
       side: backPanel() };
     if ( state.done === "pass" ) return { pop:`<div class="nothing">Passed. The crit lands and its dice are doubled.</div>`, chat: log(atkHit(20,true).replace(/<span class="chip">waiting.*?<\/span>/,"")), side: backPanel() };
     return { pop: rescuePopup(DEF.halfling,
@@ -419,7 +419,7 @@
   };
   S.s2d = () => { state.def = DEF.halfling; return {
     pop:`<div class="nothing">The attacker (here the GM, for the Goblin Boss) gets no popup. Their own card tells them their roll was bent.</div>`,
-    chat: log(msg("Goblin Boss", card("good","Attack — Disadvantage · Lucky","Scimitar","Goblin Boss → BF Test Halfling",
+    chat: log(msg("Goblin Boss", card("good","Attack — Disadvantage · Lucky","Scimitar","Goblin Boss → BTB Test Halfling",
       [`<b>Lucky bent the roll</b> — Disadvantage, 17 → 13 <span class="verdict miss">MISS</span>`, `d20 <s class="old">12 (17)</s> → second d20 <b>8</b> (13) vs AC 15`]))),
     side: `<div class="panel"><h3>What this shows</h3><ul>
       <li><b>The attack card is the attacker's view.</b> Its first line says who bent it and how: "Lucky bent the roll — Disadvantage, 17 → 13, MISS". The struck d20 sits under it for anyone checking.</li>

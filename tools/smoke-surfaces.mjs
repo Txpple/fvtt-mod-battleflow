@@ -44,7 +44,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     skips.push(`section ${n}: ${titles[n] ?? ""} — not in this run`);
     return false;
   };
-  const MODULE_ID = "fvtt-mod-battleflow";
+  const MODULE_ID = "fvtt-mod-bythebooks";
   const sleep = ms => new Promise(r => setTimeout(r, ms));
   // ⚠ Wait for what the next assertion reads, never a flat sleep.
   const until = async (fn, ms = 10_000) => {
@@ -114,14 +114,14 @@ const out = await f.evaluate(async ({ sections, titles }) => {
 
     /* --- 2: the activity usage dialog --------------------------------------------------- */
     if (has(2)) {
-      // ⚠ "BF Test Bard" carries slots but no levelled spell item: take the first candidate that can
+      // ⚠ "BTB Test Bard" carries slots but no levelled spell item: take the first candidate that can
       // actually open a dialog.
       const candidates = game.actors.filter(a => a.type === "character").map(a => ({
         actor: a,
         spell: a.items.find(i => i.type === "spell" && (i.system.level ?? 0) > 0
           && i.system.activities?.size)
       })).filter(c => c.spell);
-      const pick = candidates.find(c => c.actor.name.startsWith("BF Test")) ?? candidates[0];
+      const pick = candidates.find(c => c.actor.name.startsWith("BTB Test")) ?? candidates[0];
       if (!pick) {
         skips.push("section 2: no character carries a levelled spell with an activity — "
           + "renderActivityUsageDialog unexercised");
@@ -145,12 +145,12 @@ const out = await f.evaluate(async ({ sections, titles }) => {
             dialog?.constructor?.name ?? "no ActivityUsageDialog instance");
           const del = dialog?.element instanceof HTMLElement ? dialog.element : dialog?.element?.[0];
           ok("the target block is painted into the usage dialog",
-            !!del?.querySelector(".battleflow-target-block"),
-            del ? `blocks=${del.querySelectorAll(".battleflow-target-block").length}` : "no element");
+            !!del?.querySelector(".bythebooks-target-block"),
+            del ? `blocks=${del.querySelectorAll(".bythebooks-target-block").length}` : "no element");
           // ⚠ This hook repaints on EVERY render and removes its stale copies first: one block, not two.
           ok("exactly one block, however many times it repaints",
-            del ? del.querySelectorAll(".battleflow-target-block").length === 1 : false,
-            `count=${del ? del.querySelectorAll(".battleflow-target-block").length : "n/a"}`);
+            del ? del.querySelectorAll(".bythebooks-target-block").length === 1 : false,
+            `count=${del ? del.querySelectorAll(".bythebooks-target-block").length : "n/a"}`);
         } finally {
           Hooks.off("renderActivityUsageDialog", hid);
           try { await dialog?.close?.(); } catch { /* already gone */ }

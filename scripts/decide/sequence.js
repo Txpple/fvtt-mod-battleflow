@@ -1,5 +1,5 @@
 /**
- * Battle Flow — DECISION (ARCHITECTURE.md §2): THE HIT'S SEQUENCE. A hit's offers QUEUE behind the
+ * By the Books — DECISION (ARCHITECTURE.md §2): THE HIT'S SEQUENCE. A hit's offers QUEUE behind the
  * damage and a mastery's DECISION, never a mastery NOTICE (ARCHITECTURE *The presentation laws*, law 7). Pure.
  */
 

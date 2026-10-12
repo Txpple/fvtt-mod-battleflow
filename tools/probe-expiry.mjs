@@ -19,7 +19,7 @@ const f = await connectSuite({ tag: TAG, watchdogMs: 300_000, requireElect: true
 const out = await f.evaluate(async () => {
   const report = { steps: [] };
   const sleep = ms => new Promise(r => setTimeout(r, ms));
-  const MOD = "fvtt-mod-battleflow";
+  const MOD = "fvtt-mod-bythebooks";
   const ledger = globalThis.__bfHookLedger ?? null;
   const snap = () => (ledger ? { ...ledger } : {});
   const delta = (before, after) => Object.fromEntries(
@@ -36,11 +36,11 @@ const out = await f.evaluate(async () => {
     userRole: game.user.role
   };
 
-  const scene = game.scenes.getName("Battle Flow Test Range");
-  const victim = game.actors.getName("BF Test Victim");
-  const pc = game.actors.getName("BF Test PC Attacker");
-  const npc = game.actors.getName("BF Test Attacker");
-  if ( !scene || !victim || !pc || !npc ) return { fatal: "missing fixture: scene or BF Test actors" };
+  const scene = game.scenes.getName("By the Books Test Range");
+  const victim = game.actors.getName("BTB Test Victim");
+  const pc = game.actors.getName("BTB Test PC Attacker");
+  const npc = game.actors.getName("BTB Test Attacker");
+  if ( !scene || !victim || !pc || !npc ) return { fatal: "missing fixture: scene or BTB Test actors" };
   // Tokens where the range has them; a combatant needs only an actor to have a turn.
   const tokenFor = actor => scene.tokens.find(t => t.actorId === actor.id) ?? null;
   const pcToken = tokenFor(pc), victimToken = tokenFor(victim), npcToken = tokenFor(npc);

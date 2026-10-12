@@ -1,5 +1,5 @@
 // Probe: the hit's sequence: damage first, then the mastery rider, then any other offer.
-// BF Test Vanguard swings its Longsword (Sap) at BF Test Dummy with Shield Master on the sheet,
+// BTB Test Vanguard swings its Longsword (Sap) at BTB Test Dummy with Shield Master on the sheet,
 // and this measures the order: the offer QUEUED at the hit with no popup, the damage landing, the
 // Sap notice, and only then the offer promoted to pending with its clock started.
 //
@@ -12,7 +12,7 @@ const TAG = "probe-hit-sequence";
 const f = await connectSuite({ tag: TAG, watchdogMs: 240_000, env: loadEnv() });
 
 const out = await f.evaluate(async () => {
-  const MOD = "fvtt-mod-battleflow";
+  const MOD = "fvtt-mod-bythebooks";
   const sleep = ms => new Promise(r => setTimeout(r, ms));
   const until = async (fn, ms = 12000) => {
     const end = Date.now() + ms;
@@ -28,14 +28,14 @@ const out = await f.evaluate(async () => {
   const prior = Object.fromEntries(SETTING_KEYS.map(k => [k, game.settings.get(MOD, k)]));
   const set = (k, v) => game.settings.set(MOD, k, v);
 
-  const scene = game.scenes.getName("Battle Flow Test Range");
-  const vanguard = game.actors.getName("BF Test Vanguard");
-  const dummy = game.actors.getName("BF Test Dummy");
-  if ( !scene || !vanguard || !dummy ) return { fatal: "missing: the range, BF Test Vanguard or BF Test Dummy (run tools/fixture-suite.mjs)" };
+  const scene = game.scenes.getName("By the Books Test Range");
+  const vanguard = game.actors.getName("BTB Test Vanguard");
+  const dummy = game.actors.getName("BTB Test Dummy");
+  if ( !scene || !vanguard || !dummy ) return { fatal: "missing: the range, BTB Test Vanguard or BTB Test Dummy (run tools/fixture-suite.mjs)" };
   const blade = vanguard.items.getName("Longsword");
   const activity = blade?.system.activities?.contents?.find(a => a.type === "attack");
-  if ( !activity ) return { fatal: "BF Test Vanguard has no Longsword attack activity" };
-  const { livePopups } = await import("/modules/fvtt-mod-battleflow/scripts/ui.js");
+  if ( !activity ) return { fatal: "BTB Test Vanguard has no Longsword attack activity" };
+  const { livePopups } = await import("/modules/fvtt-mod-bythebooks/scripts/ui.js");
   const dialogsWith = text => [...document.querySelectorAll(".application")].filter(el => (el.innerHTML ?? "").includes(text));
   const zOf = el => Number(el?.style?.zIndex ?? 0);
 

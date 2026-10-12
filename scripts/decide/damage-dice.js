@@ -1,6 +1,6 @@
 // @ts-check
 /**
- * Battle Flow — DECISION layer (ARCHITECTURE.md §2): what a rerolled die does to a message's roll
+ * By the Books — DECISION layer (ARCHITECTURE.md §2): what a rerolled die does to a message's roll
  * data, PER DIE (Empowered Spell, Healer, Puncture) or PER SET (Savage Attacker). The EDGE halves
  * are shared.js `rebuildRolls` and auto-apply.js `moveAppliedDamage`.
  * ⚠ The data is `Roll#toJSON`; a struck face stays in `results`, inactive and marked.

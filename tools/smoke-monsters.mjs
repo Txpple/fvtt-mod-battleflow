@@ -1,5 +1,5 @@
 // SMOKE — THE MONSTER MANUAL'S WAITING ROWS BUILT (RULINGS *The Monster Manual — the waiting rows built*):
-// BF Test Monster is lent each trait by name from `dnd-monster-manual.features` and uses it at BF Test Victim;
+// BTB Test Monster is lent each trait by name from `dnd-monster-manual.features` and uses it at BTB Test Victim;
 // the machines the rows sit on are driven from there. Sections: `--section 2`, `--list`. Fixtures and teardown
 // ALWAYS run: the lent traits go back, the Victim's strays and the placed tokens go, the combat is deleted.
 //
@@ -46,7 +46,7 @@ const f = await connectSuite({ tag: 'monsters', watchdogMs: 600_000 });
 announcePlan('monsters', plan, pulled);
 
 const out = await f.evaluate(async ({ sections, titles }) => {
-  const MOD = 'fvtt-mod-battleflow';
+  const MOD = 'fvtt-mod-bythebooks';
   const results = [];
   const log = [];
   const skips = [];
@@ -70,15 +70,15 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   const prior = Object.fromEntries(SETTING_KEYS.map(k => [k, game.settings.get(MOD, k)]));
   const set = (k, v) => game.settings.set(MOD, k, v);
 
-  const scene = game.scenes.getName('Battle Flow Test Range');
-  const monster = game.actors.getName('BF Test Monster');
-  const victim = game.actors.getName('BF Test Victim');
-  if (!scene || !monster || !victim) return { fatal: 'missing fixture: the test range, BF Test Monster or BF Test Victim — run tools/fixture-suite.mjs' };
+  const scene = game.scenes.getName('By the Books Test Range');
+  const monster = game.actors.getName('BTB Test Monster');
+  const victim = game.actors.getName('BTB Test Victim');
+  if (!scene || !monster || !victim) return { fatal: 'missing fixture: the test range, BTB Test Monster or BTB Test Victim — run tools/fixture-suite.mjs' };
 
   const lent = [];
   const placed = [];
-  // ⚠ An UNLINKED token of the Victim (smoke-battleflow's permanent one) shares the base actor's effects: a Grappled
-  // put on BF Test Victim grapples it too (§4a dealt twice). Set aside for the run, put back with its own id.
+  // ⚠ An UNLINKED token of the Victim (smoke-bythebooks's permanent one) shares the base actor's effects: a Grappled
+  // put on BTB Test Victim grapples it too (§4a dealt twice). Set aside for the run, put back with its own id.
   const asideVictims = scene ? scene.tokens.filter(t => (t.actorId === victim?.id) && !t.actorLink).map(t => t.toObject()) : [];
   let combat = null;
   const priorActiveCombats = [];
@@ -154,7 +154,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     for (let i = 0; i < 40 && !canvas.ready; i++) await sleep(250);
     const g = scene.grid.size;
     const monsterToken = canvas.tokens.placeables.find(t => t.actor?.uuid === monster.uuid) ?? null;
-    if (!monsterToken) return { fatal: 'BF Test Monster has no token on the range — run tools/fixture-suite.mjs', results, log, skips };
+    if (!monsterToken) return { fatal: 'BTB Test Monster has no token on the range — run tools/fixture-suite.mjs', results, log, skips };
     /** The Victim's own token, placed `squares` from the Monster (the fixture line moves under walks). */
     const placeVictim = async (squares = 1) => {
       const [doc] = await scene.createEmbeddedDocuments('Token', [foundry.utils.mergeObject(victim.prototypeToken.toObject(),
@@ -642,7 +642,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     const mSetHp = (value, max = 50) => monster.update({ 'system.attributes.hp.max': max, 'system.attributes.hp.value': value, 'system.attributes.hp.temp': 0 });
     const damageCard = async (type, speaker = monster) => {
       const roll = await new CONFIG.Dice.DamageRoll('30', {}, { type }).evaluate();
-      return ChatMessage.create({ speaker: ChatMessage.getSpeaker({ actor: speaker }), rolls: [roll], flavor: `BF test damage — ${type}` });
+      return ChatMessage.create({ speaker: ChatMessage.getSpeaker({ actor: speaker }), rolls: [roll], flavor: `BTB test damage — ${type}` });
     };
     const mHit = async (n, type = 'slashing', speaker = monster) => {
       const msg = await damageCard(type, speaker);

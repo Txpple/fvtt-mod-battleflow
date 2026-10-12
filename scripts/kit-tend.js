@@ -1,10 +1,10 @@
 /**
- * Battle Flow — MACHINE (ARCHITECTURE.md §7): KIT TENDING (registry KIT_TENDS) — a kit's use on ONE
+ * By the Books — MACHINE (ARCHITECTURE.md §7): KIT TENDING (registry KIT_TENDS) — a kit's use on ONE
  * creature in reach, by a listed feature's owner, stamps `kitTend` on the usage card; a popup picks the
  * die size (a Pass leaves the kit's use as it was); the flow elect spends the creature's die and rolls
  * the feature's OWN heal activity of that size at it, so the healing rerolls and cast applier carry the rest.
  */
-import { MODULE_ID, TITLE, isActiveGM, queueFlagWrite, canAnswerFor, canApplyTo, drivesMomentFor, statContext, whisperNoGM, decisionWindow } from "./core.js";
+import { MODULE_ID, readFlag, TITLE, isActiveGM, queueFlagWrite, canAnswerFor, canApplyTo, drivesMomentFor, statContext, whisperNoGM, decisionWindow } from "./core.js";
 import { featureNamed, lower, resolveUuid } from "./lookup.js";
 import { answers, kitTendEntries, listedNames } from "./decide/registry.js";
 import { KIT_TENDS } from "./decide/registry.js";
@@ -100,7 +100,7 @@ const settle = (current, answer, pick, timedOut = false) => {
 };
 
 async function answerTend(message, answer, pick = null, { timedOut = false } = {}) {
-  const flag = message.getFlag(MODULE_ID, TEND_FLAG);
+  const flag = readFlag(message, TEND_FLAG);
   if ( flag?.status !== "pending" ) return;
   if ( isActiveGM() || !game.users.activeGM ) {
     await queueFlagWrite(message, TEND_FLAG, current => settle(current, answer, pick, timedOut));
@@ -130,7 +130,7 @@ async function landTend(message) {
     claimed = true;
   });
   if ( !claimed ) return;
-  const flag = message.getFlag(MODULE_ID, TEND_FLAG);
+  const flag = readFlag(message, TEND_FLAG);
   const record = {};
   try {
     const actor = resolveUuid(flag.actorUuid);
@@ -172,18 +172,18 @@ registerResumable(TEND_FLAG, {
 /* --- the clock: Pass, on whoever drives the owner's moments ---------------------------------------- */
 
 function armTimer(message) {
-  const flag = message.getFlag(MODULE_ID, TEND_FLAG);
+  const flag = readFlag(message, TEND_FLAG);
   if ( (flag?.status !== "pending") || !flag.deadline || !drivesMomentFor(flag.actorUuid ?? null) ) return;
   armDeadline(timers, message.id, flag.deadline, async () => {
     const live = game.messages.get(message.id);
-    if ( live?.getFlag(MODULE_ID, TEND_FLAG)?.status === "pending" ) await answerTend(live, "pass", null, { timedOut: true });
+    if ( readFlag(live, TEND_FLAG)?.status === "pending" ) await answerTend(live, "pass", null, { timedOut: true });
   });
 }
 
 /* --- the popup and the card -------------------------------------------------------------------------- */
 
 async function showTendPopup(message) {
-  const flag = message.getFlag(MODULE_ID, TEND_FLAG);
+  const flag = readFlag(message, TEND_FLAG);
   if ( flag?.status !== "pending" ) return;
   const actor = resolveUuid(flag.actorUuid);
   if ( !actor ) return;
@@ -235,7 +235,7 @@ function tendLine(flag) {
 
 listen("dnd5e.renderChatMessage", "kit-tend", (message, html) => {
   try {
-    const flag = message.getFlag(MODULE_ID, TEND_FLAG);
+    const flag = readFlag(message, TEND_FLAG);
     if ( !flag ) return;
     const content = html.querySelector?.(SURFACES.messageContent) ?? html;
     if ( !content || content.querySelector(".bf-kit-tend-line") ) return;
@@ -260,7 +260,7 @@ listen("dnd5e.renderChatMessage", "kit-tend", (message, html) => {
 
 // An answer anywhere closes the popup everywhere (law 4); the clock stands down with it.
 listen("updateChatMessage", "kit-tend", message => {
-  const flag = message.getFlag(MODULE_ID, TEND_FLAG);
+  const flag = readFlag(message, TEND_FLAG);
   if ( !flag ) return;
   if ( flag.status === "pending" ) { armTimer(message); return; }
   disarmDeadline(timers, message.id);

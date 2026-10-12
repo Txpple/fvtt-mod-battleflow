@@ -1,5 +1,5 @@
 /**
- * Battle Flow — MACHINE (ARCHITECTURE.md §7): DROP TO 1 HP (DROP_TO_ONE; RULINGS *Where the table
+ * By the Books — MACHINE (ARCHITECTURE.md §7): DROP TO 1 HP (DROP_TO_ONE; RULINGS *Where the table
  * bends the rule*). A row that ASKS (Relentless Endurance) holds the HP at 1 while its popup asks
  * — not offered when the damage kills outright; an automatic row (Death Ward) stops at 1 and ends
  * its effect; a `save` row (Undead Fortitude, the GM's side) holds at 1 while the bearer's save rolls on the
@@ -12,7 +12,7 @@
  * THE KEEPER of an ask is the client that applied the damage, or the GM once it has gone; any
  * other answer is relayed to it.
  */
-import { MODULE_ID, TITLE, keepsMessage, queueFlagWrite, canAnswerFor, statContext, decisionWindow, isActiveGM } from "./core.js";
+import { MODULE_ID, readFlag, TITLE, keepsMessage, queueFlagWrite, canAnswerFor, statContext, decisionWindow, isActiveGM } from "./core.js";
 import { featureNamed, lower, resolveUuid, activityNamed, activityOfType, applicableProfiles, wearsEffectNamed } from "./lookup.js";
 import { poolOf } from "./shared.js";
 import { nearestFeet } from "./geometry.js";
@@ -398,7 +398,7 @@ async function stampAsk(actor, found, { amount, source }) {
 
 
 function armTimer(message) {
-  const flag = message?.getFlag(MODULE_ID, DROP_FLAG);
+  const flag = readFlag(message, DROP_FLAG);
   if ( (flag?.status !== "pending") || !flag.deadline || !keepsMessage(message) ) return;
   armDeadline(timers, message.id, flag.deadline, async () => {
     const live = game.messages.get(message.id);
@@ -416,7 +416,7 @@ async function answer(message, choice) {
   if ( answering.has(message.id) ) return;
   answering.add(message.id);
   try {
-    const flag = message.getFlag(MODULE_ID, DROP_FLAG);
+    const flag = readFlag(message, DROP_FLAG);
     if ( flag?.status !== "pending" ) return;
     if ( keepsMessage(message) ) {
       await queueFlagWrite(message, DROP_FLAG, current => {
@@ -455,7 +455,7 @@ async function land(message) {
     claimed = true;
   });
   if ( !claimed ) return;
-  const flag = message.getFlag(MODULE_ID, DROP_FLAG);
+  const flag = readFlag(message, DROP_FLAG);
   const actor = resolveUuid(flag.actorUuid);
   let fell = false;
   try {
@@ -502,7 +502,7 @@ registerResumable(DROP_FLAG, {
 const askerOf = flag => (flag?.keeperUuid ? resolveUuid(flag.keeperUuid) : null) ?? resolveUuid(flag?.actorUuid);
 
 async function showPopup(message) {
-  const flag = message.getFlag(MODULE_ID, DROP_FLAG);
+  const flag = readFlag(message, DROP_FLAG);
   if ( flag?.status !== "pending" ) return;
   const actor = askerOf(flag);
   const row = DROP_TO_ONE[flag.row];
@@ -539,7 +539,7 @@ const CARD_SAYS_IT = new Set(["auto", "saved", "failed", "unrolled", "exempt"]);
 
 listen("dnd5e.renderChatMessage", "drop-to-one", (message, html) => {
   try {
-    const flag = message.getFlag(MODULE_ID, DROP_FLAG);
+    const flag = readFlag(message, DROP_FLAG);
     if ( !flag || CARD_SAYS_IT.has(flag.answer) ) return;
     const content = html.querySelector?.(SURFACES.messageContent) ?? html;
     if ( !content || content.querySelector(".bf-drop-to-one-line") ) return;
@@ -564,7 +564,7 @@ listen("dnd5e.renderChatMessage", "drop-to-one", (message, html) => {
 
 // An answer anywhere closes the popup everywhere (law 4); the clock stands down with it.
 listen("updateChatMessage", "drop-to-one", message => {
-  const flag = message.getFlag(MODULE_ID, DROP_FLAG);
+  const flag = readFlag(message, DROP_FLAG);
   if ( !flag ) return;
   if ( flag.status === "pending" ) { armTimer(message); return; }
   disarmDeadline(timers, message.id);
@@ -640,7 +640,7 @@ async function stampDeathOffer(actor, found, rollMessage) {
 }
 
 function armOfferTimer(message) {
-  const flag = message?.getFlag(MODULE_ID, DEATH_OFFER_FLAG);
+  const flag = readFlag(message, DEATH_OFFER_FLAG);
   if ( (flag?.status !== "pending") || !flag.deadline || !keepsMessage(message) ) return;
   armDeadline(timers, message.id, flag.deadline, async () => {
     const live = game.messages.get(message.id);
@@ -656,7 +656,7 @@ async function answerOffer(message, choice) {
   if ( answering.has(message.id) ) return;
   answering.add(message.id);
   try {
-    const flag = message.getFlag(MODULE_ID, DEATH_OFFER_FLAG);
+    const flag = readFlag(message, DEATH_OFFER_FLAG);
     if ( flag?.status !== "pending" ) return;
     if ( keepsMessage(message) ) {
       await queueFlagWrite(message, DEATH_OFFER_FLAG, current => {
@@ -695,7 +695,7 @@ async function landOffer(message) {
     claimed = true;
   });
   if ( !claimed ) return;
-  const flag = message.getFlag(MODULE_ID, DEATH_OFFER_FLAG);
+  const flag = readFlag(message, DEATH_OFFER_FLAG);
   const record = {};
   try {
     const actor = resolveUuid(flag.actorUuid);
@@ -741,7 +741,7 @@ registerResumable(DEATH_OFFER_FLAG, {
 });
 
 async function showOfferPopup(message) {
-  const flag = message.getFlag(MODULE_ID, DEATH_OFFER_FLAG);
+  const flag = readFlag(message, DEATH_OFFER_FLAG);
   if ( flag?.status !== "pending" ) return;
   const keeper = resolveUuid(flag.keeperUuid);
   const row = DROP_TO_ONE[flag.row];
@@ -773,7 +773,7 @@ function offerLine(flag) {
 
 listen("dnd5e.renderChatMessage", "drop-to-one", (message, html) => {
   try {
-    const flag = message.getFlag(MODULE_ID, DEATH_OFFER_FLAG);
+    const flag = readFlag(message, DEATH_OFFER_FLAG);
     if ( !flag ) return;
     const content = html.querySelector?.(SURFACES.messageContent) ?? html;
     if ( !content || content.querySelector(".bf-death-offer-line") ) return;
@@ -797,7 +797,7 @@ listen("dnd5e.renderChatMessage", "drop-to-one", (message, html) => {
 });
 
 listen("updateChatMessage", "drop-to-one", message => {
-  const flag = message.getFlag(MODULE_ID, DEATH_OFFER_FLAG);
+  const flag = readFlag(message, DEATH_OFFER_FLAG);
   if ( !flag ) return;
   if ( flag.status === "pending" ) { armOfferTimer(message); return; }
   disarmDeadline(timers, message.id);

@@ -35,7 +35,7 @@ const f = await connectSuite({ tag: 'volleys', watchdogMs: 540_000 });
 announcePlan('volleys', plan, pulled);
 
 const out = await f.evaluate(async ({ sections, titles }) => {
-  const MOD = 'fvtt-mod-battleflow';
+  const MOD = 'fvtt-mod-bythebooks';
   const results = [];
   const log = [];
   const skips = [];
@@ -69,16 +69,16 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   const prior = Object.fromEntries(SETTING_KEYS.map(k => [k, game.settings.get(MOD, k)]));
   const set = (k, v) => game.settings.set(MOD, k, v);
 
-  const scene = game.scenes.getName('Battle Flow Test Range');
-  const victim = game.actors.getName('BF Test Victim');
-  const shielder = game.actors.getName('BF Test Shielder');
-  const npc = game.actors.getName('BF Test Attacker');
-  if (!scene || !victim || !npc || !shielder) return { fatal: 'missing fixture: scene or BF Test actors' };
+  const scene = game.scenes.getName('By the Books Test Range');
+  const victim = game.actors.getName('BTB Test Victim');
+  const shielder = game.actors.getName('BTB Test Shielder');
+  const npc = game.actors.getName('BTB Test Attacker');
+  if (!scene || !victim || !npc || !shielder) return { fatal: 'missing fixture: scene or BTB Test actors' };
 
   const created = { items: [], tokens: [] };
   const priorActor = {};
   // Fixture registry entries, deleted on the way out; the shipped entries are never touched.
-  const TEST_ENTRIES = ['BF Volley Missile', 'BF Volley Up', 'BF Volley Rays', 'BF Volley Unlisted'];
+  const TEST_ENTRIES = ['BTB Volley Missile', 'BTB Volley Up', 'BTB Volley Rays', 'BTB Volley Unlisted'];
   let restored = false;
   const teardown = async () => {
     if (restored) return;
@@ -108,7 +108,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       }
       game.user.targets.forEach(t => { t.setTarget(false, { releaseOthers: true }); });
       const mine = game.messages.filter(m => (m.timestamp >= suiteStart)
-        && (m.speaker?.alias?.startsWith?.('BF Test') || m.speaker?.alias === 'Battle Flow'
+        && (m.speaker?.alias?.startsWith?.('BTB Test') || m.speaker?.alias === 'By the Books'
           || Object.keys(m.flags?.[MOD] ?? {}).length));
       if (mine.length) await ChatMessage.deleteDocuments(mine.map(m => m.id));
     } catch (err) {
@@ -155,9 +155,9 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     await set('resourceNotices', false);   // the resources suite owns those asserts
 
     // Membership is name-keyed, so fixture spells register through the api seam like real ones.
-    registry.set('BF Volley Missile', { kind: 'damage', count: '2 + @item.level' });
-    registry.set('BF Volley Up',      { kind: 'damage', count: '2 + @item.level' });
-    registry.set('BF Volley Rays',    { kind: 'attack', count: '1 + @item.level' });
+    registry.set('BTB Volley Missile', { kind: 'damage', count: '2 + @item.level' });
+    registry.set('BTB Volley Up',      { kind: 'damage', count: '2 + @item.level' });
+    registry.set('BTB Volley Rays',    { kind: 'attack', count: '1 + @item.level' });
 
     // ---- fixtures
     if (canvas.scene?.id !== scene.id) await scene.view();
@@ -190,7 +190,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
 
     // The Magic Missile shape: damage activity, innate self-uses (something to record), scaling allowed.
     const [mmItem] = await npc.createEmbeddedDocuments('Item', [{
-      name: 'BF Volley Missile', type: 'spell',
+      name: 'BTB Volley Missile', type: 'spell',
       system: {
         level: 1, school: 'evo', properties: ['vocal'],
         range: { value: '120', units: 'ft' },
@@ -212,7 +212,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
 
     // The Scorching Ray shape: attack activity, flat +30 so every ray hits, 2d6 fire per ray.
     const [srItem] = await npc.createEmbeddedDocuments('Item', [{
-      name: 'BF Volley Rays', type: 'spell',
+      name: 'BTB Volley Rays', type: 'spell',
       system: {
         level: 2, school: 'evo', properties: ['vocal'],
         range: { value: '120', units: 'ft' },
@@ -255,7 +255,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       ok('1b the native single follow-up is suppressed (no damage roll, no stray dialog roll)',
         !msgs.some(m => m.type === 'damage'),
         `${msgs.length} new messages`);
-      const dlg1 = findDialog('BF Volley Missile');
+      const dlg1 = findDialog('BTB Volley Missile');
       ok('1c the caster popup is up with one stepper per target and the bar',
         !!dlg1 && (dlg1.element.querySelectorAll('[data-bf-volley-uuid]').length === 2)
           && !!dlg1.element.querySelector('[data-bf-deadline]'),
@@ -323,7 +323,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       };
       await npc.update({ 'system.spells.spell3.override': 2, 'system.spells.spell3.value': 2 });
       const [upItem] = await npc.createEmbeddedDocuments('Item', [{
-        name: 'BF Volley Up', type: 'spell',
+        name: 'BTB Volley Up', type: 'spell',
         system: {
           level: 1, school: 'evo', properties: ['vocal'],
           range: { value: '120', units: 'ft' },
@@ -349,7 +349,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       ok('2a a 3rd-level slot reads 5 darts off the content formula (message spellLevel is the channel)',
         (v2?.n === 5) && (v2?.castLevel === 3) && (card2?.system?.spellLevel === 3),
         JSON.stringify({ n: v2?.n, lvl: v2?.castLevel, msgLvl: card2?.system?.spellLevel }));
-      const dlg2 = findDialog('BF Volley Up');
+      const dlg2 = findDialog('BTB Volley Up');
       // The X is "get on with it": closing fires the volley with the default even spread (3/2).
       await dlg2?.close();
       await until(() => fresh(before).filter(m => (m.type === 'damage')
@@ -379,7 +379,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         (v3?.kind === 'attack') && (v3?.n === 3)
           && !msgs.some(m => m.type === 'attack'),
         JSON.stringify({ kind: v3?.kind, n: v3?.n, msgs: msgs.length }));
-      const dlg3 = findDialog('BF Volley Rays');
+      const dlg3 = findDialog('BTB Volley Rays');
       ok('3b the popup offers one target pick per ray',
         !!dlg3 && (dlg3.element.querySelectorAll('[data-bf-volley-ray]').length === 3));
       // Each ray row carries its pick's token icon, tracking the select (dispatch a real change
@@ -465,14 +465,14 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       log.push('§4 negatives');
       // (a) retired: volleys are always on (RULINGS *The settings*); there is no switch to test.
       // (b) a single-projectile count — the REGISTRY's count; content counts decide nothing
-      registry.set('BF Volley Missile', { kind: 'damage', count: '1' });
+      registry.set('BTB Volley Missile', { kind: 'damage', count: '1' });
       targetBoth();
       before = snap();
       await mmAct.use({}, { configure: false }, {});
       await castSettled(before);
       closeStrays();
       ok('4b registry count 1: not a volley', !fresh(before).some(m => m.getFlag(MOD, 'volley')));
-      registry.set('BF Volley Missile', { kind: 'damage', count: '2 + @item.level' });
+      registry.set('BTB Volley Missile', { kind: 'damage', count: '2 + @item.level' });
       // (c) targetless
       game.user.targets.forEach(t => { t.setTarget(false, { releaseOthers: true }); });
       before = snap();
@@ -484,7 +484,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       // (d) the census false positive (Dimension Door's shape): a CONTENT count of 2 with a
       // damage activity, but the name is UNLISTED — never a volley under (ff).
       const [unlisted] = await npc.createEmbeddedDocuments('Item', [{
-        name: 'BF Volley Unlisted', type: 'spell',
+        name: 'BTB Volley Unlisted', type: 'spell',
         system: {
           level: 4, school: 'con', properties: ['vocal'],
           method: 'spell', prepared: 1, identifier: 'bf-volley-unlisted',
@@ -550,7 +550,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const card6 = fresh(before).find(m => m.getFlag(MOD, 'volley'));
       ok('6a no eligible holder was targeted, so no hold stamped on the card',
         !!card6 && !card6.getFlag(MOD, 'hold'));
-      await findDialog('BF Volley Missile')?.close();   // fire the default spread
+      await findDialog('BTB Volley Missile')?.close();   // fire the default spread
       const claimedNow = () => fresh(before).filter(m =>
         (m.type === 'damage') && m.getFlag(MOD, 'volleyFor'));
       await until(() => claimedNow().length === 1, 6000);
@@ -667,8 +667,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       targetBoth();
       before = snap();
       await srAct.use({}, { configure: false }, {});
-      await until(() => findDialog('BF Volley Rays'), 5000);
-      const dlg9 = findDialog('BF Volley Rays');
+      await until(() => findDialog('BTB Volley Rays'), 5000);
+      const dlg9 = findDialog('BTB Volley Rays');
       ok('9a the popup offers a mode select per ray',
         !!dlg9 && (dlg9.element.querySelectorAll('[data-bf-volley-mode]').length === 3));
       if (dlg9) {
@@ -722,8 +722,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       targetBoth();
       before = snap();
       await srAct.use({}, { configure: false }, {});
-      await until(() => findDialog('BF Volley Rays'), 5000);
-      const dlg10 = findDialog('BF Volley Rays');
+      await until(() => findDialog('BTB Volley Rays'), 5000);
+      const dlg10 = findDialog('BTB Volley Rays');
       const aim = async (i, uuid) => {
         const sel = dlg10?.element.querySelector(`[data-bf-volley-ray="${i}"]`);
         if (!sel) return;
@@ -802,8 +802,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       targetBoth();
       before = snap();
       await srAct.use({}, { configure: false }, {});
-      await until(() => findDialog('BF Volley Rays'), 5000);
-      const dlg11 = findDialog('BF Volley Rays');
+      await until(() => findDialog('BTB Volley Rays'), 5000);
+      const dlg11 = findDialog('BTB Volley Rays');
       const judges11 = () => [...(dlg11?.element.querySelectorAll('[data-bf-volley-judge]') ?? [])];
       const jtext11 = i => (judges11()[i]?.textContent ?? '').replace(/\s+/g, ' ').trim();
       const modeOf11 = i => dlg11?.element.querySelector(`[data-bf-volley-mode="${i}"]`)?.value ?? null;

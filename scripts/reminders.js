@@ -1,9 +1,9 @@
 /**
- * Battle Flow — The gate machine: what bends this attack, save or check, and what it nets to,
+ * By the Books — The gate machine: what bends this attack, save or check, and what it nets to,
  * BEFORE the dice; plus the attack's cover (measured, or ignored by a feat). EDGE layer
  * (ARCHITECTURE.md §7). RULINGS *The gate before the roll*.
  */
-import { MODULE_ID, TITLE, activeCombatFor, statContext, sheetModeEffects, rollLabelFor, canApplyTo, whisperNoGM } from "./core.js";
+import { MODULE_ID, readFlag, TITLE, activeCombatFor, statContext, sheetModeEffects, rollLabelFor, canApplyTo, whisperNoGM } from "./core.js";
 import { featureNamed, isWorn, lower, namesAnswering, resolveUuid } from "./lookup.js";
 import { damagedSince } from "./decide/turn-grants.js";
 import { conditionEntries, effectEntries, reminderEntries } from "./decide/registry.js";
@@ -47,7 +47,7 @@ function displacedFacts(actor) {
     if ( idx >= 0 ) {
       // Its most recent turn start: this round's if its turn has come, else the last round's.
       const startRound = (combat.turn >= idx) ? combat.round : (combat.round - 1);
-      const entries = game.messages.contents.flatMap(m => m.getFlag(MODULE_ID, "receipt")?.targets ?? []);
+      const entries = game.messages.contents.flatMap(m => readFlag(m, "receipt")?.targets ?? []);
       const types = Object.keys(CONFIG.DND5E?.damageTypes ?? {});
       damaged = damagedSince({ entries, uuid: actor.uuid, combatId: combat.id, round: startRound + 1, turn: idx, types }).blocked;
     }
@@ -74,7 +74,7 @@ function alliedFeaturesOf(attacker, attackerToken) {
   return [...out];
 }
 /** An effect's SOURCE: the module's own stamp, else the actor behind its origin (B2's `spells: "source"`, `charmedBy`). */
-const effectSourceUuid = e => e.getFlag(MODULE_ID, "sourceUuid") ?? grantingActor(e)?.uuid ?? null;
+const effectSourceUuid = e => readFlag(e, "sourceUuid") ?? grantingActor(e)?.uuid ?? null;
 /** The features a save row reads off an effect's SOURCE (`saves.sourceFeature` — Eldritch Hex), and the effects that ask. */
 const SOURCE_FEATURE_KEYS = [...new Set(Object.values(EFFECT_BENDS).map(r => r.saves?.sourceFeature).filter(Boolean))];
 const SOURCE_FEATURE_ROWS = new Set(Object.entries(EFFECT_BENDS).filter(([, r]) => r.saves?.sourceFeature).map(([k, r]) => String(r.named ?? k).toLowerCase()));
@@ -86,7 +86,7 @@ const sourceFeaturesOf = e => {
 /** The roller's effects as the save gate reads them (B2: statuses, the source, the source's features). */
 const saveEffectFacts = actor => actor.effects.filter(e => !e.disabled).map(e => ({ id: e.id, name: e.name,
   statuses: [...(e.statuses ?? [])], sourceUuid: effectSourceUuid(e), sourceHas: sourceFeaturesOf(e),
-  member: !!e.getFlag(MODULE_ID, "emanation") }));
+  member: !!readFlag(e, "emanation") }));
 
 /* THE ATTACK GATE: one fieldset in dnd5e's Attack Roll dialog, default button on the net; re-judged
  * on every re-render and re-target. ⚠ FORCED open: dnd5e applies fast-forward keys AFTER the pre-roll
@@ -100,7 +100,7 @@ function distantRangeOn(message) {
   try {
     const data = message?.data ?? {};
     const id = originIdInData(data);
-    const feet = id ? game.messages.get(id)?.getFlag(MODULE_ID, METAMAGIC_FLAG)?.rangeFeet : null;
+    const feet = id ? readFlag(game.messages.get(id), METAMAGIC_FLAG)?.rangeFeet : null;
     return Number.isFinite(Number(feet)) && (Number(feet) > 0) ? Number(feet) : null;
   } catch { return null; }
 }
@@ -228,11 +228,11 @@ const COVER_TONE = { none: TONE.good, half: TONE.pending, threeQuarters: TONE.pe
 // The cover row under the card's header: per target, the degree and the feat that ignored it.
 listen("dnd5e.renderChatMessage", "reminders", (message, html) => {
   try {
-    const flag = message.getFlag?.(MODULE_ID, "coverMeasured");
+    const flag = readFlag(message, "coverMeasured");
     if ( !flag?.targets?.length ) return;
     const content = html.querySelector?.(SURFACES.messageContent) ?? html;
     if ( !content || content.querySelector(".bf-cover-measured") ) return;
-    const ignored = message.getFlag?.(MODULE_ID, "coverIgnored");
+    const ignored = readFlag(message, "coverIgnored");
     const box = document.createElement("div");
     box.className = "bf-cover-measured";
     box.style.cssText = "display:flex;flex-direction:column;gap:3px;margin:0.35rem 0;";
@@ -260,8 +260,8 @@ listen("dnd5e.renderChatMessage", "reminders", (message, html) => {
 // the line: "Sharpshooter — ignores the Goblin's cover (+2 AC)"
 listen("dnd5e.renderChatMessage", "reminders", (message, html) => {
   try {
-    const flag = message.getFlag?.(MODULE_ID, "coverIgnored");
-    if ( !flag?.targets?.length || message.getFlag?.(MODULE_ID, "coverMeasured") ) return;   // the cover row says it
+    const flag = readFlag(message, "coverIgnored");
+    if ( !flag?.targets?.length || readFlag(message, "coverMeasured") ) return;   // the cover row says it
     const content = html.querySelector?.(SURFACES.messageContent) ?? html;
     if ( !content || content.querySelector(".bf-cover-line") ) return;
     const div = document.createElement("div");
@@ -513,10 +513,10 @@ function sourcesFor(attacker, enabled, { activity = null, attackMode = null, tar
     type: modeIsRanged(attackMode) ? "ranged" : (activity?.attack?.type?.value ?? null),
     item: activity?.item?.name ?? null };
   // An effect's SOURCE: the module's own stamp, else the actor behind its origin (`except: "source"`).
-  const sourceOf = e => e.getFlag(MODULE_ID, "sourceUuid") ?? grantingActor(e)?.uuid ?? null;
+  const sourceOf = e => readFlag(e, "sourceUuid") ?? grantingActor(e)?.uuid ?? null;
   // The ITEM an effect comes from, in the table's words, for a row's `item` discriminator.
   const itemOf = e => {
-    const key = e.getFlag(MODULE_ID, "emanation")?.key;
+    const key = readFlag(e, "emanation")?.key;
     if ( key ) return key;
     const origin = e.origin ? resolveUuid(e.origin) : null;
     // ⚠ dnd5e 6 stamps an applied effect's origin with the ACTIVITY; read through to its item.
@@ -526,8 +526,8 @@ function sourcesFor(attacker, enabled, { activity = null, attackMode = null, tar
   const sheetOf = actor => ({
     uuid: actor.uuid,
     effects: actor.effects.filter(live).map(e => ({ id: e.id, name: e.name, sourceUuid: sourceOf(e), item: itemOf(e),
-      sourceFeet: sourceFeetOf(actor, sourceOf(e)), member: !!e.getFlag(MODULE_ID, "emanation"),
-      against: e.getFlag(MODULE_ID, "against") ?? null })),
+      sourceFeet: sourceFeetOf(actor, sourceOf(e)), member: !!readFlag(e, "emanation"),
+      against: readFlag(e, "against") ?? null })),
     features: featuresOf(actor),
     bloodied: hpFraction(actor) <= 0.5, damaged: hpFraction(actor) < 1,
     grappled: !!actor.statuses?.has?.("grappled"),
@@ -547,7 +547,7 @@ function sourcesFor(attacker, enabled, { activity = null, attackMode = null, tar
 
   if ( enabled.has("sap") ) {
     for ( const e of attacker.effects ) {
-      if ( (e.getFlag(MODULE_ID, CHIP_FLAG) !== "sap") || !live(e) ) continue;
+      if ( (readFlag(e, CHIP_FLAG) !== "sap") || !live(e) ) continue;
       const by = grantingActor(e)?.name ?? null;
       out.push(Object.assign(reminderSource("sap", "disadvantage",
         `${attackerName} — ${e.name}${by ? ` by ${by}` : ""}${spendNote}`, MASTERY_RULES.sap), { effectId: e.id }));
@@ -579,7 +579,7 @@ function sourcesFor(attacker, enabled, { activity = null, attackMode = null, tar
     const distanceFeet = attackerToken ? nearestFeet(attackerToken, token) : null;
     if ( enabled.has("vex") ) {
       for ( const e of target.effects ) {
-        if ( (e.getFlag(MODULE_ID, CHIP_FLAG) !== "vex") || !chipOwnedBy(e.origin, attacker.uuid) || !live(e) ) continue;
+        if ( (readFlag(e, CHIP_FLAG) !== "vex") || !chipOwnedBy(e.origin, attacker.uuid) || !live(e) ) continue;
         out.push(Object.assign(reminderSource("vex", "advantage", `${attackerName} Vexed ${targetName}${spendNote}`,
           MASTERY_RULES.vex), { effectId: e.id }));
       }
@@ -615,7 +615,7 @@ function circleSourcesFor(attacker, targetToken, attackerName) {
     if ( !scene ) return out;
     const attackerType = creatureTypeOf(attacker?.system?.details?.type ?? null);
     for ( const region of scene.regions ) {
-      const f = region.getFlag(MODULE_ID, "emanation");
+      const f = readFlag(region, "emanation");
       if ( f?.kind !== "area" ) continue;
       const row = EMANATION_INDEX.rowNamed(f.key);
       if ( !row?.gate ) continue;
@@ -720,7 +720,7 @@ function sneakFactsFor(attacker, activity, attackMode, net, targets = []) {
 
 // The attack card says a Sneak Attack was ARMED; the damage card says what rode.
 listen("dnd5e.renderChatMessage", "reminders", (message, html) => {
-  const s = message.getFlag(MODULE_ID, "sneak");
+  const s = readFlag(message, "sneak");
   if ( !s?.armed ) return;
   const line = document.createElement("div");
   line.innerHTML = bfCard({
@@ -733,7 +733,7 @@ listen("dnd5e.renderChatMessage", "reminders", (message, html) => {
 
 // The reminder row rides cardRow: dnd5e 6 draws a save's roll inside the usage card.
 listen("dnd5e.renderChatMessage", "reminders", cardRow((message, host) => {
-  const r = message.getFlag(MODULE_ID, REMINDER_FLAG);
+  const r = readFlag(message, REMINDER_FLAG);
   if ( !r?.sources?.length ) return;
   const line = document.createElement("div");
   const what = r.sources.map(s => s.label + (s.bend ? ` (${modeTitle(s.bend)})` : "")).join(" · ");
@@ -780,7 +780,7 @@ function judgeSave(actor, ability, { concentration = false, askId = null } = {})
     // Extended Spell: a concentration save for a spell cast Extended is at Advantage.
     if ( concentration ) {
       for ( const card of extendedCastsHeldBy(actor) ) {
-        const rec = card.getFlag(MODULE_ID, METAMAGIC_FLAG);
+        const rec = readFlag(card, METAMAGIC_FLAG);
         sources.push(reminderSource("effect", "advantage", `${actor.name} — Extended Spell (${itemNameOf(card) ?? rec.spellName ?? "the spell"})`, rec.rule ?? ""));
       }
       // Mage Slayer: the damage that forced this check came from the feat's holder (concentration.js `breakerFor`).
@@ -797,9 +797,9 @@ function judgeSave(actor, ability, { concentration = false, askId = null } = {})
 
 /** The concentration ask this save answers: the dialog's, else the oldest pending one. */
 function concentrationAskFor(actor, askId = null) {
-  const carried = askId ? game.messages.get(askId)?.getFlag(MODULE_ID, "concentration") : null;
+  const carried = askId ? readFlag(game.messages.get(askId), "concentration") : null;
   if ( carried ) return carried;
-  return pendingDemandsFor(actor.uuid, { flagKey: "concentration" })[0]?.card?.getFlag(MODULE_ID, "concentration") ?? null;
+  return readFlag(pendingDemandsFor(actor.uuid, { flagKey: "concentration" })[0]?.card, "concentration") ?? null;
 }
 
 /** The newest Extended usage card per spell this actor still concentrates on (by origin or item id). */
@@ -808,11 +808,11 @@ function extendedCastsHeldBy(actor) {
   if ( !held.length ) return [];
   const out = [];
   for ( const m of game.messages.contents.slice(-200).reverse() ) {
-    const rec = m.getFlag(MODULE_ID, METAMAGIC_FLAG);
+    const rec = readFlag(m, METAMAGIC_FLAG);
     if ( (rec?.key !== "extended") || (rec.actorUuid !== actor.uuid) ) continue;
     const itemId = rec.spellUuid?.split(".").pop() ?? null;
     if ( !held.some(e => (e.origin === rec.spellUuid) || (e.origin && itemId && e.origin.endsWith(`.${itemId}`)) || (e.getFlag?.("dnd5e", "item")?.id === itemId)) ) continue;
-    if ( out.some(c => c.getFlag(MODULE_ID, METAMAGIC_FLAG)?.spellUuid === rec.spellUuid) ) continue;
+    if ( out.some(c => readFlag(c, METAMAGIC_FLAG)?.spellUuid === rec.spellUuid) ) continue;
     out.push(m);
   }
   return out;
@@ -820,7 +820,7 @@ function extendedCastsHeldBy(actor) {
 
 /** The demand this actor is mid-answer on, if any. */
 function pendingDemandFor(actor) {
-  return pendingDemandsFor(actor.uuid, { flagKey: "saves" }).at(-1)?.card.getFlag(MODULE_ID, "saves") ?? null;
+  return readFlag(pendingDemandsFor(actor.uuid, { flagKey: "saves" }).at(-1)?.card, "saves") ?? null;
 }
 
 // The save gate, on every saving throw that opens a dialog (a demand's or a sheet roll's).

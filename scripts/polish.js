@@ -1,8 +1,8 @@
 /**
- * Battle Flow — Table polish: the no-target gate, the drinker default, the cast birth stamps, hidden
+ * By the Books — Table polish: the no-target gate, the drinker default, the cast birth stamps, hidden
  * card buttons, the dialog target block and centering. EDGE layer (ARCHITECTURE.md §7, §8).
  */
-import { MODULE_ID } from "./core.js";
+import { MODULE_ID, readFlag } from "./core.js";
 import { blockEntries, effectChoiceEntries, interruptEntries } from "./decide/registry.js";
 import { EFFECT_CHOICES, answers, tableIndex } from "./decide/registry.js";
 import { effectChoiceFor } from "./decide/choices.js";
@@ -81,7 +81,7 @@ function castApplyQualifies(doc) {
 function holdPendingFor(actorUuid) {
   if ( !actorUuid ) return false;
   return game.messages.contents.some(message => {
-    const hold = message.getFlag(MODULE_ID, "hold");
+    const hold = readFlag(message, "hold");
     return !!hold && (hold.status === "pending")
       && (hold.targets ?? []).some(t => (t.uuid === actorUuid) && !t.answer);
   });
@@ -169,7 +169,7 @@ listen("dnd5e.preCreateUsageMessage", "polish", (_activity, messageConfig) => {
 /* The target block: roll and usage dialogs name who they aim at. DISPLAY-ONLY — downstream reads
  * the message SNAPSHOT, so an untarget control would change the canvas, not the roll. */
 
-const TARGET_BLOCK_CLASS = "battleflow-target-block";
+const TARGET_BLOCK_CLASS = "bythebooks-target-block";
 
 const openTargetBlocks = new Set();
 
@@ -239,7 +239,8 @@ function buildTargetBlock() {
 /** Idempotent repaint. ⚠ Never gate on `element.isConnected`: the render hook fires while DETACHED. */
 function paintTargetBlock(element) {
   if ( !element ) return;
-  for ( const stale of element.querySelectorAll(`.${TARGET_BLOCK_CLASS}`) ) stale.remove();
+  // Both names: a card posted before 3.0.0 (formerly Battle Flow) may carry the old class in its stored HTML.
+  for ( const stale of element.querySelectorAll(`.${TARGET_BLOCK_CLASS}, .battleflow-target-block`) ) stale.remove();
   element.append(buildTargetBlock());
 }
 

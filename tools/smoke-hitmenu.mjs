@@ -1,7 +1,7 @@
-// Battle Flow hit-menu smoke test: on a hit the damage offer carries a Combat Superiority group of
+// By the Books hit-menu smoke test: on a hit the damage offer carries a Combat Superiority group of
 // the Battle Master's on-hit maneuvers read off the sheet; one pick per group, the die on the
 // damage roll, the pool spent, the maneuver's save through the saves machine, the sweep.
-// Fixture: BF Test Fighter (tools/fixture-suite.mjs) with eight PHB maneuvers added for the run.
+// Fixture: BTB Test Fighter (tools/fixture-suite.mjs) with eight PHB maneuvers added for the run.
 // Harness discipline: settings restored; messages, added items and placed tokens removed; the
 // pool refilled; pressed conditions cleared. Sections: `--section 3`, `--section 1,6`, `--list`.
 import { announcePlan, connectSuite, finish, sectionArg, sectionPlan } from './harness.mjs';
@@ -39,7 +39,7 @@ const f = await connectSuite({ tag: 'hitmenu', watchdogMs: 720_000 });
 announcePlan('hitmenu', plan, pulled);
 
 const out = await f.evaluate(async ({ sections, titles }) => {
-  const MOD = 'fvtt-mod-battleflow';
+  const MOD = 'fvtt-mod-bythebooks';
   const results = [];
   const log = [];
   const skips = [];
@@ -53,7 +53,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   const suiteStart = Date.now();
   // Every moment payload published during the run (plain facts: uuids, never documents).
   const moments = [];
-  const momentHookId = Hooks.on('battleflow.moment', p => moments.push(p));
+  const momentHookId = Hooks.on('bythebooks.moment', p => moments.push(p));
   const momentsOf = (event, since = 0) => moments.filter(p => (p.event === event) && (p.at >= since));
   const plain = p => { try { return JSON.stringify(p) === JSON.stringify(JSON.parse(JSON.stringify(p))); } catch { return false; } };
   const errors = [];
@@ -74,11 +74,11 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   const prior = Object.fromEntries(SETTING_KEYS.map(k => [k, game.settings.get(MOD, k)]));
   const set = (k, v) => game.settings.set(MOD, k, v);
 
-  const scene = game.scenes.getName('Battle Flow Test Range');
-  const victim = game.actors.getName('BF Test Victim');
-  const second = game.actors.getName('BF Test Attacker');
-  const fighter = game.actors.getName('BF Test Fighter');
-  if (!scene || !victim || !second || !fighter) return { fatal: 'missing fixture: scene, BF Test Victim, BF Test Attacker or BF Test Fighter — run tools/fixture-suite.mjs' };
+  const scene = game.scenes.getName('By the Books Test Range');
+  const victim = game.actors.getName('BTB Test Victim');
+  const second = game.actors.getName('BTB Test Attacker');
+  const fighter = game.actors.getName('BTB Test Fighter');
+  if (!scene || !victim || !second || !fighter) return { fatal: 'missing fixture: scene, BTB Test Victim, BTB Test Attacker or BTB Test Fighter — run tools/fixture-suite.mjs' };
   const pool = fighter.items.find(i => i.name === 'Combat Superiority');
   // The clone's own Greataxe (plain 1d12 slashing, no rider), else the d20-folds Longsword, else any plain melee weapon.
   const sword = fighter.items.find(i => (i.type === 'weapon') && (i.name === 'Greataxe'))
@@ -131,7 +131,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       for (const [actorId, data] of Object.entries(priorActor)) await game.actors.get(actorId)?.update(data);
       game.user.targets.forEach(t => { t.setTarget(false, { releaseOthers: true }); });
       const mine = game.messages.filter(m => (m.timestamp >= suiteStart)
-        && (m.speaker?.alias?.startsWith?.('BF Test') || m.speaker?.alias === 'Battle Flow'
+        && (m.speaker?.alias?.startsWith?.('BTB Test') || m.speaker?.alias === 'By the Books'
           || Object.keys(m.flags?.[MOD] ?? {}).length));
       if (mine.length) await ChatMessage.deleteDocuments(mine.map(m => m.id));
     } catch (err) {
@@ -374,11 +374,11 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         answered && (entry?.outcome === 'failed') && !!applied && !!er?.effects?.length,
         `answered=${answered} outcome=${entry?.outcome} prone=${victim.statuses?.has?.('prone')} receipt=${JSON.stringify(er?.effects?.map(e => e.name))}`);
       const demandText = textOf(document.querySelector(`.message[data-message-id="${card?.id}"]`));
-      ok('3h. the demand card says whose maneuver it is', /Trip Attack — from BF Test Fighter/.test(demandText), demandText.slice(0, 160));
+      ok('3h. the demand card says whose maneuver it is', /Trip Attack — from BTB Test Fighter/.test(demandText), demandText.slice(0, 160));
       // One `maneuver` event on the damage message, plain, with the spend.
       const ev = momentsOf('maneuver').filter(p => p.messageId === dmg?.id);
       const p = ev[0];
-      ok('3i. the resolve was PUBLISHED once: battleflow.moment "maneuver" — the fighter, Trip Attack, the damage message, the attack, the victim as a hit target, the die and the Superiority Die spend (3 of 4 left); plain and frozen',
+      ok('3i. the resolve was PUBLISHED once: bythebooks.moment "maneuver" — the fighter, Trip Attack, the damage message, the attack, the victim as a hit target, the die and the Superiority Die spend (3 of 4 left); plain and frozen',
         (ev.length === 1) && !!p && (p.actorUuid === fighter.uuid) && (p.ability === 'Trip Attack') && (p.attackId === msg?.id)
           && (p.targets?.[0]?.actorUuid === victim.uuid) && (p.targets?.[0]?.hit === true) && !!p.targets?.[0]?.tokenUuid && !!p.tokenUuid
           && (p.details?.key === 'trip-attack') && (p.details?.formula === '1d8') && (p.spend?.pool === 'Combat Superiority') && (p.spend?.left === 3) && (p.spend?.max === 4)
@@ -537,11 +537,11 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     // riders (smoke-clock); this suite's Clock Riders list is empty.
     if (want(12) || want(13)) {
       const EIGHT = 'Trip Attack, Goading Attack, Menacing Attack, Pushing Attack, Disarming Attack, Distracting Strike, Maneuvering Attack, Sweeping Attack';
-      const goliath = game.actors.getName('BF Test Goliath');
+      const goliath = game.actors.getName('BTB Test Goliath');
       const axe = goliath?.items.find(i => (i.type === 'weapon') && (i.name === 'Greataxe'));
       const origins = game.packs.get('dnd-players-handbook.origins');
       if (!goliath || !axe || !origins) {
-        ok('12. the BF Test Goliath fixture with a Greataxe and the PHB origins pack (run tools/fixture-suite.mjs)', false, `goliath=${!!goliath} axe=${!!axe} origins=${!!origins}`);
+        ok('12. the BTB Test Goliath fixture with a Greataxe and the PHB origins pack (run tools/fixture-suite.mjs)', false, `goliath=${!!goliath} axe=${!!axe} origins=${!!origins}`);
       } else {
         const gItems = [];
         const fItems = [];
@@ -683,7 +683,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   } catch (err) {
     return { fatal: `${err?.message || err}\n${err?.stack ?? ''}`, results, log, skips };
   } finally {
-    Hooks.off('battleflow.moment', momentHookId);
+    Hooks.off('bythebooks.moment', momentHookId);
     await teardown();
   }
 }, sectionArg(plan, SECTIONS));

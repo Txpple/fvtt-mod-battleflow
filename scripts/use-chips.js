@@ -1,9 +1,9 @@
 /**
- * Battle Flow — Use chips: a feature the pack ships as TEXT ONLY becomes a chip on use, so the gate
+ * By the Books — Use chips: a feature the pack ships as TEXT ONLY becomes a chip on use, so the gate
  * can read it and the roll can spend it; plus the card chips (Tinker) and the coatings (Poisoner).
  * EDGE layer (ARCHITECTURE.md §7).
  */
-import { MODULE_ID, TITLE, statContext, queueFlagWrite, drivesMomentFor } from "./core.js";
+import { MODULE_ID, readFlag, TITLE, statContext, queueFlagWrite, drivesMomentFor } from "./core.js";
 import { CARD, isCard, targetsOf } from "./decide/card.js";
 import { messageActivity } from "./effect-riders.js";
 import { ruleHTML } from "./rule-text.js";
@@ -42,12 +42,12 @@ listen("dnd5e.postUseActivity", "use-chips", (activity, _usageConfig, results) =
 });
 
 async function writeUseChip(actor, item, row, message) {
-  const stale = actor.effects.filter(e => (e.getFlag(MODULE_ID, CHIP_FLAG) === "use") && (lower(e.name) === lower(item.name)));
+  const stale = actor.effects.filter(e => (readFlag(e, CHIP_FLAG) === "use") && (lower(e.name) === lower(item.name)));
   if ( stale.length ) await actor.deleteEmbeddedDocuments("ActiveEffect", stale.map(e => e.id));
   const clock = chipClock(row.window, placeOf(actor));
   const effect = await ActiveEffect.implementation.create({
     name: item.name, img: item.img ?? "icons/svg/aura.svg",
-    description: `${await ruleHTML(row.rule)}<p>Written by Battle Flow when ${esc(item.name)} was used; the next attack roll spends it.</p>`,
+    description: `${await ruleHTML(row.rule)}<p>Written by By the Books when ${esc(item.name)} was used; the next attack roll spends it.</p>`,
     origin: item.uuid, disabled: false, transfer: false,
     // ⚠ A COPY: the registry row is frozen and the document migration writes into its changes.
     changes: (row.changes ?? []).map(c => ({ ...c })),
@@ -115,13 +115,13 @@ listen("createChatMessage", "use-chips", message => {
 
 async function writeHitChip(bearer, item, row, attacker, message) {
   const name = row.chipName ?? item.name;
-  const stale = bearer.effects.filter(e => (e.getFlag(MODULE_ID, CHIP_FLAG) === "use") && (e.getFlag(MODULE_ID, "useKey") === row.key)
-    && (e.getFlag(MODULE_ID, "against") === attacker.uuid));
+  const stale = bearer.effects.filter(e => (readFlag(e, CHIP_FLAG) === "use") && (readFlag(e, "useKey") === row.key)
+    && (readFlag(e, "against") === attacker.uuid));
   if ( stale.length ) await bearer.deleteEmbeddedDocuments("ActiveEffect", stale.map(e => e.id)).catch(() => {});
   const clock = chipClock(row.window, turnPlace() ?? placeOf(bearer));
   await ActiveEffect.implementation.create({
     name: `${name} — vs ${attacker.name}`, img: item.img ?? "icons/svg/shield.svg",
-    description: `${await ruleHTML(row.rule)}<p>Written by Battle Flow when ${esc(attacker.name)} hit ${esc(bearer.name)}; ${esc(row.note ?? "it ends with the turn")}.</p>`,
+    description: `${await ruleHTML(row.rule)}<p>Written by By the Books when ${esc(attacker.name)} hit ${esc(bearer.name)}; ${esc(row.note ?? "it ends with the turn")}.</p>`,
     origin: item.uuid, disabled: false, transfer: false, changes: [],
     ...(clock ? chipData(clock) : {}),
     flags: { [MODULE_ID]: { [CHIP_FLAG]: "use", useKey: row.key, against: attacker.uuid } }
@@ -134,14 +134,14 @@ async function writeHitChip(bearer, item, row, attacker, message) {
 
 async function writeMissChips(actor, item, row, missed, message) {
   const against = new Set(missed.map(t => t.uuid));
-  const stale = actor.effects.filter(e => (e.getFlag(MODULE_ID, CHIP_FLAG) === "use") && (e.getFlag(MODULE_ID, "useKey") === row.key)
-    && against.has(e.getFlag(MODULE_ID, "against")));
+  const stale = actor.effects.filter(e => (readFlag(e, CHIP_FLAG) === "use") && (readFlag(e, "useKey") === row.key)
+    && against.has(readFlag(e, "against")));
   if ( stale.length ) await actor.deleteEmbeddedDocuments("ActiveEffect", stale.map(e => e.id)).catch(() => {});
   const clock = chipClock(row.window, placeOf(actor));
   const rule = await ruleHTML(row.rule);
   await ActiveEffect.implementation.createDocuments(missed.map(t => ({
     name: `${item.name} — vs ${t.name}`, img: item.img ?? "icons/svg/aura.svg",
-    description: `${rule}<p>Written by Battle Flow when ${esc(actor.name)} missed ${esc(t.name)}; the next attack roll against it spends it.</p>`,
+    description: `${rule}<p>Written by By the Books when ${esc(actor.name)} missed ${esc(t.name)}; the next attack roll against it spends it.</p>`,
     origin: item.uuid, disabled: false, transfer: false, changes: [],
     ...(clock ? chipData(clock) : {}),
     flags: { [MODULE_ID]: { [CHIP_FLAG]: "use", useKey: row.key, against: t.uuid } }
@@ -152,7 +152,7 @@ async function writeMissChips(actor, item, row, missed, message) {
 }
 
 listen("dnd5e.renderChatMessage", "use-chips", (message, html) => {
-  const u = message.getFlag(MODULE_ID, "useChip");
+  const u = readFlag(message, "useChip");
   if ( !u ) return;
   const line = document.createElement("div");
   line.innerHTML = bfCard({
@@ -174,7 +174,7 @@ const CARD_CHIP_ONS = [...new Set(Object.values(CARD_CHIPS).map(r => r.on))];
 const CARD_CHIP_FEATURES = [...new Set(Object.values(CARD_CHIPS).map(r => r.feature))];
 
 /** The chips of a row standing on an actor — every device, one chip each. */
-const devicesOf = (actor, row) => actor.effects.filter(e => (e.getFlag(MODULE_ID, CHIP_FLAG) === "card")
+const devicesOf = (actor, row) => actor.effects.filter(e => (readFlag(e, CHIP_FLAG) === "card")
   && (lower(e.name) === lower(row.chip)));
 
 listen("dnd5e.postUseActivity", "use-chips", (activity, _usageConfig, results) => {
@@ -197,7 +197,7 @@ listen("dnd5e.postUseActivity", "use-chips", (activity, _usageConfig, results) =
 
 /** The popup: build one, with what is left — or, at the max, remove one first. */
 async function askCardChip(message) {
-  const flag = message.getFlag(MODULE_ID, CARD_FLAG);
+  const flag = readFlag(message, CARD_FLAG);
   const row = CARD_CHIPS[flag?.key];
   if ( !row || flag.made ) return;
   // live only: the caster whose sheet the chip lands on
@@ -219,7 +219,7 @@ async function askCardChip(message) {
 
 /** Build one device: its own chip, refused at the row's max; the card stamped with what stands. */
 async function buildCardChip(message) {
-  const flag = message.getFlag(MODULE_ID, CARD_FLAG);
+  const flag = readFlag(message, CARD_FLAG);
   const row = CARD_CHIPS[flag?.key];
   if ( !row || flag.made ) return;
   const actor = await fromUuid(flag.sourceUuid ?? "");
@@ -236,7 +236,7 @@ async function buildCardChip(message) {
   const feature = itemNamed(actor, row.feature);
   const [effect] = await actor.createEmbeddedDocuments("ActiveEffect", [{
     name: row.chip, img: feature?.img ?? "icons/svg/aura.svg",
-    description: `${await ruleHTML(row.rule)}<p>Written by Battle Flow when ${flag.key} was chosen at the Prestidigitation cast; what the device does is the table's.</p>`,
+    description: `${await ruleHTML(row.rule)}<p>Written by By the Books when ${flag.key} was chosen at the Prestidigitation cast; what the device does is the table's.</p>`,
     origin: feature?.uuid ?? null, disabled: false, transfer: false,
     duration: { value: row.seconds, units: "seconds", expired: false }, start: { time: game.time.worldTime },
     flags: { [MODULE_ID]: { [CHIP_FLAG]: "card", cardKey: flag.key, stacks: true } }
@@ -249,7 +249,7 @@ async function buildCardChip(message) {
 
 // The card says it (R5): the offer while it waits — its button recalls the popup — and what was built.
 listen("dnd5e.renderChatMessage", "use-chips", (message, html) => {
-  const f = message.getFlag(MODULE_ID, CARD_FLAG);
+  const f = readFlag(message, CARD_FLAG);
   const row = f ? CARD_CHIPS[f.key] : null;
   if ( !row ) return;
   const line = document.createElement("div");
@@ -305,7 +305,7 @@ async function consumeVial(item) {
 }
 
 /** The coating chip standing on an actor, or null. */
-const coatChipOf = actor => actor?.effects?.find?.(e => !!e.getFlag(MODULE_ID, COAT_FLAG) && !e.disabled) ?? null;
+const coatChipOf = actor => actor?.effects?.find?.(e => !!readFlag(e, COAT_FLAG) && !e.disabled) ?? null;
 
 /** A row by its `key` — `{ name, row }` or null. */
 function coatRowKeyed(key) {
@@ -340,12 +340,12 @@ async function writeCoat(actor, activity, name, row) {
     return;
   }
   await feature.update({ "system.uses.spent": (Number(uses.spent) || 0) + row.dose });
-  const stale = actor.effects.filter(e => !!e.getFlag(MODULE_ID, COAT_FLAG));
+  const stale = actor.effects.filter(e => !!readFlag(e, COAT_FLAG));
   if ( stale.length ) await actor.deleteEmbeddedDocuments("ActiveEffect", stale.map(e => e.id));
   const place = placeOf(actor);
   const [effect] = await actor.createEmbeddedDocuments("ActiveEffect", [{
     name: row.chip, img: row.img || feature.img || "icons/svg/aura.svg",
-    description: `${await ruleHTML(row.rule)}<p>Written by Battle Flow when ${esc(name)}'s ${row.activity} was used (a Bonus Action): the next weapon hit spends it.</p>`,
+    description: `${await ruleHTML(row.rule)}<p>Written by By the Books when ${esc(name)}'s ${row.activity} was used (a Bonus Action): the next weapon hit spends it.</p>`,
     origin: feature.uuid, disabled: false, transfer: false,
     duration: { value: row.seconds, units: "seconds", expired: false },
     start: place ? { combat: place.combat, combatant: place.combatant, initiative: place.initiative, round: place.round, turn: place.turn, time: place.time }
@@ -362,7 +362,7 @@ async function writeCoat(actor, activity, name, row) {
 
 // The card says it (R5): the Bonus Action, what the chip does, the doses left.
 listen("dnd5e.renderChatMessage", "use-chips", (message, html) => {
-  const u = message.getFlag(MODULE_ID, COAT_USE);
+  const u = readFlag(message, COAT_USE);
   const found = u ? coatRowKeyed(u.key) : null;
   if ( !found ) return;
   const line = document.createElement("div");
@@ -379,7 +379,7 @@ listen("dnd5e.renderChatMessage", "use-chips", (message, html) => {
 const floatCoat = (effect, on) => {
   try {
     const actor = effect.parent;
-    if ( !effect.getFlag(MODULE_ID, COAT_FLAG) || !(actor instanceof Actor) || !canvas?.interface?.createScrollingText ) return;
+    if ( !readFlag(effect, COAT_FLAG) || !(actor instanceof Actor) || !canvas?.interface?.createScrollingText ) return;
     for ( const token of actor.getActiveTokens(true) ) {
       if ( !token.visible || token.document.isSecret ) continue;
       canvas.interface.createScrollingText(token.center, `${on ? "+" : "−"}(${effect.name})`, {
@@ -405,7 +405,7 @@ listen("dnd5e.preRollDamage", "use-chips", (config, _dialog, message) => {
     const attackMessage = attackMessageForDamage(config, message);
     if ( !attackMessage ) return;
     foundry.utils.setProperty(message, `data.flags.${MODULE_ID}.${COAT_HIT}`, {
-      ...statContext(attacker.uuid), status: "due", key: chip.getFlag(MODULE_ID, COAT_FLAG), chipId: chip.id, attackId: attackMessage.id
+      ...statContext(attacker.uuid), status: "due", key: readFlag(chip, COAT_FLAG), chipId: chip.id, attackId: attackMessage.id
     });
   } catch(err) {
     console.error(`${TITLE} | The coating could not ride the hit — use the feature's save by hand.`, err);
@@ -413,19 +413,19 @@ listen("dnd5e.preRollDamage", "use-chips", (config, _dialog, message) => {
 });
 
 listen("createChatMessage", "use-chips", message => {
-  if ( message.isAuthor && (message.getFlag(MODULE_ID, COAT_HIT)?.status === "due") ) void spendCoat(message);
+  if ( message.isAuthor && (readFlag(message, COAT_HIT)?.status === "due") ) void spendCoat(message);
 });
 // The hold's release (`attackHoldPending: false`) brings a held hit back.
 listen("updateChatMessage", "use-chips", message => {
-  if ( message.isAuthor && (message.getFlag(MODULE_ID, COAT_HIT)?.status === "due") ) void spendCoat(message);
+  if ( message.isAuthor && (readFlag(message, COAT_HIT)?.status === "due") ) void spendCoat(message);
 });
 
 const spending = new Set();
 
 async function spendCoat(message) {
-  const f = message.getFlag(MODULE_ID, COAT_HIT);
+  const f = readFlag(message, COAT_HIT);
   if ( (f?.status !== "due") || spending.has(message.id) ) return;
-  if ( message.getFlag(MODULE_ID, "attackHoldPending") === true ) return;   // its release brings this back
+  if ( readFlag(message, "attackHoldPending") === true ) return;   // its release brings this back
   spending.add(message.id);
   try {
     const found = coatRowKeyed(f.key);
@@ -477,7 +477,7 @@ async function spendCoat(message) {
 
 // The damage card says it (R5): the coating spent on the hit, and who saves.
 listen("dnd5e.renderChatMessage", "use-chips", (message, html) => {
-  const f = message.getFlag(MODULE_ID, COAT_HIT);
+  const f = readFlag(message, COAT_HIT);
   const found = (f?.status === "spent") ? coatRowKeyed(f.key) : null;
   if ( !found ) return;
   const who = (f.targets ?? []).map(t => t.name ?? "").join(", ");   // bfCard escapes its subtitle (4a3cbd5)

@@ -1,6 +1,6 @@
 // @ts-check
 /**
- * Battle Flow — DECISION layer (ARCHITECTURE.md §2): the wards (registry.js WARDS, the spells slice's Tier 3)
+ * By the Books — DECISION layer (ARCHITECTURE.md §2): the wards (registry.js WARDS, the spells slice's Tier 3)
  * — which use a standing ward gates, what the bearer does that ends it, and the card's words.
  * The row an effect answers is `repeatRowFor` (decide/repeat-saves.js): the same name-and-origin matcher.
  * No `game`, no settings: the machine (wards.js) reads the world.

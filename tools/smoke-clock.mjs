@@ -30,7 +30,7 @@ const f = await connectSuite({ tag: 'clock', watchdogMs: 600_000 });
 announcePlan('clock', plan, pulled);
 
 const out = await f.evaluate(async ({ sections, titles }) => {
-  const MOD = 'fvtt-mod-battleflow';
+  const MOD = 'fvtt-mod-bythebooks';
   const results = [];
   const log = [];
   const skips = [];
@@ -43,7 +43,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   const sleep = ms => new Promise(r => setTimeout(r, ms));
   // Every moment published during the run (the gate publishes from the record landing).
   const moments = [];
-  const momentHookId = Hooks.on('battleflow.moment', p => moments.push(p));
+  const momentHookId = Hooks.on('bythebooks.moment', p => moments.push(p));
   const momentsOf = (event, since = 0) => moments.filter(p => (p.event === event) && (p.at >= since));
   const plain = p => { try { return JSON.stringify(p) === JSON.stringify(JSON.parse(JSON.stringify(p))); } catch { return false; } };
   const suiteStart = Date.now();
@@ -60,11 +60,11 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   const prior = Object.fromEntries(SETTING_KEYS.map(k => [k, game.settings.get(MOD, k)]));
   const set = (k, v) => game.settings.set(MOD, k, v);
 
-  const scene = game.scenes.getName('Battle Flow Test Range');
-  const victim = game.actors.getName('BF Test Victim');
-  const ranger = game.actors.getName('BF Test Ranger');
-  const rogue = game.actors.getName('BF Test Rogue');
-  if (!scene || !victim || !ranger || !rogue) return { fatal: 'missing fixture: scene, BF Test Victim, BF Test Ranger or BF Test Rogue — run tools/fixture-suite.mjs' };
+  const scene = game.scenes.getName('By the Books Test Range');
+  const victim = game.actors.getName('BTB Test Victim');
+  const ranger = game.actors.getName('BTB Test Ranger');
+  const rogue = game.actors.getName('BTB Test Rogue');
+  if (!scene || !victim || !ranger || !rogue) return { fatal: 'missing fixture: scene, BTB Test Victim, BTB Test Ranger or BTB Test Rogue — run tools/fixture-suite.mjs' };
 
   const created = { tokens: [] };
   const priorActor = {};
@@ -107,7 +107,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       for (const [actorId, data] of Object.entries(priorActor)) await game.actors.get(actorId)?.update(data);
       game.user.targets.forEach(t => { t.setTarget(false, { releaseOthers: true }); });
       const mine = game.messages.filter(m => (m.timestamp >= suiteStart)
-        && (m.speaker?.alias?.startsWith?.('BF Test') || m.speaker?.alias === 'Battle Flow'
+        && (m.speaker?.alias?.startsWith?.('BTB Test') || m.speaker?.alias === 'By the Books'
           || Object.keys(m.flags?.[MOD] ?? {}).length));
       if (mine.length) await ChatMessage.deleteDocuments(mine.map(m => m.id));
     } catch (err) {
@@ -250,7 +250,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       // record `spend`. The item is the FEATURE (Dread Ambusher).
       const rev = momentsOf('rider').filter(p => p.messageId === dmg?.id);
       const sev = momentsOf('spend').filter(p => p.messageId === dmg?.id);
-      ok('1y. the resolve was PUBLISHED through the gate: battleflow.moment "rider" (kind clockRiders, marker dread-ambusher) — the ranger, Dreadful Strike on Dread Ambusher, the attack, the victim as a hit target, the formula, a momentId — and "spend" (kind poolSpend) beside it; once each, plain and frozen',
+      ok('1y. the resolve was PUBLISHED through the gate: bythebooks.moment "rider" (kind clockRiders, marker dread-ambusher) — the ranger, Dreadful Strike on Dread Ambusher, the attack, the victim as a hit target, the formula, a momentId — and "spend" (kind poolSpend) beside it; once each, plain and frozen',
         (rev.length === 1) && (sev.length === 1) && (rev[0].kind === 'clockRiders') && (rev[0].marker === 'dread-ambusher') && (rev[0].actorUuid === ranger.uuid)
           && (rev[0].ability === 'Dreadful Strike') && (rev[0].itemName === 'Dread Ambusher') && (rev[0].attackId === cr?.attackId) && (rev[0].targets?.[0]?.actorUuid === victim.uuid) && (rev[0].targets?.[0]?.hit === true)
           && (rev[0].details?.formula === '2d6') && (rev[0].momentId === `${dmg?.id}|clockRiders|dread-ambusher`) && (sev[0].kind === 'poolSpend') && /Dreadful Strike/.test(sev[0].spend?.pool ?? '')
@@ -418,11 +418,11 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     // ---- 7. FIRED
     // ---- 8-9. the Goliath's boons: clock riders (one boon, use it or not), uses on the ITEM, due on any hit
     if (want(8) || want(9)) {
-      const goliath = game.actors.getName('BF Test Goliath');
+      const goliath = game.actors.getName('BTB Test Goliath');
       const axe = goliath?.items.find(i => (i.type === 'weapon') && (i.name === 'Greataxe'));
       const origins = game.packs.get('dnd-players-handbook.origins');
       if (!goliath || !axe || !origins) {
-        ok('8. the BF Test Goliath fixture with a Greataxe and the PHB origins pack (run tools/fixture-suite.mjs)', false, `goliath=${!!goliath} axe=${!!axe} origins=${!!origins}`);
+        ok('8. the BTB Test Goliath fixture with a Greataxe and the PHB origins pack (run tools/fixture-suite.mjs)', false, `goliath=${!!goliath} axe=${!!axe} origins=${!!origins}`);
       } else {
         const added = [];
         const boon = n => goliath.items.find(i => (i.type === 'feat') && (i.name === n));
@@ -613,7 +613,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   } catch (err) {
     return { fatal: `${err?.message || err}\n${err?.stack ?? ''}`, results, log, skips };
   } finally {
-    Hooks.off('battleflow.moment', momentHookId);
+    Hooks.off('bythebooks.moment', momentHookId);
     await teardown();
   }
 }, sectionArg(plan, SECTIONS));

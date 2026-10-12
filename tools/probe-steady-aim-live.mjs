@@ -6,8 +6,8 @@ import { connectSuite, disposeSafely, loadEnv } from './harness.mjs';
 const f = await connectSuite({ tag: 'probe-steady-live', watchdogMs: 120_000, requireElect: false, env: loadEnv() });
 try {
   const out = await f.evaluate(async () => {
-    const MOD = 'fvtt-mod-battleflow';
-    const rogue = game.actors.getName('BF Test Rogue');
+    const MOD = 'fvtt-mod-bythebooks';
+    const rogue = game.actors.getName('BTB Test Rogue');
     const chips = rogue.effects.filter(e => e.name === 'Steady Aim').map(e => ({
       id: e.id, disabled: e.disabled, duration: e.duration, flags: e.flags[MOD], changes: e.changes, origin: e.origin,
       isTemporary: e.isTemporary, statuses: [...e.statuses],

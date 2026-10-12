@@ -19,17 +19,17 @@ import { edgesOf, jsFiles, LAYER_OF, SCRIPTS, toPosix } from "./check-layers.mjs
 const TOOLS = dirname(fileURLToPath(import.meta.url));
 
 /**
- * The canonical order. ⚠ `smoke-battleflow` then `smoke-hold` are ADJACENT ON PURPOSE. A `reset`
+ * The canonical order. ⚠ `smoke-bythebooks` then `smoke-hold` are ADJACENT ON PURPOSE. A `reset`
  * row is a seed or sweep some suite needs; it asserts nothing. `needs` resolves to the NEAREST row
  * of that name ABOVE the suite, and asking for the suite pulls it.
  */
 export const ORDER = [
   // ⚠ FIRST, before anything measures a distance: a killed run's linked strays are swept.
   { name: "reset-fixture-state", note: "not a suite — sweeps a killed run's linked strays before anything measures distance", reset: true },
-  { name: "smoke-battleflow", note: "the Phase 1 chain + the player-damage offer (§5d)" },
+  { name: "smoke-bythebooks", note: "the Phase 1 chain + the player-damage offer (§5d)" },
   {
-    name: "smoke-hold", note: "⚠ MUST follow smoke-battleflow immediately — it rides its tokens",
-    needs: ["smoke-battleflow"]
+    name: "smoke-hold", note: "⚠ MUST follow smoke-bythebooks immediately — it rides its tokens",
+    needs: ["smoke-bythebooks"]
   },
   { name: "smoke-saves", note: "the save machine + the save-path damage offer (§18)" },
   { name: "smoke-volleys", note: "the volley folds — darts aimed by hand, rays as real attacks, the gate at the aim" },
@@ -77,7 +77,7 @@ export const ORDER = [
     name: "smoke-emanations", note: "the emanations — the Paladin's aura stands with its token, applies to allies inside, lifts on exit; Spirit Guardians adopted, its saves on enter and turn end",
     needs: ["fixture-suite"]
   },
-  // Both ride BF Test Halfling (Lucky, Savage Attacker); the nearest seed above is theirs.
+  // Both ride BTB Test Halfling (Lucky, Savage Attacker); the nearest seed above is theirs.
   {
     name: "smoke-rescue", note: "the `roll` interrupt — Lucky, Warding Flare, Shadowy Dodge bend the hit: the popup's rows, the second d20, the crit undone, all-spent skips",
     needs: ["fixture-suite"]
@@ -86,57 +86,57 @@ export const ORDER = [
     name: "smoke-savage", note: "Savage Attacker — the popup on a weapon hit, the set rolled again, the higher standing, the damage waiting, once per turn, the hold first",
     needs: ["fixture-suite"]
   },
-  // BF Test Halfling is lent Celestial Revelation, Light and Sacred Flame, beside the Victim and Ranger.
+  // BTB Test Halfling is lent Celestial Revelation, Light and Sacred Flame, beside the Victim and Ranger.
   {
     name: "smoke-aasimar", note: "Celestial Revelation and the token lights — a self area placed on the token, an enemy area asking no ally, the `while` ring and its turn-end pulse, the form's rider on a hit and on a spell's one target, Light on a targeted token",
     needs: ["fixture-suite"]
   },
-  // BF Test Goliath is lent Storm's Thunder and Large Form, beside the Victim.
+  // BTB Test Goliath is lent Storm's Thunder and Large Form, beside the Victim.
   {
     name: "smoke-goliath", note: "the Goliath walk's pass 2 — Large Form's token size, the rebuke offered within its reach and driven at the damager (none out of reach), Stone's Endurance holding a non-attack damage at the applier",
     needs: ["fixture-suite"]
   },
-  // BF Test Halfling is lent Relentless Endurance (and Death Ward's effect).
+  // BTB Test Halfling is lent Relentless Endurance (and Death Ward's effect).
   {
     name: "smoke-drop", note: "drop to 1 HP — Relentless Endurance held at 1 and asked (Drop to 1 spends the use, Drop to 0 lands the 0), none when killed outright; Death Ward automatic, its effect removed",
     needs: ["fixture-suite"]
   },
-  // BF Test Halfling is lent the PHB's Alert; its own combats and tokens.
+  // BTB Test Halfling is lent the PHB's Alert; its own combats and tokens.
   {
     name: "smoke-alert", note: "the Initiative swap — Alert asked once every combatant has an Initiative, the non-Incapacitated allies listed with theirs, Swap exchanging the two in the tracker; once per combat, No, the clock, the list",
     needs: ["fixture-suite"]
   },
-  // BF Test Cleric is lent the PHB's Heroism and Hold Person; BF Test Victim wears their effects.
+  // BTB Test Cleric is lent the PHB's Heroism and Hold Person; BTB Test Victim wears their effects.
   {
     name: "smoke-spells", note: "the spells slice — Heroism's temp HP at the bearer's turn start; the repeating save: Hold Person's Paralyzed demanded at the bearer's turn end, a success removing it through the cast's receipt with the card line, a failure keeping it; a damaged trigger; the action offer",
     needs: ["fixture-suite"]
   },
-  // BF Test Monster is lent the Monster Manual's traits by name; the Victim's own token beside it.
+  // BTB Test Monster is lent the Monster Manual's traits by name; the Victim's own token beside it.
   {
     name: "smoke-monsters", note: "the Monster Manual's waiting rows — a monster's own activity repeating at the target's turn end and the petrifying escalation; the grappled target's damage at its own turn start or end; the grappler's own turn start",
     needs: ["fixture-suite"]
   },
-  // BF Test Cleric is lent Sanctuary and Sacred Flame, BF Test Sorcerer Mirror Image; BF Test Attacker swings.
+  // BTB Test Cleric is lent Sanctuary and Sacred Flame, BTB Test Sorcerer Mirror Image; BTB Test Attacker swings.
   {
     name: "smoke-wards", note: "the spells slice's Tier 3 — Sanctuary's gate before the attack roll and before a damaging spell's cast (the save demanded of the attacker; a failure turns it aside, a success makes the use again; the ward ends on its bearer's own attack), and Mirror Image's duplicates rolled on a hit that stands (a duplicate destroyed, the hit absorbed; the hit through; the last one ends it; Blindsight sees through)",
     needs: ["fixture-suite"]
   },
-  // BF Test Cleric is lent the PHB's Healer and Cure Wounds.
+  // BTB Test Cleric is lent the PHB's Healer and Cure Wounds.
   {
     name: "smoke-heal", note: "the healing rerolls — Healer's 1s on a healing spell and on Battle Medic (its own r1 taken off): rerolled automatically as the dice land (since 2026-09-26), the healing waiting for the new dice and landing once; none, the list, the kit's tending",
     needs: ["fixture-suite"]
   },
-  // BF Test Halfling is lent the PHB's Resourceful.
+  // BTB Test Halfling is lent the PHB's Resourceful.
   {
     name: "smoke-rest", note: "the rest grants — Resourceful's Heroic Inspiration on a Long Rest (the box ticked, the rest card's line), nothing on a Short Rest, nothing when unlisted; Musician's song — the allies within 30 ft asked after a Short or Long Rest, the inspired greyed, OK gives it",
     needs: ["fixture-suite"]
   },
-  // BF Test Halfling's own Lucky: the gate's buy box and the `advantage` fold on a dialog-less initiative.
+  // BTB Test Halfling's own Lucky: the gate's buy box and the `advantage` fold on a dialog-less initiative.
   {
     name: "smoke-lucky", note: "Lucky's Advantage half — the buy box in an attack, save, check and initiative dialog (the tick in the net, the spend, the record, none left greyed) and the no-dialog initiative fold (the higher d20 stands)",
     needs: ["fixture-suite"]
   },
-  // BF Test Fighter is lent the PHB's six styles and its gear; the float over BF Test Victim's own token.
+  // BTB Test Fighter is lent the PHB's six styles and its gear; the float over BTB Test Victim's own token.
   {
     name: "smoke-damage-rules", note: "the fighting styles — the faces off the equipped boxes (Defense's AC, Dueling's second weapon), Great Weapon Fighting's floor, Thrown's and Dueling's +2, Two-Weapon's modifier, Unarmed Fighting's die, the line, the record, the float, the list",
     needs: ["fixture-suite"]
@@ -146,7 +146,7 @@ export const ORDER = [
     name: "smoke-guards", note: "the guards — Protection's popup beside the defender's own (P1), the bent roll and the card naming the guard, \"Protected — <guard>\" and the gate's Disadvantage within 5 ft; Interception's claim on the attack's damage, the reduction, the pass",
     needs: ["fixture-suite"]
   },
-  // Session 0's classes: BF Test Bard lent Cutting Words, BF Test Sorcerer Restore Balance; four tokens placed and removed.
+  // Session 0's classes: BTB Test Bard lent Cutting Words, BTB Test Sorcerer Restore Balance; four tokens placed and removed.
   {
     name: "smoke-classes", note: "the PHB classes — §A3 the bystander's bend on a hit: the margin gate, the popup, the quiet road off the damage, Restore Balance's first d20, the reach, \"Not this combat\" and its sweep",
     needs: ["fixture-suite"]

@@ -1,8 +1,8 @@
 /**
- * Battle Flow — MACHINE (ARCHITECTURE.md §7): the bash OFFER — a listed carrier's melee hit offers
+ * By the Books — MACHINE (ARCHITECTURE.md §7): the bash OFFER — a listed carrier's melee hit offers
  * Shield Master's bash (or a `shove` feat's push); the save and Prone-or-push are the saves machine's.
  */
-import { MODULE_ID, TITLE, isActiveGM, queueFlagWrite, canAnswerFor, inRunningCombat, combatStamp, statContext, drivesMomentFor, decisionWindow } from "./core.js";
+import { MODULE_ID, readFlag, TITLE, isActiveGM, queueFlagWrite, canAnswerFor, inRunningCombat, combatStamp, statContext, drivesMomentFor, decisionWindow } from "./core.js";
 import { resolveUuid, foldEntryFor, itemNamed, dealtTypesOf } from "./lookup.js";
 import { maneuverFoldEntries } from "./decide/registry.js";
 import { RULE_TEXT, SHOVES, tableIndex } from "./decide/registry.js";
@@ -50,7 +50,7 @@ function shoveFor(subject, attacker, entries) {
     const fits = (row.on === "unarmed") ? (isUnarmed(subject) && (subject.attack?.type?.value === "melee"))
       : dealtTypesOf(subject).includes(row.on);
     if ( !fits ) continue;
-    const used = attacker.getFlag(MODULE_ID, row.used);
+    const used = readFlag(attacker, row.used);
     if ( used?.stamp && (used.stamp === combatStamp()) ) continue;   // once per turn, each feat its own
     return { kind: "shove", found: { entry, item }, activity: null, shoveRow: name };
   }
@@ -75,13 +75,13 @@ listen("dnd5e.rollAttack", "bash-offer", async (rolls, { subject }) => {
     const attacker = subject.actor;
     const message = rolls?.[0]?.parent;
     if ( !attacker || !(message instanceof ChatMessage) ) return;
-    if ( message.getFlag(MODULE_ID, "bashOffer") ) return;       // never re-stamp
-    if ( message.getFlag(MODULE_ID, "riposteFor") ) return;      // a driven attack never chains the offer
+    if ( readFlag(message, "bashOffer") ) return;       // never re-stamp
+    if ( readFlag(message, "riposteFor") ) return;      // a driven attack never chains the offer
     const offer = offerFor(subject, attacker);
     if ( !offer ) return;
     const { kind, found, activity, shoveRow = null } = offer;
     const row = shoveRow ? SHOVES[shoveRow] : null;
-    const used = attacker.getFlag(MODULE_ID, OFFER_KINDS[kind].used);
+    const used = readFlag(attacker, OFFER_KINDS[kind].used);
     if ( !row && used?.stamp && (used.stamp === combatStamp()) ) return; // once per turn (a shove row judged its own)
     const sizes = Object.keys(CONFIG.DND5E?.actorSizes ?? {});
     const hits = hitTargets(message);
@@ -131,7 +131,7 @@ function damageLandedFor(attackMessage) {
 }
 
 async function offerFacts(attackMessage, { damageLanded } = {}) {
-  const b = attackMessage.getFlag(MODULE_ID, "bashOffer");
+  const b = readFlag(attackMessage, "bashOffer");
   if ( !b ) return null;
   let living = 0;
   const standing = [];
@@ -145,7 +145,7 @@ async function offerFacts(attackMessage, { damageLanded } = {}) {
   }
   return {
     status: b.status,
-    masteryStatus: attackMessage.getFlag(MODULE_ID, "mastery")?.status ?? null,
+    masteryStatus: readFlag(attackMessage, "mastery")?.status ?? null,
     damageLanded: damageLanded ?? damageLandedFor(attackMessage),
     living, standing
   };
@@ -180,7 +180,7 @@ export async function sequenceBashOffer(attackMessage, { damageLanded } = {}) {
 
 /** Has the offer's driven usage already happened? The provenance flag is the receipt. */
 const bashDriven = messageId => game.messages.contents.some(m =>
-  m.getFlag(MODULE_ID, "bashFor") === messageId);
+  readFlag(m, "bashFor") === messageId);
 
 async function answerBashOffer(message, answer, { targetUuid = null, timedOut = false } = {}) {
   let claimed = false;
@@ -202,7 +202,7 @@ async function resolveBashOffer(message) {
   if ( bashOfferInFlight.has(message.id) ) return;
   bashOfferInFlight.add(message.id);
   try {
-    const flag = message.getFlag(MODULE_ID, "bashOffer");
+    const flag = readFlag(message, "bashOffer");
     if ( !flag || (flag.answer !== "use") ) return;
     if ( bashDriven(message.id) ) return;                        // idempotent — the usage exists
     const attacker = await fromUuid(flag.attackerUuid).catch(() => null);
@@ -290,10 +290,10 @@ async function showBashOfferPopup(message, flag) {
 /* --- THE ROW, THE WATCHER, THE CLEANUP --------------------------------------------------------- */
 
 listen("dnd5e.renderChatMessage", "bash-offer", (message, html) => {
-  const b = message.getFlag(MODULE_ID, "bashOffer");
+  const b = readFlag(message, "bashOffer");
   if ( b ) {
     const row = document.createElement("div");
-    row.className = "battleflow-maneuver";
+    row.className = "bythebooks-maneuver";
     const pending = b.status === "pending";
     const queued = b.status === "queued";
     const kind = OFFER_KINDS[b.kind] ?? OFFER_KINDS.bash;
@@ -321,7 +321,7 @@ listen("dnd5e.renderChatMessage", "bash-offer", (message, html) => {
           void showBashOfferPopup(message, b);
         }
         row.appendChild(momentButton("Answer", () => {
-          void showBashOfferPopup(message, message.getFlag(MODULE_ID, "bashOffer"));
+          void showBashOfferPopup(message, readFlag(message, "bashOffer"));
         }, { margin: "0.25rem 0 0" }));
       }
     }
@@ -335,14 +335,14 @@ listen("dnd5e.renderChatMessage", "bash-offer", (message, html) => {
 
 // Every client closes answered popups; the timers disarm when nothing is pending.
 listen("updateChatMessage", "bash-offer", message => {
-  const b = message.getFlag(MODULE_ID, "bashOffer");
+  const b = readFlag(message, "bashOffer");
   if ( b ) {
     const dialog = livePopups.get(popupKey(message.id, "bashoffer"));
     if ( dialog && ((b.status !== "pending") || b.answer) ) void dialog.close();
     if ( b.status !== "pending" ) disarmAskTimer(bashOfferTimers, message.id);
     // The sequence's second trigger: the mastery ask on this attack message just settled.
     if ( (b.status === "queued") && drivesMomentFor(b.attackerUuid)
-      && (message.getFlag(MODULE_ID, "mastery")?.status === "done") ) void sequenceBashOffer(message);
+      && (readFlag(message, "mastery")?.status === "done") ) void sequenceBashOffer(message);
   }
 });
 

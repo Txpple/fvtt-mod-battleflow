@@ -1,10 +1,10 @@
 // @ts-check
 /**
- * Battle Flow — the reaction hold: THE CONTINUATION. Every held target answered → re-test against
+ * By the Books — the reaction hold: THE CONTINUATION. Every held target answered → re-test against
  * the LIVE AC after the settle window, write the verdicts, announce, release the dice. Also closes
  * answered popups (the parts stay a DAG: views → continue, never back).
  */
-import { MODULE_ID, TITLE, queueFlagWrite, isContinuingClient, drivesMomentFor, canApplyTo, HOLD_SETTLE_SECONDS } from "../core.js";
+import { MODULE_ID, readFlag, TITLE, queueFlagWrite, isContinuingClient, drivesMomentFor, canApplyTo, HOLD_SETTLE_SECONDS } from "../core.js";
 import { chipClock } from "../decide/chips.js";
 import { placeOf, chipData } from "../shared.js";
 import { applyEffectsTo } from "../effect-riders.js";
@@ -27,7 +27,7 @@ listen("updateChatMessage", "hold/continue", message => {
   // Every client, before the continuing-client gate: the popup is usually elsewhere.
   closeAnsweredHoldPopups(message);
 
-  const hold = message.getFlag(MODULE_ID, "hold");
+  const hold = readFlag(message, "hold");
   if ( hold?.status === "resolved" ) { void landProtection(message, hold); void landDuplicates(message, hold); }
   if ( !hold || (hold.status !== "pending") || !isContinuingClient(hold) ) return;
   if ( !hold.targets.every(t => t.answer) ) return;
@@ -59,7 +59,7 @@ const continuationsInFlight = new Set();
 /** Re-resolve a fully-answered hold against the LIVE AC (Shield's +5 must land first). */
 export async function continueHold(attackMessage) {
   if ( continuationsInFlight.has(attackMessage.id) ) return;
-  const hold = foundry.utils.deepClone(attackMessage.getFlag(MODULE_ID, "hold"));
+  const hold = foundry.utils.deepClone(readFlag(attackMessage, "hold"));
   if ( !hold || (hold.status !== "pending") ) return;
   continuationsInFlight.add(attackMessage.id);
   try {
@@ -185,8 +185,8 @@ async function driveHoldContinuation(attackMessage, hold) {
 
   // Release the dice rolled at attack time; the applier's hitTargets drops every flipped target.
   for ( const dmg of game.messages.contents.filter(m =>
-    (m.getFlag(MODULE_ID, "attackFor") === attackMessage.id)
-    && (m.getFlag(MODULE_ID, "attackHoldPending") === true) ) ) {
+    (readFlag(m, "attackFor") === attackMessage.id)
+    && (readFlag(m, "attackHoldPending") === true) ) ) {
     await dmg.setFlag(MODULE_ID, "attackHoldPending", false);
   }
 
@@ -219,7 +219,7 @@ async function rollDuplicates(attackMessage, target) {
       const absorbed = (total !== null) && (total < s.dc);
       const effect = actor.effects.get(s.effectId);
       // ⚠ A uuid's dots would expand into nested keys on the flag: the stamp is keyed by the uuid with its dots folded.
-      if ( effect && s.turn && attacker?.uuid ) await effect.setFlag(MODULE_ID, "recoiled", { ...(effect.getFlag(MODULE_ID, "recoiled") ?? {}), [recoilKey(attacker.uuid)]: s.turn }).catch(() => {});
+      if ( effect && s.turn && attacker?.uuid ) await effect.setFlag(MODULE_ID, "recoiled", { ...(readFlag(effect, "recoiled") ?? {}), [recoilKey(attacker.uuid)]: s.turn }).catch(() => {});
       target.duplicates = { ...d, faces: [], winner: null, absorbed, took: null, left: 1, of: 1, at: null, die: null, feature: true,
         save: { ability: s.ability, dc: s.dc, total } };
       if ( absorbed ) target.verdict = "absorbed";
@@ -359,7 +359,7 @@ async function settleForACChange(hold) {
 
 /** ARCHITECTURE §5 law 4: a decision made ANYWHERE closes its popup — per target. */
 function closeAnsweredHoldPopups(message) {
-  const hold = message.getFlag(MODULE_ID, "hold");
+  const hold = readFlag(message, "hold");
   if ( !hold?.targets?.length ) return;
   for ( const target of hold.targets ) {
     const dialog = livePopups.get(popupKey(message.id, target.uuid));

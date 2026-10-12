@@ -1,5 +1,5 @@
 /**
- * Battle Flow — MACHINE (ARCHITECTURE.md §7): THE RAY TABLE (RAY_TABLES) — a cone whose text rolls a die per
+ * By the Books — MACHINE (ARCHITECTURE.md §7): THE RAY TABLE (RAY_TABLES) — a cone whose text rolls a die per
  * creature to pick its ray (Prismatic Spray). The cast's own demand is closed as its card is born; once the
  * cone stands (the cast's placement, or a region placed after), the caster's driver rolls the die per
  * creature inside and raises ONE saves demand per (creature, ray): a damage ray against the Cast's save with
@@ -7,7 +7,7 @@
  * on a failure by this machine (the pack ties both effects to the Cast). The cone is instantaneous and goes
  * with the rays. Rulings: RULINGS *The spells slice — the held spells*.
  */
-import { MODULE_ID, TITLE, drivesMomentFor, statContext, decisionWindow, queueFlagWrite, canApplyTo, whisperNoGM } from "./core.js";
+import { MODULE_ID, readFlag, TITLE, drivesMomentFor, statContext, decisionWindow, queueFlagWrite, canApplyTo, whisperNoGM } from "./core.js";
 import { activityNamed, cardActivity, lower, resolveUuid } from "./lookup.js";
 import { RAY_TABLES, tableIndex, rayTableEntries, listedNames } from "./decide/registry.js";
 import { raysFor, rayWords, raySummaryLines, rayVerdict } from "./decide/prismatic.js";
@@ -37,7 +37,7 @@ function castRowOf(activity) {
 
 listen("preCreateChatMessage", "prismatic", doc => {
   try {
-    if ( !isCard(doc, CARD.usage) || doc.getFlag?.(MODULE_ID, SPRAY_FLAG) ) return;
+    if ( !isCard(doc, CARD.usage) || readFlag(doc, SPRAY_FLAG) ) return;
     const activity = resolveUuid(activityUuidOf(doc));
     const row = castRowOf(activity);
     if ( !row ) return;
@@ -71,7 +71,7 @@ listen("createRegion", "prismatic", region => {
     const activityUuid = region?.getFlag?.("dnd5e", "activity");
     if ( !activityUuid ) return;
     const card = game.messages.contents.filter(m => {
-      const p = m.getFlag(MODULE_ID, SPRAY_FLAG);
+      const p = readFlag(m, SPRAY_FLAG);
       return (p?.status === "pending") && (p.activityUuid === activityUuid);
     }).at(-1);
     if ( card ) void spray(card, [region]);
@@ -82,7 +82,7 @@ const spraying = new Set();
 
 /** The rays: one claim on the card, a die per creature inside, a demand per ray, the cone swept. */
 async function spray(card, regions) {
-  const p = card.getFlag(MODULE_ID, SPRAY_FLAG);
+  const p = readFlag(card, SPRAY_FLAG);
   if ( (p?.status !== "pending") || !drivesMomentFor(p.sourceUuid ?? null) ) return;
   if ( spraying.has(card.id) ) return;
   spraying.add(card.id);
@@ -183,7 +183,7 @@ listen("dnd5e.preRollDamage", "prismatic", (config, _dialog, message) => {
   try {
     const originId = message?.data?.system?.origin ?? null;
     const card = originId ? game.messages.get(originId) : null;
-    const ray = card?.getFlag(MODULE_ID, RAY_FLAG);
+    const ray = readFlag(card, RAY_FLAG);
     if ( !ray?.type ) return;
     for ( const roll of config.rolls ?? [] ) {
       const offered = [...(roll.options?.types ?? [])].map(t => String(t).toLowerCase());
@@ -196,9 +196,9 @@ listen("dnd5e.preRollDamage", "prismatic", (config, _dialog, message) => {
 
 const settling = new Set();
 async function settleRay(card) {
-  const ray = card.getFlag(MODULE_ID, RAY_FLAG);
+  const ray = readFlag(card, RAY_FLAG);
   if ( !ray || ray.settled ) return;
-  const flag = card.getFlag(MODULE_ID, "saves");
+  const flag = readFlag(card, "saves");
   const entry = flag?.targets?.find(t => t.uuid === ray.targetUuid);
   if ( !entry?.done || !drivesMomentFor(flag.sourceUuid ?? null) ) return;
   if ( settling.has(card.id) ) return;
@@ -235,7 +235,7 @@ listen("updateChatMessage", "prismatic", message => { void settleRay(message); }
 
 listen("dnd5e.renderChatMessage", "prismatic", (message, html) => {
   try {
-    const ray = message.getFlag(MODULE_ID, RAY_FLAG);
+    const ray = readFlag(message, RAY_FLAG);
     if ( !ray ) return;
     void settleRay(message);   // the reload-resume twin of the update watcher
     const content = html.querySelector?.(SURFACES.messageContent) ?? html;

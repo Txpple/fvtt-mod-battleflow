@@ -1,5 +1,5 @@
 // @ts-check
-/** Battle Flow — DECISION (ARCHITECTURE.md §2): the rest grants given to allies. Pure. */
+/** By the Books — DECISION (ARCHITECTURE.md §2): the rest grants given to allies. Pure. */
 
 /**
  * TEMPORARY HIT POINTS DO NOT STACK: true when the grant is no more than what the creature holds.

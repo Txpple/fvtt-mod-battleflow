@@ -1,4 +1,4 @@
-// Battle Flow Sneak Attack smoke test: the tick at the gate, the Cunning Strike menu on the damage
+// By the Books Sneak Attack smoke test: the tick at the gate, the Cunning Strike menu on the damage
 // offer, costs off the dice before the roll, the crit doubling what is left, effects through the
 // saves machine on the pack's own activities, once per turn as a turn chit. Fixture: the built
 // rogue (tools/fixture-suite.mjs).
@@ -42,7 +42,7 @@ const f = await connectSuite({ tag: 'sneak', watchdogMs: 720_000 });
 announcePlan('sneak', plan, pulled);
 
 const out = await f.evaluate(async ({ sections, titles }) => {
-  const MOD = 'fvtt-mod-battleflow';
+  const MOD = 'fvtt-mod-bythebooks';
   const results = [];
   const log = [];
   const skips = [];
@@ -56,7 +56,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   const suiteStart = Date.now();
   // Every moment payload published during the run (plain facts: uuids, never documents).
   const moments = [];
-  const momentHookId = Hooks.on('battleflow.moment', p => moments.push(p));
+  const momentHookId = Hooks.on('bythebooks.moment', p => moments.push(p));
   const momentsOf = (event, since = 0) => moments.filter(p => (p.event === event) && (p.at >= since));
   const plain = p => { try { return JSON.stringify(p) === JSON.stringify(JSON.parse(JSON.stringify(p))); } catch { return false; } };
   const errors = [];
@@ -77,10 +77,10 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   const prior = Object.fromEntries(SETTING_KEYS.map(k => [k, game.settings.get(MOD, k)]));
   const set = (k, v) => game.settings.set(MOD, k, v);
 
-  const scene = game.scenes.getName('Battle Flow Test Range');
-  const victim = game.actors.getName('BF Test Victim');
-  const rogue = game.actors.getName('BF Test Rogue');
-  if (!scene || !victim || !rogue) return { fatal: 'missing fixture: scene, BF Test Victim or BF Test Rogue — run tools/fixture-suite.mjs' };
+  const scene = game.scenes.getName('By the Books Test Range');
+  const victim = game.actors.getName('BTB Test Victim');
+  const rogue = game.actors.getName('BTB Test Rogue');
+  if (!scene || !victim || !rogue) return { fatal: 'missing fixture: scene, BTB Test Victim or BTB Test Rogue — run tools/fixture-suite.mjs' };
 
   const created = { items: [], tokens: [] };
   const priorActor = {};
@@ -128,7 +128,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       for (const [actorId, data] of Object.entries(priorActor)) await game.actors.get(actorId)?.update(data);
       game.user.targets.forEach(t => { t.setTarget(false, { releaseOthers: true }); });
       const mine = game.messages.filter(m => (m.timestamp >= suiteStart)
-        && (m.speaker?.alias?.startsWith?.('BF Test') || m.speaker?.alias === 'Battle Flow'
+        && (m.speaker?.alias?.startsWith?.('BTB Test') || m.speaker?.alias === 'By the Books'
           || Object.keys(m.flags?.[MOD] ?? {}).length));
       if (mine.length) await ChatMessage.deleteDocuments(mine.map(m => m.id));
     } catch (err) {
@@ -391,7 +391,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       // One `sneak` event on the damage message, plain, with the picks.
       const ev = momentsOf('sneak').filter(p => p.messageId === dmg?.id);
       const p = ev[0];
-      ok('4g. the resolve was PUBLISHED once: battleflow.moment "sneak" — the rogue, Sneak Attack, the damage message, the attack, the victim as a hit target, the formula and the Trip pick; plain and frozen',
+      ok('4g. the resolve was PUBLISHED once: bythebooks.moment "sneak" — the rogue, Sneak Attack, the damage message, the attack, the victim as a hit target, the formula and the Trip pick; plain and frozen',
         (ev.length === 1) && !!p && (p.actorUuid === rogue.uuid) && (p.itemName === 'Sneak Attack') && (p.attackId === msg3?.id)
           && (p.targets?.[0]?.actorUuid === victim.uuid) && (p.targets?.[0]?.hit === true) && !!p.targets?.[0]?.tokenUuid
           && (p.details?.formula === '6d6') && (p.details?.picks?.join() === 'trip') && (p.spend === null) && Object.isFrozen(p) && plain(p),
@@ -700,7 +700,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           alone.hasTick && !alone.ticked, JSON.stringify(alone).slice(0, 240));
         [allyDoc] = await scene.createEmbeddedDocuments('Token', [
           foundry.utils.mergeObject(victim.prototypeToken.toObject(),
-            { x: 1400, y: 1600 + squarePx, actorId: victim.id, actorLink: false, disposition: 1, name: 'BF Test Ally' }, { inplace: false })]);
+            { x: 1400, y: 1600 + squarePx, actorId: victim.id, actorLink: false, disposition: 1, name: 'BTB Test Ally' }, { inplace: false })]);
         created.tokens.push(allyDoc.id);
         for (let i = 0; i < 40 && !(canvas.ready && canvas.tokens.get(allyDoc.id)); i++) await sleep(250);
         rogueToken.control({ releaseOthers: true });
@@ -732,7 +732,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   } catch (err) {
     return { fatal: `${err?.message || err}\n${err?.stack ?? ''}`, results, log, skips };
   } finally {
-    Hooks.off('battleflow.moment', momentHookId);
+    Hooks.off('bythebooks.moment', momentHookId);
     await teardown();
   }
 }, sectionArg(plan, SECTIONS));

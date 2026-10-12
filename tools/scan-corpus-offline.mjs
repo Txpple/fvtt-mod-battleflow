@@ -26,7 +26,7 @@ const DATA = dataFlag >= 0 ? argv.splice(dataFlag, 2)[1]
   : readEnv(join(MCP, ".env")).FOUNDRY_DATA_DIR ?? join(process.env.LOCALAPPDATA ?? "", "FoundryVTT", "Data");
 const [out, ...mods] = argv;
 if (!out || !mods.length) { console.error("usage: node tools/scan-corpus-offline.mjs <out.json> <module-id> [...] [--data <dir>]"); process.exit(2); }
-const COPIES = join(tmpdir(), "battleflow-offline-packs");
+const COPIES = join(tmpdir(), "bythebooks-offline-packs");
 
 function readEnv(path) {
   try {

@@ -17,7 +17,7 @@ const out = await f.evaluate(async ({ playerName }) => {
   const made = [];
   try {
     const FOLDER = "Test Suite";
-    const SCENE = "Battle Flow Test Range";
+    const SCENE = "By the Books Test Range";
 
     // --- the folders (Foundry scopes folders by document type)
     const ensureFolder = async type => {
@@ -99,41 +99,41 @@ const out = await f.evaluate(async ({ playerName }) => {
       }
       return actor;
     };
-    const attacker = await ensureGoblin("BF Test Attacker");
-    const victim = await ensureGoblin("BF Test Victim");
+    const attacker = await ensureGoblin("BTB Test Attacker");
+    const victim = await ensureGoblin("BTB Test Victim");
     // OBSERVER lets `smoke-nogm` READ the victim's effects (an unseeable chip assertion passes vacuously).
     if ((victim.ownership?.default ?? 0) < 2) {
       await victim.update({ "ownership.default": 2 });
-      log.push("granted players OBSERVER on BF Test Victim (read-only)");
+      log.push("granted players OBSERVER on BTB Test Victim (read-only)");
     }
 
     // The attacker must carry something with an attack activity.
     const weapon = attacker.items.find(i => i.system.activities?.some?.(a => a.type === "attack"));
-    if (!weapon) throw new Error("BF Test Attacker has no item with an attack activity");
+    if (!weapon) throw new Error("BTB Test Attacker has no item with an attack activity");
 
     // --- the dummy: a sturdy bare NPC a probe swings at (probe-hit-sequence, probe-web); no token here,
     // the probes place their own.
-    let dummy = game.actors.getName("BF Test Dummy");
+    let dummy = game.actors.getName("BTB Test Dummy");
     if (!dummy) {
       dummy = await Actor.create({
-        name: "BF Test Dummy", type: "npc", folder: actorFolder.id, ownership: { default: 0 },
-        prototypeToken: { name: "BF Test Dummy", actorLink: false, disposition: -1 },
+        name: "BTB Test Dummy", type: "npc", folder: actorFolder.id, ownership: { default: 0 },
+        prototypeToken: { name: "BTB Test Dummy", actorLink: false, disposition: -1 },
         system: { abilities: { str: 10, dex: 10, con: 10, int: 1, wis: 10, cha: 1 },
           attributes: { hp: { value: 100, max: 100 }, ac: { calc: "flat", flat: 10 }, movement: { walk: 0 } }, details: { cr: 0 } }
       });
-      made.push("BF Test Dummy");
-      log.push("created BF Test Dummy (a bare NPC, 100 HP, AC 10)");
+      made.push("BTB Test Dummy");
+      log.push("created BTB Test Dummy (a bare NPC, 100 HP, AC 10)");
     }
 
     // --- the monster: a bare GM-owned NPC for the GM's side (smoke-drop's Undead Fortitude and Death
     // Throes, smoke-saves' Avoidance, smoke-spells' Regeneration). Linked, so a lent Monster Manual trait
     // keeps its activities; `legres` so the platform's Legendary Resistance button shows. The suites lend
     // the traits per section from `dnd-monster-manual.features` and take them back.
-    let monster = game.actors.getName("BF Test Monster");
+    let monster = game.actors.getName("BTB Test Monster");
     if (!monster) {
       monster = await Actor.create({
-        name: "BF Test Monster", type: "npc", folder: actorFolder.id, ownership: { default: 0 },
-        prototypeToken: { name: "BF Test Monster", actorLink: true, disposition: -1 },
+        name: "BTB Test Monster", type: "npc", folder: actorFolder.id, ownership: { default: 0 },
+        prototypeToken: { name: "BTB Test Monster", actorLink: true, disposition: -1 },
         system: {
           abilities: { str: 14, dex: 12, con: 14, int: 8, wis: 10, cha: 6 },
           attributes: { hp: { value: 50, max: 50 }, movement: { walk: 30 } },
@@ -141,8 +141,8 @@ const out = await f.evaluate(async ({ playerName }) => {
           resources: { legres: { max: 3, spent: 0 } }
         }
       });
-      made.push("BF Test Monster");
-      log.push("created BF Test Monster (a bare NPC, 50 HP, Con 14, 3 Legendary Resistances)");
+      made.push("BTB Test Monster");
+      log.push("created BTB Test Monster (a bare NPC, 50 HP, Con 14, 3 Legendary Resistances)");
     }
     {
       // Every run: the statblock back (a killed suite leaves HP, a save bonus or a lent trait behind).
@@ -156,24 +156,24 @@ const out = await f.evaluate(async ({ playerName }) => {
       // blanket delete issued next races the system's and one of them throws "ActiveEffect
       // "dnd5ebloodied000" does not exist!". Cleared first, the heal finds no Bloodied to remove.
       const stale = monster.effects.map(e => e.id);
-      if (stale.length) { await monster.deleteEmbeddedDocuments("ActiveEffect", stale); log.push("cleared BF Test Monster's play-state effects"); }
-      if (Object.keys(reset).length) { await monster.update(reset); log.push("BF Test Monster: reset to its statblock"); }
+      if (stale.length) { await monster.deleteEmbeddedDocuments("ActiveEffect", stale); log.push("cleared BTB Test Monster's play-state effects"); }
+      if (Object.keys(reset).length) { await monster.update(reset); log.push("BTB Test Monster: reset to its statblock"); }
       const lentTraits = monster.items.filter(i => i.type === "feat");
-      if (lentTraits.length) { await monster.deleteEmbeddedDocuments("Item", lentTraits.map(i => i.id)); log.push(`took back BF Test Monster's lent traits (${lentTraits.map(i => i.name).join(", ")})`); }
+      if (lentTraits.length) { await monster.deleteEmbeddedDocuments("Item", lentTraits.map(i => i.id)); log.push(`took back BTB Test Monster's lent traits (${lentTraits.map(i => i.name).join(", ")})`); }
     }
 
     // --- the player-owned PC attacker: the NPC's own attack item, so the sides differ ONLY in
     // actor.type (masteries are PC-only in data)
-    let pc = game.actors.getName("BF Test PC Attacker");
+    let pc = game.actors.getName("BTB Test PC Attacker");
     if (!pc) {
       pc = await Actor.create({
-        name: "BF Test PC Attacker", type: "character",
+        name: "BTB Test PC Attacker", type: "character",
         folder: actorFolder.id, items: [weapon.toObject()]
       });
-      made.push("BF Test PC Attacker");
-      log.push("created BF Test PC Attacker");
+      made.push("BTB Test PC Attacker");
+      log.push("created BTB Test PC Attacker");
     }
-    if (pc.type !== "character") throw new Error(`BF Test PC Attacker is type ${pc.type}, not character`);
+    if (pc.type !== "character") throw new Error(`BTB Test PC Attacker is type ${pc.type}, not character`);
 
     // ⚠ Ownership and HP re-seeded every run: a prod mirror drops them, and a bare `character`
     // create has hp.max 0.
@@ -181,29 +181,29 @@ const out = await f.evaluate(async ({ playerName }) => {
     if (playerUser) {
       await pc.update({ ownership: { default: 0, [playerUser.id]: 3 } },
         { diff: false, recursive: false });
-      log.push(`granted BF Test PC Attacker to ${playerUser.name}`);
+      log.push(`granted BTB Test PC Attacker to ${playerUser.name}`);
     } else {
       log.push(`⚠ no player test user (FOUNDRY_PLAYER_USER=${playerName ?? "unset"}) — PC left ownerless`);
     }
     if (!(pc.system.attributes?.hp?.max > 0)) {
       await pc.update({ "system.attributes.hp.max": 20, "system.attributes.hp.value": 20 });
-      log.push("seeded BF Test PC Attacker's HP pool (20/20)");
+      log.push("seeded BTB Test PC Attacker's HP pool (20/20)");
     }
     // ⚠ The cloned blade stays BARE: mastery suites find their blade by shape, first match, and a
     // mastery on this d8 puts it ahead of the Dagger of Venom (a d8 drops the 11-HP Victim mid-section).
     // Re-cloned when missing, stripped when it wears one.
     {
-      const npc = game.actors.getName("BF Test Attacker");
+      const npc = game.actors.getName("BTB Test Attacker");
       const npcWeapon = npc?.items.find(i => (i.type === "weapon") && i.system.activities?.some?.(a => a.type === "attack"));
       if (npcWeapon) {
         let clone = pc.items.find(i => (i.type === "weapon") && (i.name === npcWeapon.name));
         if (!clone) {
           const data = npcWeapon.toObject(); delete data._id; data.system.mastery = "";
           [clone] = await pc.createEmbeddedDocuments("Item", [data]);
-          log.push(`re-cloned the NPC's ${npcWeapon.name} onto BF Test PC Attacker (no mastery)`);
+          log.push(`re-cloned the NPC's ${npcWeapon.name} onto BTB Test PC Attacker (no mastery)`);
         } else if (clone.system._source.mastery) {
           await clone.update({ "system.mastery": "" });
-          log.push(`stripped the mastery a walk left on BF Test PC Attacker's ${clone.name}`);
+          log.push(`stripped the mastery a walk left on BTB Test PC Attacker's ${clone.name}`);
         }
       }
     }
@@ -246,10 +246,10 @@ const out = await f.evaluate(async ({ playerName }) => {
       // picks the first one), Guiding Bolt is the attack spell with an effect smoke-effects casts, Web is
       // what probe-web reads. The Shielder is GM-owned (smoke-hold §4b clicks Cast as the GM); the Mage is
       // the PLAYER's (smoke-hold's attacked PC, smoke-twoclient's clone source) and places no token here.
-      { name: "BF Test Shielder", classes: [["Sorcerer", 6]], feats: [],
+      { name: "BTB Test Shielder", classes: [["Sorcerer", 6]], feats: [],
         spells: ["Bless", "Shield", "Guiding Bolt", "Magic Missile", "Web", "Fire Bolt"], gear: ["Dagger"], spellcasting: "cha",
         abilities: { cha: 18, con: 14, dex: 14, wis: 12, str: 8, int: 10 }, hp: 38, x: 1500, clearEffects: true },
-      { name: "BF Test Mage", classes: [["Sorcerer", 6]], feats: [],
+      { name: "BTB Test Mage", classes: [["Sorcerer", 6]], feats: [],
         spells: ["Bless", "Shield", "Guiding Bolt", "Magic Missile", "Web", "Fire Bolt"], gear: ["Dagger"], spellcasting: "cha",
         abilities: { cha: 18, con: 14, dex: 14, wis: 12, str: 8, int: 10 }, hp: 38, owner: "player", noToken: true, clearEffects: true },
       // The d20-fold PCs (were clones of two campaign characters). The Fighter: Fighter 5 (proficiency +3)
@@ -257,36 +257,36 @@ const out = await f.evaluate(async ({ playerName }) => {
       // their compendium stamp so Tactical Mind's pool remaps. fixture-d20-folds adds the Battle Master
       // kit and the Longsword. The Bard: Bard 8 makes `@scale.bard.inspiration` the 1d8 the suites pin;
       // Charisma 16 gives Bardic Inspiration three uses. Both GM-owned, no token on the range.
-      { name: "BF Test Fighter", classes: [["Fighter", 5]], feats: ["Second Wind", "Tactical Mind"], gear: [],
+      { name: "BTB Test Fighter", classes: [["Fighter", 5]], feats: ["Second Wind", "Tactical Mind"], gear: [],
         abilities: { str: 14, con: 14, dex: 10, wis: 12, int: 8, cha: 10 }, hp: 44, noToken: true, reseedAbilities: true },
-      { name: "BF Test Bard", classes: [["Bard", 8]], feats: ["Bardic Inspiration"], gear: ["Dagger"], spellcasting: "cha",
+      { name: "BTB Test Bard", classes: [["Bard", 8]], feats: ["Bardic Inspiration"], gear: ["Dagger"], spellcasting: "cha",
         abilities: { cha: 16, dex: 14, con: 12, wis: 10, int: 12, str: 8 }, hp: 51, noToken: true },
       // The effect view's and the hit sequence's Paladin (was a campaign Paladin): an attuned Cloak of
       // Protection is the standing "Bonus AC" passive probe-effect-view reads; the Longsword's Sap with the
       // longsword mastery chosen, and Shield Master on the sheet, are probe-hit-sequence's. The probes
       // place its token.
-      { name: "BF Test Vanguard", classes: [["Paladin", 6]], feats: ["Shield Master"], gear: ["Longsword", "Cloak of Protection"],
+      { name: "BTB Test Vanguard", classes: [["Paladin", 6]], feats: ["Shield Master"], gear: ["Longsword", "Cloak of Protection"],
         attune: ["Cloak of Protection"], masteries: ["longsword"],
         abilities: { str: 16, con: 14, cha: 14, wis: 10, dex: 10, int: 10 }, hp: 52, noToken: true },
       // The emanations suite: a Paladin with three auras and a Cleric who can cast Spirit Guardians.
       // ⚠ Both home on the BOTTOM ROW: the Paladin's aura is always on.
-      { name: "BF Test Paladin", classes: [["Paladin", 10], ["Oath of the Ancients", null]],
+      { name: "BTB Test Paladin", classes: [["Paladin", 10], ["Oath of the Ancients", null]],
         feats: ["Aura of Protection", "Aura of Courage", "Aura of Warding"], gear: ["Longsword"],
         abilities: { cha: 16, str: 16, con: 14, wis: 12 }, hp: 84, x: 300, y: 1800 },
-      { name: "BF Test Cleric", classes: [["Cleric", 5], ["Life Domain", null]],
+      { name: "BTB Test Cleric", classes: [["Cleric", 5], ["Life Domain", null]],
         feats: [], spells: ["Spirit Guardians"], gear: ["Mace"],
         // ⚠ Far from the Paladin, outside its aura.
         abilities: { wis: 16, con: 14, str: 12 }, hp: 38, x: 1700, y: 1800 },
-      { name: "BF Test Rogue", classes: [["Rogue", 14], ["Thief", null]],
+      { name: "BTB Test Rogue", classes: [["Rogue", 14], ["Thief", null]],
         feats: ["Sneak Attack", "Cunning Strike", "Devious Strikes", "Improved Cunning Strike", "Supreme Sneak", "Assassinate", "Steady Aim", "Evasion"],
         gear: ["Rapier", "Longsword", "Shortbow"], abilities: { dex: 18, str: 12, con: 14 }, hp: 90, x: 700 },
-      { name: "BF Test Ranger", classes: [["Ranger", 5], ["Gloom Stalker", null]],
+      { name: "BTB Test Ranger", classes: [["Ranger", 5], ["Gloom Stalker", null]],
         feats: ["Dread Ambusher"], gear: ["Longsword", "Longbow"], abilities: { dex: 16, str: 14, wis: 16, con: 14 }, hp: 44, x: 500 },
       // The metamagic suite: a Sorcerer with every option on the sheet (class feats nothing grants,
       // added beside Font of Magic). Charisma 16 is load-bearing (Careful's cap, Empowered's reroll
       // count). Fireball, Hold Person and Chromatic Orb are the spell shapes the options need.
       // ⚠ Bottom row, clear of the Paladin's aura, with clear ground for a Fireball.
-      { name: "BF Test Sorcerer", classes: [["Sorcerer", 5], ["Draconic Sorcery", null]],
+      { name: "BTB Test Sorcerer", classes: [["Sorcerer", 5], ["Draconic Sorcery", null]],
         feats: ["Font of Magic", "Metamagic", "Careful Spell", "Distant Spell", "Empowered Spell", "Extended Spell", "Heightened Spell",
           "Quickened Spell", "Seeking Spell", "Subtle Spell", "Transmuted Spell", "Twinned Spell"],
         spells: ["Fireball", "Hold Person", "Chromatic Orb", "Fire Bolt"], gear: ["Dagger"], spellcasting: "cha",   // Fire Bolt: the CANTRIP shape (no slot, template or scaling)
@@ -295,13 +295,13 @@ const out = await f.evaluate(async ({ playerName }) => {
       // other boons one at a time) and the Halfling (Brave, Lucky, Savage Attacker).
       // ⚠ Both home in the empty top-left corner: suites play between x 800-1700, y 900-1700, and a
       // friendly fixture there counts as an ally (Pack Tactics).
-      { name: "BF Test Goliath", classes: [["Fighter", 5]], feats: ["Stone's Endurance", "Fire's Burn"], gear: ["Greataxe"],
+      { name: "BTB Test Goliath", classes: [["Fighter", 5]], feats: ["Stone's Endurance", "Fire's Burn"], gear: ["Greataxe"],
         abilities: { str: 16, con: 16 }, hp: 52, x: 300, y: 200 },
-      { name: "BF Test Halfling", classes: [["Rogue", 3]], feats: ["Brave", "Lucky", "Savage Attacker"], gear: ["Shortsword"],
+      { name: "BTB Test Halfling", classes: [["Rogue", 3]], feats: ["Brave", "Lucky", "Savage Attacker"], gear: ["Shortsword"],
         abilities: { dex: 16, con: 12 }, hp: 24, x: 500, y: 200 },
       // The transforms suite: a Druid 2 with the PHB's Wild Shape (two uses, the CR ¼ band, no fliers). Its
       // known forms are the suite's to set. ⚠ Top-right corner, clear of every aura and the play area.
-      { name: "BF Test Druid", classes: [["Druid", 2]], feats: ["Wild Shape"], gear: ["Quarterstaff"], spellcasting: "wis",
+      { name: "BTB Test Druid", classes: [["Druid", 2]], feats: ["Wild Shape"], gear: ["Quarterstaff"], spellcasting: "wis",
         abilities: { wis: 16, con: 14, dex: 12, str: 10, int: 10, cha: 8 }, hp: 17, x: 1700, y: 200 }
     ];
     const built = [];
@@ -422,24 +422,24 @@ const out = await f.evaluate(async ({ playerName }) => {
       if (!spec.noToken) built.push({ actor, x: spec.x, y: spec.y ?? 1000 });
     }
 
-    // --- adopt strays: every BF Test actor into the folder
-    const strays = game.actors.filter(a => a.name?.startsWith("BF Test") && (a.folder?.id !== actorFolder.id));
+    // --- adopt strays: every BTB Test actor into the folder
+    const strays = game.actors.filter(a => a.name?.startsWith("BTB Test") && (a.folder?.id !== actorFolder.id));
     for (const a of strays) await a.update({ folder: actorFolder.id });
-    if (strays.length) log.push(`adopted ${strays.length} stray BF Test actor(s) into the folder`);
+    if (strays.length) log.push(`adopted ${strays.length} stray BTB Test actor(s) into the folder`);
 
     // --- tokens on the scene
-    // ⚠ Every token placed here carries `flags.fvtt-mod-battleflow.fixtureHome`, the stamp
+    // ⚠ Every token placed here carries `flags.fvtt-mod-bythebooks.fixtureHome`, the stamp
     // reset-fixture-state keeps when it sweeps a killed suite's linked leftovers.
     const ensureToken = async (actor, x, linked, y = 1000) => {
       let doc = scene.tokens.find(t => t.actorId === actor.id);
       if (!doc) {
         [doc] = await scene.createEmbeddedDocuments("Token", [foundry.utils.mergeObject(
           actor.prototypeToken.toObject(),
-          { x, y, actorId: actor.id, actorLink: linked, flags: { "fvtt-mod-battleflow": { fixtureHome: true } } },
+          { x, y, actorId: actor.id, actorLink: linked, flags: { "fvtt-mod-bythebooks": { fixtureHome: true } } },
           { inplace: false })]);
         log.push(`placed a token for ${actor.name}`);
-      } else if (!doc.getFlag("fvtt-mod-battleflow", "fixtureHome")) {
-        await doc.setFlag("fvtt-mod-battleflow", "fixtureHome", true);
+      } else if (!doc.getFlag("fvtt-mod-bythebooks", "fixtureHome")) {
+        await doc.setFlag("fvtt-mod-bythebooks", "fixtureHome", true);
         log.push(`stamped ${actor.name}'s token as the fixture home`);
       }
       if (doc && (y !== 1000) && ((doc.x !== x) || (doc.y !== y))) {

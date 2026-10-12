@@ -1,10 +1,48 @@
 /**
- * Battle Flow — shared constants and who/when facts: setting keys, the elects, combat identity, the
+ * By the Books — shared constants and who/when facts: setting keys, the elects, combat identity, the
  * deadline ceiling and the flag-write serializer. A leaf — imports nothing.
  */
 
-export const MODULE_ID = "fvtt-mod-battleflow";
-export const TITLE = "Battle Flow";
+export const MODULE_ID = "fvtt-mod-bythebooks";
+/** The package id before 3.0.0 (formerly Battle Flow): the flag scope old documents still carry. */
+export const LEGACY_ID = "fvtt-mod-battleflow";
+// The `data-bf-*` DOM anchors predate the rename and stay: cards posted before 3.0.0 carry them in their stored HTML.
+export const TITLE = "By the Books";
+
+/**
+ * Publish one of the module's public hooks (`bythebooks.<name>`).
+ * 3.0.0 double-emits for one release so readers (FX Studio) move on their own schedule; the
+ * battleflow.* emit goes in the next minor.
+ * @param {string} name  the hook's name after the prefix
+ * @param {...any} args
+ */
+export function publish(name, ...args) {
+  Hooks.callAll(`bythebooks.${name}`, ...args);
+  Hooks.callAll(`battleflow.${name}`, ...args);
+}
+
+/**
+ * Read one of the module's own flags: the new scope, else the legacy one. FOR GOOD: old chat cards
+ * keep their old-scope flags forever (the migration skips messages). ⚠ The legacy scope is read as a
+ * plain property on purpose: `getFlag(LEGACY_ID, …)` throws once the old package is uninstalled.
+ * @param {any} doc
+ * @param {string} key
+ */
+export const readFlag = (doc, key) => doc?.getFlag?.(MODULE_ID, key) ?? doc?.flags?.[LEGACY_ID]?.[key];
+
+/**
+ * Remove one of the module's own flags from a document the migration never touches (a chat card): the
+ * new scope's key, and the legacy scope's too when it holds one, so `readFlag` cannot read it back.
+ * @param {any} doc
+ * @param {string} key
+ * @param {object} [options]
+ */
+export function clearFlag(doc, key, options = {}) {
+  const update = { [`flags.${MODULE_ID}.-=${key}`]: null };
+  const legacy = doc?.flags?.[LEGACY_ID];
+  if ( legacy && (typeof legacy === "object") && (key in legacy) ) update[`flags.${LEGACY_ID}.-=${key}`] = null;
+  return doc.update(update, options);
+}
 
 export const S = {
   decisionTimer: "decisionTimer",       // every question's clock
@@ -198,7 +236,7 @@ const flagWrites = new Map();
 export function queueFlagWrite(message, key, mutate) {
   const lock = `${message.id}|${key}`;
   const run = async () => {
-    const before = message.getFlag(MODULE_ID, key) ?? { targets: [] };
+    const before = readFlag(message, key) ?? { targets: [] };
     const current = foundry.utils.deepClone(before);
     if ( mutate(current) === false ) return;
     await message.setFlag(MODULE_ID, key, markDeletions(before, current));

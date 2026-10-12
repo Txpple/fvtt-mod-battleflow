@@ -1,6 +1,6 @@
 // @ts-check
 /**
- * Battle Flow — DECISION layer (ARCHITECTURE.md §2): the heal on hit (registry.js HEAL_ON_HIT) — how much
+ * By the Books — DECISION layer (ARCHITECTURE.md §2): the heal on hit (registry.js HEAL_ON_HIT) — how much
  * of what landed comes back to the caster, and the card's words. No `game`.
  */
 

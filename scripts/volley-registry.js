@@ -1,5 +1,5 @@
 /**
- * Battle Flow — the volley registry. A spell volleys by its row alone, found by identifier then name (⚠ the pack's counts are wrong both
+ * By the Books — the volley registry. A spell volleys by its row alone, found by identifier then name (⚠ the pack's counts are wrong both
  * ways: Scorching Ray has none, Eldritch Blast says 1, Dimension Door says 2 — tools/scan-volley-spells.mjs).
  *   kind   "damage" (darts, aggregated per target) | "attack" (rays, a rollAttack each); the used activity must match
  *   count  a formula (@item.level the cast level, @scaling) or ({ activity, castLevel, rollData }) => n; under 2 is native

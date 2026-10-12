@@ -1,11 +1,11 @@
 /**
- * Battle Flow — MACHINE (ARCHITECTURE.md §7): THE DICE CHANGERS — one popup per damage roll, rows
+ * By the Books — MACHINE (ARCHITECTURE.md §7): THE DICE CHANGERS — one popup per damage roll, rows
  * run in order by one Apply (RULINGS *The dice changers — one popup*). The message is born DUE and
  * auto-apply.js holds the application meanwhile, so the dice land ONCE; the question opens once the
  * hold is off. Damage already applied is moved by the difference.
  * ⚠ dnd5e dispatches the damage hook TWICE per roll: an in-flight set keeps it single.
  */
-import { MODULE_ID, TITLE, statContext, queueFlagWrite, drivesMomentFor, decisionWindow } from "./core.js";
+import { MODULE_ID, readFlag, TITLE, statContext, queueFlagWrite, drivesMomentFor, decisionWindow } from "./core.js";
 import { lower, featureNamed, itemNamed, resolveUuid, dealtTypesOf } from "./lookup.js";
 import { damageEitherEntries, listedNames } from "./decide/registry.js";
 import { hitTargets, turnChitStands, writeTurnChit, rebuildRolls, spendPoolUses } from "./shared.js";
@@ -55,7 +55,7 @@ const dealtOf = (config, activity) => {
 
 /** How many of the message's rolls are the activity's own (auto-damage.js stamps it); one when unstamped. */
 const weaponRollsOf = message => {
-  const n = Number(message.getFlag(MODULE_ID, "weaponRolls"));
+  const n = Number(readFlag(message, "weaponRolls"));
   return Number.isFinite(n) && (n > 0) ? n : 1;
 };
 
@@ -109,7 +109,7 @@ listen("dnd5e.rollDamage", "dice-changers", rolls => {
 // The hold's release reaches the roller here; a settled record closes its popup (law 4) and its
 // buzzer, a pending one re-arms on the driving client.
 listen("updateChatMessage", "dice-changers", message => {
-  const flag = message.getFlag(MODULE_ID, DICE_CHANGE_FLAG);
+  const flag = readFlag(message, DICE_CHANGE_FLAG);
   if ( !flag ) return;
   if ( (flag.status === "due") && message.isAuthor ) void promote(message);
   if ( flag.status === "pending" ) { armTimer(message); return; }
@@ -119,9 +119,9 @@ listen("updateChatMessage", "dice-changers", message => {
 });
 
 async function promote(message) {
-  const flag = message.getFlag(MODULE_ID, DICE_CHANGE_FLAG);
+  const flag = readFlag(message, DICE_CHANGE_FLAG);
   if ( (flag?.status !== "due") || offering.has(message.id) ) return;
-  if ( message.getFlag(MODULE_ID, "attackHoldPending") === true ) return;
+  if ( readFlag(message, "attackHoldPending") === true ) return;
   offering.add(message.id);
   try {
     const actor = resolveUuid(flag.actorUuid);
@@ -164,7 +164,7 @@ async function promote(message) {
       current.status = "pending";
       if ( window ) { current.window = window; current.deadline = Date.now() + (window * 1000); }
     });
-    if ( message.getFlag(MODULE_ID, DICE_CHANGE_FLAG)?.status !== "pending" ) return;
+    if ( readFlag(message, DICE_CHANGE_FLAG)?.status !== "pending" ) return;
     armTimer(message);
     // The table sees the dice land before the question opens.
     await dramaticVerdictPause(message);
@@ -176,11 +176,11 @@ async function promote(message) {
 
 /** The buzzer, on whoever drives the actor's moments (`drivesMomentFor`), so a no-GM table still keeps the roll. */
 function armTimer(message) {
-  const flag = message.getFlag(MODULE_ID, DICE_CHANGE_FLAG);
+  const flag = readFlag(message, DICE_CHANGE_FLAG);
   if ( (flag?.status !== "pending") || !flag.deadline || !drivesMomentFor(flag.actorUuid ?? null) ) return;
   armDeadline(timers, message.id, flag.deadline, async () => {
     const live = game.messages.get(message.id);
-    if ( live?.getFlag(MODULE_ID, DICE_CHANGE_FLAG)?.status === "pending" ) await keep(live, { timedOut: true });
+    if ( readFlag(live, DICE_CHANGE_FLAG)?.status === "pending" ) await keep(live, { timedOut: true });
   });
 }
 
@@ -192,7 +192,7 @@ const picksIn = form => [...(form?.querySelectorAll?.('[data-bf-die][data-picked
   .sort((a, b) => Number(a.dataset.order) - Number(b.dataset.order)).map(b => b.dataset.bfDie);
 
 async function showPopup(message) {
-  const flag = message.getFlag(MODULE_ID, DICE_CHANGE_FLAG);
+  const flag = readFlag(message, DICE_CHANGE_FLAG);
   if ( flag?.status !== "pending" ) return;
   const actor = resolveUuid(flag.actorUuid);
   if ( !actor ) return;
@@ -253,7 +253,7 @@ async function showPopup(message) {
 /** The buttons follow the ticks and the chips (decide/dice-changers.js `buttonState`). */
 function syncButtons(form) {
   const id = form?.querySelector?.("[data-bf-dice-for]")?.dataset?.bfDiceFor ?? "";
-  const flag = game.messages.get(id)?.getFlag(MODULE_ID, DICE_CHANGE_FLAG) ?? null;
+  const flag = readFlag(game.messages.get(id), DICE_CHANGE_FLAG) ?? null;
   const apply = form?.querySelector?.('button[data-action="apply"]');
   const keepButton = form?.querySelector?.('button[data-action="keep"]');
   if ( !apply || !keepButton ) return;
@@ -303,7 +303,7 @@ async function resolve(message, { ticked, picks }) {
   resolving.add(message.id);
   let record = null;   // Empowered's spend, once it has happened — the failure path must not lose it
   try {
-    const flag = message.getFlag(MODULE_ID, DICE_CHANGE_FLAG);
+    const flag = readFlag(message, DICE_CHANGE_FLAG);
     if ( flag?.status !== "pending" ) return;
     const plan = answerPlan({ rows: flag.rows, ticked, picks, dice: flag.dice ?? [] });
     if ( !plan.length ) { await keep(message); return; }
@@ -316,7 +316,7 @@ async function resolve(message, { ticked, picks }) {
       current.answeredAt = Date.now();
       current.answered = plan.map(s => s.row.key);
     });
-    if ( message.getFlag(MODULE_ID, DICE_CHANGE_FLAG)?.status !== "answering" ) return;   // somebody else got there
+    if ( readFlag(message, DICE_CHANGE_FLAG)?.status !== "answering" ) return;   // somebody else got there
     let data = (message.rolls ?? []).map(r => r.toJSON());
     let running = Number(flag.total) || 0;
     const fresh = [];
@@ -418,7 +418,7 @@ async function resolve(message, { ticked, picks }) {
     console.error(`${TITLE} | The dice changers failed to roll — change the dice by hand.`, err);
     // Never strand "answering": a written intent completes; a point spent without one ends "used"
     // with the spend recorded; otherwise the offer comes back.
-    const current = message.getFlag(MODULE_ID, DICE_CHANGE_FLAG);
+    const current = readFlag(message, DICE_CHANGE_FLAG);
     if ( current?.pending ) await complete(message).catch(() => {});
     else {
       await queueFlagWrite(message, DICE_CHANGE_FLAG, live => {
@@ -427,7 +427,7 @@ async function resolve(message, { ticked, picks }) {
         if ( record ) live.failed = true;
         delete live.answered;
       }).catch(() => {});
-      if ( record && !message.getFlag(MODULE_ID, "poolSpend") ) await message.setFlag(MODULE_ID, "poolSpend", record).catch(() => {});
+      if ( record && !readFlag(message, "poolSpend") ) await message.setFlag(MODULE_ID, "poolSpend", record).catch(() => {});
     }
   } finally {
     resolving.delete(message.id);
@@ -439,7 +439,7 @@ async function resolve(message, { ticked, picks }) {
  * settling write auto-apply waits on), then applied damage moved by the difference. Idempotent.
  */
 async function complete(message) {
-  const flag = message.getFlag(MODULE_ID, DICE_CHANGE_FLAG);
+  const flag = readFlag(message, DICE_CHANGE_FLAG);
   if ( (flag?.status !== "answering") || !flag.pending ) return;
   const { rolls, outcomes, total, delta } = flag.pending;
   const rows = (flag.rows ?? []).map(r => outcomes?.[r.key] ? { ...r, ...outcomes[r.key] }
@@ -459,17 +459,17 @@ const RESUME_MS = 20_000;
 registerResumable(DICE_CHANGE_FLAG, {
   // The driver finishes a completion the clicking client never took, and asks a DUE nobody promoted.
   pending: (flag, message) => ((flag?.status === "answering") && !!flag.pending && ((Date.now() - (flag.pending.at ?? 0)) > RESUME_MS))
-    || ((flag?.status === "due") && (message.getFlag(MODULE_ID, "attackHoldPending") !== true)
+    || ((flag?.status === "due") && (readFlag(message, "attackHoldPending") !== true)
       && ((Date.now() - (message.timestamp ?? 0)) > RESUME_MS)),
   drives: flag => drivesMomentFor(flag?.actorUuid ?? null),
-  drive: message => (message.getFlag(MODULE_ID, DICE_CHANGE_FLAG)?.status === "due") ? promote(message) : complete(message)
+  drive: message => (readFlag(message, DICE_CHANGE_FLAG)?.status === "due") ? promote(message) : complete(message)
 });
 
 /* --- the card (R5): what happened, and the recall while it asks -------------------------------- */
 
 listen("dnd5e.renderChatMessage", "dice-changers", (message, html) => {
   try {
-    const flag = message.getFlag(MODULE_ID, DICE_CHANGE_FLAG);
+    const flag = readFlag(message, DICE_CHANGE_FLAG);
     const legacy = !flag ? legacyLines(message) : null;
     if ( !flag && !legacy ) return;
     const content = html.querySelector?.(SURFACES.messageContent) ?? html;
@@ -491,8 +491,8 @@ listen("dnd5e.renderChatMessage", "dice-changers", (message, html) => {
 
 /** An older card's `either` / `empowered` record, read-only: nothing writes those keys now. */
 function legacyLines(message) {
-  const either = message.getFlag(MODULE_ID, "either");
-  const empowered = message.getFlag(MODULE_ID, "empowered");
+  const either = readFlag(message, "either");
+  const empowered = readFlag(message, "empowered");
   const lines = [];
   if ( either?.status ) lines.push(...diceChangeLines({ status: either.status, timedOut: either.timedOut,
     rows: [{ ...either, key: either.key ?? "either", feature: either.feature ?? "Savage Attacker", kind: either.one ? "one" : "set", after: either.total }] }));

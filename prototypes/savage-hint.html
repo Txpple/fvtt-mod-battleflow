@@ -180,7 +180,7 @@ function popupHTML(){
   const tag = o==="A" ? `<span class="cost ${s.lean}">${s.lean==="low"?"below average":"above average"}</span>` : `<span class="cost">once per turn</span>`;
   const againPrimary = lean ? s.lean==="low" : true;
   return `<div class="offer" role="dialog" aria-label="Savage Attacker">
-    <div class="title"><i></i>Savage Attacker — BF Feat Savage Attacker<span class="x">✕</span></div>
+    <div class="title"><i></i>Savage Attacker — BTB Feat Savage Attacker<span class="x">✕</span></div>
     <div class="body">
       <div class="head"><div class="img"></div><div>
         <div class="eb">Damage — Savage Attacker</div>
@@ -203,7 +203,7 @@ function popupHTML(){
   </div>`;
 }
 
-function card(tone,e,lines){ return `<div class="msg"><div class="spk">BF Feat Savage Attacker</div><div class="bf ${tone}"><div class="e">${e}</div><div class="t">${ROLLS[state.roll].w}</div><div class="s" style="font-size:11px;opacity:.75">→ Training Dummy</div><div class="l">${lines.map(l=>`<div>${l}</div>`).join("")}</div></div></div>`; }
+function card(tone,e,lines){ return `<div class="msg"><div class="spk">BTB Feat Savage Attacker</div><div class="bf ${tone}"><div class="e">${e}</div><div class="t">${ROLLS[state.roll].w}</div><div class="s" style="font-size:11px;opacity:.75">→ Training Dummy</div><div class="l">${lines.map(l=>`<div>${l}</div>`).join("")}</div></div></div>`; }
 
 function render(){
   const r=ROLLS[state.roll], s=stats(r);

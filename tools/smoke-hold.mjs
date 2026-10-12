@@ -63,12 +63,12 @@ const report = (name, ok, detail = '') => {
 };
 
 const r = await f.evaluate(async ({ sections }) => {
-  const MOD = 'fvtt-mod-battleflow';
+  const MOD = 'fvtt-mod-bythebooks';
   // The spent Reaction is an effect chip.
   const clearReaction = async a => { const ids = (a?.effects ?? []).filter(e => e.getFlag(MOD, 'mastery') === 'reaction').map(e => e.id); if (ids.length) await a.deleteEmbeddedDocuments('ActiveEffect', ids).catch(() => {}); };
   // A deliberate mark with NO clock — it stands until deleted (out of combat the module writes none).
   const spendReactionOf = async a => { await a.createEmbeddedDocuments('ActiveEffect', [{ name: 'Reaction — used', img: 'icons/svg/clockwork.svg', transfer: false, flags: { [MOD]: { mastery: 'reaction' } } }]); };
-  const reactionSpentOf = async a => { const { reactionSpent } = await import('/modules/fvtt-mod-battleflow/scripts/shared.js'); return reactionSpent(a); };
+  const reactionSpentOf = async a => { const { reactionSpent } = await import('/modules/fvtt-mod-bythebooks/scripts/shared.js'); return reactionSpent(a); };
   // The page-side section gate; the plan arrives as data.
   const want = id => !sections || sections.includes(String(id));
   const log = [];
@@ -76,11 +76,11 @@ const r = await f.evaluate(async ({ sections }) => {
   let restore = null;
 
   // Out here so `finally` can sweep the statblock fixture even when a section throws.
-  const CAST_FEATURE = 'BF Test Spellcasting';
+  const CAST_FEATURE = 'BTB Test Spellcasting';
   const SHIELD_UUID = 'Compendium.dnd-players-handbook.spells.Item.phbsplShield0000';
 
   /**
-   * Take the statblock fixture (and every spell) back off BF Test Victim; §4d asserts it owns no Shield spell.
+   * Take the statblock fixture (and every spell) back off BTB Test Victim; §4d asserts it owns no Shield spell.
    * ⚠ ONE batch delete: a synthetic actor rebuilds its items from the delta on every write, so a
    * loop of `item.delete()` hits documents already dropped.
    */
@@ -107,14 +107,14 @@ const r = await f.evaluate(async ({ sections }) => {
 
   try {
     // ---- setup
-    const mage = game.actors.getName('BF Test Mage');
-    if (!mage) return { ok: false, why: 'BF Test Mage not found' };
+    const mage = game.actors.getName('BTB Test Mage');
+    if (!mage) return { ok: false, why: 'BTB Test Mage not found' };
     const shield = mage.items.find(i => i.name === 'Shield' && i.type === 'spell');
     if (!shield) return { ok: false, why: 'the Mage has no Shield spell' };
 
-    const scene = game.scenes.getName('Battle Flow Test Range');
-    const attacker = game.actors.getName('BF Test Attacker');
-    if (!scene || !attacker) return { ok: false, why: 'test scene/attacker missing — run smoke-battleflow.mjs first' };
+    const scene = game.scenes.getName('By the Books Test Range');
+    const attacker = game.actors.getName('BTB Test Attacker');
+    if (!scene || !attacker) return { ok: false, why: 'test scene/attacker missing — run smoke-bythebooks.mjs first' };
 
     restore = {
       settings: {
@@ -156,13 +156,13 @@ const r = await f.evaluate(async ({ sections }) => {
     // Mastery riders and volleys are always on: the weapon's mastery is stripped below (restored in
     // `finally`), and §6 fires Magic Missile's volley itself.
 
-    // Clean fixture first: a leftover cached Shield on BF Test Victim fails §4d for no module reason.
+    // Clean fixture first: a leftover cached Shield on BTB Test Victim fails §4d for no module reason.
     {
-      const victimBase = game.actors.getName('BF Test Victim');
+      const victimBase = game.actors.getName('BTB Test Victim');
       const victimTok = victimBase ? scene.tokens.find(t => t.actorId === victimBase.id) : null;
       if (victimTok?.actor) {
         const swept = await sweepCastFixture(victimTok.actor);
-        if (swept) log.push(`swept ${swept} leftover fixture item(s) off BF Test Victim`);
+        if (swept) log.push(`swept ${swept} leftover fixture item(s) off BTB Test Victim`);
       }
     }
 
@@ -256,16 +256,16 @@ const r = await f.evaluate(async ({ sections }) => {
      * delta stripped of effects and activities, and an NPC's spell1.max derives to 0.
      */
     const ensureShielder = async () => {
-      let actor = game.actors.getName('BF Test Shielder');
+      let actor = game.actors.getName('BTB Test Shielder');
       if (!actor) {
         const data = mage.toObject();
         delete data._id;
-        data.name = 'BF Test Shielder';
+        data.name = 'BTB Test Shielder';
         data.ownership = { default: 0 };           // GM-only: no player may answer for it
         data.prototypeToken.actorLink = true;      // linked: no delta to lose items through
-        data.prototypeToken.name = 'BF Test Shielder';
+        data.prototypeToken.name = 'BTB Test Shielder';
         actor = await Actor.create(data);
-        log.push('created BF Test Shielder');
+        log.push('created BTB Test Shielder');
       }
       let doc = scene.tokens.find(t => t.actorId === actor.id);
       if (!doc) {
@@ -308,9 +308,9 @@ const r = await f.evaluate(async ({ sections }) => {
      * `atWill` is the Green Hag shape: `uses.max: ""` and no consumption target means AT-WILL.
      */
     const ensureCastStatblock = async ({ atWill = false, flatAC = false } = {}) => {
-      const base = game.actors.getName('BF Test Victim');
+      const base = game.actors.getName('BTB Test Victim');
       const tokDoc = base ? scene.tokens.find(t => t.actorId === base.id) : null;
-      if (!tokDoc) throw new Error('BF Test Victim has no token — run smoke-battleflow.mjs first');
+      if (!tokDoc) throw new Error('BTB Test Victim has no token — run smoke-bythebooks.mjs first');
       const actor = tokDoc.actor;      // unlinked: the thing attacked is the synthetic actor
 
       // Rebuild from scratch: a merge would keep a "1" where the at-will variant wants `max: ""`.
@@ -368,7 +368,7 @@ const r = await f.evaluate(async ({ sections }) => {
 
     // Drive the popup's OWN Cast control (the only path using the hold's recorded itemId/activityId),
     // found through the module's livePopups registry, never by scraping dialog text.
-    const { livePopups: LP } = await import('/modules/fvtt-mod-battleflow/scripts/ui.js');
+    const { livePopups: LP } = await import('/modules/fvtt-mod-bythebooks/scripts/ui.js');
     // ⚠ Only a UUID sub is the hold's (views.js keys it on the target): the volley popup
     // (`<id>|volley`) shares the card's prefix and has no Cast button.
     const holdPopupFor = messageId => {
@@ -394,7 +394,7 @@ const r = await f.evaluate(async ({ sections }) => {
      */
     const announcementFor = name => {
       const m = game.messages.contents.slice().reverse().find(msg =>
-        (msg.speaker?.alias === 'Battle Flow') && msg.content.includes(name ?? ' '));
+        (msg.speaker?.alias === 'By the Books') && msg.content.includes(name ?? ' '));
       if (!m) return 'none';
       return m.content.includes('fixed number') ? 'flat-ac'
         : m.content.includes('not applied') ? 'not-applied'
@@ -676,9 +676,9 @@ const r = await f.evaluate(async ({ sections }) => {
 
     // ---- 4d. A NAME MATCH IS NOT A REACTION: a worn `equipment` "Shield" must never hold
     if (want('4d')) {
-      const victimBase = game.actors.getName('BF Test Victim');
+      const victimBase = game.actors.getName('BTB Test Victim');
       const vTokDoc = victimBase ? scene.tokens.find(t => t.actorId === victimBase.id) : null;
-      if (!vTokDoc) throw new Error('BF Test Victim has no token — run smoke-battleflow.mjs first');
+      if (!vTokDoc) throw new Error('BTB Test Victim has no token — run smoke-bythebooks.mjs first');
       const vActor = vTokDoc.actor;   // unlinked: the thing attacked is the synthetic actor
 
       // Idempotent, on the TOKEN actor.
@@ -710,7 +710,7 @@ const r = await f.evaluate(async ({ sections }) => {
     // ---- 4d2. THE MONSTER PATTERN: a spell paid for by x/x uses, with no slots. NPC slots sit
     // at 0/0 and every levelled spell on a 2024 NPC reads prepared: 0; neither may block the hold.
     if (want('4d2')) {
-      const victimBase = game.actors.getName('BF Test Victim');
+      const victimBase = game.actors.getName('BTB Test Victim');
       const vTokDoc = scene.tokens.find(t => t.actorId === victimBase.id);
       const vActor = vTokDoc.actor;    // unlinked: build on the TOKEN actor or lose the pieces
       const mageShield = mage.items.find(i => i.name === 'Shield' && i.type === 'spell');
@@ -865,11 +865,11 @@ const r = await f.evaluate(async ({ sections }) => {
     // ⚠ Not covered: BEING a player's client. continueHold's effect safety net is
     // `actor.isOwner`-gated, always true for the GM harness, a no-op for a real player here.
     if (want('4d5')) {
-      const pcAttacker = game.actors.getName('BF Test PC Attacker');
-      if (!pcAttacker) throw new Error('BF Test PC Attacker missing — run smoke-battleflow.mjs first');
+      const pcAttacker = game.actors.getName('BTB Test PC Attacker');
+      if (!pcAttacker) throw new Error('BTB Test PC Attacker missing — run smoke-bythebooks.mjs first');
       const pcWeapon = pcAttacker.items.find(i => i.system.activities?.some?.(a => a.type === 'attack'));
-      if (!pcWeapon) throw new Error('BF Test PC Attacker has no attack activity');
-      const pcActivity = () => game.actors.getName('BF Test PC Attacker')
+      if (!pcWeapon) throw new Error('BTB Test PC Attacker has no attack activity');
+      const pcActivity = () => game.actors.getName('BTB Test PC Attacker')
         .items.get(pcWeapon.id).system.activities.find(a => a.type === 'attack');
 
       const { actor: npc, token: npcToken } = await ensureCastStatblock();
@@ -1055,7 +1055,7 @@ const r = await f.evaluate(async ({ sections }) => {
           }
           src.system.prepared = 1;
           [item] = await attacker.createEmbeddedDocuments('Item', [src]);
-          log.push('created Magic Missile on BF Test Attacker');
+          log.push('created Magic Missile on BTB Test Attacker');
         }
         const act = item.system.activities?.contents?.[0];
         if (!act) throw new Error('Magic Missile fixture has no activity');
@@ -1169,7 +1169,7 @@ const r = await f.evaluate(async ({ sections }) => {
           ...applied,
           // Assert what the table is TOLD, too.
           announced: game.messages.contents.slice(-12).some(m =>
-            m.speaker?.alias === 'Battle Flow' && /does nothing to/i.test(m.content ?? '')),
+            m.speaker?.alias === 'By the Books' && /does nothing to/i.test(m.content ?? '')),
         };
         for (const e of shielder.effects.filter(e => e.name === 'Imperceptible Barrier')) await e.delete();
         await clearReaction(shielder);
@@ -1247,7 +1247,7 @@ const r = await f.evaluate(async ({ sections }) => {
 
       // -- 6e: a target who cannot cast Shield is never asked (the victim only WEARS one)
       {
-        const victimBase = game.actors.getName('BF Test Victim');
+        const victimBase = game.actors.getName('BTB Test Victim');
         const victimDoc = victimBase ? scene.tokens.find(t => t.actorId === victimBase.id) : null;
         const victimActor = victimDoc?.actor;
         if (victimActor) {
@@ -1267,7 +1267,7 @@ const r = await f.evaluate(async ({ sections }) => {
         }
       }
 
-      // BF Test Attacker is every other section's weapon attacker: take the spell back off.
+      // BTB Test Attacker is every other section's weapon attacker: take the spell back off.
       const leftover = attacker.items
         .filter(i => i.name === 'Magic Missile' && i.type === 'spell').map(i => i.id);
       if (leftover.length) await attacker.deleteEmbeddedDocuments('Item', leftover);
@@ -1460,7 +1460,7 @@ const r = await f.evaluate(async ({ sections }) => {
         try { if (combat) await combat.delete(); } catch { /* gone */ }
         try { if (game.combat) await game.combat.delete(); } catch { /* ditto */ }
         for (const id of wasMine) { try { await scene.tokens.get(id)?.delete(); } catch { /* gone */ } }
-        const sh = game.actors.getName('BF Test Shielder');
+        const sh = game.actors.getName('BTB Test Shielder');
         if (sh) { await clearReaction(sh); await clearBarriers(sh); }
       }
     }
@@ -1471,7 +1471,7 @@ const r = await f.evaluate(async ({ sections }) => {
   } finally {
     // ---- always: put the world back
     try {
-      const mage = game.actors.getName('BF Test Mage');
+      const mage = game.actors.getName('BTB Test Mage');
       if (restore) {
         for (const [k, v] of Object.entries(restore.settings)) await game.settings.set(MOD, k, v);
         await mage?.update({
@@ -1482,12 +1482,12 @@ const r = await f.evaluate(async ({ sections }) => {
         await clearReaction(mage);
         for (const e of mage?.effects?.filter(e => e.name === 'Imperceptible Barrier') ?? []) await e.delete();
         if (restore.weaponMastery?.mastery) {
-          await game.actors.getName('BF Test Attacker')?.items.get(restore.weaponMastery.id)
+          await game.actors.getName('BTB Test Attacker')?.items.get(restore.weaponMastery.id)
             ?.update({ 'system.mastery': restore.weaponMastery.mastery });
         }
       }
       // Long rest every fixture (never the live PCs): the suite spends real slots and HP.
-      for (const name of ['BF Test Shielder', 'BF Test Attacker', 'BF Test Victim', 'BF Test PC Attacker']) {
+      for (const name of ['BTB Test Shielder', 'BTB Test Attacker', 'BTB Test Victim', 'BTB Test PC Attacker']) {
         const fixture = game.actors.getName(name);
         if (!fixture) continue;
         try {
@@ -1509,20 +1509,20 @@ const r = await f.evaluate(async ({ sections }) => {
       }
       // ⚠ Sweep the statblock fixture and §6's Magic Missile here too: a throw skips the
       // in-section teardown, and leftovers fail the next run's §4d.
-      const victimBase = game.actors.getName('BF Test Victim');
+      const victimBase = game.actors.getName('BTB Test Victim');
       const victimToken = victimBase
-        ? game.scenes.getName('Battle Flow Test Range')?.tokens.find(t => t.actorId === victimBase.id)
+        ? game.scenes.getName('By the Books Test Range')?.tokens.find(t => t.actorId === victimBase.id)
         : null;
       if (victimToken?.actor) await sweepCastFixture(victimToken.actor);
 
-      const attackerBase = game.actors.getName('BF Test Attacker');
+      const attackerBase = game.actors.getName('BTB Test Attacker');
       const strayMissiles = (attackerBase?.items ?? [])
         .filter(i => i.name === 'Magic Missile' && i.type === 'spell').map(i => i.id);
       if (strayMissiles.length) await attackerBase.deleteEmbeddedDocuments('Item', strayMissiles);
 
       const mine = game.messages.filter(m =>
-        m.speaker?.alias?.startsWith('BF Test') || m.speaker?.alias === 'Battle Flow'
-        || (m.speaker?.alias === 'BF Test Mage' && m.getFlag(MOD, 'respondsTo')));
+        m.speaker?.alias?.startsWith('BTB Test') || m.speaker?.alias === 'By the Books'
+        || (m.speaker?.alias === 'BTB Test Mage' && m.getFlag(MOD, 'respondsTo')));
       await ChatMessage.deleteDocuments(mine.map(m => m.id));
     } catch (cleanupErr) {
       console.error('cleanup failed', cleanupErr);

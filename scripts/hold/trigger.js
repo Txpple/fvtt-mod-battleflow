@@ -1,9 +1,9 @@
 // @ts-check
 /**
- * Battle Flow — the reaction hold: THE ATTACK TRIGGER. "You are hit" reactions fire BEFORE damage,
+ * By the Books — the reaction hold: THE ATTACK TRIGGER. "You are hit" reactions fire BEFORE damage,
  * so the chain pauses and a human answers; the module never plays the reaction (DESIGN.md §4).
  */
-import { MODULE_ID, TITLE, S, setting, drivesMomentFor, statContext, decisionWindow } from "../core.js";
+import { MODULE_ID, readFlag, TITLE, S, setting, drivesMomentFor, statContext, decisionWindow } from "../core.js";
 import { spendReaction, statSourceOf } from "../shared.js";
 import { findInterrupt, hasReactionEffect, reactionACBonus, rescueStateOf, protectionGuardsOf, bystandersOf, duplicatesOf, attackFactsOf } from "./lookup.js";
 import { bfCard } from "../decide/present.js";
@@ -21,7 +21,7 @@ listen("dnd5e.postUseActivity", "hold/trigger", activity => {
 
 /** Stamp the hold and return true if any hit target has something to ask; the stamping client continues it. */
 export async function stampHoldIfInterrupted(attackMessage, roll, hits) {
-  if ( attackMessage.getFlag(MODULE_ID, "hold") ) return true; // already held; never re-stamp
+  if ( readFlag(attackMessage, "hold") ) return true; // already held; never re-stamp
 
   /** @type {Record<string, any>[]} */
   const held = [];
@@ -127,7 +127,7 @@ export async function stampHoldIfInterrupted(attackMessage, roll, hits) {
  * target (one AC to turn). The continuation rolls the damage when it turns (`hold.miss`). True when stamped.
  */
 export async function stampMissHoldIfBystanders(attackMessage, roll) {
-  if ( attackMessage.getFlag(MODULE_ID, "hold") ) return true;
+  if ( readFlag(attackMessage, "hold") ) return true;
   const attacker = attackMessage.getAssociatedActor?.() ?? null;
   const judged = targetsOf(attackMessage).filter(t => (t.ac !== null) && (t.ac !== undefined));
   const target = (judged.length === 1) ? judged[0] : null;

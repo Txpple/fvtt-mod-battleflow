@@ -1,6 +1,6 @@
 // @ts-check
 /**
- * Battle Flow — DECISION: the clock a chip carries, and what spends it. Pure (ARCHITECTURE.md §2).
+ * By the Books — DECISION: the clock a chip carries, and what spends it. Pure (ARCHITECTURE.md §2).
  * The platform keeps the clock (`duration.expiry` against `start`'s combatant); the module owns only
  * which roll SPENDS a chip. ⚠ Window values are measured (NOTES *v14 owns effect expiry*): the end of
  * the attacker's own turn is `value: 0`, and a `rounds` window counts from `start.round`.

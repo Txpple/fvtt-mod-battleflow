@@ -1,6 +1,6 @@
 // @ts-check
 /**
- * Battle Flow — DECISION (ARCHITECTURE.md §2): THE WARD POOLS (WARD_POOLS — Arcane Ward). A pool of hit points
+ * By the Books — DECISION (ARCHITECTURE.md §2): THE WARD POOLS (WARD_POOLS — Arcane Ward). A pool of hit points
  * that takes damage before its bearer does, after Resistances and Vulnerabilities (the amount dnd5e hands
  * `preApplyDamage`), and refills on a cast. Pure.
  */

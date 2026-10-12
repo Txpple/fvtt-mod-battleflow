@@ -1,6 +1,6 @@
 // @ts-check
 /**
- * Battle Flow — DECISION: the ask at the area — the caster's question about the creatures in a
+ * By the Books — DECISION: the ask at the area — the caster's question about the creatures in a
  * placed area: defaults, words, outcome, and the spell-text readers (ARCHITECTURE.md §2). Kinds:
  * Careful, Heightened (RULINGS *Metamagic*) and a spell that chooses (RULINGS *Spells that choose
  * their targets*). Drawn by `scripts/area-ask.js`.

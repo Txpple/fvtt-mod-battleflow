@@ -1,5 +1,5 @@
 /**
- * Battle Flow — MACHINE (ARCHITECTURE.md §7): THE DRAIN (DRAINS) — a monster's attack whose damage, once it
+ * By the Books — MACHINE (ARCHITECTURE.md §7): THE DRAIN (DRAINS) — a monster's attack whose damage, once it
  * has LANDED, lowers the target: its Hit Point maximum by what landed (Life Drain, Proboscis), or an ability
  * score by the die its text names (Draining Swipe). Vampiric Touch's seam (heal-on-hit.js): `dnd5e.applyDamage`,
  * the dealing card's activity answers the row, the amount TAKEN of the row's type is written as an effect on
@@ -7,7 +7,7 @@
  * one copy per row, refreshed with the total) — receipted on the drain's own card, once per creature per
  * card, no choice (R1). Rulings: RULINGS *The Monster Manual — the waiting rows built*.
  */
-import { MODULE_ID, TITLE, canApplyTo, whisperNoGM, queueFlagWrite, statContext } from "./core.js";
+import { MODULE_ID, readFlag, TITLE, canApplyTo, whisperNoGM, queueFlagWrite, statContext } from "./core.js";
 import { cardActivity } from "./lookup.js";
 import { damagePartsOf, statSourceOf } from "./shared.js";
 import { DRAINS, tableIndex, drainEntries, listedNames } from "./decide/registry.js";
@@ -53,7 +53,7 @@ async function drain({ row, activity, attacker, target, taken, origin }) {
         current.done.push(target.uuid);
         claimed = true;
       });
-    } else claimed = !(origin.getFlag(MODULE_ID, DRAIN_FLAG)?.done ?? []).includes(target.uuid);
+    } else claimed = !(readFlag(origin, DRAIN_FLAG)?.done ?? []).includes(target.uuid);
     if ( !claimed ) return;
     if ( !canApplyTo(target) ) { await whisperNoGM(`${row.key}'s drain on ${target.name}`, "Lower it by hand from the card."); return; }
     const item = activity.item;
@@ -62,8 +62,8 @@ async function drain({ row, activity, attacker, target, taken, origin }) {
     if ( !verdict.drains ) return;
     // One copy per row on the bearer: the prior total joins, the old copy goes, the new one lands receipted.
     // The tray's copy takes its own id: the one copy is found by the module's flag on it.
-    const prior = [...target.effects].find(e => e.getFlag(MODULE_ID, DRAIN_FLAG)?.key === row.key) ?? null;
-    const before = Number(prior?.getFlag(MODULE_ID, DRAIN_FLAG)?.amount ?? 0) || 0;
+    const prior = [...target.effects].find(e => readFlag(e, DRAIN_FLAG)?.key === row.key) ?? null;
+    const before = Number(readFlag(prior, DRAIN_FLAG)?.amount ?? 0) || 0;
     const total = before + verdict.amount;
     if ( prior ) await prior.delete();
     const template = new ActiveEffect.implementation(drainEffectData({ key: row.key, amount: total, img: item.img ?? null, moduleId: MODULE_ID }), { parent: item });
@@ -90,8 +90,8 @@ async function drainScore({ row, item, attacker, target, origin }) {
   if ( !die ) { console.warn(`${TITLE} | ${row.key}: no die in its text — lower the score by hand.`); return; }
   const roll = await new Roll(die, attacker.getRollData()).evaluate();
   const ability = String(row.ability ?? "str").toUpperCase();
-  const prior = [...target.effects].find(e => e.getFlag(MODULE_ID, DRAIN_FLAG)?.key === row.key) ?? null;
-  const before = Number(prior?.getFlag(MODULE_ID, DRAIN_FLAG)?.amount ?? 0) || 0;
+  const prior = [...target.effects].find(e => readFlag(e, DRAIN_FLAG)?.key === row.key) ?? null;
+  const before = Number(readFlag(prior, DRAIN_FLAG)?.amount ?? 0) || 0;
   const total = before + roll.total;
   // The pack ships one effect per step ("Hit: STR Score −1" … "−4"); past the last, the deepest stands and the card says so.
   const steps = [...(item.effects ?? [])].filter(e => new RegExp(`^Hit:\\s*${ability}\\s*Score\\s*-\\d+`, "i").test(e.name))
@@ -119,7 +119,7 @@ async function drainScore({ row, item, attacker, target, origin }) {
 // The dealing card's own line: who was drained.
 listen("dnd5e.renderChatMessage", "drains", (message, html) => {
   try {
-    const d = message.getFlag(MODULE_ID, DRAIN_FLAG);
+    const d = readFlag(message, DRAIN_FLAG);
     if ( !d?.done?.length ) return;
     const content = html.querySelector?.(SURFACES.messageContent) ?? html;
     if ( !content || content.querySelector(".bf-drain-line") ) return;

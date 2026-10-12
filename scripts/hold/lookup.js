@@ -1,9 +1,9 @@
 // @ts-check
 /**
- * Battle Flow — the reaction hold's READERS (`hold/` part 1, ARCHITECTURE.md §7): eligibility, the
+ * By the Books — the reaction hold's READERS (`hold/` part 1, ARCHITECTURE.md §7): eligibility, the
  * item a reaction IS, its AC and art, whether it landed, and the self-cast effect applier. No hooks.
  */
-import { MODULE_ID, TITLE, S, setting } from "../core.js";
+import { MODULE_ID, readFlag, TITLE, S, setting } from "../core.js";
 import { limitedUses, isReactionItem, isTextOnlyFeature } from "../decide/eligible.js";
 import { INTERRUPT_MULTIPLIERS, INTERRUPT_REDUCTIONS, INTERRUPT_ROLLS, DUPLICATES, STORED_DICE, answers, duplicateEntries, listedNames } from "../decide/registry.js";
 import { repeatRowFor } from "../decide/repeat-saves.js";
@@ -192,7 +192,7 @@ export function duplicatesOf(defender, attacker, { ranged = false, spellAttack =
       const ability = [...(activity?.save?.ability ?? [])][0] ?? null;
       if ( !activity || !(dc > 0) || !ability ) continue;
       const turn = game.combat?.started ? `${game.combat.id}:${game.combat.round}:${game.combat.turn}` : null;
-      const asked = effect.getFlag(MODULE_ID, "recoiled") ?? {};
+      const asked = readFlag(effect, "recoiled") ?? {};
       if ( attacker?.uuid && turn && (asked[recoilKey(attacker.uuid)] === turn) ) continue;
       return { key: row.key, at: null, die: null, count: 1, of: 1, ids: [effect.id], names: [effect.name], img: item?.img ?? effect.img ?? null, seenThrough: null,
         feature: true, save: { ability, dc, activityUuid: activity.uuid, effectId: effect.id, turn } };
@@ -275,7 +275,7 @@ export function bystandersOf(defender, attacker, roll, ac, { on = "hit" } = {}) 
       if ( row.inspired && !inspired ) continue;
       const item = inspired ? null : featureNamed(actor, key);
       // B4 — the sign follows the side ("either", Bend Luck) or the stored omen's parity ("omen", Cosmic Omen: its activity too).
-      const omenFace = (row.sign === "omen") ? (storedChipOf(actor, row.stored)?.getFlag(MODULE_ID, STORED_FLAG)?.faces?.[0] ?? null) : null;
+      const omenFace = (row.sign === "omen") ? (readFlag(storedChipOf(actor, row.stored), STORED_FLAG)?.faces?.[0] ?? null) : null;
       const sign = signFor(row, { friendly: on === "miss", face: omenFace }) ?? NaN;
       if ( !Number.isFinite(sign) ) continue;   // an omen with no face rolled yet
       const activityName = row.omen ? ((sign > 0) ? row.omen.even : row.omen.odd) : ((self && row.selfActivity) ? row.selfActivity : row.activity);
@@ -291,7 +291,7 @@ export function bystandersOf(defender, attacker, roll, ac, { on = "hit" } = {}) 
       if ( row.bend === "set" ) {
         const chip = storedChipOf(actor, row.stored);
         if ( !chip || !storedFacesUsable(chip, STORED_DICE[row.stored]) ) continue;
-        faces = facesThatTurn({ faces: chip.getFlag(MODULE_ID, STORED_FLAG)?.faces ?? [], kept: Number(facts.kept), total: Number(roll.total),
+        faces = facesThatTurn({ faces: readFlag(chip, STORED_FLAG)?.faces ?? [], kept: Number(facts.kept), total: Number(roll.total),
           target: Number(ac), want, critAt: facts.critAt, fumbleAt: facts.fumbleAt });
         if ( !faces.length ) continue;
         const asked = (row.ask !== "crit") || !!roll.isCritical;

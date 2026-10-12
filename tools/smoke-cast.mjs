@@ -2,7 +2,7 @@
 // concentration linkage) on the native card; a heal activity's self-rolled healing lands through
 // the shared applier; damage activities and targetless casts stay untouched.
 //
-// Every setting touched is restored; every message this run creates is deleted; BF Test fixtures
+// Every setting touched is restored; every message this run creates is deleted; BTB Test fixtures
 // are long-rested; new messages are found by ID-SET DIFFERENCE, never timestamps.
 //
 // Sections: `--section 3`, `--section 1,2`, `--list`. Fixtures and teardown ALWAYS run.
@@ -33,7 +33,7 @@ const f = await connectSuite({ tag: 'cast', watchdogMs: 300_000 });
 announcePlan('cast', plan, pulled);
 
 const out = await f.evaluate(async ({ sections, titles }) => {
-  const MOD = 'fvtt-mod-battleflow';
+  const MOD = 'fvtt-mod-bythebooks';
   const results = [];
   const log = [];
   const skips = [];
@@ -59,11 +59,11 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   const prior = Object.fromEntries(SETTING_KEYS.map(k => [k, game.settings.get(MOD, k)]));
   const set = (k, v) => game.settings.set(MOD, k, v);
 
-  const scene = game.scenes.getName('Battle Flow Test Range');
-  const victim = game.actors.getName('BF Test Victim');
-  const shielder = game.actors.getName('BF Test Shielder');
-  const npc = game.actors.getName('BF Test Attacker');
-  if (!scene || !victim || !npc || !shielder) return { fatal: 'missing fixture: scene or BF Test actors' };
+  const scene = game.scenes.getName('By the Books Test Range');
+  const victim = game.actors.getName('BTB Test Victim');
+  const shielder = game.actors.getName('BTB Test Shielder');
+  const npc = game.actors.getName('BTB Test Attacker');
+  if (!scene || !victim || !npc || !shielder) return { fatal: 'missing fixture: scene or BTB Test actors' };
 
   const created = { items: [], tokens: [] };
   const priorActor = {};
@@ -80,7 +80,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       // Sweep stragglers on the targets by name (batched: a synthetic actor rebuilds on every write).
       for (const a of [victim, shielder, npc]) {
         const strays = a.effects.filter(e =>
-          e.name.startsWith('BF Blessed') || e.name.startsWith('BF Favored') || e.name.startsWith('BF Potioned'));
+          e.name.startsWith('BTB Blessed') || e.name.startsWith('BTB Favored') || e.name.startsWith('BTB Potioned'));
         if (strays.length) await a.deleteEmbeddedDocuments('ActiveEffect', strays.map(e => e.id));
       }
       for (const [actorId, ids] of Object.entries(created.items.reduce((m, i) => {
@@ -97,7 +97,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       }
       game.user.targets.forEach(t => { t.setTarget(false, { releaseOthers: true }); });
       const mine = game.messages.filter(m => (m.timestamp >= suiteStart)
-        && (m.speaker?.alias?.startsWith?.('BF Test') || m.speaker?.alias === 'Battle Flow'
+        && (m.speaker?.alias?.startsWith?.('BTB Test') || m.speaker?.alias === 'By the Books'
           || Object.keys(m.flags?.[MOD] ?? {}).length));
       if (mine.length) await ChatMessage.deleteDocuments(mine.map(m => m.id));
     } catch (err) {
@@ -138,7 +138,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     // Fixture spells, innate (consumption.spellSlot: false). Fixed 16-char ids so activities can name their effects.
     const EFF = 'bfblesseffect000';
     const [blessItem] = await npc.createEmbeddedDocuments('Item', [{
-      name: 'BF Test Bless', type: 'spell',
+      name: 'BTB Test Bless', type: 'spell',
       system: {
         level: 1, school: 'enc', properties: ['vocal', 'concentration'],
         duration: { value: '1', units: 'minute' },
@@ -156,9 +156,9 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         }
       },
       effects: [{
-        _id: EFF, name: 'BF Blessed', transfer: false, disabled: false,
+        _id: EFF, name: 'BTB Blessed', transfer: false, disabled: false,
         img: 'icons/svg/angel.svg',
-        description: '<p>Adds 1d4 to attack rolls and saving throws (BF test fixture).</p>',
+        description: '<p>Adds 1d4 to attack rolls and saving throws (BTB test fixture).</p>',
         duration: { seconds: 60 },
         changes: [{ key: 'system.rolls.ability.save.bonus', mode: 2, value: '1d4' }]
       }]
@@ -166,7 +166,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     created.items.push({ actorId: npc.id, id: blessItem.id });
 
     const [cureItem] = await npc.createEmbeddedDocuments('Item', [{
-      name: 'BF Test Cure', type: 'spell',
+      name: 'BTB Test Cure', type: 'spell',
       system: {
         level: 1, school: 'evo', properties: ['vocal'],
         target: { affects: { type: 'creature', count: '1', choice: false } },
@@ -186,7 +186,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     created.items.push({ actorId: npc.id, id: cureItem.id });
 
     const [missileItem] = await npc.createEmbeddedDocuments('Item', [{
-      name: 'BF Test Missile', type: 'spell',
+      name: 'BTB Test Missile', type: 'spell',
       system: {
         level: 1, school: 'evo', properties: ['vocal'],
         target: { affects: { type: 'creature', count: '1', choice: false } },
@@ -224,7 +224,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     let before;
     let use;
     let msgs;
-    const chipOn = a => a.effects.find(e => e.name === 'BF Blessed');
+    const chipOn = a => a.effects.find(e => e.name === 'BTB Blessed');
 
     // ---------------------------------------------------- 1. the native-card bus
     if (want(1)) {
@@ -369,7 +369,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     if (want(6)) {
       // A self activity ignores the UI targets, aims at its own actor, and needs no target at all.
       const [windItem] = await npc.createEmbeddedDocuments('Item', [{
-        name: 'BF Test Second Wind', type: 'feat',
+        name: 'BTB Test Second Wind', type: 'feat',
         system: {
           type: { value: 'class' },
           activities: {
@@ -431,7 +431,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
 
       const FAV = 'bffavoreffect000';
       const [favorItem] = await npc.createEmbeddedDocuments('Item', [{
-        name: 'BF Test Favor', type: 'spell',
+        name: 'BTB Test Favor', type: 'spell',
         system: {
           level: 1, school: 'evo', properties: ['vocal'],
           target: { affects: { type: 'self', count: '', choice: false } },
@@ -448,9 +448,9 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           }
         },
         effects: [{
-          _id: FAV, name: 'BF Favored', transfer: false, disabled: false,
+          _id: FAV, name: 'BTB Favored', transfer: false, disabled: false,
           img: 'icons/svg/sun.svg', duration: { seconds: 60 },
-          description: '<p>+1d4 melee damage (BF test fixture).</p>',
+          description: '<p>+1d4 melee damage (BTB test fixture).</p>',
           changes: [{ key: 'system.rolls.damage.mwak.bonus', mode: 2, value: '1d4' }]
         }]
       }]);
@@ -467,18 +467,18 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       ok('6c. a SELF utility applies its effect to the caster, never the snapshot',
         !!favorCard && (favorCard.getFlag(MOD, 'castApply').targets?.length === 1)
           && (favorCard.getFlag(MOD, 'castApply').targets?.[0]?.uuid === npc.uuid)
-          && !!npc.effects.find(e => e.name === 'BF Favored')
-          && !victim.effects.find(e => e.name === 'BF Favored'),
+          && !!npc.effects.find(e => e.name === 'BTB Favored')
+          && !victim.effects.find(e => e.name === 'BTB Favored'),
         `card=${!!favorCard} payloadTargets=${JSON.stringify(favorCard?.getFlag(MOD, 'castApply')?.targets ?? null)}`
-          + ` npcChip=${!!npc.effects.find(e => e.name === 'BF Favored')}`
-          + ` victimChip=${!!victim.effects.find(e => e.name === 'BF Favored')}`);
+          + ` npcChip=${!!npc.effects.find(e => e.name === 'BTB Favored')}`
+          + ` victimChip=${!!victim.effects.find(e => e.name === 'BTB Favored')}`);
 
       // 6d. A LISTED reaction cast FREESTANDING self-aims like any SELF ability (RULINGS *A listed
       // reaction cast freestanding*): the carve-out keys on a PENDING HOLD naming the caster (6e).
       // The Interrupt list is the code table: the fixture wears Shield's identifier here so the
       // table lists it (identifier first, then name); restored after 6e.
       await favorItem.update({ 'system.identifier': 'shield' });
-      const favored = () => npc.effects.filter(e => e.name === 'BF Favored');
+      const favored = () => npc.effects.filter(e => e.name === 'BTB Favored');
       await npc.deleteEmbeddedDocuments('ActiveEffect', favored().map(e => e.id));
       target(victimToken); // an incidental enemy target — the snapshot must not steer a SELF cast
       await sleep(120);
@@ -491,18 +491,18 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         (use !== undefined) && !!listedCard
           && (listedCard.getFlag(MOD, 'castApply').targets?.length === 1)
           && (listedCard.getFlag(MOD, 'castApply').targets?.[0]?.uuid === npc.uuid)
-          && (favored().length === 1) && !victim.effects.some(e => e.name === 'BF Favored'),
+          && (favored().length === 1) && !victim.effects.some(e => e.name === 'BTB Favored'),
         `card=${!!listedCard} payloadTargets=${JSON.stringify(listedCard?.getFlag(MOD, 'castApply')?.targets ?? null)}`
-          + ` npcChips=${favored().length} victimChip=${!!victim.effects.find(e => e.name === 'BF Favored')}`);
+          + ` npcChips=${favored().length} victimChip=${!!victim.effects.find(e => e.name === 'BTB Favored')}`);
 
       // 6e. With a hold PENDING on the caster the cast is an ANSWER and the hold machinery owns its
       // application: casting must not stamp, so the effect lands at most ONCE. A pending hold is
       // fabricated here (the hold flag's shape); the real hold path is smoke-hold's.
       await npc.deleteEmbeddedDocuments('ActiveEffect', favored().map(e => e.id));
       const fakeHold = await ChatMessage.create({
-        content: '<p>BF Test: a fabricated pending hold (smoke-cast 6e)</p>',
+        content: '<p>BTB Test: a fabricated pending hold (smoke-cast 6e)</p>',
         flags: { [MOD]: { hold: { status: 'pending', trigger: 'attack',
-          targets: [{ uuid: npc.uuid, name: npc.name, reaction: 'BF Test Favor', ac: 10 }] } } }
+          targets: [{ uuid: npc.uuid, name: npc.name, reaction: 'BTB Test Favor', ac: 10 }] } } }
       });
       try {
         target();
@@ -533,7 +533,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const drinker = scene.tokens.find(t => t.actorId === npc.id)?.actor ?? npc;
       const POT = 'bfpotioneffect00';
       const potion = qty => ({
-        name: 'BF Test Potion', type: 'consumable',
+        name: 'BTB Test Potion', type: 'consumable',
         system: {
           type: { value: 'potion' }, quantity: qty,
           uses: { max: '1', spent: 0, autoDestroy: true, recovery: [] },
@@ -549,13 +549,13 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           }
         },
         effects: [{
-          _id: POT, name: 'BF Potioned', transfer: false, disabled: false,
+          _id: POT, name: 'BTB Potioned', transfer: false, disabled: false,
           img: 'icons/svg/aura.svg', duration: { seconds: 3600 },
-          description: '<p>Resistance to Poison damage (BF test fixture).</p>',
+          description: '<p>Resistance to Poison damage (BTB test fixture).</p>',
           changes: [{ key: 'system.traits.dr.value', mode: 2, value: 'poison' }]
         }]
       });
-      const potioned = () => drinker.effects.filter(e => e.name === 'BF Potioned');
+      const potioned = () => drinker.effects.filter(e => e.name === 'BTB Potioned');
       const clearPotioned = async () => { if (potioned().length) await drinker.deleteEmbeddedDocuments('ActiveEffect', potioned().map(e => e.id)); };
       /** Drink once: the use, the card, the item's fate, and the effect on the drinker. */
       const drink = async item => {
@@ -588,7 +588,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       } finally {
         await clearPotioned();
         // The teardown's item sweep reads world actors; a potion left on the token's own actor goes here.
-        const left = drinker.items.filter(i => i.name === 'BF Test Potion').map(i => i.id);
+        const left = drinker.items.filter(i => i.name === 'BTB Test Potion').map(i => i.id);
         if (left.length) await drinker.deleteEmbeddedDocuments('Item', left).catch(() => {});
       }
     }

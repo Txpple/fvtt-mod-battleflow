@@ -1,10 +1,10 @@
 /**
- * Battle Flow — MACHINE (ARCHITECTURE.md §7): the REBUKE — a Reaction to taking damage, at the
+ * By the Books — MACHINE (ARCHITECTURE.md §7): the REBUKE — a Reaction to taking damage, at the
  * damager (registry.js REBUKES, decide/rebukes.js). Riposte's shape; Use drives the REAL use on the
  * answering client. The trigger is `dnd5e.applyDamage`, the one seam that knows the ORIGINATING
  * card (a raw HP edit offers nothing). "That you can see" is the table's.
  */
-import { MODULE_ID, TITLE, keepsMessage, queueFlagWrite, canAnswerFor, statContext, decisionWindow } from "./core.js";
+import { MODULE_ID, readFlag, TITLE, keepsMessage, queueFlagWrite, canAnswerFor, statContext, decisionWindow } from "./core.js";
 import { lower, itemNamed, activityNamed, cardActivity, resolveUuid, meleeOptions, preferredMeleeOption, wearsEffectNamed } from "./lookup.js";
 import { rebukeEntries, listedNames } from "./decide/registry.js";
 import { REBUKES } from "./decide/registry.js";
@@ -204,7 +204,7 @@ async function stampRebuke(actor, source, amount, origin, { attackHit = false, h
 listen("createChatMessage", "rebukes", async message => {
   try {
     if ( !isActiveGM() || !isCard(message, CARD.attack) ) return;
-    if ( message.getFlag(MODULE_ID, "rebukeFor") ) return;            // a driven attack never chains re-offers
+    if ( readFlag(message, "rebukeFor") ) return;            // a driven attack never chains re-offers
     const listed = listedNames(rebukeEntries());
     const rows = Object.entries(REBUKES).filter(([name, row]) => (row.on === "attack") && listed.has(lower(name)));
     if ( !rows.length ) return;
@@ -229,7 +229,7 @@ listen("createChatMessage", "rebukes", async message => {
 listen("createChatMessage", "rebukes", async message => {
   try {
     if ( !isActiveGM() || !isCard(message, CARD.attack) ) return;
-    if ( message.getFlag(MODULE_ID, "rebukeFor") ) return;            // a driven attack never chains re-offers
+    if ( readFlag(message, "rebukeFor") ) return;            // a driven attack never chains re-offers
     const listed = listedNames(rebukeEntries());
     const missRows = Object.entries(REBUKES).filter(([name, row]) => (row.on === "miss") && listed.has(lower(name)));
     if ( !missRows.length ) return;
@@ -276,7 +276,7 @@ async function stampWards(hurt, source, amount, origin) {
 
 
 function armTimer(message) {
-  const flag = message?.getFlag(MODULE_ID, REBUKE_FLAG);
+  const flag = readFlag(message, REBUKE_FLAG);
   if ( (flag?.status !== "pending") || !flag.deadline || !keepsMessage(message) ) return;
   armDeadline(timers, message.id, flag.deadline, async () => {
     const live = game.messages.get(message.id);
@@ -292,7 +292,7 @@ function armTimer(message) {
 
 /** One answer: folded where this client may write, relayed otherwise; a Use drives the use HERE. */
 async function answerRebuke(message, answer, index = null) {
-  const flag = message.getFlag(MODULE_ID, REBUKE_FLAG);
+  const flag = readFlag(message, REBUKE_FLAG);
   if ( flag?.status !== "pending" ) return;
   const option = (answer === "use") ? flag.options?.[index] : null;
   if ( (answer === "use") && !option ) return;
@@ -334,7 +334,7 @@ async function driveRebuke(message, option) {
   if ( driving.has(key) ) return;
   driving.add(key);
   try {
-    const flag = message.getFlag(MODULE_ID, REBUKE_FLAG);
+    const flag = readFlag(message, REBUKE_FLAG);
     const actor = resolveUuid(flag?.actorUuid);
     const damager = tokenForUuid(flag?.sourceUuid);
     if ( !(actor instanceof Actor) || !damager ) return;
@@ -379,7 +379,7 @@ async function driveRebuke(message, option) {
 /* --- the popup and the card ------------------------------------------------------------------- */
 
 async function showPopup(message) {
-  const flag = message.getFlag(MODULE_ID, REBUKE_FLAG);
+  const flag = readFlag(message, REBUKE_FLAG);
   if ( flag?.status !== "pending" ) return;
   const actor = resolveUuid(flag.actorUuid);
   const lines = flag.options.flatMap(o => [`<strong>${esc(o.name)}</strong> · ${esc(o.cost)} · reach ${o.reach} ft`,
@@ -401,7 +401,7 @@ async function showPopup(message) {
 
 listen("dnd5e.renderChatMessage", "rebukes", (message, html) => {
   try {
-    const flag = message.getFlag(MODULE_ID, REBUKE_FLAG);
+    const flag = readFlag(message, REBUKE_FLAG);
     if ( !flag ) return;
     const content = html.querySelector?.(SURFACES.messageContent) ?? html;
     if ( !content || content.querySelector(".bf-rebuke-line") ) return;
@@ -426,7 +426,7 @@ listen("dnd5e.renderChatMessage", "rebukes", (message, html) => {
           if ( !act ) continue;
           row.appendChild(momentButton(name, () => void (async () => {
             await act.use({}, { configure: false }, {});
-            if ( message.canUserModify?.(game.user, "update") ) await message.setFlag(MODULE_ID, REBUKE_FLAG, { ...message.getFlag(MODULE_ID, REBUKE_FLAG), followed: name });
+            if ( message.canUserModify?.(game.user, "update") ) await message.setFlag(MODULE_ID, REBUKE_FLAG, { ...readFlag(message, REBUKE_FLAG), followed: name });
           })().catch(err => console.error(`${TITLE} | ${name} could not be used — use it from the sheet.`, err))));
         }
         div.appendChild(row);
@@ -451,7 +451,7 @@ listen("dnd5e.renderChatMessage", "rebukes", (message, html) => {
 
 // An answer anywhere closes the popup everywhere (law 4); the clock stands down with it.
 listen("updateChatMessage", "rebukes", message => {
-  const flag = message.getFlag(MODULE_ID, REBUKE_FLAG);
+  const flag = readFlag(message, REBUKE_FLAG);
   if ( !flag ) return;
   if ( flag.status === "pending" ) { armTimer(message); return; }
   disarmDeadline(timers, message.id);

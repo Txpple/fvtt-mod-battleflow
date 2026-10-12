@@ -1,6 +1,6 @@
 // @ts-check
 /**
- * Battle Flow — DECISION layer (ARCHITECTURE.md §2): the duplicates (registry.js DUPLICATES, the spells
+ * By the Books — DECISION layer (ARCHITECTURE.md §2): the duplicates (registry.js DUPLICATES, the spells
  * slice's Tier 3) — a hit rolled against the standing duplicates after the verdict: the dice,
  * which face redirects, who sees through, the chips and the words. The row an effect answers is
  * `repeatRowFor` (decide/repeat-saves.js). No `game`, no settings: hold/* reads the world.

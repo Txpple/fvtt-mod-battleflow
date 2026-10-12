@@ -1,6 +1,6 @@
 // @ts-check
 /**
- * Battle Flow — DECISION layer (ARCHITECTURE.md §2): the damage share (registry.js DAMAGE_SHARES) — what
+ * By the Books — DECISION layer (ARCHITECTURE.md §2): the damage share (registry.js DAMAGE_SHARES) — what
  * of a landed amount the caster takes, whether the bond reaches, and the card's words. No `game`.
  */
 

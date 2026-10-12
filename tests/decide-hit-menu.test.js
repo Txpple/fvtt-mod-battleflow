@@ -3,7 +3,7 @@ import { expectPointer } from "./rule-pointer.js";
 
 /**
  * DECISION-layer hit menu (ARCHITECTURE.md §2). No Foundry stub on purpose. The flow is the
- * user's ruling (2026-09-04, the prototype *Battle Flow Hit Menu*, built as drawn): one popup per
+ * user's ruling (2026-09-04, the prototype *By the Books Hit Menu*, built as drawn): one popup per
  * hit, the rows grouped by the feature that pays, the row the name and its cost, one pick per
  * group, the pool the switch the rules give.
  */

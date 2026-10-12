@@ -1,5 +1,5 @@
 /**
- * Battle Flow — hit riders: a mark on the target (Hunter's Mark, Hex) pays its die into the attack's own
+ * By the Books — hit riders: a mark on the target (Hunter's Mark, Hex) pays its die into the attack's own
  * damage roll, on the attacker's client, instead of a separate damage press after every hit.
  */
 import { TITLE } from "./core.js";

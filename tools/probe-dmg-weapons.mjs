@@ -1,5 +1,5 @@
 // Measure the DMG's crit-rider and enchanted weapons AS A PLAYER HOLDS THEM: each template's enchantment is dropped
-// onto a base weapon on BF Test PC Attacker (the item sheet's own drop path, riders and all), the result read back,
+// onto a base weapon on BTB Test PC Attacker (the item sheet's own drop path, riders and all), the result read back,
 // then removed. Writes to the sandbox; run with no other client connected.
 //   node tools/probe-dmg-weapons.mjs <out.json>
 import { writeFileSync } from "node:fs";
@@ -24,8 +24,8 @@ const PAIRS = [
 ];
 
 const out = await f.evaluate(async ({ pairs }) => {
-  const actor = game.actors.getName("BF Test PC Attacker");
-  if ( !actor ) return { error: "no BF Test PC Attacker" };
+  const actor = game.actors.getName("BTB Test PC Attacker");
+  if ( !actor ) return { error: "no BTB Test PC Attacker" };
   const rows = [];
   for ( const [tid, bid] of pairs ) {
     const template = await fromUuid(`Compendium.dnd-dungeon-masters-guide.equipment.Item.${tid}`);

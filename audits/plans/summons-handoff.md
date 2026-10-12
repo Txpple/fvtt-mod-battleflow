@@ -1,8 +1,8 @@
 # Handoff — Summons (issue #1), for a fresh session
 
 Written 2026-10-10 at the end of the mastery-record session (issue #3). Open the Claude Code session in
-`fvtt-mod-battleflow` (not the suite folder). Read, in order: this file, the issue
-(`gh issue view 1 --repo Txpple/fvtt-mod-battleflow --json body -q .body`), `prototypes/summons.html`, then
+`fvtt-mod-bythebooks` (not the suite folder). Read, in order: this file, the issue
+(`gh issue view 1 --repo Txpple/fvtt-mod-bythebooks --json body -q .body`), `prototypes/summons.html`, then
 DESIGN.md (binding), ARCHITECTURE.md §3 *Who does what*, §4 *The flow elect*, §5 *The spine*, §11 *Adding
 something new*, and RULINGS.md *Weapon Mastery — the record* (the newest machine, the house pattern end to end).
 
@@ -65,7 +65,7 @@ issue's GM-client relay and the shared gallery, so build both as named, reusable
 ## What the mastery build taught about the gates (read before the first `npm run verify`)
 
 - **Adding a file**: declare the layer in the header AND in `LAYER_OF` (`tools/check-layers.mjs`); `listen(hook,
-  "<file-key>", fn)` with its row in `ORDER` (`scripts/dispatch.js`); the import in `scripts/battleflow.js`; move
+  "<file-key>", fn)` with its row in `ORDER` (`scripts/dispatch.js`); the import in `scripts/bythebooks.js`; move
   `EXPECTED_SOURCE_FILES` in `tools/check-registry.mjs` (135 after #3). A `decide/` file imports nothing.
 - **Flag-key constants**: the moments scanner (`tools/moment-writers.mjs`) resolves `const X_FLAG = "…"` by bare
   identifier across the whole tree. `SWAP_FLAG` in a new file silently rebound initiative-swap.js's key and the
@@ -86,7 +86,7 @@ issue's GM-client relay and the shared gallery, so build both as named, reusable
   grant `sim`/`mar` in the suite when a read depends on proficiency. The suite's player-membership gates need the
   player test user (`FOUNDRY_PLAYER_USER`) to own the fixture; `isPartyMember` = primary party member or
   player-owned character.
-- **The sandbox**: deploy with `FOUNDRY_HOST=local node scripts/deploy-house-module.mjs fvtt-mod-battleflow
+- **The sandbox**: deploy with `FOUNDRY_HOST=local node scripts/deploy-house-module.mjs fvtt-mod-bythebooks
   --local` from `../fvtt-mcp-dnd5e`; `node tools/fixture-suite.mjs` after any `pull-prod-to-local`; the suite
   preflight refuses while a second GM-capable user is on (the MCP bridge "Assistant DM" of ANY open Claude session
   — `disconnect-bridge` in that session). The walk party from the mastery session lives in the sandbox under

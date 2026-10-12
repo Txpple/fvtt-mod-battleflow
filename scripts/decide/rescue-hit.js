@@ -1,6 +1,6 @@
 // @ts-check
 /**
- * Battle Flow — DECISION layer (ARCHITECTURE.md §2): the `roll` interrupt, Disadvantage imposed on
+ * By the Books — DECISION layer (ARCHITECTURE.md §2): the `roll` interrupt, Disadvantage imposed on
  * an attack AFTER the verdict showed (INTERRUPT_ROLLS; RULINGS *Rescuing the hit*). Pure.
  * ⚠ Not a reroll: a plain roll gets a SECOND d20, the LOWER standing; Advantage CANCELS to the FIRST
  * die; Disadvantage does not stack. The stood d20 carries its own crit, hence a `replace`.

@@ -1,4 +1,4 @@
-// Battle Flow smoke test: the concentration assist end to end (damage → ask → roll → verdict →
+// By the Books smoke test: the concentration assist end to end (damage → ask → roll → verdict →
 // break) in both modes, on the elect's own client.
 // Harness discipline: settings restored, this run's messages deleted, fixtures long-rested;
 // outcomes forced (+30 save bonus, or a DC 30 ask).
@@ -46,7 +46,7 @@ const f = await connectSuite({ tag: 'conc', watchdogMs: 480_000 });
 announcePlan('conc', plan, pulled);
 
 const out = await f.evaluate(async ({ sections, titles }) => {
-  const MOD = 'fvtt-mod-battleflow';
+  const MOD = 'fvtt-mod-bythebooks';
   const results = [];
   const log = [];
   const skips = [];
@@ -60,7 +60,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   const sleep = ms => new Promise(r => setTimeout(r, ms));
   // Every moment payload published during the run, so a section can assert its resolve was heard.
   const moments = [];
-  const momentHookId = Hooks.on('battleflow.moment', p => moments.push(p));
+  const momentHookId = Hooks.on('bythebooks.moment', p => moments.push(p));
   const momentsOf = (event, since = 0) => moments.filter(p => (p.event === event) && (p.at >= since));
   const plain = p => { try { return JSON.stringify(p) === JSON.stringify(JSON.parse(JSON.stringify(p))); } catch { return false; } };
 
@@ -86,12 +86,12 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   const prior = Object.fromEntries(SETTING_KEYS.map(k => [k, game.settings.get(MOD, k)]));
   const set = (k, v) => game.settings.set(MOD, k, v);
 
-  const scene = game.scenes.getName('Battle Flow Test Range');
-  const shielder = game.actors.getName('BF Test Shielder');
-  const victim = game.actors.getName('BF Test Victim');
-  const npc = game.actors.getName('BF Test Attacker');
+  const scene = game.scenes.getName('By the Books Test Range');
+  const shielder = game.actors.getName('BTB Test Shielder');
+  const victim = game.actors.getName('BTB Test Victim');
+  const npc = game.actors.getName('BTB Test Attacker');
   if (!scene || !shielder || !victim || !npc) {
-    return { fatal: 'missing fixture: scene or BF Test actors (shielder/victim/attacker)' };
+    return { fatal: 'missing fixture: scene or BTB Test actors (shielder/victim/attacker)' };
   }
 
   const created = { items: [], effects: [], tokens: [] };
@@ -131,7 +131,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       // Sweep this run's chat: fixture speakers, the announcement alias, module-flagged messages,
       // and the native request card the off-half lets through.
       const mine = newSince(suiteMark).filter(m =>
-        m.speaker?.alias?.startsWith?.('BF Test') || m.speaker?.alias === 'Battle Flow'
+        m.speaker?.alias?.startsWith?.('BTB Test') || m.speaker?.alias === 'By the Books'
           || Object.keys(m.flags?.[MOD] ?? {}).length
           || m.content?.includes?.('data-action="concentration"')
           || ((m.type === 'prompt') && (m.system?.buttons ?? []).some(b => /concentration/i.test(b.type ?? ''))));
@@ -315,7 +315,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       // the dependent names it as origin.
       const conc = concEffects()[0];
       const [dep] = await victim.createEmbeddedDocuments('ActiveEffect', [{
-        name: 'BF Conc Dependent', img: 'icons/svg/aura.svg', origin: conc.uuid }]);
+        name: 'BTB Conc Dependent', img: 'icons/svg/aura.svg', origin: conc.uuid }]);
       created.effects.push({ actorId: victim.id, id: dep.id });
       await conc.setFlag('dnd5e', 'dependents', [...(conc.getFlag('dnd5e', 'dependents') ?? []), { uuid: dep.uuid }]);
       const t0 = marker();
@@ -330,7 +330,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       // The verdict publishes `save` through the gate and the failure `break` beside it (one momentId).
       const cv = momentsOf('save').filter(p => p.messageId === askMsg?.id);
       const bv = momentsOf('break').filter(p => p.messageId === askMsg?.id);
-      ok('4z. the verdict was PUBLISHED through the gate: battleflow.moment "save" (kind concentration) and "break" — the concentrator (the ask record\'s own actor), success false, the DC; once each, the same momentId, plain and frozen',
+      ok('4z. the verdict was PUBLISHED through the gate: bythebooks.moment "save" (kind concentration) and "break" — the concentrator (the ask record\'s own actor), success false, the DC; once each, the same momentId, plain and frozen',
         (cv.length === 1) && (bv.length === 1) && (cv[0].kind === 'concentration') && (cv[0].actorUuid === ask?.actorUuid) && !!ask?.actorUuid && (cv[0].details?.success === false)
           && (cv[0].details?.dc === ask?.dc) && (bv[0].momentId === cv[0].momentId) && Object.isFrozen(cv[0]) && plain(cv[0]) && plain(bv[0]),
         `save=${JSON.stringify(cv[0])} break=${JSON.stringify(bv[0])}`);
@@ -511,7 +511,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       // Attribute the announcement by this ask's total-vs-DC signature, never by 'holds' alone.
       const sig = `${ask?.outcome?.total} vs DC ${ask?.dc}`;
       const holdsCard = await waitFor(() => newSince(t0).find(m =>
-        (m.speaker?.alias === 'Battle Flow') && m.content.includes('holds')
+        (m.speaker?.alias === 'By the Books') && m.content.includes('holds')
         && m.content.includes(sig)) ?? null, 15000);
       ok('10. private mode whispers the ask', (done?.whisper?.length ?? 0) > 0,
         `whisper=${done?.whisper?.length}`);
@@ -525,7 +525,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       await smack(70);
       await waitFor(() => doneAskNew(t1));
       const broke = await waitFor(() => newSince(t1).find(m =>
-        (m.speaker?.alias === 'Battle Flow') && m.content.includes('loses concentration')));
+        (m.speaker?.alias === 'By the Books') && m.content.includes('loses concentration')));
       ok('10d. the break card is public even in private mode',
         !!broke && (broke.whisper?.length === 0), `whisper=${broke?.whisper?.length}`);
       await set('concVisibility', true);
@@ -557,7 +557,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       await shielder.update({ 'system.attributes.ac.override': 1 });
       const npcItem = npc.items.find(i => i.system.activities?.some?.(a => a.type === 'attack'));
       const activity = npcItem?.system.activities.find(a => a.type === 'attack');
-      if (!activity) return { fatal: 'BF Test Attacker has no attack activity' };
+      if (!activity) return { fatal: 'BTB Test Attacker has no attack activity' };
       // The attacker's name as the table sees it: the speaker resolves through the scene token
       // ("Hobgoblin"), and an unlinked token's synthetic actor carries the token's name.
       const npcTokenDoc = scene.tokens.find(t => t.actorId === npc.id);
@@ -625,7 +625,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       // Forge a crash's residue: an ask folded to done (failed), never applied, answeredAt past the
       // resume horizon. Any GM render must run the cascade, post the break card, write the receipt.
       await ChatMessage.create({
-        speaker: { alias: 'Battle Flow' },
+        speaker: { alias: 'By the Books' },
         content: 'probe: crash-resume ask',
         flags: { [MOD]: { concentration: {
           status: 'done', actorUuid: shielder.uuid, ability: 'con', dc: 30, damage: 60,
@@ -772,7 +772,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   } catch (err) {
     ok('SUITE', false, `unhandled: ${err?.message}\n${err?.stack}`);
   } finally {
-    Hooks.off('battleflow.moment', momentHookId);
+    Hooks.off('bythebooks.moment', momentHookId);
     await teardown();
     for (const a of [shielder, victim, npc].filter(Boolean)) {
       try { await a.longRest?.({ dialog: false, chat: false }); } catch { /* fine */ }

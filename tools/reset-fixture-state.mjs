@@ -6,7 +6,8 @@
 //   node tools/reset-fixture-state.mjs
 //   node tools/smoke-effects.mjs
 //
-// It deletes only effects that CARRY A STATUS, on the BF Test actors only.
+// It deletes only effects that CARRY A STATUS, on the BTB Test actors only. A 2.x run's leftovers (formerly
+// Battle Flow: "BF Test …" actors, the "Battle Flow Test Range", the old-scope `fixtureHome` stamp) are swept too.
 import { Foundry, loadEnv } from 'fvtt-mcp-dnd5e/client';
 import { foundryConfig, preflightSoleGM } from "./target.mjs";
 
@@ -18,20 +19,22 @@ await f.connect();
 await preflightSoleGM(f);
 
 const out = await f.evaluate(async () => {
-  const names = ['BF Test Victim', 'BF Test Attacker', 'BF Test Shielder', 'BF Test PC Attacker'];
+  const names = ['BTB Test Victim', 'BTB Test Attacker', 'BTB Test Shielder', 'BTB Test PC Attacker'];
   const report = [];
   // ⚠ A killed suite leaves its LINKED tokens standing, and later suites measure distance from them.
-  // The shared fixtures' tokens are unlinked, suites place linked ones: every linked BF Test token on
+  // The shared fixtures' tokens are unlinked, suites place linked ones: every linked BTB Test token on
   // the range goes first, EXCEPT those carrying fixture-suite's `fixtureHome` stamp (the built
   // fixtures are linked by nature).
-  const range = game.scenes.getName('Battle Flow Test Range');
-  if (range) {
-    const linked = range.tokens.filter(t => t.actorLink && /^BF Test /.test(game.actors.get(t.actorId)?.name ?? '')
-      && !t.getFlag('fvtt-mod-battleflow', 'fixtureHome'));
+  // A 2.x fixture token carries the old-scope stamp (read as a property: the old package may be gone).
+  const legacyHome = t => !!t.flags?.['fvtt-mod-battleflow']?.fixtureHome;
+  for (const range of [game.scenes.getName('By the Books Test Range'), game.scenes.getName('Battle Flow Test Range')]) {
+    if (!range) continue;
+    const linked = range.tokens.filter(t => legacyHome(t) || (t.actorLink
+      && /^(BTB|BF) Test /.test(game.actors.get(t.actorId)?.name ?? '') && !t.getFlag('fvtt-mod-bythebooks', 'fixtureHome')));
     if (linked.length) {
       await range.deleteEmbeddedDocuments('Token', linked.map(t => t.id));
-      report.push(`swept ${linked.length} linked stray token(s): ${linked.map(t => `${game.actors.get(t.actorId)?.name} @ ${t.x},${t.y}`).join('; ')}`);
-    } else report.push('no linked stray tokens on the test range');
+      report.push(`${range.name}: swept ${linked.length} linked stray token(s): ${linked.map(t => `${game.actors.get(t.actorId)?.name} @ ${t.x},${t.y}`).join('; ')}`);
+    } else report.push(`${range.name}: no linked stray tokens`);
   }
   for (const n of names) {
     const a = game.actors.getName(n);

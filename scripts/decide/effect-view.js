@@ -1,5 +1,5 @@
 /**
- * Battle Flow — DECISION (ARCHITECTURE.md §2): THE EFFECT VIEW's rows (RULINGS *The effect view*):
+ * By the Books — DECISION (ARCHITECTURE.md §2): THE EFFECT VIEW's rows (RULINGS *The effect view*):
  * which effects are listed, what each row says, how it is toned. Pure; the edge reads and draws.
  * ⚠ The token paints an icon only for a CLOCKED effect or a condition; other rows are tagged no-icon.
  */

@@ -1,6 +1,6 @@
 // @ts-check
 /**
- * Battle Flow — DECISION layer (ARCHITECTURE.md §2): the repeating save (registry.js REPEAT_SAVES) —
+ * By the Books — DECISION layer (ARCHITECTURE.md §2): the repeating save (registry.js REPEAT_SAVES) —
  * which row a landed effect answers, when a trigger is due, what the verdict does to the effect, and
  * the card's words. No `game`, no settings: the machine (repeat-saves.js) reads the world.
  */

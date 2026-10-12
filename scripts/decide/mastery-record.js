@@ -1,6 +1,6 @@
 // @ts-check
 /**
- * Battle Flow — DECISION layer (ARCHITECTURE.md §2): THE MASTERY RECORD — how many weapon kinds a
+ * By the Books — DECISION layer (ARCHITECTURE.md §2): THE MASTERY RECORD — how many weapon kinds a
  * character may master, what its list holds, and what fills the gap (issue #3). The
  * allowance is dnd5e's own data: each class ships mastery-mode Trait advancements (the PHB's
  * Fighter 3 at 1, +1 at 4, 10 and 16; Barbarian 2, +1 at 4 and 10; Paladin, Ranger, Rogue 2 at 1;

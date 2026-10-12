@@ -1,6 +1,6 @@
 // @ts-check
 /**
- * Battle Flow — DECISION layer (ARCHITECTURE.md §2): THE SHARED GALLERY — the rows a creature pool
+ * By the Books — DECISION layer (ARCHITECTURE.md §2): THE SHARED GALLERY — the rows a creature pool
  * allows, for every machine that picks a creature by rule rather than by profile: a `cr`-mode summon
  * (Find Familiar, Wild Companion) and Wild Shape's and the polymorph spells' forms (issues #1, #2; the
  * row shape ruled C, RULINGS *Summons*). ⚠ PURE: no `game`, no imports.

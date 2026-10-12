@@ -1,6 +1,6 @@
 // @ts-check
 /**
- * Battle Flow — DECISION (ARCHITECTURE.md §2): token lights, senses and sizes carried on an
+ * By the Books — DECISION (ARCHITECTURE.md §2): token lights, senses and sizes carried on an
  * EFFECT. Foundry 14 applies a `token.*` change to the bearer's tokens, so it lives and dies with
  * the effect and no token document is written.
  */

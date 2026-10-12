@@ -232,7 +232,7 @@ describe("formEffectData and endOfForm — the clocked effect and what ends the 
       duration: { seconds: 3600 },
       origin: "Actor.d.Item.ws"
     });
-    expect(e.flags["fvtt-mod-battleflow"].form).toEqual({
+    expect(e.flags["fvtt-mod-bythebooks"].form).toEqual({
       messageId: "m1",
       originalId: "d1",
       key: "Wild Shape"

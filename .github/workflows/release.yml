@@ -60,9 +60,9 @@ jobs:
         if: github.ref_type != 'tag'
         uses: actions/upload-artifact@v7
         with:
-          name: fvtt-mod-battleflow
+          name: fvtt-mod-bythebooks
           path: |
-            dist/fvtt-mod-battleflow.zip
+            dist/fvtt-mod-bythebooks.zip
             module.json
       - name: Publish
         if: github.ref_type == 'tag'
@@ -72,6 +72,6 @@ jobs:
           title="$(git tag -l --format='%(contents:subject)' "${tag}")"
           gh release create "${tag}" --verify-tag --title "${title}" \
             --notes-file "${RUNNER_TEMP}/notes.md" \
-            dist/fvtt-mod-battleflow.zip module.json
+            dist/fvtt-mod-bythebooks.zip module.json
         env:
           GH_TOKEN: ${{ github.token }}

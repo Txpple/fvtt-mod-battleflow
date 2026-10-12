@@ -1,10 +1,10 @@
 /**
- * Battle Flow — MACHINE (ARCHITECTURE.md §7): THE WARD POOLS (WARD_POOLS — Arcane Ward). The ward takes the
+ * By the Books — MACHINE (ARCHITECTURE.md §7): THE WARD POOLS (WARD_POOLS — Arcane Ward). The ward takes the
  * damage before its bearer at `dnd5e.preApplyDamage` (the amount after Resistances, the rule's order), so every
  * applier carries it — the module's and the card's own buttons; the pop rides the actor's update to every
  * client, the take rides the apply options to the receipt. An Abjuration cast from a slot creates or refills it.
  */
-import { MODULE_ID, TITLE } from "./core.js";
+import { MODULE_ID, readFlag, TITLE } from "./core.js";
 import { activityNamed, featureNamed, lower } from "./lookup.js";
 import { WARD_POOLS, listedNames, wardPoolEntries } from "./decide/registry.js";
 import { afterWard, wardAbsorb, wardRefill } from "./decide/ward-pools.js";
@@ -39,8 +39,8 @@ function effectWardOf(actor) {
   const listed = listedNames(wardPoolEntries());
   for ( const [name, row] of Object.entries(WARD_POOLS) ) {
     if ( !listed.has(lower(name)) || (row.pool !== "effect") ) continue;
-    const effect = actor.effects.find(e => !e.disabled && lower(e.name).startsWith(lower(row.effect)) && e.getFlag(MODULE_ID, POOL_FLAG));
-    if ( effect ) return { name, row, effect, pool: effect.getFlag(MODULE_ID, POOL_FLAG) };
+    const effect = actor.effects.find(e => !e.disabled && lower(e.name).startsWith(lower(row.effect)) && readFlag(e, POOL_FLAG));
+    if ( effect ) return { name, row, effect, pool: readFlag(effect, POOL_FLAG) };
   }
   return null;
 }
@@ -97,7 +97,7 @@ listen("updateActor", "ward-pools", (actor, changes) => {
   try {
     // ⚠ The update carries only what CHANGED: read the actor's flag.
     if ( !changes?.flags?.[MODULE_ID]?.[WARD_TAKE_FLAG] ) return;
-    const take = actor.getFlag?.(MODULE_ID, WARD_TAKE_FLAG);
+    const take = readFlag(actor, WARD_TAKE_FLAG);
     if ( !take?.took || !take.at || ((Date.now() - take.at) > 10_000) ) return;
     const key = `${actor.uuid}|${take.at}`;
     if ( popped.has(key) ) return;
@@ -134,7 +134,7 @@ async function createEffectWard(name, row, activity, usageConfig, message, actor
   await roll.toMessage({ speaker: ChatMessage.getSpeaker({ actor }), flavor: `${name} — ${points}d${Number(row.die) || 8} ward on ${bearer.name}` });
   const source = [...(activity.effects ?? [])].map(e => e.effect).find(e => e && (lower(e.name) === lower(row.effect)))
     ?? activity.item.effects.find(e => lower(e.name) === lower(row.effect)) ?? null;
-  const stale = bearer.effects.filter(e => (lower(e.name).startsWith(lower(row.effect))) && e.getFlag(MODULE_ID, POOL_FLAG)).map(e => e.id);
+  const stale = bearer.effects.filter(e => (lower(e.name).startsWith(lower(row.effect))) && readFlag(e, POOL_FLAG)).map(e => e.id);
   if ( stale.length ) await bearer.deleteEmbeddedDocuments("ActiveEffect", stale).catch(() => {});
   const data = source ? source.toObject() : { name: row.effect, img: activity.item.img, changes: [] };
   delete data._id;
@@ -172,7 +172,7 @@ async function castOnWard(found, activity, usageConfig, message) {
 
 listen("dnd5e.renderChatMessage", "ward-pools", (message, html) => {
   try {
-    const r = message.getFlag(MODULE_ID, REFILL_FLAG);
+    const r = readFlag(message, REFILL_FLAG);
     if ( !r ) return;
     const content = html.querySelector?.(SURFACES.messageContent) ?? html;
     if ( !content || content.querySelector(".bf-ward-line") ) return;

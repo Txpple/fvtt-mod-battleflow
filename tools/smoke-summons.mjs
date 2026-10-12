@@ -3,7 +3,7 @@
 // dnd5e's own profile changes, the caster's players owning it, the seat after the caster, the dragon's
 // breath narrowed and the shared resistance on the caster, and Dismiss.
 //
-// Fixtures: BF Test Sorcerer (tools/fixture-suite.mjs) is lent the PHB's Summon Beast and Summon Dragon
+// Fixtures: BTB Test Sorcerer (tools/fixture-suite.mjs) is lent the PHB's Summon Beast and Summon Dragon
 // for the sections that need them; the cards it posts, the tokens the elect creates, the imported
 // spirits and the resistance effect are torn down. The placement preview is a canvas interaction, so
 // the suite answers the record directly through the module's api and the pure fold, never the popup.
@@ -31,7 +31,7 @@ const f = await connectSuite({ tag: 'summons', watchdogMs: 240_000 });
 announcePlan('summons', plan, pulled);
 
 const out = await f.evaluate(async ({ sections, titles }) => {
-  const MOD = 'fvtt-mod-battleflow';
+  const MOD = 'fvtt-mod-bythebooks';
   const results = [];
   const log = [];
   const skips = [];
@@ -53,13 +53,13 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   const api = modDoc.api?.summons;
   if (!api?.askDismiss) return { fatal: 'no summons api — OLD code (reload the box)' };
 
-  const caster = game.actors.getName('BF Test Sorcerer');
-  if (!caster) return { fatal: 'missing fixture: BF Test Sorcerer — run tools/fixture-suite.mjs' };
+  const caster = game.actors.getName('BTB Test Sorcerer');
+  if (!caster) return { fatal: 'missing fixture: BTB Test Sorcerer — run tools/fixture-suite.mjs' };
   // ⚠ The range is VIEWED first (every other suite does): a fresh client's canvas is the world's
   // active scene, and in the battery that is not the range — this suite went FATAL at
   // "the Sorcerer has no token on the scene" in the overnight battery of 2026-10-11 while green alone.
-  const range = game.scenes.getName('Battle Flow Test Range');
-  if (!range) return { fatal: 'missing fixture: scene Battle Flow Test Range — run tools/fixture-suite.mjs' };
+  const range = game.scenes.getName('By the Books Test Range');
+  if (!range) return { fatal: 'missing fixture: scene By the Books Test Range — run tools/fixture-suite.mjs' };
   if (canvas.scene?.id !== range.id) await range.view();
   for (let i = 0; i < 40 && !(canvas.ready && canvas.scene?.id === range.id); i++) await sleep(250);
   if (canvas.scene?.id !== range.id) return { fatal: 'the canvas never readied on the test range' };
@@ -110,8 +110,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   };
   // The suite answers the record as the popup would, through the pure fold the module exports: one square to the right of the caster.
   const answer = async (message, { profileName = null, choice = null } = {}) => {
-    const { placedAnswer } = await import('/modules/fvtt-mod-battleflow/scripts/decide/summons.js');
-    const { SUMMON_CHOICES } = await import('/modules/fvtt-mod-battleflow/scripts/decide/registry.js');
+    const { placedAnswer } = await import('/modules/fvtt-mod-bythebooks/scripts/decide/summons.js');
+    const { SUMMON_CHOICES } = await import('/modules/fvtt-mod-bythebooks/scripts/decide/registry.js');
     const flag = message.getFlag(MOD, 'summon');
     const profile = profileName ? flag.profiles.find(p => p.label === profileName || p.name === profileName) : flag.profiles[0];
     const grid = canvas.scene.grid.size;
@@ -140,7 +140,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         const base = game.actors.get(tok?.actorId ?? '');
         const source = base?._stats?.compendiumSource ?? '';
         ok('§2 it is the Land spirit at the spell\'s level', /BestialLan/.test(source) && (tok?.actor?.getFlag('dnd5e', 'summon')?.level === 2), `${base?.name} from ${source} level=${tok?.actor?.getFlag('dnd5e', 'summon')?.level}`);
-        const row = await waitFor(() => document.querySelector(`[data-message-id="${message.id}"] .battleflow-summon`), 6000);
+        const row = await waitFor(() => document.querySelector(`[data-message-id="${message.id}"] .bythebooks-summon`), 6000);
         ok('§2 the card says landed', /landed by the GM/.test(row?.textContent ?? ''), (row?.textContent ?? '').trim().slice(0, 120));
         if (want(5)) {
           // The seat: a combat with the caster at 15; a second cast lands beside it.
@@ -183,7 +183,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       }
     }
     if (want(6)) {
-      const { poolFromPacks } = await import('/modules/fvtt-mod-battleflow/scripts/gallery.js');
+      const { poolFromPacks } = await import('/modules/fvtt-mod-bythebooks/scripts/gallery.js');
       const rows = await poolFromPacks({ crMax: 0, types: ['beast'] });
       const owls = rows.filter(r => r.name === 'Owl');
       ok('§6 the pool holds Owl once, the MM copy', owls.length === 1 && /dnd-monster-manual/.test(owls[0]?.pack ?? ''), JSON.stringify(owls.map(o => o.pack)));

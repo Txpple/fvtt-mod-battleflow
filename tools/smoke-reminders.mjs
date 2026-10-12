@@ -1,5 +1,5 @@
 // Live suite: THE GATE BEFORE THE ROLL — when something the module can read bends an attack roll,
-// Battle Flow's section stands in the system's roll dialog with every source, the net and the
+// By the Books' section stands in the system's roll dialog with every source, the net and the
 // three modes; a human presses; the roll is re-issued with the press.
 //
 // Every setting touched is restored; every message this run creates is deleted; pressed statuses
@@ -38,7 +38,7 @@ const f = await connectSuite({ tag: 'reminders', watchdogMs: 600_000 });
 announcePlan('reminders', plan, pulled);
 
 const out = await f.evaluate(async ({ sections, titles }) => {
-  const MOD = 'fvtt-mod-battleflow';
+  const MOD = 'fvtt-mod-bythebooks';
   const results = [];
   const log = [];
   const skips = [];
@@ -67,10 +67,10 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   const prior = Object.fromEntries(SETTING_KEYS.map(k => [k, game.settings.get(MOD, k)]));
   const set = (k, v) => game.settings.set(MOD, k, v);
 
-  const scene = game.scenes.getName('Battle Flow Test Range');
-  const victim = game.actors.getName('BF Test Victim');
-  const pc = game.actors.getName('BF Test PC Attacker');
-  if (!scene || !victim || !pc) return { fatal: 'missing fixture: scene or BF Test actors' };
+  const scene = game.scenes.getName('By the Books Test Range');
+  const victim = game.actors.getName('BTB Test Victim');
+  const pc = game.actors.getName('BTB Test PC Attacker');
+  if (!scene || !victim || !pc) return { fatal: 'missing fixture: scene or BTB Test actors' };
 
   const created = { items: [], tokens: [] };
   const priorActor = {};
@@ -119,7 +119,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       for (const [actorId, data] of Object.entries(priorActor)) await game.actors.get(actorId)?.update(data);
       game.user.targets.forEach(t => { t.setTarget(false, { releaseOthers: true }); });
       const mine = game.messages.filter(m => (m.timestamp >= suiteStart)
-        && (m.speaker?.alias?.startsWith?.('BF Test') || m.speaker?.alias === 'Battle Flow'
+        && (m.speaker?.alias?.startsWith?.('BTB Test') || m.speaker?.alias === 'By the Books'
           || Object.keys(m.flags?.[MOD] ?? {}).length));
       if (mine.length) await ChatMessage.deleteDocuments(mine.map(m => m.id));
     } catch (err) {
@@ -274,7 +274,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     /** The SYSTEM's own roll dialog, rendered — the gate lives inside it. */
     const rollDialog = () => [...foundry.applications.instances.values()]
       .find(app => /RollConfigurationDialog/.test(app.constructor?.name ?? '') && app.rendered && app.element) ?? null;
-    /** …and the gate is that dialog carrying Battle Flow's section. */
+    /** …and the gate is that dialog carrying By the Books' section. */
     const gateOf = app => (app?.element?.querySelector('[data-bf-reminder]') ? app : null);
     const findGate = async () => {
       const app = await waitFor(rollDialog, 6000);
@@ -493,7 +493,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       {
         const { dialog } = await gatedSwing();
         const text = popupText(dialog);
-        ok('4b. a prone ATTACKER: Disadvantage', /BF Test PC Attacker — Prone/.test(text) && /1 Modifier — Net Disadvantage/.test(text), text.slice(0, 300));
+        ok('4b. a prone ATTACKER: Disadvantage', /BTB Test PC Attacker — Prone/.test(text) && /1 Modifier — Net Disadvantage/.test(text), text.slice(0, 300));
         await closeGates();
       }
       await setStatus(victim, 'prone', true);
@@ -789,7 +789,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       try {
         // A ranged SPELL attack of the PC's own, for the scope test — the volleys suite's shape.
         [cantrip] = await pc.createEmbeddedDocuments('Item', [{
-          name: 'BF Test Cantrip', type: 'spell',
+          name: 'BTB Test Cantrip', type: 'spell',
           system: { level: 0, school: 'evo', properties: ['vocal'], range: { value: '120', units: 'ft' }, method: 'spell', prepared: 1,
             activities: { bftestcantrip000: { _id: 'bftestcantrip000', type: 'attack', name: 'Bolt', activation: { type: 'action' },
               attack: { type: { value: 'ranged', classification: 'spell' }, bonus: '0', flat: false },
@@ -811,7 +811,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           // The cantrip is a RANGED spell at an adjacent enemy, so the range kind's point-blank box
           // stands beside it and the two contend — the assertion is the Innate Sorcery box itself.
           ok('11b. …and the CANTRIP meets it: an Innate Sorcery box, Advantage, its own rule (beside the range kind’s point-blank box)',
-            /BF Test PC Attacker — Innate Sorcery/.test(text) && /Sorcerer spells/.test(text)
+            /BTB Test PC Attacker — Innate Sorcery/.test(text) && /Sorcerer spells/.test(text)
               && !!dialog?.element?.querySelector('[data-bf-mode="advantage"]'), text.slice(0, 300));
           await closeGates();
         }
@@ -822,7 +822,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           const { dialog } = await gatedSwing();
           const text = popupText(dialog);
           ok('11c. Reckless on the attacker: Advantage on the weapon swing',
-            /BF Test PC Attacker — Reckless/.test(text) && /1 Modifier — Net Advantage/.test(text), text.slice(0, 300));
+            /BTB Test PC Attacker — Reckless/.test(text) && /1 Modifier — Net Advantage/.test(text), text.slice(0, 300));
           await closeGates();
         }
         await unplant();
@@ -866,7 +866,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           }
           [allyDoc] = await scene.createEmbeddedDocuments('Token', [
             foundry.utils.mergeObject(victim.prototypeToken.toObject(),
-              { x: 1400, y: 1400 + squarePx, actorId: victim.id, actorLink: false, disposition: 1, name: 'BF Test Ally' }, { inplace: false })]);
+              { x: 1400, y: 1400 + squarePx, actorId: victim.id, actorLink: false, disposition: 1, name: 'BTB Test Ally' }, { inplace: false })]);
           created.tokens.push(allyDoc.id);
           for (let i = 0; i < 40 && !(canvas.ready && canvas.tokens.get(allyDoc.id)); i++) await sleep(250);
           pcToken.control({ releaseOthers: true });
@@ -1104,7 +1104,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         // 13g — Spell Sniper answers a cantrip's point-blank row
         await victimTokenDoc.update({ disposition: -1 });
         cantrip = await give({
-          name: 'BF Test Cantrip', type: 'spell',
+          name: 'BTB Test Cantrip', type: 'spell',
           system: { level: 0, school: 'evo', properties: ['vocal'], range: { value: '120', units: 'ft' }, method: 'spell', prepared: 1,
             activities: { bftestcantrip000: { _id: 'bftestcantrip000', type: 'attack', name: 'Bolt', activation: { type: 'action' },
               attack: { type: { value: 'ranged', classification: 'spell' }, bonus: '0', flat: false },

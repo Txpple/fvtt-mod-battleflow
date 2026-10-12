@@ -1,6 +1,6 @@
 // @ts-check
 /**
- * Battle Flow — DECISION layer (ARCHITECTURE.md §2): the rule tables, the kind lists and their readers.
+ * By the Books — DECISION layer (ARCHITECTURE.md §2): the rule tables, the kind lists and their readers.
  * No `game`, no settings, no imports; the tables are the only list (ARCHITECTURE.md §6). Every `rule` is
  * a pointer to the book (law 8; rule-text.js reads it).
  */

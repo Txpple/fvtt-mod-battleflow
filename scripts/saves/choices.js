@@ -1,9 +1,9 @@
 /**
- * Battle Flow — MACHINE, part of scripts/saves/ (ARCHITECTURE.md §7): the CHOICES a verdict opens,
+ * By the Books — MACHINE, part of scripts/saves/ (ARCHITECTURE.md §7): the CHOICES a verdict opens,
  * Interpose on a listed shield-bearer's success, the bash's Prone-or-push on the listed feat's
  * failure, and the caster's WORD behind a press (Command), on the same `saves` flag.
  */
-import { MODULE_ID, TITLE, queueFlagWrite, drivesMomentFor, decisionWindow } from "../core.js";
+import { MODULE_ID, readFlag, TITLE, queueFlagWrite, drivesMomentFor, decisionWindow } from "../core.js";
 import { applicableProfiles, cardActivity, equippedShield, foldEntryFor, resolveUuid } from "../lookup.js";
 import { forceStatus, reactionSpent, spendReaction } from "../shared.js";
 import { bfCard, esc, momentBarHTML, ruleLine } from "../decide/present.js";
@@ -83,13 +83,13 @@ export async function gateSaveChoice(card, flag, entry) {
       ...(window ? { window, deadline: Date.now() + (window * 1000) } : {}) };
   });
   armSaveChoiceTimer(card);
-  const live = card.getFlag(MODULE_ID, "saves")?.targets?.find(x => x.uuid === entry.uuid)?.choice;
+  const live = readFlag(card, "saves")?.targets?.find(x => x.uuid === entry.uuid)?.choice;
   return !!live && !live.answer;
 }
 
 /** One answer, first writer wins; a non-owner's answer relays as their own message (§4.1). */
 async function answerSaveChoice(card, uuid, answer) {
-  const flag = card.getFlag(MODULE_ID, "saves");
+  const flag = readFlag(card, "saves");
   const entry = flag?.targets?.find(t => t.uuid === uuid);
   const c = entry?.choice;
   if ( !c || c.answer ) return;
@@ -141,7 +141,7 @@ registerRelay("saveChoiceAnswer", {
 export function disarmSaveChoiceTimer(cardId) { return disarmDeadline(saveChoiceTimers, cardId); }
 
 export function armSaveChoiceTimer(card) {
-  const flag = card.getFlag(MODULE_ID, "saves");
+  const flag = readFlag(card, "saves");
   if ( !drivesMomentFor(flag?.sourceUuid ?? null) ) return;
   const pending = (flag?.targets ?? []).filter(t => t.choice && !t.choice.answer && t.choice.deadline);
   if ( !pending.length ) { disarmSaveChoiceTimer(card.id); return; }
@@ -172,7 +172,7 @@ async function fireSaveChoiceTimer(cardId) {
 
 /** The choice popup — two controls, the moment bar, the fold family's routing. */
 export async function showSaveChoicePopup(card, uuid) {
-  const flag = card.getFlag(MODULE_ID, "saves");
+  const flag = readFlag(card, "saves");
   const entry = flag?.targets?.find(t => t.uuid === uuid);
   const c = entry?.choice;
   if ( !c || c.answer ) return;
@@ -217,7 +217,7 @@ export async function showSaveChoicePopup(card, uuid) {
 
 /** The word's popup: one button per option, the pressing one said so, the row's default the default. */
 async function showWordPopup(card, uuid, c, entry, subject) {
-  const flag = card.getFlag(MODULE_ID, "saves");
+  const flag = readFlag(card, "saves");
   await openMomentPopup(card, `choice:${uuid}`, subject, {
     title: `${c.itemName} — ${subject?.name ?? ""}`,
     icon: "fa-solid fa-comment",

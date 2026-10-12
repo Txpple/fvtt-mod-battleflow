@@ -1,6 +1,6 @@
 // @ts-check
 /**
- * Battle Flow — DECISION (ARCHITECTURE.md §2): is a DAMAGE SHIELD due — the hit rider MIRRORED
+ * By the Books — DECISION (ARCHITECTURE.md §2): is a DAMAGE SHIELD due — the hit rider MIRRORED
  * (RULINGS *Damage shields*): the DEFENDER's standing effect strikes the ATTACKER on a melee hit.
  */
 

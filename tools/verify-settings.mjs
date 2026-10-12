@@ -1,4 +1,4 @@
-// Verify the world's Battle Flow settings against a reference and restore drift with --fix. Run after
+// Verify the world's By the Books settings against a reference and restore drift with --fix. Run after
 // any suite or probe: suites pin settings and a crashed teardown leaves them pinned.
 //
 //   node tools/verify-settings.mjs                       against the module's registered defaults
@@ -44,7 +44,7 @@ console.log('[verify] connecting…');
 await f.connect();
 
 const out = await f.evaluate(async ({ reference, overrides, fix, snapshot }) => {
-  const MOD = 'fvtt-mod-battleflow';
+  const MOD = 'fvtt-mod-bythebooks';
   const world = [...game.settings.settings.values()].filter(s => (s.namespace === MOD) && (s.scope === 'world'));
   // A snapshot covers every world key; the defaults cover the CONFIGURABLE ones (a hidden key is state, not taste).
   const keys = (snapshot || reference) ? world.map(s => s.key) : world.filter(s => s.config !== false).map(s => s.key);

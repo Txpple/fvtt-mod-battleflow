@@ -4,7 +4,7 @@
 // attack's modifiers, the lower standing, the verdict retaken against the live AC; a natural 20 can
 // be undone, so a crit with a live row is asked and its dice wait; every row spent skips the popup.
 //
-// Fixtures: BF Test Halfling (Lucky; tools/fixture-suite.mjs), BF Test Attacker (the goblin). Warding
+// Fixtures: BTB Test Halfling (Lucky; tools/fixture-suite.mjs), BTB Test Attacker (the goblin). Warding
 // Flare and Shadowy Dodge are lent from the PHB classes pack for §3/§4.
 // Everything spent is refilled; everything added is removed.
 //
@@ -23,9 +23,9 @@ export const COVERS = [
 ];
 
 const SECTIONS = {
-  1: 'Lucky turns the hit: one row ("Lucky — BF Test Halfling"), the tick lights Answer; a second d20 lower → MISS; a Luck Point spent by hand; the attacker\'s card reads "Lucky bent the roll — Disadvantage, … MISS"; the held damage applies to nobody',
+  1: 'Lucky turns the hit: one row ("Lucky — BTB Test Halfling"), the tick lights Answer; a second d20 lower → MISS; a Luck Point spent by hand; the attacker\'s card reads "Lucky bent the roll — Disadvantage, … MISS"; the held damage applies to nobody',
   2: 'Lucky, the second d20 higher: the first stands, still a HIT — the point is spent either way, the damage lands',
-  3: 'three rows (Warding Flare and Shadowy Dodge added): the title "Rescue the hit — BF Test Halfling", three tags; Warding Flare answers — the Reaction chip, a use spent, the roll bent',
+  3: 'three rows (Warding Flare and Shadowy Dodge added): the title "Rescue the hit — BTB Test Halfling", three tags; Warding Flare answers — the Reaction chip, a use spent, the roll bent',
   4: 'the Reaction spent: Warding Flare and Shadowy Dodge grey with "Reaction spent this round", Lucky stays live',
   5: 'every row spent (no Luck Points, the Reaction gone): no hold at all — no popup, the damage lands at once',
   6: 'a natural 20 with a live row: the popup opens, NO damage is rolled until the answer; Lucky\'s lower die makes it "a hit, no longer a crit" and the dice roll once, not doubled',
@@ -41,7 +41,7 @@ const f = await connectSuite({ tag: 'rescue', watchdogMs: 600_000 });
 announcePlan('rescue', plan, pulled);
 
 const out = await f.evaluate(async ({ sections, titles }) => {
-  const MOD = 'fvtt-mod-battleflow';
+  const MOD = 'fvtt-mod-bythebooks';
   const results = [];
   const log = [];
   const skips = [];
@@ -58,7 +58,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
 
   const modDoc = game.modules.get(MOD);
   if (!modDoc?.active) return { fatal: `module active=${modDoc?.active}` };
-  const { INTERRUPT_KINDS } = await import('/modules/fvtt-mod-battleflow/scripts/decide/registry.js');
+  const { INTERRUPT_KINDS } = await import('/modules/fvtt-mod-bythebooks/scripts/decide/registry.js');
   if (!INTERRUPT_KINDS.has('roll')) return { fatal: 'the `roll` interrupt kind is not in the loaded code — OLD code (F5)' };
 
   const SETTING_KEYS = ['autoDamage', 'autoApply', 'playerRollDamage', 'damageTimer', 'dramaticBeat', 'requireTarget',
@@ -67,12 +67,12 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   const prior = Object.fromEntries(SETTING_KEYS.map(k => [k, game.settings.get(MOD, k)]));
   const set = (k, v) => game.settings.set(MOD, k, v);
 
-  const scene = game.scenes.getName('Battle Flow Test Range');
-  const attacker = game.actors.getName('BF Test Attacker');
-  const halfling = game.actors.getName('BF Test Halfling');
-  if (!scene || !attacker || !halfling) return { fatal: 'missing fixture: scene, BF Test Attacker or BF Test Halfling — run tools/fixture-suite.mjs' };
+  const scene = game.scenes.getName('By the Books Test Range');
+  const attacker = game.actors.getName('BTB Test Attacker');
+  const halfling = game.actors.getName('BTB Test Halfling');
+  if (!scene || !attacker || !halfling) return { fatal: 'missing fixture: scene, BTB Test Attacker or BTB Test Halfling — run tools/fixture-suite.mjs' };
   const lucky = () => halfling.items.find(i => (i.name === 'Lucky') && (Number(i.system?.uses?.max) > 0));
-  if (!lucky()) return { fatal: 'BF Test Halfling lacks the Lucky FEAT (with Luck Points) — re-run fixture-suite' };
+  if (!lucky()) return { fatal: 'BTB Test Halfling lacks the Lucky FEAT (with Luck Points) — re-run fixture-suite' };
 
   const created = { tokens: [], items: [] };
   const priorActor = {};
@@ -116,7 +116,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       for (const [actorId, data] of Object.entries(priorActor)) await game.actors.get(actorId)?.update(data);
       game.user.targets.forEach(t => { t.setTarget(false, { releaseOthers: true }); });
       const mine = game.messages.filter(m => (m.timestamp >= suiteStart)
-        && (m.speaker?.alias?.startsWith?.('BF Test') || m.speaker?.alias === 'Battle Flow'
+        && (m.speaker?.alias?.startsWith?.('BTB Test') || m.speaker?.alias === 'By the Books'
           || Object.keys(m.flags?.[MOD] ?? {}).length));
       if (mine.length) await ChatMessage.deleteDocuments(mine.map(m => m.id));
     } catch (err) {
@@ -175,7 +175,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     const textOf = el => (el?.textContent ?? '').replace(/\s+/g, ' ').trim();
     const cardText = id => textOf(document.querySelector(`.message[data-message-id="${id}"]`));
     const weapon = attacker.items.find(i => (i.type === 'weapon') && i.system.activities?.some?.(a => a.type === 'attack'));
-    if (!weapon) return { fatal: 'BF Test Attacker has no weapon attack' };
+    if (!weapon) return { fatal: 'BTB Test Attacker has no weapon attack' };
     const act = () => attacker.items.get(weapon.id).system.activities.find(a => a.type === 'attack');
     // The attack's modifier, measured off a roll that posts nothing, so the AC makes 12 hit and 8 miss.
     faces([[10, 20]]);
@@ -222,8 +222,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const msg = await swing({ d20: [12] });
       const popup = await waitFor(rescuePopup, 6000);
       const answerBtn = popup?.element?.querySelector('button[data-action="answer"]');
-      ok('1a. one row, one title: "Lucky — BF Test Halfling", the row "Disadvantage" with "1 Luck Point · N left" as its tag; Answer dark until the tick',
-        !!popup && /Lucky — BF Test Halfling/.test(popup.title ?? popup.options?.window?.title ?? '')
+      ok('1a. one row, one title: "Lucky — BTB Test Halfling", the row "Disadvantage" with "1 Luck Point · N left" as its tag; Answer dark until the tick',
+        !!popup && /Lucky — BTB Test Halfling/.test(popup.title ?? popup.options?.window?.title ?? '')
           && /1 Luck Point · \d+ left/.test(textOf(popup.element)) && answerBtn?.disabled === true,
         `popup=${!!popup} title="${popup?.title}" text="${textOf(popup?.element).slice(0, 200)}" disabled=${answerBtn?.disabled}`);
       faces([[8, 20]]);
@@ -280,8 +280,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         const msg = await swing({ d20: [12] });
         const popup = await waitFor(rescuePopup, 6000);
         const rows = [...(popup?.element?.querySelectorAll('[data-bf-tick-row]') ?? [])].map(r => textOf(r));
-        ok('3a. "Rescue the hit — BF Test Halfling", three rows with their cost tags (a Reaction · N uses left / a Reaction / 1 Luck Point · N left)',
-          /Rescue the hit — BF Test Halfling/.test(popup?.title ?? '') && (rows.length === 3)
+        ok('3a. "Rescue the hit — BTB Test Halfling", three rows with their cost tags (a Reaction · N uses left / a Reaction / 1 Luck Point · N left)',
+          /Rescue the hit — BTB Test Halfling/.test(popup?.title ?? '') && (rows.length === 3)
             && rows.some(r => /Warding Flare/.test(r) && /a Reaction · \d+ uses? left/i.test(r)) && rows.some(r => /Shadowy Dodge/.test(r) && /a Reaction/i.test(r)),
           `title="${popup?.title}" rows=${JSON.stringify(rows)}`);
         faces([[8, 20]]);

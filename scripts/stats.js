@@ -1,10 +1,10 @@
 /**
- * Battle Flow — MACHINE layer: the data plane's stamps for the stats reader (ARCHITECTURE *The data
+ * By the Books — MACHINE layer: the data plane's stamps for the stats reader (ARCHITECTURE *The data
  * plane*): `rollCtx` on every d20 test, and a GM-whispered `combatRoster` card per combat.
  * ⚠ The roster is STATIC — a snapshot and a closing round, never clock ownership.
  * ⚠ Ungated by design (a toggle would punch holes in the ledger).
  */
-import { MODULE_ID, TITLE, isActiveGM, statContext } from "./core.js";
+import { MODULE_ID, readFlag, TITLE, isActiveGM, statContext } from "./core.js";
 import { bfCard, esc } from "./decide/present.js";
 // Safe: shared.js registers no hooks and evaluates first.
 import { statSourceOf } from "./shared.js";
@@ -28,7 +28,7 @@ for ( const hook of D20_TEST_HOOKS ) {
       const actor = (subject instanceof Actor) ? subject : (subject?.actor ?? null);
       const message = rolls?.[0]?.parent;
       if ( !(message instanceof ChatMessage) ) return;
-      if ( message.getFlag(MODULE_ID, "rollCtx") ) return;   // first stamp wins
+      if ( readFlag(message, "rollCtx") ) return;   // first stamp wins
       // ⚠ The MESSAGE's actor leads: the hook's subject is the WORLD actor, not the unlinked token.
       void message.setFlag(MODULE_ID, "rollCtx", statContext(statSourceOf(message) ?? actor?.uuid ?? null))
         .catch(err => console.error(`${TITLE} | rollCtx stamp failed (${hook}).`, err));
@@ -40,7 +40,7 @@ for ( const hook of D20_TEST_HOOKS ) {
 
 // combatRoster: stamped at start, closed at deletion, the elder twin wins.
 const rosterMessageFor = combatId => game.messages.contents.findLast(
-  m => m.getFlag(MODULE_ID, "combatRoster")?.combatId === combatId);
+  m => readFlag(m, "combatRoster")?.combatId === combatId);
 
 listen("combatStart", "stats", combat => {
   if ( !isActiveGM() ) return;
@@ -69,7 +69,7 @@ async function stampRoster(combat) {
       `${(c.initiative ?? "—")} · ${c.name}${c.isPC ? "" : " (foe)"}`);
     await ChatMessage.create({
       whisper: game.users.filter(u => u.isGM).map(u => u.id),
-      speaker: { alias: "Battle Flow" },
+      speaker: { alias: "By the Books" },
       content: bfCard({
         eyebrow: "Combat",
         title: scene?.name ?? "The field",
@@ -94,11 +94,11 @@ async function stampRoster(combat) {
 // Two same-account GM sessions both stamp; provenance plus elder-wins makes it one.
 listen("createChatMessage", "stats", message => {
   if ( !isActiveGM() ) return;
-  const flag = message.getFlag(MODULE_ID, "combatRoster");
+  const flag = readFlag(message, "combatRoster");
   if ( !flag?.combatId ) return;
   const elder = game.messages.contents.some(m => {
     if ( m.id === message.id ) return false;
-    if ( m.getFlag(MODULE_ID, "combatRoster")?.combatId !== flag.combatId ) return false;
+    if ( readFlag(m, "combatRoster")?.combatId !== flag.combatId ) return false;
     return (m.timestamp < message.timestamp)
       || ((m.timestamp === message.timestamp) && (m.id < message.id));
   });
@@ -114,7 +114,7 @@ listen("deleteCombat", "stats", combat => {
 async function closeRoster(combat) {
   try {
     const message = rosterMessageFor(combat.id);
-    const flag = foundry.utils.deepClone(message?.getFlag(MODULE_ID, "combatRoster") ?? null);
+    const flag = foundry.utils.deepClone(readFlag(message, "combatRoster") ?? null);
     if ( !flag || (flag.endedRound != null) ) return;
     flag.endedRound = combat.round;
     flag.endedAt = Date.now();

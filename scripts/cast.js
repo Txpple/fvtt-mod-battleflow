@@ -1,8 +1,8 @@
 /**
- * Battle Flow — the cast path: the caster's flow elect lands a stamped cast's utility effects and
+ * By the Books — the cast path: the caster's flow elect lands a stamped cast's utility effects and
  * healing, with receipts, and asks the caster's EFFECT_CHOICES pick.
  */
-import { MODULE_ID, TITLE, canAnswerFor, canApplyTo, drivesMomentFor, queueFlagWrite, whisperNoGM } from "./core.js";
+import { MODULE_ID, readFlag, TITLE, canAnswerFor, canApplyTo, drivesMomentFor, queueFlagWrite, whisperNoGM } from "./core.js";
 import { activityNamed, cardActivity, cardItem, featureNamed, lower, resolveUuid } from "./lookup.js";
 import { damagePartsOf, statSourceOf } from "./shared.js";
 import { bfCard, esc, popupKey, ruleLine } from "./decide/present.js";
@@ -23,9 +23,9 @@ import { listen } from "./dispatch.js";
 
 async function executeCastApply(message) {
   try {
-    const payload = message.getFlag(MODULE_ID, "castApply");
+    const payload = readFlag(message, "castApply");
     if ( !payload?.targets?.length ) return;
-    if ( message.getFlag(MODULE_ID, "effectReceipt")?.castDone ) return;
+    if ( readFlag(message, "effectReceipt")?.castDone ) return;
     // Through the CARD: a consumed item (a potion) lives on only in the card's snapshot.
     const activity = cardActivity(message, payload.activityUuid);
     // dnd5e 6: the list holds PROFILES; the effects resolve asynchronously.
@@ -65,14 +65,14 @@ async function executeCastApply(message) {
 // ⚠ A CLAIM ON THE HEALING: it waits on the Healer's rerolls (heal-rerolls.js) so it lands ONCE, as
 // auto-apply.js EITHER_WAITS does for damage.
 const HEAL_REROLL_WAITS = new Set(["due", "pending", "answering"]);
-const healRerollWaits = message => HEAL_REROLL_WAITS.has(message.getFlag(MODULE_ID, "healReroll")?.status);
+const healRerollWaits = message => HEAL_REROLL_WAITS.has(readFlag(message, "healReroll")?.status);
 
 async function applyCastHealing(message) {
   try {
-    if ( message.getFlag(MODULE_ID, "receipt") ) return; // applied (or reverted) already
+    if ( readFlag(message, "receipt") ) return; // applied (or reverted) already
     if ( healRerollWaits(message) ) return;               // the Healer's answer first (the claim above)
     // A SELF-aimed heal carries its target on the stamp; the dnd5e snapshot is incidental there.
-    const stamp = message.getFlag(MODULE_ID, "healPending");
+    const stamp = readFlag(message, "healPending");
     const targets = stamp?.selfAim
       ? [{ uuid: stamp.uuid, name: stamp.name }]
       : targetsOf(message).map(t => ({ uuid: t.uuid, name: t.name }));
@@ -146,7 +146,7 @@ registerResumable("castApply", {
 registerResumable("healPending", {
   // An update resumes it only as the Healer's claim settles (heal-rerolls.js writes its status here).
   pending: (_flag, message, cause) => (cause !== "update")
-    || (!!message.getFlag(MODULE_ID, "healReroll") && !healRerollWaits(message) && !message.getFlag(MODULE_ID, "receipt")),
+    || (!!readFlag(message, "healReroll") && !healRerollWaits(message) && !readFlag(message, "receipt")),
   drives: (_flag, message) => drivesMomentFor(castSubject(message)),
   drive: applyCastHealing
 });
@@ -155,7 +155,7 @@ registerResumable("healPending", {
 // caster's own card; no clock — the card's button reopens it.
 
 async function chooseEffect(card, name) {
-  const payload = card.getFlag(MODULE_ID, "castApply");
+  const payload = readFlag(card, "castApply");
   const choice = payload?.choice;
   if ( !choice || choice.chosen || !choice.options?.includes(name) ) return;
   let won = false;
@@ -189,12 +189,12 @@ async function afterPick(card, payload, name) {
 
 /** The pick kept as a form chip (clock-riders.js's `formChip`, keyed by the row), for the item's own clock. */
 async function writeChoiceChip(actor, item, key, name) {
-  const stale = actor.effects.filter(e => e.getFlag(MODULE_ID, "formChip")?.choice === key);
+  const stale = actor.effects.filter(e => readFlag(e, "formChip")?.choice === key);
   if ( stale.length ) await actor.deleteEmbeddedDocuments("ActiveEffect", stale.map(e => e.id)).catch(() => {});
   const base = item?.effects?.find(e => lower(e.name) === lower(key)) ?? null;
   await ActiveEffect.implementation.create({
     name: `${key}: ${name}`, img: item?.img ?? "icons/svg/aura.svg",
-    description: `<p>Written by Battle Flow when ${esc(name)} was chosen: the form stands while this does. It ends with ${esc(key)}.</p>`,
+    description: `<p>Written by By the Books when ${esc(name)} was chosen: the form stands while this does. It ends with ${esc(key)}.</p>`,
     origin: item?.uuid ?? null, disabled: false, transfer: false,
     duration: base ? { ...(base._source?.duration ?? {}) } : {},
     flags: { [MODULE_ID]: { formChip: { choice: key, form: lower(name) } } }
@@ -202,7 +202,7 @@ async function writeChoiceChip(actor, item, key, name) {
 }
 
 async function showChoicePopup(card) {
-  const payload = card.getFlag(MODULE_ID, "castApply");
+  const payload = readFlag(card, "castApply");
   const choice = payload?.choice;
   if ( !choice || choice.chosen ) return;
   const actor = payload.targets?.[0]?.uuid ? fromUuidSync(payload.targets[0].uuid) : null;
@@ -216,7 +216,7 @@ async function showChoicePopup(card) {
 }
 
 listen("dnd5e.renderChatMessage", "cast", (message, html) => {
-  const payload = message.getFlag(MODULE_ID, "castApply");
+  const payload = readFlag(message, "castApply");
   const choice = payload?.choice;
   if ( !choice ) return;
   const line = document.createElement("div");

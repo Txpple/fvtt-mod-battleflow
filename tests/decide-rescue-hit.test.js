@@ -266,8 +266,8 @@ describe("rescueRows — the popup's rows (scenes 2a, 2a2, 2a3, 2c)", () => {
 
   it('the title: several rows are "Rescue the hit", one row names itself', () => {
     const two = r.rescueRows({ primary: shield, rolls: [lucky], facts });
-    expect(r.rescueTitle(two, "BF Test Halfling")).toBe("Rescue the hit — BF Test Halfling");
-    expect(r.rescueTitle(two.slice(1), "BF Test Halfling")).toBe("Lucky — BF Test Halfling");
+    expect(r.rescueTitle(two, "BTB Test Halfling")).toBe("Rescue the hit — BTB Test Halfling");
+    expect(r.rescueTitle(two.slice(1), "BTB Test Halfling")).toBe("Lucky — BTB Test Halfling");
   });
 });
 

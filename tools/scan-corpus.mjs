@@ -136,7 +136,7 @@ const result = await f.evaluate(async (ONLY) => {
   return { rows, owners, errors, packStats, foundry: game.version, dnd5e: game.system.version };
 }, ONLY);
 
-const out = process.argv[2] || join(tmpdir(), 'battleflow-corpus-raw.json');
+const out = process.argv[2] || join(tmpdir(), 'bythebooks-corpus-raw.json');
 writeFileSync(out, JSON.stringify(result, null, 2));
 
 console.log(`\n# Foundry ${result.foundry} / dnd5e ${result.dnd5e}`);

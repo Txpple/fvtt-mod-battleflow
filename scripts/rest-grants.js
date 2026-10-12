@@ -1,10 +1,10 @@
 /**
- * Battle Flow — MACHINE layer (ARCHITECTURE.md §2): THE REST GRANTS — what a feature gives at a
+ * By the Books — MACHINE layer (ARCHITECTURE.md §2): THE REST GRANTS — what a feature gives at a
  * rest that the platform does not (decide/registry.js REST_GRANTS; Resourceful's Heroic
  * Inspiration). The grant rides `dnd5e.preRestCompleted`'s one actor update (`result.updateData`),
  * on the resting client, and the rest card says what was gained. Nothing is asked.
  */
-import { MODULE_ID, TITLE, isActiveGM, queueFlagWrite, canAnswerFor, statContext, drivesMomentFor } from "./core.js";
+import { MODULE_ID, readFlag, TITLE, isActiveGM, queueFlagWrite, canAnswerFor, statContext, drivesMomentFor } from "./core.js";
 import { lower, activityNamed, asiAssigned, featureNamed, resolveUuid } from "./lookup.js";
 import { answers, listedNames, restGrantEntries } from "./decide/registry.js";
 import { bfCard, esc, holdBarHTML, popupKey, foldedRuleHTML } from "./decide/present.js";
@@ -95,7 +95,7 @@ listen("dnd5e.restCompleted", "rest-grants", (_actor, result) => {
 
 listen("dnd5e.renderChatMessage", "rest-grants", (message, html) => {
   try {
-    const blocks = message.getFlag(MODULE_ID, "restBlock");
+    const blocks = readFlag(message, "restBlock");
     if ( !blocks?.length ) return;
     const root = html instanceof HTMLElement ? html : html?.[0];
     const host = root?.querySelector(SURFACES.messageContent);
@@ -113,7 +113,7 @@ listen("dnd5e.renderChatMessage", "rest-grants", (message, html) => {
 
 listen("dnd5e.renderChatMessage", "rest-grants", (message, html) => {
   try {
-    const grants = message.getFlag(MODULE_ID, "restGrant");
+    const grants = readFlag(message, "restGrant");
     if ( !grants?.length ) return;
     const root = html instanceof HTMLElement ? html : html?.[0];
     const host = root?.querySelector(SURFACES.messageContent);
@@ -188,7 +188,7 @@ function tempAmountOf(formula) {
 function lastShortRestOf(actor) {
   for ( const m of game.messages.contents.slice(-300).reverse() ) {
     if ( (m.type !== "rest") || (m.system?.type !== "short") ) continue;
-    const spent = m.getFlag(MODULE_ID, SPENT_FLAG);
+    const spent = readFlag(m, SPENT_FLAG);
     if ( spent?.actorUuid !== actor.uuid ) continue;
     return { at: spent.at ?? m.timestamp, hitDice: spent.hitDice ?? 0, requestId: spent.requestId ?? null };
   }
@@ -373,7 +373,7 @@ function allowedPicks(flag, picks) {
 }
 
 async function answerSong(message, picks, { declined = false, timedOut = false } = {}) {
-  const flag = message.getFlag(MODULE_ID, SONG_FLAG);
+  const flag = readFlag(message, SONG_FLAG);
   if ( flag?.status !== "pending" ) return;
   const chosen = declined ? [] : allowedPicks(flag, picks);
   const marks = { ...(declined ? { declined: true } : {}), ...(timedOut ? { timedOut: true } : {}) };
@@ -436,7 +436,7 @@ async function landSong(message) {
     claimed = true;
   });
   if ( !claimed ) return;
-  const flag = message.getFlag(MODULE_ID, SONG_FLAG);
+  const flag = readFlag(message, SONG_FLAG);
   const given = [];
   const waiting = [];
   try {
@@ -503,7 +503,7 @@ registerResumable(SONG_FLAG, {
 listen("dnd5e.restCompleted", "rest-grants", (actor, result, config) => {
   try {
     if ( !(actor instanceof Actor) || !actor.isOwner ) return;
-    const fed = actor.getFlag(MODULE_ID, FED_FLAG);
+    const fed = readFlag(actor, FED_FLAG);
     if ( !fed ) return;
     const type = result?.type ?? config?.type;
     const rest = { at: Date.now(), hitDice: Math.max(0, -(Number(result?.dhd) || 0)), requestId: config?.request?.id ?? null };
@@ -520,7 +520,7 @@ listen("dnd5e.restCompleted", "rest-grants", (actor, result, config) => {
 /* --- the popup (Careful Spell's picker) and the card ---------------------------------------------- */
 
 async function showSongPopup(message) {
-  const flag = message.getFlag(MODULE_ID, SONG_FLAG);
+  const flag = readFlag(message, SONG_FLAG);
   if ( flag?.status !== "pending" ) return;
   const actor = resolveUuid(flag.actorUuid);
   if ( !actor ) return;
@@ -598,11 +598,11 @@ listenOnce("ready", "rest-grants", () => document.addEventListener("input", ev =
 
 const songTimers = new Map();
 function armSongTimer(message) {
-  const flag = message.getFlag(MODULE_ID, SONG_FLAG);
+  const flag = readFlag(message, SONG_FLAG);
   if ( (flag?.status !== "pending") || !flag.deadline || !drivesMomentFor(flag.actorUuid ?? null) ) return;
   armDeadline(songTimers, message.id, flag.deadline, async () => {
     const live = game.messages.get(message.id);
-    const f = live?.getFlag(MODULE_ID, SONG_FLAG);
+    const f = readFlag(live, SONG_FLAG);
     if ( f?.status === "pending" ) await answerSong(live, [{ uuid: f.actorUuid, n: f.amount }], { timedOut: true });
   });
 }
@@ -646,7 +646,7 @@ function songLine(flag) {
 
 listen("dnd5e.renderChatMessage", "rest-grants", (message, html) => {
   try {
-    const flag = message.getFlag(MODULE_ID, SONG_FLAG);
+    const flag = readFlag(message, SONG_FLAG);
     if ( !flag ) return;
     const content = html.querySelector?.(SURFACES.messageContent) ?? html;
     if ( !content || content.querySelector(".bf-rest-song-line") ) return;
@@ -669,7 +669,7 @@ listen("dnd5e.renderChatMessage", "rest-grants", (message, html) => {
 
 // An answer anywhere closes the popup everywhere (law 4).
 listen("updateChatMessage", "rest-grants", message => {
-  const flag = message.getFlag(MODULE_ID, SONG_FLAG);
+  const flag = readFlag(message, SONG_FLAG);
   if ( !flag ) return;
   if ( flag.status === "pending" ) { armSongTimer(message); return; }
   disarmDeadline(songTimers, message.id);

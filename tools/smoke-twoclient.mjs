@@ -14,8 +14,8 @@
 //
 // ⚠ THIS SUITE MUTATES (check-popup-routing.mjs is the read-only two-client check).
 //
-// Fixture: `BF Test Player Shielder`, a clone of the Mage (a real Shield) OWNED BY THE PLAYER TEST USER,
-// deleted on the way out. ⚠ Separate from `BF Test Shielder`, which is GM-only for smoke-hold.
+// Fixture: `BTB Test Player Shielder`, a clone of the Mage (a real Shield) OWNED BY THE PLAYER TEST USER,
+// deleted on the way out. ⚠ Separate from `BTB Test Shielder`, which is GM-only for smoke-hold.
 //
 // Sections: `--section relay`, `--section close`, `--section ack`, `--section pull`, `--list`.
 import { announcePlan, connectSuite, disposeSafely, loadEnv, report, sectionPlan }
@@ -68,7 +68,7 @@ console.log(`[2client] player "${who.name}" connected`);
 /* --- setup: settings, the player-owned shielder, its token -------------------------------- */
 
 const setup = await gm.evaluate(async ({ playerId }) => {
-  const MODULE = 'fvtt-mod-battleflow';
+  const MODULE = 'fvtt-mod-bythebooks';
   const sleep = ms => new Promise(r => setTimeout(r, ms));
   const log = [];
   const KEYS = ['reactionHold', 'holdReveal', 'holdTimer', 'holdSkipFutile', 'holdApplyEffect',
@@ -77,10 +77,10 @@ const setup = await gm.evaluate(async ({ playerId }) => {
   const prior = Object.fromEntries(KEYS.map(k => [k, game.settings.get(MODULE, k)]));
   const set = (k, v) => game.settings.set(MODULE, k, v);
 
-  const scene = game.scenes.getName('Battle Flow Test Range');
-  const attacker = game.actors.getName('BF Test Attacker');
-  const mage = game.actors.getName('BF Test Mage');
-  if (!scene || !attacker || !mage) return { fatal: 'missing fixture: scene, BF Test Attacker or the Mage' };
+  const scene = game.scenes.getName('By the Books Test Range');
+  const attacker = game.actors.getName('BTB Test Attacker');
+  const mage = game.actors.getName('BTB Test Mage');
+  if (!scene || !attacker || !mage) return { fatal: 'missing fixture: scene, BTB Test Attacker or the Mage' };
   if (canvas.scene?.id !== scene.id) { await scene.view(); await sleep(800); }
 
   await set('reactionHold', true);
@@ -106,15 +106,15 @@ const setup = await gm.evaluate(async ({ playerId }) => {
   }
 
   // The player-owned shielder: the Mage's sheet (a real Shield, real slots), the player as OWNER.
-  let shielder = game.actors.getName('BF Test Player Shielder');
+  let shielder = game.actors.getName('BTB Test Player Shielder');
   if (!shielder) {
     const data = mage.toObject();
     delete data._id;
-    data.name = 'BF Test Player Shielder';
+    data.name = 'BTB Test Player Shielder';
     data.prototypeToken.actorLink = true;
-    data.prototypeToken.name = 'BF Test Player Shielder';
+    data.prototypeToken.name = 'BTB Test Player Shielder';
     shielder = await Actor.create(data);
-    log.push('created BF Test Player Shielder');
+    log.push('created BTB Test Player Shielder');
   }
   // OWNER for the player, DEFAULT NONE: canAnswerFor must route to exactly one client.
   await shielder.update({ ownership: { default: 0, [playerId]: 3 } }, { diff: false, recursive: false });
@@ -137,7 +137,7 @@ const setup = await gm.evaluate(async ({ playerId }) => {
   if (!canvas.tokens.get(tok.id)) return { fatal: 'the shielder token never reached the canvas' };
 
   const weapon = attacker.items.find(i => i.system.activities?.some?.(a => a.type === 'attack'));
-  if (!weapon) return { fatal: 'BF Test Attacker has no attack activity' };
+  if (!weapon) return { fatal: 'BTB Test Attacker has no attack activity' };
 
   globalThis.__bf2c = { prior, shielderId: shielder.id, tokenId: tok.id, weaponId: weapon.id,
     suiteStart: Date.now() };
@@ -158,10 +158,10 @@ note(`shielder ${setup.shielderName} AC ${setup.ac}, playerOwned=${setup.hasPlay
 
 /** Attack until a plain (non-crit, non-fumble) hit stamps a pending hold. Returns its ids. */
 const holdOnShielder = () => gm.evaluate(async () => {
-  const MODULE = 'fvtt-mod-battleflow';
+  const MODULE = 'fvtt-mod-bythebooks';
   const sleep = ms => new Promise(r => setTimeout(r, ms));
   const st = globalThis.__bf2c;
-  const attacker = game.actors.getName('BF Test Attacker');
+  const attacker = game.actors.getName('BTB Test Attacker');
   const shielder = game.actors.get(st.shielderId);
   const token = canvas.tokens.get(st.tokenId);
   const activity = () => attacker.items.get(st.weaponId).system.activities.find(a => a.type === 'attack');
@@ -203,8 +203,8 @@ const playerPopup = attackId => player.evaluate(async ({ id }) => {
   return {
     user: game.user.name,
     titles, dom,
-    sawHold: !!game.messages.get(id)?.getFlag('fvtt-mod-battleflow', 'hold'),
-    holdStatus: game.messages.get(id)?.getFlag('fvtt-mod-battleflow', 'hold')?.status ?? null
+    sawHold: !!game.messages.get(id)?.getFlag('fvtt-mod-bythebooks', 'hold'),
+    holdStatus: game.messages.get(id)?.getFlag('fvtt-mod-bythebooks', 'hold')?.status ?? null
   };
 }, { id: attackId });
 
@@ -229,7 +229,7 @@ if (want('relay')) {
         }
         await new Promise(r => setTimeout(r, 200));
       }
-      const seen = game.messages.get(id)?.getFlag('fvtt-mod-battleflow', 'hold');
+      const seen = game.messages.get(id)?.getFlag('fvtt-mod-bythebooks', 'hold');
       return { found: false, holdSeen: !!seen, status: seen?.status ?? null };
     }, { id: hold.attackId });
 
@@ -251,7 +251,7 @@ if (want('relay')) {
       });
       const buttons = [...dlg.element.querySelectorAll('button')].map(x => `${x.dataset.action ?? '?'}:${x.textContent.trim()}${x.disabled ? '(disabled)' : ''}`);
       // The hold at the click: an answer on a resolved hold is dropped (first answer wins).
-      const holdSnap = () => { const m = [...game.messages.contents].reverse().find(x => x.getFlag('fvtt-mod-battleflow', 'hold')); const h = m?.getFlag('fvtt-mod-battleflow', 'hold'); return { status: h?.status ?? null, answers: (h?.targets ?? []).map(t => `${t.answer ?? '-'}${t.timedOut ? ' (timed out)' : ''}`) }; };
+      const holdSnap = () => { const m = [...game.messages.contents].reverse().find(x => x.getFlag('fvtt-mod-bythebooks', 'hold')); const h = m?.getFlag('fvtt-mod-bythebooks', 'hold'); return { status: h?.status ?? null, answers: (h?.targets ?? []).map(t => `${t.answer ?? '-'}${t.timedOut ? ' (timed out)' : ''}`) }; };
       const holdBefore = holdSnap();
       const passBtn = dlg.element.querySelector('button[data-action="pass"]');
       passBtn?.click();
@@ -262,10 +262,10 @@ if (want('relay')) {
         if (mine) {
           Hooks.off('createChatMessage', hook);
           return { clicked: true, msgId: mine.id, author: mine.author?.name ?? null,
-            respondsTo: mine.getFlag('fvtt-mod-battleflow', 'respondsTo') ?? null,
-            answer: mine.getFlag('fvtt-mod-battleflow', 'answer') ?? null,
-            uuid: mine.getFlag('fvtt-mod-battleflow', 'uuid') ?? null,
-            flags: Object.keys(mine.flags?.['fvtt-mod-battleflow'] ?? {}) };
+            respondsTo: mine.getFlag('fvtt-mod-bythebooks', 'respondsTo') ?? null,
+            answer: mine.getFlag('fvtt-mod-bythebooks', 'answer') ?? null,
+            uuid: mine.getFlag('fvtt-mod-bythebooks', 'uuid') ?? null,
+            flags: Object.keys(mine.flags?.['fvtt-mod-bythebooks'] ?? {}) };
         }
         await new Promise(r => setTimeout(r, 200));
       }
@@ -281,7 +281,7 @@ if (want('relay')) {
 
     // The GM is the CONTINUING CLIENT (its own attack), so the fold happens there.
     const folded = await gm.evaluate(async ({ id }) => {
-      const MODULE = 'fvtt-mod-battleflow';
+      const MODULE = 'fvtt-mod-bythebooks';
       for (let i = 0; i < 60; i++) {
         const h = game.messages.get(id)?.getFlag(MODULE, 'hold');
         // The answer lands before the verdict: wait for the resolution, falling back to
@@ -314,7 +314,7 @@ if (want('relay')) {
 
 if (want('close')) {
   // A short buzzer, so the GM's timer answers the hold while the player is still looking at it.
-  await gm.evaluate(async () => game.settings.set('fvtt-mod-battleflow', 'holdTimer', 5), null);
+  await gm.evaluate(async () => game.settings.set('fvtt-mod-bythebooks', 'holdTimer', 5), null);
   const hold = await holdOnShielder();
   if (hold.fatal) {
     ok('close. an attack on the player-owned shielder stamps a hold', false, hold.fatal);
@@ -336,7 +336,7 @@ if (want('close')) {
     // ⚠ NOBODY TOUCHES THE PLAYER'S DOM: the buzzer fires on the continuing client (the GM's) and
     // the player's own client closes its popup on seeing the update.
     const buzzed = await gm.evaluate(async ({ id }) => {
-      const MODULE = 'fvtt-mod-battleflow';
+      const MODULE = 'fvtt-mod-bythebooks';
       for (let i = 0; i < 60; i++) {
         const h = game.messages.get(id)?.getFlag(MODULE, 'hold');
         if (h && (h.status !== 'pending')) {
@@ -373,7 +373,7 @@ if (want('close')) {
 if (want('ack')) {
   // A GM-authored notice card, as postMasteryNotice writes it, naming the PLAYER'S actor.
   const card = await gm.evaluate(async () => {
-    const MODULE = 'fvtt-mod-battleflow';
+    const MODULE = 'fvtt-mod-bythebooks';
     const st = globalThis.__bf2c;
     const msg = await ChatMessage.create({
       content: '<p>ack relay fixture</p>',
@@ -391,7 +391,7 @@ if (want('ack')) {
 
   // Not the author and not a GM, so the direct write is unavailable: the relay path.
   const relayed = await player.evaluate(async cardId => {
-    const MODULE = 'fvtt-mod-battleflow';
+    const MODULE = 'fvtt-mod-bythebooks';
     // ⚠ WAIT FOR THE CARD TO REPLICATE: the GM just created it.
     let msg = null;
     for (let i = 0; i < 50 && !msg; i++) {
@@ -407,7 +407,7 @@ if (want('ack')) {
     relayed.isOwner === false, JSON.stringify(relayed));
 
   const landed = await gm.evaluate(async cardId => {
-    const MODULE = 'fvtt-mod-battleflow';
+    const MODULE = 'fvtt-mod-bythebooks';
     for (let i = 0; i < 50; i++) {
       const m = game.messages.get(cardId);
       if (m?.getFlag(MODULE, 'masteryNotice')?.acknowledged === true) {
@@ -439,8 +439,8 @@ if (want('bystander')) {
   const setupB = await gm.evaluate(async () => {
     const sleep = ms => new Promise(r => setTimeout(r, ms));
     const st = globalThis.__bf2c;
-    const scene = game.scenes.getName('Battle Flow Test Range');
-    const attacker = game.actors.getName('BF Test Attacker');
+    const scene = game.scenes.getName('By the Books Test Range');
+    const attacker = game.actors.getName('BTB Test Attacker');
     const shielder = game.actors.get(st.shielderId);
     let src = null;
     for (const pack of game.packs.filter(p => (p.metadata.packageName === 'dnd-players-handbook') && (p.documentName === 'Item'))) {
@@ -467,10 +467,10 @@ if (want('bystander')) {
   else {
     // The GM's attack with Advantage, the FIRST die a miss and the second a hit (the PRNG pinned on the GM).
     const atk = await gm.evaluate(async () => {
-      const MOD = 'fvtt-mod-battleflow';
+      const MOD = 'fvtt-mod-bythebooks';
       const sleep = ms => new Promise(r => setTimeout(r, ms));
       const st = globalThis.__bf2c;
-      const attacker = game.actors.getName('BF Test Attacker');
+      const attacker = game.actors.getName('BTB Test Attacker');
       const token = canvas.tokens.get(st.tokenId);
       const act = attacker.items.get(st.weaponId).system.activities.find(a => a.type === 'attack');
       const real = CONFIG.Dice.randomUniform;
@@ -499,33 +499,33 @@ if (want('bystander')) {
       if (!dlg) return { found: false };
       const before = new Set(game.messages.contents.map(m => m.id));
       let caught = null;
-      const hook = Hooks.on('createChatMessage', m => { if (!caught && !before.has(m.id) && (m.author?.id === game.user.id) && m.getFlag('fvtt-mod-battleflow', 'respondsTo')) caught = m; });
+      const hook = Hooks.on('createChatMessage', m => { if (!caught && !before.has(m.id) && (m.author?.id === game.user.id) && m.getFlag('fvtt-mod-bythebooks', 'respondsTo')) caught = m; });
       dlg.element.querySelector('button[data-action="answer"]')?.click();
       for (let i = 0; i < 40 && !caught; i++) await sleep(200);
       Hooks.off('createChatMessage', hook);
       return { found: true, title: dlg.options?.window?.title, isOwner: game.messages.get(id)?.isOwner ?? null,
-        msg: caught ? { respondsTo: caught.getFlag('fvtt-mod-battleflow', 'respondsTo'), by: caught.getFlag('fvtt-mod-battleflow', 'by') ?? null,
-          rescue: caught.getFlag('fvtt-mod-battleflow', 'rescue') ?? null } : null };
+        msg: caught ? { respondsTo: caught.getFlag('fvtt-mod-bythebooks', 'respondsTo'), by: caught.getFlag('fvtt-mod-bythebooks', 'by') ?? null,
+          rescue: caught.getFlag('fvtt-mod-bythebooks', 'rescue') ?? null } : null };
     }, { id: atk.id });
     ok('bystander/2. the popup opened on the PLAYER\'s client and its answer travelled as the player\'s own message (respondsTo, by)',
       answered.found && (answered.isOwner === false) && (answered.msg?.respondsTo === atk.id) && !!answered.msg?.by && (answered.msg?.rescue === 'Restore Balance'),
       JSON.stringify(answered));
     const folded = await gm.evaluate(async ({ id }) => {
       for (let i = 0; i < 60; i++) {
-        const h = game.messages.get(id)?.getFlag('fvtt-mod-battleflow', 'hold');
+        const h = game.messages.get(id)?.getFlag('fvtt-mod-bythebooks', 'hold');
         if (h?.status === 'resolved') { const t = h.targets[0]; return { verdict: t.verdict, answer: t.answer, rescue: t.rescue, by: t.guardedBy?.name ?? null, stood: t.bent?.stood ?? null }; }
         await new Promise(r => setTimeout(r, 250));
       }
-      return { status: game.messages.get(id)?.getFlag('fvtt-mod-battleflow', 'hold')?.status ?? null };
+      return { status: game.messages.get(id)?.getFlag('fvtt-mod-bythebooks', 'hold')?.status ?? null };
     }, { id: atk.id });
     ok('bystander/3. the GM folded it: the first d20 (2) stands — a MISS, answered by the player\'s creature',
       (folded.verdict === 'miss') && (folded.rescue === 'Restore Balance') && (folded.stood === 2), JSON.stringify(folded));
 
     // The GM's CHECK with Advantage (3 then 18): bystanders.js's relay.
     const chk = await gm.evaluate(async () => {
-      const MOD = 'fvtt-mod-battleflow';
+      const MOD = 'fvtt-mod-bythebooks';
       const sleep = ms => new Promise(r => setTimeout(r, ms));
-      const attacker = game.actors.getName('BF Test Attacker');
+      const attacker = game.actors.getName('BTB Test Attacker');
       const real = CONFIG.Dice.randomUniform;
       const queue = [3, 18].map(n => 1 - ((n - 0.5) / 20));
       let i = 0;
@@ -561,27 +561,27 @@ if (want('bystander')) {
       if (!dlg) return { found: false };
       const before = new Set(game.messages.contents.map(m => m.id));
       let caught = null;
-      const hook = Hooks.on('createChatMessage', m => { if (!caught && !before.has(m.id) && m.getFlag('fvtt-mod-battleflow', 'bystanderRollAnswer')) caught = m; });
+      const hook = Hooks.on('createChatMessage', m => { if (!caught && !before.has(m.id) && m.getFlag('fvtt-mod-bythebooks', 'bystanderRollAnswer')) caught = m; });
       dlg.element.querySelector('button[data-action="answer"]')?.click();
       for (let i = 0; i < 40 && !caught; i++) await sleep(200);
       Hooks.off('createChatMessage', hook);
-      return { found: true, envelope: caught?.getFlag('fvtt-mod-battleflow', 'bystanderRollAnswer') ?? null, author: caught?.author?.name ?? null };
+      return { found: true, envelope: caught?.getFlag('fvtt-mod-bythebooks', 'bystanderRollAnswer') ?? null, author: caught?.author?.name ?? null };
     }, null);
     ok('bystander/5. the check\'s answer travelled as the player\'s own message (a bystanderRollAnswer envelope)',
       answered2.found && (answered2.envelope?.answer === 'roll') && (answered2.author === who.name), JSON.stringify(answered2));
     const folded2 = await gm.evaluate(async ({ id }) => {
       for (let i = 0; i < 60; i++) {
-        const f = game.messages.get(id)?.getFlag('fvtt-mod-battleflow', 'bystanderRoll');
+        const f = game.messages.get(id)?.getFlag('fvtt-mod-bythebooks', 'bystanderRoll');
         if (f?.status === 'resolved') return { answer: f.answer, rescue: f.rescue, stood: f.bent?.stood ?? null, total: f.bent?.total ?? null };
         await new Promise(r => setTimeout(r, 250));
       }
-      return { status: game.messages.get(id)?.getFlag('fvtt-mod-battleflow', 'bystanderRoll')?.status ?? null };
+      return { status: game.messages.get(id)?.getFlag('fvtt-mod-bythebooks', 'bystanderRoll')?.status ?? null };
     }, { id: chk.id });
     ok('bystander/6. the GM folded it: the first d20 (3) stands on the check', (folded2.answer === 'roll') && (folded2.stood === 3), JSON.stringify(folded2));
   }
   await gm.evaluate(async () => {
     const st = globalThis.__bf2c;
-    const scene = game.scenes.getName('Battle Flow Test Range');
+    const scene = game.scenes.getName('By the Books Test Range');
     if (st.bystander?.attackerTokenId && scene.tokens.get(st.bystander.attackerTokenId)) await scene.deleteEmbeddedDocuments('Token', [st.bystander.attackerTokenId]);
     const tok = scene.tokens.get(st.tokenId);
     if (tok && (st.bystander?.shielderDisposition !== undefined)) await tok.update({ disposition: st.bystander.shielderDisposition });
@@ -596,18 +596,18 @@ if (want('pull')) {
   // The GM activates ANOTHER scene and stands the Ranger in the Paladin's ring on the range; only
   // the PLAYER goes back to the range, so the player's view is the only thing making it live.
   const setupPull = await gm.evaluate(async () => {
-    const MOD = 'fvtt-mod-battleflow';
+    const MOD = 'fvtt-mod-bythebooks';
     const sleep = ms => new Promise(r => setTimeout(r, ms));
-    const scene = game.scenes.getName('Battle Flow Test Range');
-    const paladin = game.actors.getName('BF Test Paladin');
-    const ranger = game.actors.getName('BF Test Ranger');
+    const scene = game.scenes.getName('By the Books Test Range');
+    const paladin = game.actors.getName('BTB Test Paladin');
+    const ranger = game.actors.getName('BTB Test Ranger');
     const palTok = scene?.tokens.find(t => t.actorId === paladin?.id);
     const rgrTok = scene?.tokens.find(t => t.actorId === ranger?.id);
-    if (!palTok || !rgrTok) return { fatal: 'missing fixture: BF Test Paladin or BF Test Ranger on the range — run tools/fixture-suite.mjs' };
+    if (!palTok || !rgrTok) return { fatal: 'missing fixture: BTB Test Paladin or BTB Test Ranger on the range — run tools/fixture-suite.mjs' };
     if (!game.settings.get(MOD, 'emanations')) return { fatal: 'Emanations are off — the shipped default has them on (scripts/settings.js)' };
     const st = globalThis.__bf2c;
     st.pull = { priorActive: game.scenes.active?.id ?? null, rangerId: rgrTok.id, rangerHome: { x: rgrTok.x, y: rgrTok.y } };
-    const elsewhere = await Scene.create({ name: 'BF Test Elsewhere (2client)', width: 2000, height: 2000, grid: { size: 100, distance: 5 } });
+    const elsewhere = await Scene.create({ name: 'BTB Test Elsewhere (2client)', width: 2000, height: 2000, grid: { size: 100, distance: 5 } });
     st.pull.elsewhereId = elsewhere.id;
     await elsewhere.activate();
     const grid = scene.grid.size;
@@ -625,10 +625,10 @@ if (want('pull')) {
     // The GM's preview with a player connected: the range is NOT live (a GM's view counts only
     // while no player is connected).
     const preview = await gm.evaluate(async () => {
-      const MOD = 'fvtt-mod-battleflow';
+      const MOD = 'fvtt-mod-bythebooks';
       const sleep = ms => new Promise(r => setTimeout(r, ms));
-      const scene = game.scenes.getName('Battle Flow Test Range');
-      const ranger = game.actors.getName('BF Test Ranger');
+      const scene = game.scenes.getName('By the Books Test Range');
+      const ranger = game.actors.getName('BTB Test Ranger');
       const elsewhere = game.scenes.get(globalThis.__bf2c.pull.elsewhereId);
       // ⚠ Scene#view REFUSES while the canvas is loading (a warning, no throw): wait the load out and
       // confirm the view took.
@@ -648,15 +648,15 @@ if (want('pull')) {
       return out;
     }, null);
     ok('pull/1b. the GM previews the range while a player is connected: no ring rises and the Ranger inside wears nothing (a GM\'s view counts only when no player is on)',
-      (preview.gmViews === 'Battle Flow Test Range') && (preview.rings === 0) && (preview.fx === 0) && (preview.players.length > 0), JSON.stringify(preview));
+      (preview.gmViews === 'By the Books Test Range') && (preview.rings === 0) && (preview.fx === 0) && (preview.players.length > 0), JSON.stringify(preview));
     const navBefore = await gm.evaluate(async () => globalThis.__bfHookLedger?.renderSceneNavigation ?? 0, null);
-    await player.evaluate(async () => { await game.scenes.getName('Battle Flow Test Range')?.view(); }, null);
+    await player.evaluate(async () => { await game.scenes.getName('By the Books Test Range')?.view(); }, null);
     const pulled = await gm.evaluate(async ({ playerId, navBefore }) => {
-      const MOD = 'fvtt-mod-battleflow';
+      const MOD = 'fvtt-mod-bythebooks';
       const sleep = ms => new Promise(r => setTimeout(r, ms));
-      const scene = game.scenes.getName('Battle Flow Test Range');
-      const ranger = game.actors.getName('BF Test Ranger');
-      const palTok = scene.tokens.find(t => t.actorId === game.actors.getName('BF Test Paladin')?.id);
+      const scene = game.scenes.getName('By the Books Test Range');
+      const ranger = game.actors.getName('BTB Test Ranger');
+      const palTok = scene.tokens.find(t => t.actorId === game.actors.getName('BTB Test Paladin')?.id);
       const rings = () => scene.regions.filter(r => r.getFlag(MOD, 'emanation')?.kind === 'feature' && r.getFlag(MOD, 'emanation')?.tokenId === palTok.id).length;
       const fx = () => ranger.effects.filter(e => e.getFlag(MOD, 'emanation')).length;
       let i = 0;
@@ -666,16 +666,16 @@ if (want('pull')) {
         navFired: (globalThis.__bfHookLedger?.renderSceneNavigation ?? 0) - navBefore };
     }, { playerId: who.id, navBefore });
     ok('pull/2. THE PLAYER ON THE RANGE: the Paladin\'s three rings stand there and the Ranger inside wears the three auras — no activation, the GM elsewhere',
-      (pulled.rings === 3) && (pulled.fx === 3) && (pulled.playerViews === 'Battle Flow Test Range') && (pulled.gmViews !== 'Battle Flow Test Range'), JSON.stringify(pulled));
+      (pulled.rings === 3) && (pulled.fx === 3) && (pulled.playerViews === 'By the Books Test Range') && (pulled.gmViews !== 'By the Books Test Range'), JSON.stringify(pulled));
     // Conjoined with the player's view having ARRIVED: a navigation render happens for other reasons.
     ok('pull/3. the GM heard the player\'s view through renderSceneNavigation (the only public signal a remote view raises)',
-      (pulled.playerViews === 'Battle Flow Test Range') && (pulled.navFired > 0), JSON.stringify(pulled));
+      (pulled.playerViews === 'By the Books Test Range') && (pulled.navFired > 0), JSON.stringify(pulled));
     await player.evaluate(async () => { await game.scenes.active?.view(); }, null);
     const left = await gm.evaluate(async playerId => {
-      const MOD = 'fvtt-mod-battleflow';
+      const MOD = 'fvtt-mod-bythebooks';
       const sleep = ms => new Promise(r => setTimeout(r, ms));
-      const scene = game.scenes.getName('Battle Flow Test Range');
-      const ranger = game.actors.getName('BF Test Ranger');
+      const scene = game.scenes.getName('By the Books Test Range');
+      const ranger = game.actors.getName('BTB Test Ranger');
       const rings = () => scene.regions.filter(r => r.getFlag(MOD, 'emanation')?.kind === 'feature').length;
       const fx = () => ranger.effects.filter(e => e.getFlag(MOD, 'emanation')).length;
       let i = 0;
@@ -683,7 +683,7 @@ if (want('pull')) {
       return { rings: rings(), fx: fx(), ms: i * 250, playerViews: game.scenes.get(game.users.get(playerId)?.viewedScene)?.name ?? null };
     }, who.id);
     ok('pull/4. the player back on the active scene: nobody is on the range, its rings come down and the Ranger\'s three are lifted',
-      (left.rings === 0) && (left.fx === 0) && (left.playerViews !== 'Battle Flow Test Range'), JSON.stringify(left));
+      (left.rings === 0) && (left.fx === 0) && (left.playerViews !== 'By the Books Test Range'), JSON.stringify(left));
   }
 } else {
   out.skips.push(`§pull ${SECTIONS.pull}`);
@@ -692,7 +692,7 @@ if (want('pull')) {
 /* --- teardown: always ---------------------------------------------------------------------- */
 
 const torn = await gm.evaluate(async () => {
-  const MODULE = 'fvtt-mod-battleflow';
+  const MODULE = 'fvtt-mod-bythebooks';
   const st = globalThis.__bf2c;
   const errs = [];
   try { for (const [k, v] of Object.entries(st.prior)) await game.settings.set(MODULE, k, v); }
@@ -700,7 +700,7 @@ const torn = await gm.evaluate(async () => {
   // §pull: the Ranger home, the prior active scene back (every client follows it), the scene gone.
   try {
     if (st.pull) {
-      const scene = game.scenes.getName('Battle Flow Test Range');
+      const scene = game.scenes.getName('By the Books Test Range');
       const rgr = scene?.tokens.get(st.pull.rangerId);
       if (rgr) await rgr.update(st.pull.rangerHome, { teleport: true, animate: false });
       const back = st.pull.priorActive ? game.scenes.get(st.pull.priorActive) : null;
@@ -711,14 +711,14 @@ const torn = await gm.evaluate(async () => {
     }
   } catch (err) { errs.push(`pull: ${err?.message}`); }
   try {
-    const scene = game.scenes.getName('Battle Flow Test Range');
+    const scene = game.scenes.getName('By the Books Test Range');
     const tok = scene?.tokens.get(st.tokenId);
     if (tok) await scene.deleteEmbeddedDocuments('Token', [st.tokenId]);
     const shielder = game.actors.get(st.shielderId);
     if (shielder) await shielder.delete();
     for (const t of game.user.targets) t.setTarget(false, { releaseOthers: true });
     const mine = game.messages.filter(m => (m.timestamp >= st.suiteStart)
-      && (m.speaker?.alias?.startsWith?.('BF Test') || m.speaker?.alias === 'Battle Flow'
+      && (m.speaker?.alias?.startsWith?.('BTB Test') || m.speaker?.alias === 'By the Books'
         || (Object.keys(m.flags?.[MODULE] ?? {}).length > 0)));
     if (mine.length) await ChatMessage.deleteDocuments(mine.map(m => m.id));
     return { errs, deleted: mine.length };

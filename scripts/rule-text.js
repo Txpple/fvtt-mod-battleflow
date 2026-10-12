@@ -1,5 +1,5 @@
 /**
- * Battle Flow — SPINE (ARCHITECTURE.md §7): the rule text, read from the book (RULINGS *The rule fold
+ * By the Books — SPINE (ARCHITECTURE.md §7): the rule text, read from the book (RULINGS *The rule fold
  * reads the book*). A row points at its content — `{ item, uuid?, benefit? }`, or `{ page, key,
  * benefit? }` for dnd5e's rules pages (`page` "condition" | "mastery" | "rule") — and this reads that content,
  * enriched: the paragraph whose bold lead is the row's `benefit`, else the whole text. Nothing here

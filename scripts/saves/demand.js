@@ -1,9 +1,9 @@
 /**
- * Battle Flow — MACHINE, part of scripts/saves/ (ARCHITECTURE.md §7): the DEMAND. The casting
+ * By the Books — MACHINE, part of scripts/saves/ (ARCHITECTURE.md §7): the DEMAND. The casting
  * client stamps the `saves` flag on the usage card, with the dead-target gate, metamagic, a chosen
  * area and an emanation's reach applied at the cast.
  */
-import { MODULE_ID, TITLE, S, setting, statContext, decisionWindow } from "../core.js";
+import { MODULE_ID, readFlag, clearFlag, TITLE, S, setting, statContext, decisionWindow } from "../core.js";
 import { applicableProfiles, resolveUuid, itemNamed, namesAnswering } from "../lookup.js";
 import { CARD, activityUuidOf, isCard, targetsOf } from "../decide/card.js";
 import { saveDemandData, saveTargetEntry, putsToSleep } from "../decide/demand.js";
@@ -59,14 +59,14 @@ function casterFactsOf(activity) {
  * @returns {Promise<{protectedUuids: Set<string>, heightened: {uuid: string, name: string, caster: string|null, rule: object|string|null}|null}>}
  */
 export async function metamagicForDemand(card, activity, contained) {
-  const mm = card?.getFlag(MODULE_ID, METAMAGIC_FLAG);
+  const mm = readFlag(card, METAMAGIC_FLAG);
   const pendingAsk = !!mm && (carefulKind(mm.key) || (mm.key === "heightened")) && !mm.chosen;
   const none = { protectedUuids: new Set(), heightened: null, hold: false, pendingAsk };
   if ( !mm || !Array.isArray(contained) ) return none;
   const facts = casterFactsOf(activity);
   // THE ASK AT THE AREA: a pick not yet made is asked of the area's creatures; the demand WAITS.
   if ( (carefulKind(mm.key) || (mm.key === "heightened")) && !mm.chosen && contained.length ) {
-    const ask = card.getFlag(MODULE_ID, AREA_ASK_FLAG);
+    const ask = readFlag(card, AREA_ASK_FLAG);
     if ( ask?.status !== "pending" && card.canUserModify?.(game.user, "update") ) {
       await raiseAsk(card, newAsk({ kind: mm.key, feature: mm.feature, cap: mm.cap ?? 1, rule: mm.rule ?? null,
         candidates: askCandidates(contained), caster: { uuid: facts.casterUuid, disposition: facts.casterDisposition, name: activity?.actor?.name ?? null } }));
@@ -101,12 +101,12 @@ export async function areaChoiceForDemand(card, activity, contained) {
   const facts = casterFactsOf(activity);
   const casterTok = activity?.actor?.token ?? activity?.actor?.getActiveTokens?.(true, true)?.[0] ?? null;
   const pool = contained.filter(c => (c.uuid !== facts.casterUuid) && !(casterTok && (c.tokenId === casterTok.id))).filter(saveDemandable);
-  const record = card?.getFlag(MODULE_ID, AREA_CHOICE_FLAG);
+  const record = readFlag(card, AREA_CHOICE_FLAG);
   if ( Array.isArray(record?.chosen) ) {
     const chosen = new Set(record.chosen.map(c => c.uuid));
     return { contained: pool.filter(c => chosen.has(c.uuid)), hold: false };
   }
-  const ask = card?.getFlag(MODULE_ID, AREA_ASK_FLAG);
+  const ask = readFlag(card, AREA_ASK_FLAG);
   if ( (ask?.status === "pending") && (ask.kind === "choose") ) return { contained: [], hold: true };
   if ( !pool.length ) return { contained: pool, hold: false };
   const spell = activity.item.name;
@@ -122,7 +122,7 @@ export async function areaChoiceForDemand(card, activity, contained) {
     return { contained: pool.filter(c => ids.has(c.uuid)), hold: false };
   }
   if ( writable ) {
-    const mm = card.getFlag(MODULE_ID, METAMAGIC_FLAG);
+    const mm = readFlag(card, METAMAGIC_FLAG);
     const heightened = ((mm?.key === "heightened") && !mm.chosen)
       ? { feature: mm.feature, rule: mm.rule ?? metamagicRuleText(itemNamed(activity.actor, mm.feature)?.system?.description?.value ?? "") } : null;
     await raiseAsk(card, newAsk({ kind: "choose", feature: spell, spell, cap, rule: choiceRuleFrom(description), itemImg: activity.item.img ?? null, heightened,
@@ -138,7 +138,7 @@ listen("preCreateChatMessage", "saves/demand", doc => {
   try {
     if ( !isCard(doc, CARD.usage) ) return;
     // A held card re-posted with its answer: the question was already asked.
-    if ( doc.getFlag?.(MODULE_ID, AREA_CHOICE_FLAG) || doc.getFlag?.(MODULE_ID, METAMAGIC_FLAG)?.chosen ) return;
+    if ( readFlag(doc, AREA_CHOICE_FLAG) || readFlag(doc, METAMAGIC_FLAG)?.chosen ) return;
     const uuid = activityUuidOf(doc);
     const activity = uuid ? resolveUuid(uuid) : null;
     if ( (activity?.type !== "save") || !activity.target?.template?.type || !chosenAreaListed(activity.item) ) return;
@@ -151,7 +151,7 @@ listen("preCreateChatMessage", "saves/demand", doc => {
 function settleChoiceHold(activity, message) {
   const uuid = activity?.uuid ?? "";
   if ( !uuid || !isHeld(uuid) ) return;
-  const ask = message?.getFlag(MODULE_ID, AREA_ASK_FLAG);
+  const ask = readFlag(message, AREA_ASK_FLAG);
   if ( (ask?.status === "pending") && (ask.kind === "choose") ) return;
   if ( !chosenAreaListed(activity.item) ) return;   // somebody else's hold
   releaseHold(uuid, message ?? null);
@@ -172,14 +172,14 @@ listen("dnd5e.postUseActivity", "saves/demand", (activity, _usageConfig, results
 });
 
 // A usage card held back by the metamagic ask, born with the pick made: stamp as at the use.
-listen("battleflow.deferredUsageCard", "saves/demand", ({ activity, message, templates }) => {
+listen("bythebooks.deferredUsageCard", "saves/demand", ({ activity, message, templates }) => {
   if ( (activity?.type !== "save") || !(message instanceof ChatMessage) ) return;
   void stampSaveDemand(activity, message, { templates: [templates ?? []] }).finally(() => settleChoiceHold(activity, message));
 });
 
 async function stampSaveDemand(activity, message, results) {
   try {
-    if ( message.getFlag(MODULE_ID, "saves") ) return; // never re-stamp
+    if ( readFlag(message, "saves") ) return; // never re-stamp
     // An area whose save is for something other than standing in it (Magic Circle's teleport-in save) demands nothing at the cast.
     if ( emanationRowFor(activity)?.noCastSave ) return;
     // ⚠ A template spell's targets are what the AREA contains, not what was clicked. postUseActivity
@@ -200,7 +200,7 @@ async function stampSaveDemand(activity, message, results) {
     if ( !targets.length && !templateShaped ) return;
     // A self-aimed save's targets are incidental. A BLANK affects is allowed: statblocks often carry none.
     // RAVENLOFT — a MISHAP's save (mishaps.js) is self-aimed by the pack and IS the demand: the bearer saves against its gift.
-    if ( !contained && ((activity.target?.affects?.type ?? null) === "self") && !message.getFlag(MODULE_ID, "mishap") ) return;
+    if ( !contained && ((activity.target?.affects?.type ?? null) === "self") && !readFlag(message, "mishap") ) return;
     const dc = activity.save?.dc?.value;
     if ( !(dc > 0) ) return;
     const abilities = [...(activity.save?.ability ?? [])];
@@ -223,7 +223,7 @@ async function stampSaveDemand(activity, message, results) {
     // no per-verdict application; the card's enricher stays GM-judged.
     const onSave = activity.damage?.onSave ?? "half";
     // THE DMG — a weapon rider's save (clock-riders.js `save`) is the save alone: the hit carried the damage.
-    const riderSave = !!message.getFlag(MODULE_ID, "riderSave");
+    const riderSave = !!readFlag(message, "riderSave");
     const saveModulated = !riderSave && !!activity.damage?.parts?.length && (onSave !== "full");
 
     const window = decisionWindow();
@@ -259,7 +259,7 @@ async function stampSaveDemand(activity, message, results) {
         ...(metamagic.heightened ? { heightened: metamagic.heightened } : {}) },
       effectsHandled: emanation ? "emanation" : null,
       // A rider the CAST carried (a hit reaction's `failDamage`, B2): the failure's damage on the saver.
-      failDamage: message.getFlag(MODULE_ID, "failDamage") ?? null,
+      failDamage: readFlag(message, "failDamage") ?? null,
       activityUuid: activity.uuid,
       // Adoption's shape gate for a toolbar-drawn area, which has no origin flag.
       templateType: activity.target?.template?.type ?? null,
@@ -296,14 +296,14 @@ async function rollSaveDamageNow(activity, message, { damageOnSave, targets, awa
 }
 
 // The deferred dice, on the answering client once the area ask is answered; the flag clears first.
-listen("battleflow.areaAskAnswered", "saves/demand", async message => {
+listen("bythebooks.areaAskAnswered", "saves/demand", async message => {
   try {
-    const deferred = message?.getFlag(MODULE_ID, "savesDeferredRoll");
+    const deferred = readFlag(message, "savesDeferredRoll");
     if ( !deferred ) return;
     const activity = resolveUuid(activityUuidOf(message) ?? "");
     if ( !activity ) return;
-    await message.unsetFlag(MODULE_ID, "savesDeferredRoll");
-    const flag = message.getFlag(MODULE_ID, "saves");
+    await clearFlag(message, "savesDeferredRoll");   // an old card may hold it under the legacy scope
+    const flag = readFlag(message, "saves");
     if ( !flag || (flag.status === "done") ) return;   // everyone spared — no dice owed
     await rollSaveDamageNow(activity, message, { damageOnSave: deferred.damageOnSave ?? "half", targets: flag.targets ?? [], awaiting: false });
   } catch(err) {

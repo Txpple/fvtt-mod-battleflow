@@ -1,6 +1,6 @@
 // @ts-check
 /**
- * Battle Flow — THE HOOK DISPATCHER: one platform listener per hook name, and the module's own
+ * By the Books — THE HOOK DISPATCHER: one platform listener per hook name, and the module's own
  * handlers behind it in ORDER. A file registers with `listen(hook, key, fn)` where `key` is its own
  * scripts-relative path; nothing else in scripts/ calls `Hooks.on` (tools/check-hook-order.mjs).
  * A leaf — imports nothing (ARCHITECTURE.md §7 *Registration order*).
@@ -12,6 +12,7 @@
  * listed here cannot register. The load-bearing pairs are asserted by tools/check-hook-order.mjs.
  */
 export const ORDER = Object.freeze([
+  "migrate",            // first: the client-scope settings copied at init before anything reads them; the scope move starts at ready ahead of every reader
   "settings",
   "rule-text",
   "holds",
@@ -119,19 +120,74 @@ export const VETOABLE = Object.freeze([
 const RANK = new Map(ORDER.map((key, i) => [key, i]));
 const VETOES = new Set(VETOABLE);
 
+/* --- the coexistence gate: passive while the old package runs ------------------------------------
+ * By the Books is the new name of Battle Flow. With Battle Flow still enabled in the world, two copies
+ * would each apply every hit's damage, so this one is PASSIVE: the dispatcher runs no handler but the
+ * few below. The answer is asked once, at the first dispatch (`init`), and kept; scripts/migrate.js
+ * supplies the question (the legacy id lives in core.js, and this leaf imports nothing).
+ */
+
+/**
+ * What still runs while passive, as `hook|key` — kept minimal:
+ *   - `init|settings`: the settings are registered, so the module's menu opens and reads;
+ *   - `init|emanations`: the region behaviour type is registered, so a region carrying one stays a
+ *     valid document;
+ *   - `ready|migrate`: the GM's one warning (the migration itself does not run).
+ */
+export const PASSIVE_KEEPS = Object.freeze(["init|settings", "init|emanations", "ready|migrate"]);
+
+/** @type {(() => boolean) | null} */
+let passiveGate = null;
+/** @type {boolean | null} */
+let passive = null;
+
+/** Set the question "is the old package running here?" (scripts/migrate.js, at evaluation). @param {() => boolean} gate */
+export function setPassiveGate(gate) {
+  passiveGate = gate;
+  passive = null;
+}
+
+/** Is this module passive — the old package still enabled? Asked once, then kept for the session. */
+export function isPassive() {
+  if ( passive === null ) {
+    try { passive = !!passiveGate?.(); }
+    catch { return false; }   // asked too early (no `game`): not cached, asked again at the next dispatch
+  }
+  return passive;
+}
+
+/* --- the migration mark: a scope move is never a moment -------------------------------------------
+ * Every migration write carries `{ [MIGRATION_MARK]: true }` in its options, and the platform hands
+ * the options to every client's document hooks: a document hook whose arguments carry the mark is
+ * dropped whole, on every client, so a flag moved from the old scope to the new one is never read
+ * as a write. The mark rides the options, so the hooks a write raises locally carry it too, a token
+ * delta's write included (its synthetic `updateActor` gets the same options). No latch: the migrating
+ * client is the GM's, which writes for the table, and a turn or a hit during the move must still run.
+ */
+export const MIGRATION_MARK = "bythebooksMigration";
+const DOCUMENT_CRUD = /^(preCreate|preUpdate|preDelete|create|update|delete)[A-Z]/;
+/** @param {string} hook @param {any[]} args */
+function isMigrationWrite(hook, args) {
+  if ( !DOCUMENT_CRUD.test(hook) ) return false;
+  return args.some(a => (a !== null) && (typeof a === "object") && (a[MIGRATION_MARK] === true));
+}
+
 /** hook → its handlers in ORDER, then registration order: `{ key, rank, seq, once, fn }`. */
 const handlers = new Map();
 let seq = 0;
 
 function dispatch(hook, args) {
+  if ( isMigrationWrite(hook, args) ) return;
+  const quiet = isPassive();
   const list = handlers.get(hook) ?? [];
   const stops = VETOES.has(hook);
   for ( const h of [...list] ) {
+    if ( quiet && !PASSIVE_KEEPS.includes(`${hook}|${h.key}`) ) continue;
     if ( h.once ) list.splice(list.indexOf(h), 1);
     let result;
     try { result = h.fn(...args); }
     catch(err) {
-      console.error(`Battle Flow | ${h.key}'s ${hook} handler failed.`, err);
+      console.error(`By the Books | ${h.key}'s ${hook} handler failed.`, err);
       continue;
     }
     if ( stops && (result === false) ) return false;
@@ -140,8 +196,8 @@ function dispatch(hook, args) {
 
 function register(hook, key, fn, once) {
   const rank = RANK.get(key);
-  if ( rank === undefined ) throw new Error(`Battle Flow | dispatch: "${key}" is not in ORDER — add it (scripts/dispatch.js).`);
-  if ( typeof fn !== "function" ) throw new Error(`Battle Flow | dispatch: ${key}'s ${hook} handler is not a function.`);
+  if ( rank === undefined ) throw new Error(`By the Books | dispatch: "${key}" is not in ORDER — add it (scripts/dispatch.js).`);
+  if ( typeof fn !== "function" ) throw new Error(`By the Books | dispatch: ${key}'s ${hook} handler is not a function.`);
   if ( !handlers.has(hook) ) {
     handlers.set(hook, []);
     Hooks.on(hook, (...args) => dispatch(hook, args));

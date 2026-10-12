@@ -66,7 +66,7 @@ const census = await f.evaluate(async () => {
       preUpdateActor: n("preUpdateActor"), updateActor: n("updateActor"), createToken: n("createToken")
     },
     docs: { actors: game.actors.size, items: game.items.size, messages: game.messages.size, combats: game.combats.size, scenes: game.scenes.size },
-    battleflow: game.modules.get("fvtt-mod-battleflow")?.active ? game.modules.get("fvtt-mod-battleflow").version : "OFF",
+    bythebooks: game.modules.get("fvtt-mod-bythebooks")?.active ? game.modules.get("fvtt-mod-bythebooks").version : "OFF",
     modules: game.modules.filter(m => m.active).length
   };
 }, null);
@@ -82,7 +82,7 @@ const phases = await f.evaluate(async ({ items }) => {
   const data = docs.map(d => d.toObject());
   const many = [];
   while (many.length < items) many.push(...data.slice(0, items - many.length));
-  const actor = await time("Actor.create (npc)", () => Actor.create({ name: "BF timing probe", type: "npc" }));
+  const actor = await time("Actor.create (npc)", () => Actor.create({ name: "BTB timing probe", type: "npc" }));
   await time(`createEmbeddedDocuments ${items} items, one call`, () => actor.createEmbeddedDocuments("Item", many));
   await time("createEmbeddedDocuments 1 item x10 sequential", async () => { for (const d of data.slice(0, 10)) await actor.createEmbeddedDocuments("Item", [d]); });
   await time("actor.update x10 sequential", async () => { for (let i = 1; i <= 10; i++) await actor.update({ "system.attributes.hp.value": i }); });
@@ -110,7 +110,7 @@ const disposeT = Date.now();
 if (values.beside) await disposeSafely(f, "timing"); else await f.dispose();
 const disposeMs = Date.now() - disposeT;
 
-console.log(`\n[timing] ${label} — ${census.self}, GMs connected: ${census.gms.join(", ")}; Battle Flow ${census.battleflow}; ${census.modules} modules active`);
+console.log(`\n[timing] ${label} — ${census.self}, GMs connected: ${census.gms.join(", ")}; By the Books ${census.bythebooks}; ${census.modules} modules active`);
 console.log(`[timing] hooks: ${Object.entries(census.hooks).map(([k, v]) => `${k} ${v}`).join(", ")}`);
 console.log(`[timing] docs: ${Object.entries(census.docs).map(([k, v]) => `${k} ${v}`).join(", ")}`);
 const rows = [["connect (launch + join + ready)", connectMs], ...Object.entries(phases), ["dispose", disposeMs]];

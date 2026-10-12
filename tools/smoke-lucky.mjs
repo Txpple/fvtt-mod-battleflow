@@ -1,6 +1,6 @@
 // Lucky's Advantage smoke suite: the gate's BUY box in the system's own roll dialog, and the
 // `advantage` D20 fold AFTER an initiative rolled with no dialog.
-// Fixtures (tools/fixture-suite.mjs): BF Test Halfling with the Lucky feat, BF Test Attacker as the
+// Fixtures (tools/fixture-suite.mjs): BTB Test Halfling with the Lucky feat, BTB Test Attacker as the
 // target. Settings, Luck Points, status, combat, tokens and messages are all restored.
 import { announcePlan, connectSuite, finish, sectionArg, sectionPlan } from './harness.mjs';
 
@@ -26,7 +26,7 @@ const f = await connectSuite({ tag: 'lucky', watchdogMs: 300_000 });
 announcePlan('lucky', plan, pulled);
 
 const out = await f.evaluate(async ({ sections, titles }) => {
-  const MOD = 'fvtt-mod-battleflow';
+  const MOD = 'fvtt-mod-bythebooks';
   const results = [];
   const log = [];
   const skips = [];
@@ -51,12 +51,12 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   const set = (k, v) => game.settings.set(MOD, k, v);
   const def = k => game.settings.settings.get(`${MOD}.${k}`)?.default;
 
-  const scene = game.scenes.getName('Battle Flow Test Range');
-  const attacker = game.actors.getName('BF Test Attacker');
-  const halfling = game.actors.getName('BF Test Halfling');
-  if (!scene || !attacker || !halfling) return { fatal: 'missing fixture: scene, BF Test Attacker or BF Test Halfling — run tools/fixture-suite.mjs' };
+  const scene = game.scenes.getName('By the Books Test Range');
+  const attacker = game.actors.getName('BTB Test Attacker');
+  const halfling = game.actors.getName('BTB Test Halfling');
+  if (!scene || !attacker || !halfling) return { fatal: 'missing fixture: scene, BTB Test Attacker or BTB Test Halfling — run tools/fixture-suite.mjs' };
   const lucky = () => halfling.items.find(i => (i.name === 'Lucky') && (Number(i.system?.uses?.max) > 0));
-  if (!lucky()) return { fatal: 'BF Test Halfling lacks the Lucky FEAT (with Luck Points) — re-run fixture-suite' };
+  if (!lucky()) return { fatal: 'BTB Test Halfling lacks the Lucky FEAT (with Luck Points) — re-run fixture-suite' };
   const luckLeft = () => Number(lucky()?.system?.uses?.value ?? -1);
   // The pool is the fixture's proficiency: every count reads off it, never a literal.
   const FULL = Number(lucky()?.system?.uses?.max ?? 0);
@@ -94,7 +94,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       if (liveTokens.length) await scene.deleteEmbeddedDocuments('Token', liveTokens);
       game.user.targets.forEach(t => { t.setTarget(false, { releaseOthers: true }); });
       const mine = game.messages.filter(m => (m.timestamp >= suiteStart)
-        && (m.speaker?.alias?.startsWith?.('BF Test') || m.speaker?.alias === 'Battle Flow'
+        && (m.speaker?.alias?.startsWith?.('BTB Test') || m.speaker?.alias === 'By the Books'
           || Object.keys(m.flags?.[MOD] ?? {}).length || m.getFlag('core', 'initiativeRoll')));
       if (mine.length) await ChatMessage.deleteDocuments(mine.map(m => m.id));
     } catch (err) {
@@ -169,7 +169,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     const press = (dlg, mode) => { const b = dlg?.element?.querySelector(`button[data-action="${mode}"]`); b?.click(); return !!b; };
     const lastOf = type => game.messages.contents.filter(m => (m.timestamp >= suiteStart) && (m.type === type)).pop() ?? null;
     const weapon = halfling.items.find(i => (i.type === 'weapon') && i.system.activities?.some?.(a => a.type === 'attack'));
-    if (!weapon) return { fatal: 'BF Test Halfling has no weapon attack' };
+    if (!weapon) return { fatal: 'BTB Test Halfling has no weapon attack' };
     const attackAct = () => halfling.items.get(weapon.id).system.activities.find(a => a.type === 'attack');
     const rescueWindow = text => [...document.querySelectorAll('.application')]
       .find(el => el.querySelector('[data-bf-rescue-row]') && (el.textContent ?? '').includes(text)) ?? null;

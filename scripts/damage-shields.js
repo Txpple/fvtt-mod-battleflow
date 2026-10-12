@@ -1,9 +1,9 @@
 /**
- * Battle Flow — Damage shields: a standing ward on the DEFENDER pays out against the ATTACKER when
+ * By the Books — Damage shields: a standing ward on the DEFENDER pays out against the ATTACKER when
  * a melee attack roll hits — the hit rider mirrored (RULINGS *Damage shields*). The table is
  * decide/registry.js DAMAGE_SHIELDS; membership is the Damage Shields list.
  */
-import { MODULE_ID, TITLE, activeCombatFor, canApplyTo, drivesMomentFor, queueFlagWrite, statContext, whisperNoGM } from "./core.js";
+import { MODULE_ID, readFlag, TITLE, activeCombatFor, canApplyTo, drivesMomentFor, queueFlagWrite, statContext, whisperNoGM } from "./core.js";
 import { ruleHTML } from "./rule-text.js";
 import { lower, itemNamed, activityNamed, activityOfType, resolveUuid } from "./lookup.js";
 import { registerResumable } from "./ui.js";
@@ -48,7 +48,7 @@ function shieldsOn(defender) {
       let source = null;
       let scaling = 0;
       if ( row.mark ) {
-        const mark = effect.getFlag(MODULE_ID, "shield");
+        const mark = readFlag(effect, "shield");
         if ( mark?.key !== key ) continue;
         // live only: a scroll ("Spell Scroll: X") is never listed by name, so it is never marked
         const item = resolveUuid(mark.itemUuid);
@@ -85,8 +85,8 @@ function settledMeleeAttack(message) {
   if ( !isCard(message, CARD.damage) ) return null;
   const attackMessage = resolveAttackMessage(message);
   if ( !attackMessage ) return null;
-  if ( message.getFlag(MODULE_ID, "attackHoldPending") === true ) {
-    const hold = attackMessage.getFlag(MODULE_ID, "hold");
+  if ( readFlag(message, "attackHoldPending") === true ) {
+    const hold = readFlag(attackMessage, "hold");
     if ( !hold || (hold.status === "pending") ) return null;   // the hold still decides
   }
   const activity = messageActivity(attackMessage);
@@ -105,8 +105,8 @@ function consider(message, { resume = false } = {}) {
   if ( !listed().size ) return false;
   if ( judged.has(message.id) ) return false;
   if ( resume ) {
-    if ( message.getFlag(MODULE_ID, "attackHoldPending") !== false ) return false;   // only an ex-held roll resumes here
-    if ( message.getFlag(MODULE_ID, "damageShields")?.judged ) return false;         // …and only once across reloads
+    if ( readFlag(message, "attackHoldPending") !== false ) return false;   // only an ex-held roll resumes here
+    if ( readFlag(message, "damageShields")?.judged ) return false;         // …and only once across reloads
   }
   return !!settledMeleeAttack(message);
 }
@@ -118,7 +118,7 @@ registerResumable("damageShields", {
   drives: () => true,   // per defender, inside: the flow elect for the ward's bearer
   drive: message => {
     const attackMessage = settledMeleeAttack(message);
-    return attackMessage ? settle(message, attackMessage, { wasHeld: message.getFlag(MODULE_ID, "attackHoldPending") === false }) : undefined;
+    return attackMessage ? settle(message, attackMessage, { wasHeld: readFlag(message, "attackHoldPending") === false }) : undefined;
   }
 });
 
@@ -246,12 +246,12 @@ listen("dnd5e.postUseActivity", "damage-shields", (activity, _usageConfig, resul
 });
 
 async function writeMark(actor, item, row, { spellLevel, scaling, message }) {
-  const stale = actor.effects.filter(e => e.getFlag(MODULE_ID, "shield")?.key === row.key);
+  const stale = actor.effects.filter(e => readFlag(e, "shield")?.key === row.key);
   if ( stale.length ) await actor.deleteEmbeddedDocuments("ActiveEffect", stale.map(e => e.id));
   const seconds = durationSeconds(item.system?.duration);
   const effect = await ActiveEffect.implementation.create({
     name: item.name, img: item.img ?? "icons/svg/ice-aura.svg",
-    description: `${await ruleHTML(row.rule)}<p>Written by Battle Flow when ${esc(item.name)} was cast${spellLevel ? ` at level ${spellLevel}` : ""}; it strikes back at every melee hit while the Temporary Hit Points last, and ends with them.</p>`,
+    description: `${await ruleHTML(row.rule)}<p>Written by By the Books when ${esc(item.name)} was cast${spellLevel ? ` at level ${spellLevel}` : ""}; it strikes back at every melee hit while the Temporary Hit Points last, and ends with them.</p>`,
     origin: item.uuid, disabled: false, transfer: false,
     ...(seconds ? { duration: { seconds } } : {}),
     flags: { [MODULE_ID]: { shield: { key: row.key, itemUuid: item.uuid, spellLevel, scaling } } }
@@ -268,7 +268,7 @@ listen("updateActor", "damage-shields", (actor, changes) => {
     if ( !(actor instanceof Actor) ) return;
     if ( foundry.utils.getProperty(changes, "system.attributes.hp.temp") === undefined ) return;
     if ( Number(actor.system?.attributes?.hp?.temp ?? 0) > 0 ) return;
-    const marks = actor.effects.filter(e => { const m = e.getFlag(MODULE_ID, "shield"); return m && DAMAGE_SHIELDS[m.key]?.while === "tempHP"; });
+    const marks = actor.effects.filter(e => { const m = readFlag(e, "shield"); return m && DAMAGE_SHIELDS[m.key]?.while === "tempHP"; });
     if ( !marks.length || !drivesMomentFor(actor.uuid) || !canApplyTo(actor) ) return;
     // One ending per bearer at a time: two deletes of the same chip in one tick make the second throw.
     if ( endings.has(actor.uuid) ) return;
@@ -286,7 +286,7 @@ async function endMarks(actor, marks) {
   if ( !live.length ) return;
   await actor.deleteEmbeddedDocuments("ActiveEffect", live);
   for ( const e of marks ) {
-    const key = e.getFlag(MODULE_ID, "shield")?.key ?? e.name;
+    const key = readFlag(e, "shield")?.key ?? e.name;
     await ChatMessage.create({ speaker: ChatMessage.getSpeaker({ actor }),
       content: bfCard({ img: e.img, eyebrow: "Damage shield", tone: "neutral",
         title: `${key} ends — ${actor.name} has no Temporary Hit Points left`,
@@ -298,7 +298,7 @@ async function endMarks(actor, marks) {
 /* --- the cards say it (R5) -------------------------------------------------------------------- */
 
 listen("dnd5e.renderChatMessage", "damage-shields", (message, html) => {
-  const ds = message.getFlag(MODULE_ID, "damageShield");
+  const ds = readFlag(message, "damageShield");
   if ( ds ) {
     const line = document.createElement("div");
     line.innerHTML = bfCard({
@@ -311,7 +311,7 @@ listen("dnd5e.renderChatMessage", "damage-shields", (message, html) => {
     });
     html.querySelector(SURFACES.messageContent)?.appendChild(line);
   }
-  const mark = message.getFlag(MODULE_ID, "shieldMark");
+  const mark = readFlag(message, "shieldMark");
   if ( mark ) {
     const line = document.createElement("div");
     line.innerHTML = bfCard({

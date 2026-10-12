@@ -1,6 +1,6 @@
 // @ts-check
 /**
- * Battle Flow — DECISION (ARCHITECTURE.md §2): WHAT PLAYERS SEE on the public cards. The two settings
+ * By the Books — DECISION (ARCHITECTURE.md §2): WHAT PLAYERS SEE on the public cards. The two settings
  * that own dnd5e's Visibility menu (issue #4, ARCHITECTURE §8). Pure: a choice in, the dnd5e keys out.
  */
 

@@ -23,7 +23,7 @@ export const DEPTH = { core: 0, decision: 1, registry: 2, spine: 3, services: 4,
 
 export const LAYER_OF = {
   // the one esmodules entry — imports its siblings in a deliberate order (§7)
-  "battleflow.js": "entry",
+  "bythebooks.js": "entry",
 
   // MACHINES — one feature each: a trigger, its views, its resolver
   // hold/: one machine as a directory, a DAG, index.js the only face (GROUPS below).
@@ -103,6 +103,7 @@ export const LAYER_OF = {
   "polish.js": "machines",
   "resources.js": "machines",
   "stats.js": "machines",
+  "migrate.js": "machines",        // the rename's migration (3.0.0): the legacy scope moved, the old behaviours retyped, the settings copied; the coexistence gate's question
 
   // SERVICES — the consequence chokepoints every machine routes through
   "area-ask.js": "services",   // the ask at the area — one question two machines route through (metamagic, saves)
@@ -173,7 +174,8 @@ export const LAYER_OF = {
   "decide/moments.js": "decision",   // the moment records — what a resolve IS, as data
   "decide/sequence.js": "decision",  // the hit's sequence — a queued offer waits for the damage and the mastery's decision
   "decide/effect-view.js": "decision", // the effect view's rows — which effects are listed, how each is toned
-  "decide/card.js": "decision",        // THE CARD SEAM — what kind of card, whose, from which, off the typed message
+  "decide/card.js": "decision",
+  "decide/migrate.js": "decision",     // the rename's migration as data: a document's scope move, a behaviour's retype, the settings to copy, the summary        // THE CARD SEAM — what kind of card, whose, from which, off the typed message
 
   // CORE — the leaves: ids, settings accessor, the elect, the flag serializer
   "core.js": "core",

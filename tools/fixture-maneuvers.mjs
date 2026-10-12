@@ -3,14 +3,14 @@
 // nothing. `--fix` replaces a mismatched item with the pack's copy (same name, the pool re-resolved
 // by identifier — hit-menu.js reads all three shapes).
 //
-//   node tools/fixture-maneuvers.mjs [--actor "BF Test Fighter"] [--fix]
+//   node tools/fixture-maneuvers.mjs [--actor "BTB Test Fighter"] [--fix]
 // ⚠ Disconnect the MCP bridge first (the sole-GM preflight). Read-only without --fix.
 import { connectSuite, disposeSafely, loadEnv } from "./harness.mjs";
 
 const args = process.argv.slice(2);
 const fix = args.includes("--fix");
 const at = args.indexOf("--actor");
-const actorName = at >= 0 ? args[at + 1] : "BF Test Fighter";
+const actorName = at >= 0 ? args[at + 1] : "BTB Test Fighter";
 const NAMES = ["Trip Attack", "Goading Attack", "Menacing Attack", "Pushing Attack", "Disarming Attack",
   "Distracting Strike", "Maneuvering Attack", "Sweeping Attack", "Precision Attack", "Riposte", "Rally"];
 

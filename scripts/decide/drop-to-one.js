@@ -1,6 +1,6 @@
 // @ts-check
 /**
- * Battle Flow — DECISION layer (ARCHITECTURE.md §2): the drop-to-1 table's SAVE facet (Undead
+ * By the Books — DECISION layer (ARCHITECTURE.md §2): the drop-to-1 table's SAVE facet (Undead
  * Fortitude — the DC from the damage, the exemptions read off the damage card) and the words. Pure:
  * no `game`, no imports.
  */

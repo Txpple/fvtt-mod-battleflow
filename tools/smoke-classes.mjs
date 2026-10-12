@@ -2,7 +2,7 @@
 // §A3 — THE BYSTANDER'S BEND on a hit (RULINGS *The full release — the order*, Q2 option A): Cutting Words and
 // Restore Balance asked for someone else's hit only when the bend can change the verdict (the margin gate);
 // the quiet road on the card (Cutting Words' die off the damage); the reach; "Not this combat".
-// Fixtures: BF Test Attacker swings at BF Test Halfling; BF Test Bard is lent Cutting Words, BF Test Sorcerer
+// Fixtures: BTB Test Attacker swings at BTB Test Halfling; BTB Test Bard is lent Cutting Words, BTB Test Sorcerer
 // Restore Balance (the pack's own items). Everything written is restored.
 // §A1 (13–27) — the band-A rows on tables that exist (RULINGS *The PHB classes — A1*): the A3 lends leave first;
 // each section lends its class features (there is no Barbarian/Warlock/Monk/Paladin/Druid fixture) and takes them back.
@@ -65,33 +65,33 @@ export const COVERS = [
 ];
 
 const SECTIONS = {
-  1: 'Cutting Words, asked: a hit a d8 can turn (margin 2) opens the Bard\'s popup; Answer rolls the d8 (5), the hit becomes a MISS, the card says "Cutting Words (BF Test Bard) −5", a Bardic Inspiration spent',
+  1: 'Cutting Words, asked: a hit a d8 can turn (margin 2) opens the Bard\'s popup; Answer rolls the d8 (5), the hit becomes a MISS, the card says "Cutting Words (BTB Test Bard) −5", a Bardic Inspiration spent',
   2: 'the margin gate: a hit by 9 asks nobody — no hold, no popup, the damage lands',
   3: 'the quiet road: the Halfling\'s Lucky holds the hit, Cutting Words rides QUIET on the card; its Answer takes the d8 (3) off the damage — the hit stands, 3 less lands',
   4: 'Restore Balance: an Advantage hit (18 and 9) whose first die misses opens the Sorcerer\'s popup; Answer stands the 9 — a MISS; Cutting Words (margin 8) stays quiet',
   5: 'the reach: the Bard 65 ft from the attacker is not asked',
   6: '"Not this combat": in a running combat the popup\'s third button mutes Cutting Words on the Bard (an effect), the hit lands; the next hit asks nobody; the combat\'s end sweeps the mute',
-  7: 'Guided Strike for an ally: BF Test PC Attacker misses by 7 within 30 ft of the Cleric — the Cleric\'s popup "+10 · a Reaction"; Answer turns the miss into a HIT and the damage rolls and lands',
+  7: 'Guided Strike for an ally: BTB Test PC Attacker misses by 7 within 30 ft of the Cleric — the Cleric\'s popup "+10 · a Reaction"; Answer turns the miss into a HIT and the damage rolls and lands',
   8: 'Guided Strike on the Cleric\'s own miss: its own popup, "No Reaction"; the +10 turns it, the guard entry marked self',
   9: 'Restore Balance on a Disadvantage miss (18 then 3): the Sorcerer\'s popup beside the Cleric\'s; Answer stands the 18 — a HIT, the Cleric\'s popup closes',
   10: 'Restore Balance on a DEMANDED save: the Attacker\'s Sacred Flame, the Halfling\'s Dexterity save rolled with Disadvantage failing on its lower die — the verdict waits; the Sorcerer\'s popup; Answer stands the first die: SAVED, the roll\'s card says so',
   11: 'Cutting Words on a hostile\'s CHECK: the Attacker\'s Athletics; the Bard\'s popup says no DC is known; Answer takes the d8 (5) off — the card states the arithmetic and "ask your DM"',
   12: 'a check everyone passes: an Advantage Athletics asks the Bard and the Sorcerer; both pass, the offer resolves as a pass, the card says nothing',
-  13: 'Glorious Defense: the Attacker hits the Halfling 10 ft from the Cleric (lent Glorious Defense) by 0 — the Cleric\'s popup "−<Cha mod, min 1>"; Answer turns it to a MISS, a use spent; the Strike popup "Strike BF Test Attacker with <weapon>?" drives one weapon attack at the Attacker',
+  13: 'Glorious Defense: the Attacker hits the Halfling 10 ft from the Cleric (lent Glorious Defense) by 0 — the Cleric\'s popup "−<Cha mod, min 1>"; Answer turns it to a MISS, a use spent; the Strike popup "Strike BTB Test Attacker with <weapon>?" drives one weapon attack at the Attacker',
   14: 'Combat Inspiration — Defense: in a combat, the Halfling holding the Bard\'s Inspired die (the Bard lent Combat Inspiration) is hit by 2 — ITS OWN popup "−<the Bard\'s die> · a Reaction · the Inspired die", nobody else asked; Answer rolls the die: a MISS, the Inspired effect deleted, the Halfling\'s Reaction spent',
-  15: 'Combat Inspiration — Offense: an Inspired ally (BF Test PC Attacker, the Bard\'s die) hits — the offer\'s UNTICKED row "Combat Inspiration — <die>"; ticked, the die rides and the Inspired effect is spent; a driven roll (no pick) and an unticked offer ride nothing',
+  15: 'Combat Inspiration — Offense: an Inspired ally (BTB Test PC Attacker, the Bard\'s die) hits — the offer\'s UNTICKED row "Combat Inspiration — <die>"; ticked, the die rides and the Inspired effect is spent; a driven roll (no pick) and an unticked offer ride nothing',
   16: 'Deflect Attacks (lent to the Halfling, a Monk 3): a slashing/piercing/bludgeoning hit opens its popup; the answer rolls 1d10 + Dex + Monk level in the open, the damage lands at 0 and the damage card offers "Redirect" — used at the Attacker; a fire hit asks nothing; with Deflect Energy it asks',
   17: 'Frenzy: raging AND Reckless, the first hit of the turn — the offer\'s TICKED row "Frenzy — Nd6 <type>" (N the Rage Damage), it rides and writes the chit; the second hit that turn shows none; Rage without Reckless, none',
   18: 'Hunter\'s Prey: the first hit asks "which option did you take?"; Colossus Slayer is kept on the feature, its 1d8 rides a damaged target and not an undamaged one; the card\'s Change forgets it; asked again, Horde Breaker with the Cleric 5 ft from the target posts Hew\'s reminder "Horde Breaker — …"',
-  19: 'War Priest: a weapon attack posts Hew\'s reminder "War Priest — BF Test Cleric can attack again … N of M uses left" (and pops, OK only); no uses left, no reminder',
+  19: 'War Priest: a weapon attack posts Hew\'s reminder "War Priest — BTB Test Cleric can attack again … N of M uses left" (and pops, OK only); no uses left, no reminder',
   20: 'Repelling Blast: each Eldritch Blast beam that hits — the offer\'s ticked no-dice row and a card line "Repelling Blast — push it up to 10 feet … (move the token)"; a Huge target, none; enchanted onto another cantrip, Eldritch Blast says nothing and that cantrip does',
-  21: 'Dark One\'s Blessing (lent to the Cleric with a Warlock class, 3): the Cleric drops the Victim → "Dark One\'s Blessing — BF Test Cleric gains N Temporary Hit Points" (N = max(1, warlock level + Cha)), receipted, N temp HP; the PC Attacker\'s kill 5 ft from the Cleric pays too; a kill 55 ft away pays nothing',
+  21: 'Dark One\'s Blessing (lent to the Cleric with a Warlock class, 3): the Cleric drops the Victim → "Dark One\'s Blessing — BTB Test Cleric gains N Temporary Hit Points" (N = max(1, warlock level + Cha)), receipted, N temp HP; the PC Attacker\'s kill 5 ft from the Cleric pays too; a kill 55 ft away pays nothing',
   22: 'Starry Form: "Consume Wild Shape" asks "Which constellation glimmers on you?" (Archer/Chalice/Dragon); Dragon lands Dragon Form, Archer and Chalice do not; Chalice keeps a form chip; then Cure Wounds at the PC Attacker offers "Chalice — heal one more within 30 ft" with a button per creature; the Halfling\'s button uses the Chalice heal on it (HP up)',
   23: 'Sacred Weapon: the use lights the Cleric\'s token 20 ft Bright / 40 ft Dim ("while the weapon\'s enchantment stands"); the weapon\'s enchantment deleted puts the light out (the token back to its prior light)',
-  24: 'the Rage reminder: in a combat BF Test PC Attacker (lent Rage) enters Rage on its turn — that turn is never reminded; a later turn with no attack roll and no save forced ends with "Rage — it ends now unless you extended it", nothing removed; a turn with an attack roll at an enemy ends with no card',
+  24: 'the Rage reminder: in a combat BTB Test PC Attacker (lent Rage) enters Rage on its turn — that turn is never reminded; a later turn with no attack roll and no save forced ends with "Rage — it ends now unless you extended it", nothing removed; a turn with an attack roll at an enemy ends with no card',
   25: 'Rage of the Wilds: with Rage and Rage of the Wilds lent, the Rage\'s card asks "Rage of the Wilds — Bear, Eagle or Wolf?" and the Rage lands at once; Wolf uses the feature\'s own Wolf activity ("Rage of the Wolf" on the barbarian); the enemy within 5 ft wears the quiet ring\'s member copy; the Cleric attacking it sees Advantage from "Rage of the Wolf" in the gate, the barbarian\'s own attack does not',
   26: 'Tides of Chaos: an attack, a save and a check dialog carry the buy box "Tides of Chaos — 1 use · 1 left"; ticked and pressed, the save rolls at Advantage, the use spent and recorded; with none left the box is greyed "no uses left", no tick',
-  27: 'Commanding Presence: BF Test Fighter\'s Persuasion, Intimidation and Performance checks offer the superiority die (the scoped tactical fold); Athletics does not; accepted on Persuasion, a die spent and the total patched',
+  27: 'Commanding Presence: BTB Test Fighter\'s Persuasion, Intimidation and Performance checks offer the superiority die (the scoped tactical fold); Athletics does not; accepted on Persuasion, a die spent and the total patched',
   28: 'Stunning Strike and Hand of Harm (the Monk\'s Focus group): a Longsword hit offers neither; an Unarmed Strike both; Stunning Strike alone costs ONE point (its save\'s use), Stunned on a failure, Slowed on a success (and a Legendary Resistance flip of the failure swaps Stunned for Slowed); both ride one hit; in a combat the second hit greys Stunning Strike',
   29: 'Open Hand Technique: out of combat every Unarmed Strike offers Addle / Push / Topple; in a combat only after Flurry of Blows (its turn chit); one pick; Topple\'s failed save lands Prone; a Longsword hit none',
   30: 'Psionic Power: Psionic Strike\'s force die on the menu (a die spent); Protective Field asks the Psi Warrior when an ally within 30 ft is hit ("Reduce"), the die + Int off; none left, never asked',
@@ -99,7 +99,7 @@ const SECTIONS = {
   32: 'Potent Cantrip (lent to the Attacker): the Halfling SAVES against its Sacred Flame — "saved — half damage (Potent Cantrip)", half the roll lands; taken back, a saved Sacred Flame lands nothing',
   33: 'Disciple of Life (the Cleric): Cure Wounds at level 2 heals "+4[Disciple of Life]" more — the card says "Disciple of Life — +4 healing", the healing lands with it; at level 1 +3; cast innately, nothing',
   34: 'Psychic Spells (lent to the Sorcerer): Fire Bolt\'s window greys it "not a Warlock spell"; a Warlock\'s Chill Touch shows "Psychic Spells · free" beside the Metamagic rows, its tick greys none of them; cast ticked, the card says "the damage is psychic" and the damage roll is psychic; cast unticked, necrotic',
-  35: 'Potent Cantrip on a MISS (BF Test PC Attacker\'s Fire Bolt at the Victim, AC 30): the damage rolls and half lands — "missed — Potent Cantrip, half damage"; without the feature nothing rolls; with Heroic Inspiration the rescue window opens first and nothing rolls until Pass — then half lands; the Heroic reroll turning it lands the FULL roll, never a share',
+  35: 'Potent Cantrip on a MISS (BTB Test PC Attacker\'s Fire Bolt at the Victim, AC 30): the damage rolls and half lands — "missed — Potent Cantrip, half damage"; without the feature nothing rolls; with Heroic Inspiration the rescue window opens first and nothing rolls until Pass — then half lands; the Heroic reroll turning it lands the FULL roll, never a share',
   36: 'Arcane Ward (lent to the Sorcerer, 12 HP): the first Abjuration cast from a slot (Mage Armor) creates it — "Arcane Ward — created, 12 hit points (of 12)"; 5 damage applied straight to the actor (the card buttons\' road) lands on the ward, HP untouched; a hit through the module with the ward at 2: "Arcane Ward took 2 — N landed", the revert gives both back; a level-2 cast refills +4; at 0 it takes nothing',
   37: 'the Initiative grants: Persistent Rage (lent to the PC Attacker, Rage 1 of 3) regains every Rage use at Initiative, automatically — "Persistent Rage — Rage uses regained (3 of 3)"; Uncanny Metabolism (lent to the Halfling) asks, Yes lands Focus 3 of 3 and 1d8 + 5 (9) Hit Points, its use spent; rerolled with both spent, nothing; No keeps the use; with Persistent Rage a quiet raging turn is never reminded',
   38: 'Vitality of the Tree (lent to the PC Attacker): the Rage used grants Vitality Surge (7 temp HP); a raging turn start asks "Who gets 7 Temporary Hit Points?" (Life-Giving Force, 2d6) — creatures on its side within 10 ft; OK gives the one ticked; not raging, nothing asked',
@@ -108,18 +108,18 @@ const SECTIONS = {
   41: 'Portent (lent to the Sorcerer): the Long Rest keeps 17 and 3 on a chip; in its own save dialog "use the 17" ticked makes the d20 the 17; a failed save of an ally that a stored 18 turns asks the diviner and Answer SAVES it; a critical hit by an enemy asks "replace the 20 with the 2" and makes it a MISS; an ordinary hit asks nobody',
   // B1
   42: 'Countercharm (lent to the Bard): the Halfling fails a demanded save against Charm Person (Charmed) within 30 ft — the bard\'s popup "Countercharm — the Halfling\'s saving throw"; Answer: the d20 is rerolled with Advantage off the Halfling, the Reaction spent, the save retaken and SAVED; a failed save against Hold Person (Paralyzed) asks nobody',
-  43: 'Eldritch Strike (B2, lent to the Attacker): a weapon hit offers the rider row ticked and lands "Struck" on the Victim for the vex window; the Victim\'s save against the striker\'s Hold Person reads "Struck — against BF Test Attacker\'s spell", Net Disadvantage, and the save SPENDS it',
+  43: 'Eldritch Strike (B2, lent to the Attacker): a weapon hit offers the rider row ticked and lands "Struck" on the Victim for the vex window; the Victim\'s save against the striker\'s Hold Person reads "Struck — against BTB Test Attacker\'s spell", Net Disadvantage, and the save SPENDS it',
   44: 'Beguiling Twist (B2, lent to the Sorcerer): the Halfling SUCCEEDS on a demanded save against Charm Person within 120 ft — the sorcerer\'s popup "it succeeded, target one other creature"; Answer with no target is refused; the attacker targeted, Answer spends the Reaction and demands a Wisdom save of the attacker on the twist\'s own card (twistFor), the Halfling\'s SAVED entry standing; the attacker fails: the word popup "Charmed or Frightened?", Charmed lands for 10 rounds',
   45: 'Beguiling Defenses (B2, lent to the Sorcerer, 1 use): the attacker hits the sorcerer — the hold and the popup; Cast halves the damage on the receipt, spends the item\'s use and the Reaction, and demands a Wisdom save of the attacker on the Beguiling Reaction\'s card with the failDamage rider; the attacker fails: psychic damage equal to the damage taken, receipted on that card',
   46: 'Brutal Strike (B3, lent to the PC Attacker with Improved, a Reckless effect on): the attack dialog lists Reckless and the box "Brutal Strike — forgo the Advantage"; ticked, "Reckless — forgone", Net Normal; the roll\'s record carries forgo; the damage offer\'s group Brutal Strike (four rows, 1d10 · free); Hamstring Blow rides the 1d10 and lands Hamstrung; a hit with no dialog offers no group',
-  47: 'Studied Attacks (B3, lent to the Attacker): a MISS at the Halfling writes the chip "Studied Attacks — vs BF Test Halfling" against it; the next attack\'s gate at the Halfling reads it (Net Advantage), at the Victim nothing; the attack at the Halfling spends it (the chipSpend record)',
-  48: 'Relentless (B3, lent to BF Test Fighter with no Superiority Dice left): a hit-menu maneuver still offered at "1d8 Superiority Die"; picked, the 1d8 rides, the record says Relentless stood in, nothing spent, the pool still 0; the card line',
+  47: 'Studied Attacks (B3, lent to the Attacker): a MISS at the Halfling writes the chip "Studied Attacks — vs BTB Test Halfling" against it; the next attack\'s gate at the Halfling reads it (Net Advantage), at the Victim nothing; the attack at the Halfling spends it (the chipSpend record)',
+  48: 'Relentless (B3, lent to BTB Test Fighter with no Superiority Dice left): a hit-menu maneuver still offered at "1d8 Superiority Die"; picked, the 1d8 rides, the record says Relentless stood in, nothing spent, the pool still 0; the card line',
   49: 'Tactical Master (B3, NATIVE — lent to the PC Attacker): the weapon\'s masteryOptions read Push, Sap and Slow beside its own (dnd5e 6 fills the attack dialog\'s Mastery select); rolled with mastery "push", the attack message carries push and the module\'s Push ask follows',
   // B4
   50: 'the spell-damage bonuses (B4): Potent Spellcasting +Wis on a cleric cantrip; Radiant Soul +Cha on a radiant roll once per turn; Empowered Evocation +Int and Elemental Affinity (Fire) +Cha on Fire Bolt; Ray of Frost takes Empowered alone; the faces',
   51: 'Bend Luck (B4, lent to the Sorcerer with Font of Magic): a foe\'s hit on the Halfling by 2 asks "−1d4" (Answer: a MISS, a point spent); a friend\'s miss by 3 asks "+1d4" (Answer: a HIT, another point)',
   52: 'Cosmic Omen (B4, lent to the Sorcerer): the Long Rest\'s d6 kept as "Cosmic Omen — Weal (4)"; a friend\'s miss asks "+1d6" (Weal (Even) the activity, a use spent); the face set odd, a foe\'s hit asks "−1d6" (Woe (Odd))',
-  53: 'Dark One\'s Own Luck (B4, lent to BF Test Fighter): an Athletics check offers the d10 (accepted: +7, a use spent, no refund line); a save offers it too; Homing Strikes (Soul Blades) is not offered on a Longsword miss',
+  53: 'Dark One\'s Own Luck (B4, lent to BTB Test Fighter): an Athletics check offers the d10 (accepted: +7, a use spent, no refund line); a save offers it too; Homing Strikes (Soul Blades) is not offered on a Longsword miss',
   54: 'Tandem Footwork (B4, lent to the Bard): the bard\'s Initiative asks "give 1d8 to allies within 30 ft?"; Yes rolls once (5): the bard and the Halfling +5, the foe untouched, the unrolled Sorcerer noted; it rolls later and lands +5',
   55: 'the turn grants (B4, lent to the PC Attacker): Heroic Warrior writes Heroic Inspiration at the turn start; Guarded Mind asks to end Frightened (a Psionic die spent, the condition gone); Self-Restoration asks at the turn end to end Poisoned (free)',
   56: 'Physician\'s Touch (B4): Hand of Harm\'s ride also lands "Poisoned (Hand of Harm)" on the Victim; Hand of Healing at a Blinded Halfling asks to end Blinded — gone',
@@ -154,7 +154,7 @@ const SECTIONS = {
   84: 'Relentless Hunter (C1, the Sorcerer concentrating on Hunter\'s Mark): damage posts "no save for Hunter\'s Mark", no Concentration ask',
   85: 'Hurl Through Hell (C1, the PC Attacker a Warlock 14): the hit menu\'s group; ticked, the Charisma save demanded, the use spent',
   86: 'Improved Blessed Strikes (C1, the Cleric): a cleric cantrip\'s damage lands — "N Temporary Hit Points for another creature"; OK gives the pick',
-  87: 'Battle Magic (C1, the Bard): a spell cast as an action posts "Battle Magic — BF Test Bard can attack again"',
+  87: 'Battle Magic (C1, the Bard): a spell cast as an action posts "Battle Magic — BTB Test Bard can attack again"',
   88: 'Leading Evasion (C1, the Bard 5 ft from the Halfling): the Halfling fails a half-on-save Dexterity save and takes HALF — the bard\'s Evasion shared',
   89: 'Unbreakable Majesty (C1, the Bard in its Majestic Presence): the Attacker\'s hit rolls its Charisma save inside the hold; a failure — the attack misses instead; the second hit that turn is not asked',
   90: 'Oceanic Gift (C1, the Cleric a Sea Druid 14, Stormborn on the Halfling): the ring stands around the Halfling with the druid as its source; the druid\'s turn start asks the pick; the pick demands the druid\'s save',
@@ -203,7 +203,7 @@ const f = await connectSuite({ tag: 'classes', watchdogMs: 1_500_000 });
 announcePlan('classes', plan, pulled);
 
 const out = await f.evaluate(async ({ sections, titles }) => {
-  const MOD = 'fvtt-mod-battleflow';
+  const MOD = 'fvtt-mod-bythebooks';
   const results = [];
   const log = [];
   const skips = [];
@@ -221,7 +221,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
 
   const modDoc = game.modules.get(MOD);
   if (!modDoc?.active) return { fatal: `module active=${modDoc?.active}` };
-  const { INTERRUPT_ROLLS } = await import('/modules/fvtt-mod-battleflow/scripts/decide/registry.js');
+  const { INTERRUPT_ROLLS } = await import('/modules/fvtt-mod-bythebooks/scripts/decide/registry.js');
   if (!INTERRUPT_ROLLS['Cutting Words']) return { fatal: 'Cutting Words is not in the loaded code — OLD code (deploy --local, reload the box)' };
 
   const SETTING_KEYS = ['autoDamage', 'autoApply', 'playerRollDamage', 'damageTimer', 'dramaticBeat', 'requireTarget',
@@ -230,15 +230,15 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   const prior = Object.fromEntries(SETTING_KEYS.map(k => [k, game.settings.get(MOD, k)]));
   const set = (k, v) => game.settings.set(MOD, k, v);
 
-  const scene = game.scenes.getName('Battle Flow Test Range');
-  const attacker = game.actors.getName('BF Test Attacker');
-  const halfling = game.actors.getName('BF Test Halfling');
-  const bard = game.actors.getName('BF Test Bard');
-  const sorcerer = game.actors.getName('BF Test Sorcerer');
-  const cleric = game.actors.getName('BF Test Cleric');
-  const pcAttacker = game.actors.getName('BF Test PC Attacker');
-  const victim = game.actors.getName('BF Test Victim');
-  if (!scene || !attacker || !halfling || !bard || !sorcerer || !cleric || !pcAttacker || !victim) return { fatal: 'missing fixture: the range, BF Test Attacker, Halfling, Bard, Sorcerer, Cleric, PC Attacker or Victim — run tools/fixture-suite.mjs' };
+  const scene = game.scenes.getName('By the Books Test Range');
+  const attacker = game.actors.getName('BTB Test Attacker');
+  const halfling = game.actors.getName('BTB Test Halfling');
+  const bard = game.actors.getName('BTB Test Bard');
+  const sorcerer = game.actors.getName('BTB Test Sorcerer');
+  const cleric = game.actors.getName('BTB Test Cleric');
+  const pcAttacker = game.actors.getName('BTB Test PC Attacker');
+  const victim = game.actors.getName('BTB Test Victim');
+  if (!scene || !attacker || !halfling || !bard || !sorcerer || !cleric || !pcAttacker || !victim) return { fatal: 'missing fixture: the range, BTB Test Attacker, Halfling, Bard, Sorcerer, Cleric, PC Attacker or Victim — run tools/fixture-suite.mjs' };
   const divinity = () => cleric.items.find(i => (i.name === 'Channel Divinity') && (Number(i.system?.uses?.max) > 0));
   const divinitySpentBefore = Number(divinity()?.system?.uses?.spent ?? 0);
   const lucky = () => halfling.items.find(i => (i.name === 'Lucky') && (Number(i.system?.uses?.max) > 0));
@@ -306,7 +306,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       for (const [actorId, data] of Object.entries(priorActor)) await game.actors.get(actorId)?.update(data);
       game.user.targets.forEach(t => { t.setTarget(false, { releaseOthers: true }); });
       const mine = game.messages.filter(m => (m.timestamp >= suiteStart)
-        && (m.speaker?.alias?.startsWith?.('BF Test') || m.speaker?.alias === 'Battle Flow'
+        && (m.speaker?.alias?.startsWith?.('BTB Test') || m.speaker?.alias === 'By the Books'
           || Object.keys(m.flags?.[MOD] ?? {}).length));
       if (mine.length) await ChatMessage.deleteDocuments(mine.map(m => m.id));
     } catch (err) {
@@ -351,7 +351,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     };
     await lend(bard, 'Cutting Words');
     await lend(cleric, 'Guided Strike');
-    // BF Test Cleric carries no Channel Divinity: the pack's, with two uses (the pool Guided Strike spends).
+    // BTB Test Cleric carries no Channel Divinity: the pack's, with two uses (the pool Guided Strike spends).
     if (!divinity()) {
       const cd = await lend(cleric, 'Channel Divinity');
       await cd.update({ 'system.uses.max': '2', 'system.uses.spent': 0 });
@@ -392,7 +392,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     const cardEl = id => document.querySelector(`.message[data-message-id="${id}"]`);
     const cardText = id => textOf(cardEl(id));
     const weapon = attacker.items.find(i => (i.type === 'weapon') && i.system.activities?.some?.(a => a.type === 'attack'));
-    if (!weapon) return { fatal: 'BF Test Attacker has no weapon attack' };
+    if (!weapon) return { fatal: 'BTB Test Attacker has no weapon attack' };
     const act = () => attacker.items.get(weapon.id).system.activities.find(a => a.type === 'attack');
     faces([[10, 20]]);
     const probe = await act().rollAttack({}, { configure: false }, { create: false });
@@ -447,7 +447,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           && (t?.bent?.how === 'die') && (t?.bent?.add === -5),
         JSON.stringify({ answer: t?.answer, verdict: t?.verdict, rescue: t?.rescue, by: t?.guardedBy?.name, bent: t?.bent }));
       await sleep(800);
-      ok('1d. the attack card: "Cutting Words (BF Test Bard) −5 … MISS"', /Cutting Words \(BF Test Bard\) −5.*MISS/.test(cardText(msg?.id)), cardText(msg?.id).slice(0, 240));
+      ok('1d. the attack card: "Cutting Words (BTB Test Bard) −5 … MISS"', /Cutting Words \(BTB Test Bard\) −5.*MISS/.test(cardText(msg?.id)), cardText(msg?.id).slice(0, 240));
       ok('1e. one Bardic Inspiration spent; no damage landed; the popup closed', (spentBI() === 1) && (hp() === 400) && !bystanderPopup(),
         `spent=${spentBI()} hp=${hp()} pop=${!!bystanderPopup()}`);
     }
@@ -616,7 +616,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           && (Number(divinity()?.system?.uses?.spent ?? 0) === 1),
         JSON.stringify({ verdict: t?.verdict, rescue: t?.rescue, bent: t?.bent?.add, hp: vhp(), cd: divinity()?.system?.uses?.spent }));
       await sleep(600);
-      ok('7c. the attack card: "Guided Strike (BF Test Cleric) +10 … HIT"', /Guided Strike \(BF Test Cleric\) \+10.*HIT/.test(cardText(msg?.id)), cardText(msg?.id).slice(0, 240));
+      ok('7c. the attack card: "Guided Strike (BTB Test Cleric) +10 … HIT"', /Guided Strike \(BTB Test Cleric\) \+10.*HIT/.test(cardText(msg?.id)), cardText(msg?.id).slice(0, 240));
     }
 
     // ---- 8. Guided Strike on the Cleric's own miss
@@ -684,14 +684,14 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         const rollMsg = rolls?.[0]?.parent ?? null;
         const pop = await waitFor(() => rollPopup(/Restore Balance/), 8000);
         const entry0 = card?.getFlag(MOD, 'saves')?.targets?.find(x => x.uuid === halfling.uuid);
-        ok('10a. the failed save is WITHHELD while the Sorcerer is asked: "Restore Balance — BF Test Halfling\'s saving throw", the first d20 named',
+        ok('10a. the failed save is WITHHELD while the Sorcerer is asked: "Restore Balance — BTB Test Halfling\'s saving throw", the first d20 named',
           !!pop && new RegExp(`first d20 \\(${hi}\\)`).test(textOf(pop?.element)) && (rollFlag(rollMsg)?.status === 'pending') && !entry0?.done,
           `dc=${dc} mod=${smod} faces=${hi},${lo} pop=${textOf(pop?.element).slice(0, 200)} flag=${rollFlag(rollMsg)?.status} done=${entry0?.done}`);
         pop?.element?.querySelector('button[data-action="answer"]')?.click();
         const entry = await waitFor(() => { const e = card?.getFlag(MOD, 'saves')?.targets?.find(x => x.uuid === halfling.uuid); return e?.done ? e : null; }, 10000);
         await sleep(600);
         ok('10b. the first die stands: SAVED at the bent total; the roll\'s card names Restore Balance',
-          (entry?.outcome === 'saved') && (entry?.total === hi + smod) && /Restore Balance \(BF Test Sorcerer\)/.test(cardText(rollMsg?.id)),
+          (entry?.outcome === 'saved') && (entry?.total === hi + smod) && /Restore Balance \(BTB Test Sorcerer\)/.test(cardText(rollMsg?.id)),
           `entry=${JSON.stringify({ outcome: entry?.outcome, total: entry?.total })} card=${cardText(rollMsg?.id).slice(0, 200)}`);
       }
     }
@@ -703,14 +703,14 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const rolls = await attacker.rollSkill({ skill: 'ath' }, { configure: false }, {});
       const msg = rolls?.[0]?.parent ?? null;
       const pop = await waitFor(() => rollPopup(/Cutting Words/), 8000);
-      ok('11a. the Bard\'s popup: "Cutting Words — BF Test Attacker\'s check", no DC known', !!pop && /No DC is known/.test(textOf(pop?.element)),
+      ok('11a. the Bard\'s popup: "Cutting Words — BTB Test Attacker\'s check", no DC known', !!pop && /No DC is known/.test(textOf(pop?.element)),
         textOf(pop?.element).slice(0, 220));
       faces([[5, 8]]);
       pop?.element?.querySelector('button[data-action="answer"]')?.click();
       const flag = await waitFor(() => (rollFlag(msg)?.status === 'resolved') ? rollFlag(msg) : null, 8000);
       await sleep(600);
       ok('11b. the d8 (5) off: the card states the arithmetic and "ask your DM"', (flag?.answer === 'roll') && (flag?.bent?.add === -5)
-        && /Cutting Words \(BF Test Bard\) −5/.test(cardText(msg?.id)) && /ask your DM/.test(cardText(msg?.id)),
+        && /Cutting Words \(BTB Test Bard\) −5/.test(cardText(msg?.id)) && /ask your DM/.test(cardText(msg?.id)),
         `flag=${JSON.stringify({ answer: flag?.answer, bent: flag?.bent?.add })} card=${cardText(msg?.id).slice(-200)}`);
     }
 
@@ -768,7 +768,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       } else pop?.element?.querySelector('button[data-action="cast"]')?.click();
     };
     // ---- A1 helpers: the damage offer, the clock riders, Hew's reminders (§15, §17–§20)
-    const { riderPartFormula } = await import('/modules/fvtt-mod-battleflow/scripts/decide/clock.js');
+    const { riderPartFormula } = await import('/modules/fvtt-mod-bythebooks/scripts/decide/clock.js');
     const reEsc = s => String(s ?? '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     const OFFER = 'Damage — your roll';
     const offerApp = before => popups().find(app => !before.has(app) && (app.element?.innerHTML ?? '').includes(OFFER)) ?? null;
@@ -926,9 +926,9 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const pop = await waitFor(() => popupTitled(/Glorious Defense/), 6000);
       const guards = holdOf(msg)?.targets?.[0]?.guards ?? [];
       const g = guards.find(x => (x.uuid === cleric.uuid) && (x.row === 'Glorious Defense'));
-      ok(`13a. the hit on the Halfling (within 10 ft of the Cleric) is held for the Cleric: a bystander popup "Glorious Defense … −${N} · a Reaction", "within 10 ft of BF Test Halfling"`,
+      ok(`13a. the hit on the Halfling (within 10 ft of the Cleric) is held for the Cleric: a bystander popup "Glorious Defense … −${N} · a Reaction", "within 10 ft of BTB Test Halfling"`,
         !!pop && new RegExp(`−${N}\\b`).test(textOf(pop?.element)) && /a Reaction/.test(textOf(pop?.element))
-          && /within 10 ft of BF Test Halfling/.test(textOf(pop?.element)) && !!g && !g.quiet && (String(g.die) === String(N)),
+          && /within 10 ft of BTB Test Halfling/.test(textOf(pop?.element)) && !!g && !g.quiet && (String(g.die) === String(N)),
         `N=${N} d20=${d} activity=${!!gdAct} pop="${textOf(pop?.element).slice(0, 220)}" guards=${JSON.stringify(guards.map(x => [x.name, x.row, x.die, x.quiet ?? false]))}`);
       pop?.element?.querySelector('button[data-action="answer"]')?.click();
       const t = await resolvedTarget(msg);
@@ -939,8 +939,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         JSON.stringify({ answer: t?.answer, verdict: t?.verdict, rescue: t?.rescue, by: t?.guardedBy?.name, bent: t?.bent, spent: [spentBefore, spentAfter],
           consumption: gdAct?.consumption?.targets?.map?.(c => [c.type, c.target]) ?? null, hp: hp() }));
       await sleep(600);
-      ok(`13c. the attack card: "Glorious Defense (BF Test Cleric) −${N} … MISS"`,
-        new RegExp(`Glorious Defense \\(BF Test Cleric\\) −${N}.*MISS`).test(cardText(msg?.id)), cardText(msg?.id).slice(0, 240));
+      ok(`13c. the attack card: "Glorious Defense (BTB Test Cleric) −${N} … MISS"`,
+        new RegExp(`Glorious Defense \\(BTB Test Cleric\\) −${N}.*MISS`).test(cardText(msg?.id)), cardText(msg?.id).slice(0, 240));
       // The turned hit: the Strike popup (answer.js offerStrike) — one weapon attack at the attacker.
       const strike = await waitFor(strikePopup, 6000);
       const attackerName = attackerToken.document?.name ?? attacker.name;
@@ -990,9 +990,9 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         const pop = await waitFor(() => popupTitled(/Combat Inspiration/), 6000);
         const guards = holdOf(msg)?.targets?.[0]?.guards ?? [];
         const g = guards.find(x => x.uuid === halfling.uuid);
-        ok(`14a. the Halfling's OWN popup: "Combat Inspiration … −${die} · a Reaction · the Inspired die", "BF Test Bard's Inspired die"`,
+        ok(`14a. the Halfling's OWN popup: "Combat Inspiration … −${die} · a Reaction · the Inspired die", "BTB Test Bard's Inspired die"`,
           !!pop && denom > 0 && textOf(pop?.element).includes(`−${die}`) && /a Reaction/.test(textOf(pop?.element))
-            && /the Inspired die/.test(textOf(pop?.element)) && /BF Test Bard's Inspired die/.test(textOf(pop?.element))
+            && /the Inspired die/.test(textOf(pop?.element)) && /BTB Test Bard's Inspired die/.test(textOf(pop?.element))
             && g?.hitSelf === true && (g?.inspired?.effectId === inspired.id),
           `die=${die} pop="${textOf(pop?.element).slice(0, 240)}" guard=${JSON.stringify(g ?? null)}`);
         ok('14b. nobody else is asked (only: "self"): the hold\'s guards are the Halfling alone',
@@ -1009,8 +1009,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         ok('14d. the Inspired effect is spent (deleted) and the Halfling\'s Reaction is spent (the chip)',
           !halfling.effects.get(inspired.id) && !!reactionChipOn(halfling),
           `inspired=${!!halfling.effects.get(inspired.id)} chip=${reactionChipOn(halfling)?.name ?? null}`);
-        ok('14e. the attack card: "Combat Inspiration (BF Test Halfling) −5 … MISS"',
-          /Combat Inspiration \(BF Test Halfling\) −5.*MISS/.test(cardText(msg?.id)), cardText(msg?.id).slice(0, 240));
+        ok('14e. the attack card: "Combat Inspiration (BTB Test Halfling) −5 … MISS"',
+          /Combat Inspiration \(BTB Test Halfling\) −5.*MISS/.test(cardText(msg?.id)), cardText(msg?.id).slice(0, 240));
       } finally {
         await closeDialogs();
         if (game.combats.get(combat.id)) await combat.delete();
@@ -1052,8 +1052,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
               && (msg?.getFlag(MOD, 'clockPick') ?? []).includes('combat-inspiration') && gone,
             `rider=${JSON.stringify(r)} formulas=[${(dmg?.rolls ?? []).map(x => `${x.formula}:${x.options?.type}`).join(' | ')}] pick=${JSON.stringify(msg?.getFlag(MOD, 'clockPick'))} effectGone=${gone}`);
           await sleep(600);
-          ok('15c. the damage card: "Combat Inspiration — … rode this roll · BF Test Bard\'s Inspired die spent"',
-            /Combat Inspiration — .*rode this roll/.test(cardText(dmg?.id)) && /BF Test Bard's Inspired die spent/.test(cardText(dmg?.id)),
+          ok('15c. the damage card: "Combat Inspiration — … rode this roll · BTB Test Bard\'s Inspired die spent"',
+            /Combat Inspiration — .*rode this roll/.test(cardText(dmg?.id)) && /BTB Test Bard's Inspired die spent/.test(cardText(dmg?.id)),
             cardText(dmg?.id).slice(0, 260));
 
           // A DRIVEN roll: the damage rolled with no offer committed (no clockPick) — rollDamageForAttack's own call.
@@ -1207,7 +1207,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     // ---- 17. Frenzy: raging AND Reckless, once per turn
     if (want(17)) {
       await closeDialogs(); await a1Victim();
-      if (!pcWeapon) log.push('§17 skipped: BF Test PC Attacker has no weapon');
+      if (!pcWeapon) log.push('§17 skipped: BTB Test PC Attacker has no weapon');
       else {
         const frenzy = await lend(pcAttacker, 'Frenzy');
         const made = [];
@@ -1215,13 +1215,13 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         try {
           let { act: fAct, raw, formula } = a1Formula(frenzy, 'Damage', pcAttacker);
           if (fAct && raw && (foundry.utils.getProperty(pcAttacker.getRollData(), 'scale.barbarian.rage-damage') == null)) {
-            // The pack's part is (@scale.barbarian.rage-damage)d6; BF Test PC Attacker is no Barbarian, so the lent
+            // The pack's part is (@scale.barbarian.rage-damage)d6; BTB Test PC Attacker is no Barbarian, so the lent
             // COPY's @-terms are pinned to 2 (a level-3 barbarian's) — the machine's read is unchanged.
             const parts = fAct.toObject().damage.parts;
             parts[0].custom = { enabled: true, formula: raw.replace(/@[\w.-]+/g, '2') };
             await frenzy.update({ [`system.activities.${fAct.id}.damage.parts`]: parts });
             ({ formula } = a1Formula(pcAttacker.items.get(frenzy.id), 'Damage', pcAttacker));
-            log.push(`§17: Frenzy's part "${raw}" reads nothing on BF Test PC Attacker — the lent copy reads "${formula}"`);
+            log.push(`§17: Frenzy's part "${raw}" reads nothing on BTB Test PC Attacker — the lent copy reads "${formula}"`);
           }
           const wType = [...(pcWeapon.system?.damage?.base?.types ?? [])][0] ?? null;
           // The raging and reckless facts clock-riders.js reads: an active effect NAMED "Rage" and one named "Reckless".
@@ -1272,7 +1272,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     // ---- 18. Hunter's Prey: the option asked once and kept; Colossus Slayer; Change; Horde Breaker's reminder
     if (want(18)) {
       await closeDialogs(); await a1Victim();
-      if (!pcWeapon) log.push('§18 skipped: BF Test PC Attacker has no weapon');
+      if (!pcWeapon) log.push('§18 skipped: BTB Test PC Attacker has no weapon');
       else {
         const prey = await lend(pcAttacker, "Hunter's Prey");
         const KEY = 'hunters-prey-colossus-slayer';
@@ -1318,7 +1318,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           change?.click();
           const cleared = await waitFor(() => optOf() === null, 6000);
           ok('18f. Change forgets the option', cleared === true, `option=${JSON.stringify(optOf())}`);
-          // g — asked again; Horde Breaker; BF Test Cleric stands 5 ft from the Victim (1600 vs 1500, y 1900)
+          // g — asked again; Horde Breaker; BTB Test Cleric stands 5 ft from the Victim (1600 vs 1500, y 1900)
           const tH = Date.now();
           const { msg: m4, offer: o4 } = await a1Hit(pcAttacker, pcToken, act, { hpTo: 300 });
           const ask4 = askOf(o4);
@@ -1328,9 +1328,9 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           const hb = await waitFor(() => hewNotices(tH, 'Horde Breaker')[0] ?? null, 8000);
           const n = hb?.getFlag(MOD, 'hewNotice');
           const clericName = clericToken.document?.name ?? cleric.name;
-          ok(`18g. the next hit asks again; Horde Breaker is kept (nothing rides) and, ${clericName} within 5 ft of the target, Hew's reminder "Horde Breaker — BF Test PC Attacker can attack again … within 5 ft of …"`,
+          ok(`18g. the next hit asks again; Horde Breaker is kept (nothing rides) and, ${clericName} within 5 ft of the target, Hew's reminder "Horde Breaker — BTB Test PC Attacker can attack again … within 5 ft of …"`,
             !!ask4 && (optOf() === 'Horde Breaker') && !!d4 && !ridersOf(d4).some(x => x.key === KEY) && !!hb
-              && /Horde Breaker — BF Test PC Attacker can attack again/.test(hb.content ?? '') && /within 5 ft of/.test(n?.why ?? '')
+              && /Horde Breaker — BTB Test PC Attacker can attack again/.test(hb.content ?? '') && /within 5 ft of/.test(n?.why ?? '')
               && (n?.why ?? '').includes(clericName) && !n?.offer,
             `ask=${!!ask4} option=${optOf()} riders=${JSON.stringify(ridersOf(d4).map(x => x.key))} notice=${JSON.stringify(n ? { label: n.label, why: n.why, offer: !!n.offer } : null)}`);
           await ackHew('Horde Breaker');
@@ -1345,7 +1345,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     // ---- 19. War Priest: Hew's reminder with the uses; none left, none
     if (want(19)) {
       await closeDialogs(); await a1Victim();
-      if (!clericWeapon) log.push('§19 skipped: BF Test Cleric has no weapon');
+      if (!clericWeapon) log.push('§19 skipped: BTB Test Cleric has no weapon');
       else {
         const wp = await lend(cleric, 'War Priest');
         const uses = () => cleric.items.get(wp.id)?.system?.uses;
@@ -1354,7 +1354,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           if (!(Number(uses()?.max) > 0)) {
             // UNSURE: the pack's max (likely the Wisdom modifier) read 0 on the fixture — pinned so the uses show
             await wp.update({ 'system.uses.max': '3', 'system.uses.spent': 0 });
-            log.push(`§19: War Priest's max read 0 on BF Test Cleric — the lent copy set to 3`);
+            log.push(`§19: War Priest's max read 0 on BTB Test Cleric — the lent copy set to 3`);
           }
           const act = attackOf(cleric, clericWeapon);
           const t1 = Date.now();
@@ -1363,12 +1363,12 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           const card = await waitFor(() => hewNotices(t1, 'War Priest')[0] ?? null, 8000);
           const n = card?.getFlag(MOD, 'hewNotice');
           const left = `${uses()?.value} of ${uses()?.max} use`;
-          ok(`19a. a weapon attack: Hew's reminder "War Priest — BF Test Cleric can attack again", "… ${left}s left", a reminder (no drive)`,
-            !!card && /War Priest — BF Test Cleric can attack again/.test(card.content ?? '') && (n?.why ?? '').includes(left) && !n?.offer,
+          ok(`19a. a weapon attack: Hew's reminder "War Priest — BTB Test Cleric can attack again", "… ${left}s left", a reminder (no drive)`,
+            !!card && /War Priest — BTB Test Cleric can attack again/.test(card.content ?? '') && (n?.why ?? '').includes(left) && !n?.offer,
             `card=${!!card} notice=${JSON.stringify(n ? { label: n.label, why: n.why, offer: !!n.offer } : null)} uses=${JSON.stringify({ value: uses()?.value, max: uses()?.max })}`);
           if (Number(game.settings.get(MOD, 'decisionTimer')) > 0) {
             const pop = await waitFor(() => hewPopup('War Priest'), 6000);
-            ok('19b. it pops: "War Priest — BF Test Cleric", OK only', !!pop && !pop.element.querySelector('button[data-action="use"]'), `popup=${!!pop} text="${textOf(pop?.element).slice(0, 160)}"`);
+            ok('19b. it pops: "War Priest — BTB Test Cleric", OK only', !!pop && !pop.element.querySelector('button[data-action="use"]'), `popup=${!!pop} text="${textOf(pop?.element).slice(0, 160)}"`);
             await ackHew('War Priest');
           } else log.push('§19b skipped: decisionTimer is 0 — Hew\'s popup never opens');
           await wp.update({ 'system.uses.spent': Number(uses()?.max) || 0 });
@@ -1506,7 +1506,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         await waitFor(() => temp() === N, 4000);
         await sleep(400);
         const fA = cA?.getFlag(MOD, 'healOnHit');
-        ok(`21a. the Cleric drops the Victim: "Dark One's Blessing — BF Test Cleric gains ${N} Temporary Hit Points" ("you dropped an enemy"), receipted, ${N} temp HP`,
+        ok(`21a. the Cleric drops the Victim: "Dark One's Blessing — BTB Test Cleric gains ${N} Temporary Hit Points" ("you dropped an enemy"), receipted, ${N} temp HP`,
           fellA && !!cA && title.test(said(cA)) && (fA?.amount === N) && /you dropped an enemy/.test(fA?.why ?? '') && (fA?.targetUuid === victim.uuid)
             && (recA?.targets ?? []).some(t => t.uuid === cleric.uuid) && (temp() === N),
           `N=${N} (warlock ${rd?.classes?.warlock?.levels} + cha ${rd?.abilities?.cha?.mod}) fell=${fellA} vhp=${vhp()} card=${!!cA} text=${said(cA).slice(0, 160)} flag=${JSON.stringify(fA)} receipt=${JSON.stringify(recA?.targets?.map(t => t.name) ?? null)} temp=${temp()}`);
@@ -1648,7 +1648,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         // UNSURE: the Chalice heal is use() then rollDamage() on the heal activity (the handoff's unverified seam).
         const rose = await waitFor(() => hp() > hp0, 10000);
         await sleep(600);
-        ok('22f. the Halfling\'s button: the Chalice heal is used on the Halfling — its HP rises; the card says "Chalice — BF Test Halfling is healed too"',
+        ok('22f. the Halfling\'s button: the Chalice heal is used on the Halfling — its HP rises; the card says "Chalice — BTB Test Halfling is healed too"',
           (flag?.picked === halfling.uuid) && (flag?.also === 'Chalice') && rose && new RegExp(`Chalice — ${hName} is healed too`).test(cardText(healCard?.id)),
           `flag=${JSON.stringify(flag)} hp ${hp0}→${hp()} text=${cardText(healCard?.id).slice(-160)}`);
 
@@ -1760,7 +1760,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           !!quiet && /Rage — it ends now unless you extended it/.test(cardText(quiet?.id)) && /nothing is removed/.test(cardText(quiet?.id))
             && (quiet?.getFlag(MOD, 'turnGrant')?.key === 'Rage') && !!fxNamed(pcAttacker, ['Rage'])[0],
           `card=${cardText(quiet?.id).slice(0, 220)} flag=${JSON.stringify(quiet?.getFlag(MOD, 'turnGrant') ?? null)} rage=${!!fxNamed(pcAttacker, ['Rage'])[0]}`);
-        if (!pcWeapon) log.push('§24c skipped the attack turn: BF Test PC Attacker has no weapon');
+        if (!pcWeapon) log.push('§24c skipped the attack turn: BTB Test PC Attacker has no weapon');
         else {
           await toTurnOf(pcAttacker);
           const r3 = combat.round;
@@ -1873,7 +1873,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         const maxN = Number(pcAttacker.items.get(tides.id)?.system?.uses?.max ?? 0);
         const FULL = new RegExp(`Tides of Chaos — 1 use · ${maxN} left`);
         // The attack: the box, closed unrolled (nothing targeted, nothing lands).
-        if (!pcWeapon) log.push('§26a skipped: BF Test PC Attacker has no weapon');
+        if (!pcWeapon) log.push('§26a skipped: BTB Test PC Attacker has no weapon');
         else {
           pcToken.control({ releaseOthers: true }); clearTargets(); await sleep(80);
           const p = attackOf(pcAttacker, pcWeapon).rollAttack({}, {}, {});
@@ -1922,9 +1922,9 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     // ---- 27. Commanding Presence: the scoped superiority fold (SUPERIORITY_FOLDS)
     if (want(27)) {
       await closeA1();
-      const fighter = game.actors.getName('BF Test Fighter');
+      const fighter = game.actors.getName('BTB Test Fighter');
       const pool = fighter?.items.find(i => i.name === 'Combat Superiority') ?? null;
-      if (!fighter || !pool) log.push(`§27 skipped: BF Test Fighter=${!!fighter} Combat Superiority=${!!pool} — run tools/fixture-suite.mjs`);
+      if (!fighter || !pool) log.push(`§27 skipped: BTB Test Fighter=${!!fighter} Combat Superiority=${!!pool} — run tools/fixture-suite.mjs`);
       else {
         const priorSpent = pool.system._source.uses?.spent ?? 0;
         // UNSURE: the fixture (a copy of a real Battle Master) may carry Commanding Presence itself — then it is
@@ -1984,7 +1984,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     const outcomeOn = card => card?.getFlag(MOD, 'saves')?.targets?.find(t => t.uuid === victim.uuid)?.outcome ?? null;
     const settledSave = (key, since) => waitFor(() => { const c = saveCardFor(key, since); return outcomeOn(c) ? c : null; }, 12000);
     const typesOf = d => (d?.rolls ?? []).flatMap(r => [...(r.options?.types ?? []), r.options?.type].filter(Boolean));
-    /** The PHB's Unarmed Strike weapon on BF Test PC Attacker (taken back at teardown). */
+    /** The PHB's Unarmed Strike weapon on BTB Test PC Attacker (taken back at teardown). */
     const lendUnarmed = async () => {
       const src = await fromUuid('Compendium.dnd-players-handbook.equipment.Item.phbUnarmedStrike');
       if (!src) return null;
@@ -2048,7 +2048,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
             (outcomeOn(c1) === 'failed') && fx().includes('Stunned') && !fx().includes('Slowed') && (spent() === 1),
             `outcome=${outcomeOn(c1)} fx=${JSON.stringify(fx())} spent=${spent()}`);
           // The legendary-resistance flip (2026-09-30): the failure unwinds AND the success half lands.
-          if (typeof victim.system.resistSave !== 'function') log.push('28c-lr skipped: BF Test Victim is not NPC-typed');
+          if (typeof victim.system.resistSave !== 'function') log.push('28c-lr skipped: BTB Test Victim is not NPC-typed');
           else {
             const priorLR = { max: victim.system.resources?.legres?.max ?? 0, spent: victim.system.resources?.legres?.spent ?? 0 };
             await victim.update({ 'system.resources.legres.max': 1, 'system.resources.legres.spent': 0 });
@@ -2202,13 +2202,13 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           ok('30b. ticked: the force die rides the roll, one Psionic Energy Die spent', typesOf(d1).includes('force') && (left() === 3),
             `types=${JSON.stringify(typesOf(d1))} left=${left()}`);
 
-          // Protective Field for an ally: the hostile Attacker hits the Halfling, BF Test PC Attacker within 30 ft
+          // Protective Field for an ally: the hostile Attacker hits the Halfling, BTB Test PC Attacker within 30 ft
           const fieldPopup = () => popups().find(app => /Protective Field/.test(textOf(app.element)) && app.element?.querySelector?.('button[data-action="cast"]')) ?? null;
           const holdOn = since => game.messages.contents.find(m => (m.timestamp >= since) && m.getFlag(MOD, 'damageHold')) ?? null;
           const t2 = Date.now();
           const m2 = await swing({ d20: [19], dmg: 6 });
           const pop = await waitFor(fieldPopup, 8000);
-          ok('30c. the Halfling hit: Protective Field asks BF Test PC Attacker ("within 30 ft of you · a Reaction · a Psionic Energy Die", Reduce)',
+          ok('30c. the Halfling hit: Protective Field asks BTB Test PC Attacker ("within 30 ft of you · a Reaction · a Psionic Energy Die", Reduce)',
             !!pop && /within 30 ft of you/.test(textOf(pop?.element)) && /Psionic Energy Die/.test(textOf(pop?.element))
               && (textOf(pop?.element?.querySelector('button[data-action="cast"]')) === 'Reduce'),
             `attack=${!!m2} pop="${textOf(pop?.element).slice(0, 220)}"`);
@@ -2583,7 +2583,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           ok('36c. a hit with the ward at 2: "Arcane Ward took 2 — N landed", the ward 0, the HP down by the rest',
             (wardNow() === 0) && (shp() === 200 - (total - 2)) && new RegExp(`Arcane Ward took 2 — ${total - 2} landed`).test(entry?.note ?? '') && (entry?.ward?.took === 2),
             `total=${total} hp=${shp()} ward=${wardNow()} note="${entry?.note}" ward=${JSON.stringify(entry?.ward)}`);
-          const { revertTarget } = await import('/modules/fvtt-mod-battleflow/scripts/receipts.js');
+          const { revertTarget } = await import('/modules/fvtt-mod-bythebooks/scripts/receipts.js');
           await revertTarget(dmg, sorcerer.uuid);
           await sleep(500);
           ok('36d. the revert gives both back: HP 200, the ward 2', (shp() === 200) && (wardNow() === 2), `hp=${shp()} ward=${wardNow()}`);
@@ -2741,7 +2741,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           await useFeature(pcToken, rage);
           const surge = await waitFor(() => game.messages.contents.find(m => (m.timestamp >= since) && (m.getFlag(MOD, 'turnGrant')?.key === 'Vitality Surge')) ?? null, 6000);
           await waitFor(() => temp(pcAttacker) === 7, 4000);
-          ok('38a. the Rage used: "Vitality Surge — BF Test PC Attacker gains 7 Temporary Hit Points", temp 7',
+          ok('38a. the Rage used: "Vitality Surge — BTB Test PC Attacker gains 7 Temporary Hit Points", temp 7',
             !!surge && (temp(pcAttacker) === 7) && /Vitality Surge — .+ gains 7 Temporary Hit Points/.test(cardText(surge?.id)),
             `card=${cardText(surge?.id).slice(0, 160)} temp=${temp(pcAttacker)}`);
           // b. a raging turn start: the gift is asked — one creature within 10 ft; OK gives it
@@ -3017,8 +3017,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           bpop?.element?.querySelector('button[data-action="answer"]')?.click();
           const t = await resolvedTarget(msg);
           await sleep(600);
-          ok('41f. Answer: a MISS, the card "Portent (BF Test Sorcerer) — 20 → 2 …", no damage, the chip gone',
-            (t?.verdict === 'miss') && (t?.bent?.how === 'set') && /Portent \(BF Test Sorcerer\) — 20 → 2/.test(cardText(msg?.id)) && (hp() === 400) && !chip(),
+          ok('41f. Answer: a MISS, the card "Portent (BTB Test Sorcerer) — 20 → 2 …", no damage, the chip gone',
+            (t?.verdict === 'miss') && (t?.bent?.how === 'set') && /Portent \(BTB Test Sorcerer\) — 20 → 2/.test(cardText(msg?.id)) && (hp() === 400) && !chip(),
             `verdict=${t?.verdict} bent=${JSON.stringify(t?.bent)} hp=${hp()} chip=${chip()?.name ?? null} card=${cardText(msg?.id).slice(0, 200)}`);
           // g. an ordinary hit a face would turn: no popup (the noise gate) — the card's row only
           await sorcerer.longRest({ dialog: false, chat: false, newDay: false });
@@ -3096,7 +3096,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
             const rollMsg = rolls?.[0]?.parent ?? null;
             const pop = await waitFor(() => rollPopup(/Countercharm/), 8000);
             const popText = textOf(pop?.element);
-            ok('42a. the Halfling fails a demanded save against Charmed: the bard\'s popup "Countercharm — BF Test Halfling\'s saving throw", the reroll at Advantage named, the demand carrying "charmed"',
+            ok('42a. the Halfling fails a demanded save against Charmed: the bard\'s popup "Countercharm — BTB Test Halfling\'s saving throw", the reroll at Advantage named, the demand carrying "charmed"',
               !!pop && /Countercharm/.test(popText) && /saving throw/.test(popText) && /rolled again with Advantage/.test(popText) && demandStatuses.includes('charmed'),
               `pop=${!!pop} dc=${dc} mod=${smod} statuses=${JSON.stringify(demandStatuses)} text="${popText.slice(0, 240)}"`);
             // b. Answer: two d20s (17 and 3) rerolled off the Halfling, the 17 standing; the Reaction spent; the entry SAVED
@@ -3112,8 +3112,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
                 && !!reactionChip() && (rise?.on === halfling.uuid) && /Advantage/.test(rerollMsg?.flavor ?? ''),
               `entry=${JSON.stringify(entry && { outcome: entry.outcome, total: entry.total })} bent=${JSON.stringify(bent)} reaction=${!!reactionChip()} rise=${JSON.stringify(rise)} flavor="${rerollMsg?.flavor ?? ''}"`);
             const line = await waitFor(() => { const t = cardText(rollMsg?.id); return /rerolled with Advantage/.test(t) ? t : null; }, 6000);
-            ok('42c. the roll\'s card: "Countercharm (BF Test Bard) the d20 (1) rerolled with Advantage (17, 3) — the 17 stands: … vs DC"',
-              /Countercharm \(BF Test Bard\)/.test(line ?? '') && /the d20 \(1\) rerolled with Advantage \(17, 3\) — the 17 stands/.test(line ?? '') && new RegExp(`vs DC ${dc}`).test(line ?? ''),
+            ok('42c. the roll\'s card: "Countercharm (BTB Test Bard) the d20 (1) rerolled with Advantage (17, 3) — the 17 stands: … vs DC"',
+              /Countercharm \(BTB Test Bard\)/.test(line ?? '') && /the d20 \(1\) rerolled with Advantage \(17, 3\) — the 17 stands/.test(line ?? '') && new RegExp(`vs DC ${dc}`).test(line ?? ''),
               `card="${(line ?? cardText(rollMsg?.id)).slice(0, 260)}"`);
             clearTargets();
           }
@@ -3192,8 +3192,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
             let p = null;
             if (!dlg) { p = victim.rollSavingThrow({ ability: 'wis' }, {}, {}); dlg = await waitFor(rollDialog, 6000); }
             const text = textOf(dlg?.element?.querySelector('[data-bf-reminder]'));
-            ok('43c. the Victim\'s save against the fighter\'s Hold Person: "Struck — against BF Test Attacker\'s spell", Net Disadvantage',
-              !!dlg && /Struck — against BF Test Attacker's spell/.test(text) && /Net Disadvantage/.test(text), `dlg=${!!dlg} text="${text.slice(0, 220)}"`);
+            ok('43c. the Victim\'s save against the fighter\'s Hold Person: "Struck — against BTB Test Attacker\'s spell", Net Disadvantage',
+              !!dlg && /Struck — against BTB Test Attacker's spell/.test(text) && /Net Disadvantage/.test(text), `dlg=${!!dlg} text="${text.slice(0, 220)}"`);
             (dlg?.element?.querySelector('button[data-action="disadvantage"]') ?? dlg?.element?.querySelector('button[autofocus]'))?.click();
             if (p) await p.catch(() => {});
             const gone = await waitFor(() => !victim.effects.get(struck.id), 8000);
@@ -3262,7 +3262,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
             CONFIG.Dice.randomUniform = realPRNG;
             const pop = await waitFor(() => rollPopup(/Beguiling Twist/), 8000);
             const popText = textOf(pop?.element);
-            ok('44a. the Halfling SUCCEEDS on a demanded save against Charmed within 120 ft of the sorcerer: the popup "Beguiling Twist — BF Test Halfling\'s saving throw", "it succeeded", target one other creature',
+            ok('44a. the Halfling SUCCEEDS on a demanded save against Charmed within 120 ft of the sorcerer: the popup "Beguiling Twist — BTB Test Halfling\'s saving throw", "it succeeded", target one other creature',
               !!pop && /Beguiling Twist/.test(popText) && /it succeeded/.test(popText) && /Target ONE other creature/.test(popText), `pop=${!!pop} text="${popText.slice(0, 240)}"`);
             // b. Answer with nothing targeted: refused, nothing spent, the popup stays.
             clearTargets();
@@ -3280,14 +3280,14 @@ const out = await f.evaluate(async ({ sections, titles }) => {
             const entry = await waitFor(() => card.getFlag(MOD, 'saves')?.targets?.find(x => (x.uuid === halfling.uuid) && x.done) ?? null, 12000);
             const tflag = rollFlag(rollMsg);
             const demanded = twistCard?.getFlag(MOD, 'saves')?.targets?.[0] ?? null;
-            ok('44c. Answer at the attacker: the Reaction spent, a Wisdom save demanded of BF Test Attacker on the twist\'s own card (twistFor the roll), the Halfling\'s SAVED entry standing, the roll\'s flag naming the turn',
+            ok('44c. Answer at the attacker: the Reaction spent, a Wisdom save demanded of BTB Test Attacker on the twist\'s own card (twistFor the roll), the Halfling\'s SAVED entry standing, the roll\'s flag naming the turn',
               !!twistCard && (demanded?.uuid === attacker.uuid) && (twistCard.getFlag(MOD, 'saves')?.abilities?.[0] === 'wis') && !!reactionChipOn(sorcerer)
                 && (entry?.outcome === 'saved') && (tflag?.answer === 'roll') && (tflag?.twist?.targetUuid === attacker.uuid) && (tflag?.bent === null),
               `card=${!!twistCard} demanded=${demanded?.name} abilities=${JSON.stringify(twistCard?.getFlag(MOD, 'saves')?.abilities)} reaction=${!!reactionChipOn(sorcerer)} entry=${entry?.outcome} flag=${JSON.stringify(tflag && { answer: tflag.answer, twist: tflag.twist, bent: tflag.bent })}`);
             const line = await waitFor(() => { const t = cardText(rollMsg?.id); return /turned it on/.test(t) ? t : null; }, 6000);
             const atkName = attackerToken.document?.name ?? attacker.name;   // the card names the TOKEN
-            ok('44d. the roll\'s card: "Beguiling Twist (BF Test Sorcerer) turned it on <the attacker\'s token> — a Wisdom saving throw demanded"',
-              /Beguiling Twist \(BF Test Sorcerer\)/.test(line ?? '') && new RegExp(`turned it on ${atkName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`).test(line ?? '') && /Wisdom saving throw demanded/.test(line ?? ''),
+            ok('44d. the roll\'s card: "Beguiling Twist (BTB Test Sorcerer) turned it on <the attacker\'s token> — a Wisdom saving throw demanded"',
+              /Beguiling Twist \(BTB Test Sorcerer\)/.test(line ?? '') && new RegExp(`turned it on ${atkName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`).test(line ?? '') && /Wisdom saving throw demanded/.test(line ?? ''),
               `card="${(line ?? cardText(rollMsg?.id)).slice(0, 240)}"`);
             // e–f. The attacker fails: the caster's word — Charmed, for a minute.
             if (twistCard) {
@@ -3398,7 +3398,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         const wAct = pcWeapon ? attackOf(pcAttacker, pcWeapon) : null;
         const ability = wAct?.ability || 'str';
         if (!bs || !ibs || !bsAct || !wAct) log.push(`§46 skipped: bs=${!!bs} ibs=${!!ibs} act=${!!bsAct} weapon=${!!pcWeapon}`);
-        else if (ability !== 'str') log.push(`§46 skipped: BF Test PC Attacker's ${pcWeapon.name} attacks with ${ability}, not Strength`);
+        else if (ability !== 'str') log.push(`§46 skipped: BTB Test PC Attacker's ${pcWeapon.name} attacks with ${ability}, not Strength`);
         else {
           await pinPart(bs, bsAct, '1d10');   // the fixture has no Barbarian scale
           [reckless] = await pcAttacker.createEmbeddedDocuments('ActiveEffect', [{ name: 'Reckless', img: 'icons/svg/sword.svg', transfer: false, disabled: false }]);
@@ -3464,10 +3464,10 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           await healFull();
           const msg = await swing({ d20: [2] });   // 2 + the modifier < the Halfling's AC: a miss
           const chip = await waitFor(() => attacker.effects.find(e => (e.getFlag(MOD, 'mastery') === 'use') && (e.getFlag(MOD, 'useKey') === 'studiedAttacks')) ?? null, 8000);
-          ok('47a. a miss at the Halfling: the chip "Studied Attacks — vs BF Test Halfling" on the attacker, against the Halfling',
+          ok('47a. a miss at the Halfling: the chip "Studied Attacks — vs BTB Test Halfling" on the attacker, against the Halfling',
             !!chip && /Studied Attacks — vs/.test(chip.name) && (chip.getFlag(MOD, 'against') === halfling.uuid), `chip=${chip?.name ?? null} against=${chip?.getFlag(MOD, 'against')} hold=${!!holdOf(msg)}`);
           const gH = await gateFor(attackerToken, act(), halflingToken);
-          ok('47b. the next attack\'s gate at the Halfling: "Studied Attacks — vs BF Test Halfling", Net Advantage', /Studied Attacks — vs/.test(gH.text) && (gH.net === 'advantage'), `text="${gH.text.slice(0, 200)}" net=${gH.net}`);
+          ok('47b. the next attack\'s gate at the Halfling: "Studied Attacks — vs BTB Test Halfling", Net Advantage', /Studied Attacks — vs/.test(gH.text) && (gH.net === 'advantage'), `text="${gH.text.slice(0, 200)}" net=${gH.net}`);
           const gV = await gateFor(attackerToken, act(), victimToken);
           ok('47c. …at another creature: no Studied Attacks row', gV.open ? !/Studied Attacks/.test(gV.text) : true, `open=${gV.open} text="${gV.text.slice(0, 200)}"`);
           const msg2 = await swing({ d20: [12] });
@@ -3488,8 +3488,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     // ---- 48. Relentless: with no Superiority Dice left, a d8 stands in on a hit-menu maneuver
     if (want(48)) {
       await closeA1(); await a1Victim(); await dropVictimFx();
-      const { HIT_OPTIONS } = await import('/modules/fvtt-mod-battleflow/scripts/decide/registry.js');
-      const fighter = game.actors.getName('BF Test Fighter');
+      const { HIT_OPTIONS } = await import('/modules/fvtt-mod-bythebooks/scripts/decide/registry.js');
+      const fighter = game.actors.getName('BTB Test Fighter');
       const pool = fighter?.items.find(i => (i.name === 'Combat Superiority') && (Number(i.system?.uses?.max) > 0)) ?? null;
       const fWeapon = fighter ? weaponOf(fighter) : null;
       const rel = fighter ? await hgLend(fighter, 'Relentless', 'feat') : null;
@@ -3792,7 +3792,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     // ---- 53. Dark One's Own Luck (a tactical fold on checks and saves, no refund) and Homing Strikes (a miss with the Psychic Blades)
     if (want(53)) {
       await closeA1();
-      const fighter = game.actors.getName('BF Test Fighter');
+      const fighter = game.actors.getName('BTB Test Fighter');
       const luck = fighter ? await hgLend(fighter, "Dark One's Own Luck", 'feat', { 'system.uses.max': '2', 'system.uses.spent': 0 }) : null;
       const labels = fl => (fl?.offers ?? []).map(o => o.label);
       const rescueWindow = text => [...document.querySelectorAll('.application')].find(el => el.querySelector('[data-bf-rescue-row]') && (el.textContent ?? '').includes(text)) ?? null;
@@ -3927,7 +3927,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
             !!hw && (pcAttacker.system.attributes.inspiration === true), `card=${!!hw} inspiration=${pcAttacker.system.attributes.inspiration}`);
           const endCard = await waitFor(() => ends().find(m => m.getFlag(MOD, 'conditionEnd')?.row === 'Guarded Mind') ?? null, 8000);
           const pop = await waitFor(() => titled(/^Guarded Mind — /), 6000);
-          ok('55b. Guarded Mind: the popup "End a condition on BF Test PC Attacker?" with Frightened (1 Psionic Power die), the poisoned not listed',
+          ok('55b. Guarded Mind: the popup "End a condition on BTB Test PC Attacker?" with Frightened (1 Psionic Power die), the poisoned not listed',
             !!endCard && !!pop && /Frightened/.test(textOf(pop?.element)) && !/Poisoned/.test(textOf(pop?.element)) && /Psionic Power/.test(textOf(pop?.element)),
             `card=${!!endCard} pop=${!!pop} text="${textOf(pop?.element).slice(0, 220)}"`);
           pop?.element?.querySelector('button[data-action="frightened"]')?.click();
@@ -3990,7 +3990,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           CONFIG.Dice.randomUniform = realPRNG;
           const endCard = await waitFor(() => b4Cards(t0, 'conditionEnd').find(m => m.getFlag(MOD, 'conditionEnd')?.row === "Physician's Touch") ?? null, 8000);
           const pop = await waitFor(() => titled(/^Physician's Touch — /), 6000);
-          ok('56b. Hand of Healing at the Halfling: the popup "End a condition on BF Test Halfling?" listing Blinded',
+          ok('56b. Hand of Healing at the Halfling: the popup "End a condition on BTB Test Halfling?" listing Blinded',
             !!endCard && !!pop && /Blinded/.test(textOf(pop?.element)) && (endCard?.getFlag(MOD, 'conditionEnd')?.bearerUuid === halfling.uuid),
             `card=${!!endCard} pop=${!!pop} text="${textOf(pop?.element).slice(0, 200)}"`);
           pop?.element?.querySelector('button[data-action="blinded"]')?.click();
@@ -4146,7 +4146,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           const self = await waitFor(() => b4Card(t0, 'healSelf'), 10000);
           await waitFor(() => Number(cleric.system.attributes.hp.value) === 54, 8000);
           CONFIG.Dice.randomUniform = realPRNG; clearTargets();
-          ok('60a. Cure Wounds (level 2) at the Halfling: the card "Blessed Healer — BF Test Cleric regains 4 Hit Points", the cleric 50 → 54, receipted',
+          ok('60a. Cure Wounds (level 2) at the Halfling: the card "Blessed Healer — BTB Test Cleric regains 4 Hit Points", the cleric 50 → 54, receipted',
             !!self && (self.getFlag(MOD, 'healSelf')?.amount === 4) && (Number(cleric.system.attributes.hp.value) === 54) && !!self.getFlag(MOD, 'receipt'),
             `card=${!!self} flag=${JSON.stringify(self?.getFlag(MOD, 'healSelf') ?? null)} hp=${cleric.system.attributes.hp.value} rolls=${!!rolls}`);
           // b. Improved Warding Flare: the Halfling flares the Attacker's hit — the temp HP land with the answer
@@ -4253,7 +4253,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         if (!gift) log.push('§62 skipped: no Gift of the Protectors in the PHB');
         else {
           const protect = () => sorcerer.items.get(gift.id).system.activities.find(a => a.name === 'Protect');
-          await gift.update({ 'system.description.value': `${gift.system.description.value}<p>Names on the page: BF Test Halfling</p>`, [`system.activities.${protect().id}.uses.spent`]: 0 });
+          await gift.update({ 'system.description.value': `${gift.system.description.value}<p>Names on the page: BTB Test Halfling</p>`, [`system.activities.${protect().id}.uses.spent`]: 0 });
           const swingLow = async () => {   // `swing` heals to full first: this one leaves the 5 HP alone
             await halfling.update({ 'system.attributes.hp.value': 5, 'system.attributes.hp.temp': 0 });
             attackerToken.control({ releaseOthers: true });
@@ -4272,7 +4272,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           const card = await waitFor(() => b4Cards(t0, 'dropToOne').find(m => m.getFlag(MOD, 'dropToOne')?.row === 'Gift of the Protectors') ?? null, 8000);
           await sleep(400);
           ok('62a. the Halfling (named on the sorcerer\'s page) takes 12 at 5 HP: held at 1, the card "drops to 1 Hit Point instead … the sorcerer\'s Gift of the Protectors", Protect\'s use spent',
-            (hp() === 1) && !!card && /BF Test Sorcerer's Gift of the Protectors/.test(cardText(card?.id)) && (Number(protect()?.uses?.spent) === 1),
+            (hp() === 1) && !!card && /BTB Test Sorcerer's Gift of the Protectors/.test(cardText(card?.id)) && (Number(protect()?.uses?.spent) === 1),
             `hp=${hp()} card="${cardText(card?.id).slice(0, 200)}" spent=${protect()?.uses?.spent}`);
           // b. the use spent: the next drop lands the 0
           const msg2 = await swingLow();
@@ -4341,7 +4341,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           await a1Damage(hit);
           const chip = await waitFor(() => halfling.effects.find(e => e.getFlag(MOD, 'useKey') === 'multiattackDefense') ?? null, 8000);
           const g2 = await gateFor(attackerToken, act(), halflingToken);
-          ok('63d. the hit writes "Multiattack Defense — vs BF Test Attacker" on the Halfling against the Attacker; the Attacker\'s next gate at it: "−4 to this attack roll"',
+          ok('63d. the hit writes "Multiattack Defense — vs BTB Test Attacker" on the Halfling against the Attacker; the Attacker\'s next gate at it: "−4 to this attack roll"',
             !!chip && (chip.getFlag(MOD, 'against') === attacker.uuid) && /Multiattack Defense/.test(g2.text) && /−4 to this attack roll/.test(g2.text),
             `chip=${chip?.name ?? null} against=${chip?.getFlag(MOD, 'against')} text="${g2.text.slice(0, 220)}"`);
           const g3 = await gateFor(pcToken, attackOf(pcAttacker, pcWeapon), halflingToken);
@@ -4547,7 +4547,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           const pop = await waitFor(() => titled(/^Rage of the Gods — /), 8000);
           const popText = textOf(pop?.element);
           const card0 = dropCards(t0, 'Rage of the Gods')[0] ?? null;
-          ok('66a. the Halfling\'s drop asks the ZEALOT (15 ft away): "drop to @classes.barbarian.levels Hit Points instead?", the Rage use named, the card "held at 1 until BF Test Sorcerer answers"',
+          ok('66a. the Halfling\'s drop asks the ZEALOT (15 ft away): "drop to @classes.barbarian.levels Hit Points instead?", the Rage use named, the card "held at 1 until BTB Test Sorcerer answers"',
             !!pop && /drop to @classes\.barbarian\.levels Hit Points instead\?/.test(popText) && /Rage/.test(popText) && (card0?.getFlag(MOD, 'dropToOne')?.keeperUuid === sorcerer.uuid) && (hp() === 1),
             `pop="${popText.slice(0, 220)}" keeper=${card0?.getFlag(MOD, 'dropToOne')?.keeperName ?? null} hp=${hp()}`);
           pop?.element?.querySelector('button[data-action="use"]')?.click();
@@ -4555,7 +4555,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           await waitFor(() => hp() > 1, 8000);
           await sleep(400);
           ok('66b. Yes: the Halfling at 14 Hit Points (the barbarian\'s level), a Rage use spent, the line names the keeper',
-            (hp() === 14) && (Number(sorcerer.items.get(rage.id)?.system?.uses?.spent) === 1) && /Rage of the Gods \(BF Test Sorcerer's\)/.test(cardText(card?.id)) && /drops to 14 Hit Points instead/.test(cardText(card?.id)),
+            (hp() === 14) && (Number(sorcerer.items.get(rage.id)?.system?.uses?.spent) === 1) && /Rage of the Gods \(BTB Test Sorcerer's\)/.test(cardText(card?.id)) && /drops to 14 Hit Points instead/.test(cardText(card?.id)),
             `hp=${hp()} rageSpent=${sorcerer.items.get(rage.id)?.system?.uses?.spent} card="${cardText(card?.id).slice(0, 220)}"`);
         }
       } finally {
@@ -4774,7 +4774,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           // The row is the label span's parent (the outer card div would match the text too).
           const row = await waitFor(() => [...(cardEl(d1?.id)?.querySelectorAll?.('span') ?? [])].find(el => /^Superior Hunter's Prey — \+/.test(textOf(el)))?.parentElement ?? null, 8000);
           const buttons = [...(row?.querySelectorAll?.('button') ?? [])].map(b => textOf(b));
-          const { creaturesWithin } = await import('/modules/fvtt-mod-battleflow/scripts/geometry.js');
+          const { creaturesWithin } = await import('/modules/fvtt-mod-bythebooks/scripts/geometry.js');
           const expected = creaturesWithin(victimToken, 30).filter(t => t.actor && (t.actor.uuid !== victim.uuid) && (t.actor.uuid !== pcAttacker.uuid)).length;
           ok('71b. the damage card offers "Superior Hunter\'s Prey — +<die> force to one other creature within 30 ft of the marked target" with a button per candidate (every other creature within 30 ft of the Victim, the Attacker among them)',
             !!row && /one other creature within 30 ft/.test(textOf(row)) && buttons.includes(attackerToken.document.name) && (buttons.length === expected),
@@ -4787,7 +4787,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           await sleep(300);
           CONFIG.Dice.randomUniform = realPRNG;
           const rec = pickCard?.getFlag(MOD, 'spellRiderCard');
-          ok('71c. the Attacker picked: its own card "+4 force to BF Test Attacker", the die rolled there, the damage landed',
+          ok('71c. the Attacker picked: its own card "+4 force to BTB Test Attacker", the die rolled there, the damage landed',
             !!pickCard && (rec?.value === 4) && (rec?.type === 'force') && (Number(attacker.system.attributes.hp.value) === ahp0 - 4),
             `record=${JSON.stringify(rec && { value: rec.value, type: rec.type, target: rec.targetUuid === attacker.uuid })} hp=${attacker.system.attributes.hp.value} from ${ahp0}`);
         }
@@ -5092,7 +5092,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           const card = await waitFor(() => c1Cards(t0, 'rebuke').find(m => m.getFlag(MOD, 'rebuke')?.onAttack && (m.getFlag(MOD, 'rebuke')?.actorUuid === cleric.uuid)) ?? null, 8000);
           const pop = await waitFor(() => popups().find(app => /Soul of Vengeance/.test(textOf(app.element)) && /attacked — strike\?/.test(textOf(app.element))) ?? null, 6000);
           const f = card?.getFlag(MOD, 'rebuke');
-          ok('78a. the PC Attacker under the Vow makes an attack roll: the paladin\'s popup "BF Test PC Attacker attacked — strike?" with Soul of Vengeance (a melee attack), the card "under BF Test Cleric\'s Vow of Enmity"',
+          ok('78a. the PC Attacker under the Vow makes an attack roll: the paladin\'s popup "BTB Test PC Attacker attacked — strike?" with Soul of Vengeance (a melee attack), the card "under BTB Test Cleric\'s Vow of Enmity"',
             !!msg && !!card && !!pop && (f?.options ?? []).some(o => o.name === 'Soul of Vengeance') && /Vow of Enmity/.test(cardText(card?.id)),
             `card=${!!card} pop=${!!pop} options=${JSON.stringify((f?.options ?? []).map(o => o.name))} distance=${f?.distance ?? null} text="${cardText(card?.id).slice(0, 200)}" msg=${msg?.id ?? null}`);
           pop?.element?.querySelector('button[data-action="pass"]')?.click();
@@ -5412,7 +5412,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           const since = Date.now();
           await castSpell(bard, bTok, cure, 1, halflingToken);
           const notice = await waitFor(() => hewNotices(since, 'Battle Magic')[0] ?? null, 8000);
-          ok('87a. Cure Wounds cast as an action: "Battle Magic — BF Test Bard can attack again", the swing from the sheet', !!notice && /Battle Magic — BF Test Bard can attack again/.test(cardText(notice?.id)),
+          ok('87a. Cure Wounds cast as an action: "Battle Magic — BTB Test Bard can attack again", the swing from the sheet', !!notice && /Battle Magic — BTB Test Bard can attack again/.test(cardText(notice?.id)),
             `notice=${!!notice} card="${cardText(notice?.id).slice(0, 160)}"`);
           await ackHew('Battle Magic');
         }
@@ -5455,7 +5455,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           await waitFor(() => (card?.getFlag(MOD, 'saves')?.targets?.length ?? 0) >= 2, 8000);
           // PROMPT mode: the demand opens each target's own roll dialog; a bare rollSavingThrow is a second, unlinked roll
           // (its card carries no respondsTo, the entry never folds). The sorcerer's dialog is the one rolled.
-          const sorcDlg = () => [...foundry.applications.instances.values()].find(app => /RollConfigurationDialog/.test(app.constructor?.name ?? '') && app.rendered && app.element && /BF Test Sorcerer/.test(textOf(app.element))) ?? null;
+          const sorcDlg = () => [...foundry.applications.instances.values()].find(app => /RollConfigurationDialog/.test(app.constructor?.name ?? '') && app.rendered && app.element && /BTB Test Sorcerer/.test(textOf(app.element))) ?? null;
           const dlg = await waitFor(sorcDlg, 8000);
           faces([[1, 20]]);
           (dlg?.element?.querySelector('button[data-action="normal"]') ?? dlg?.element?.querySelector('button[autofocus]') ?? dlg?.element?.querySelector('button[type="submit"]'))?.click();
@@ -5463,8 +5463,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           await waitFor(() => sorcHP() < sorcMax, 8000);
           await sleep(500);
           CONFIG.Dice.randomUniform = realPRNG;
-          ok('88a. the sorcerer (5 ft from the bard, both targets of the same Dexterity demand) FAILS and takes HALF (4 → 2): the entry "Evasion — Leading Evasion (BF Test Bard)"',
-            (entry?.outcome === 'failed') && (entry?.evasion === true) && /Leading Evasion \(BF Test Bard\)/.test(String(entry?.evasionBy ?? '')) && (sorcHP() === sorcMax - 2),
+          ok('88a. the sorcerer (5 ft from the bard, both targets of the same Dexterity demand) FAILS and takes HALF (4 → 2): the entry "Evasion — Leading Evasion (BTB Test Bard)"',
+            (entry?.outcome === 'failed') && (entry?.evasion === true) && /Leading Evasion \(BTB Test Bard\)/.test(String(entry?.evasionBy ?? '')) && (sorcHP() === sorcMax - 2),
             `dlg=${!!dlg} entry=${JSON.stringify(entry && { outcome: entry.outcome, evasion: entry.evasion, by: entry.evasionBy })} hp=${sorcHP()} of ${sorcMax} targets=${JSON.stringify((card?.getFlag(MOD, 'saves')?.targets ?? []).map(t => [t.name, t.done, t.outcome]))}`);
           clearTargets();
         }
@@ -5568,8 +5568,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           await combat90.startCombat();
           const pick = await waitFor(() => c1Cards(t0, 'emanationPick').find(m => m.getFlag(MOD, 'emanationPick')?.key === 'Oceanic Gift') ?? null, 10000);
           const cands = (pick?.getFlag(MOD, 'emanationPick')?.candidates ?? []).map(c => c.name);
-          ok('90b. at the DRUID\'s turn start the pick card: "Oceanic Gift — BF Test Cleric\'s turn: choose one creature inside", the creatures inside the Halfling\'s ring the candidates, the druid not',
-            !!pick && (cands.length > 1) && !cands.includes(clericToken.document.name) && /BF Test Cleric's turn: choose one creature inside/.test(cardText(pick?.id)),
+          ok('90b. at the DRUID\'s turn start the pick card: "Oceanic Gift — BTB Test Cleric\'s turn: choose one creature inside", the creatures inside the Halfling\'s ring the candidates, the druid not',
+            !!pick && (cands.length > 1) && !cands.includes(clericToken.document.name) && /BTB Test Cleric's turn: choose one creature inside/.test(cardText(pick?.id)),
             `pick=${!!pick} candidates=${JSON.stringify(cands)} card="${cardText(pick?.id).slice(0, 200)}"`);
           await set('saveRolls', 'prompt');
           // The pick: the Attacker when the ring holds it, else the first creature inside that is not the Halfling — in a full
@@ -6074,7 +6074,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           await sleep(500);
           const text = textOf(dlg?.element?.querySelector('[data-bf-reminder]'));
           const net = dlg?.options?.bfSaveGate?.net ?? null;
-          ok('102b. the Victim\'s save against the cleric\'s Sacred Flame (radiant): the gate lists "Corona of Light — against BF Test Cleric\'s spell", net Disadvantage',
+          ok('102b. the Victim\'s save against the cleric\'s Sacred Flame (radiant): the gate lists "Corona of Light — against BTB Test Cleric\'s spell", net Disadvantage',
             !!dlg && /Corona of Light/.test(text) && (net === 'disadvantage'), `dlg=${!!dlg} net=${net} text="${text.slice(0, 220)}"`);
           try { await dlg?.close(); } catch { /* gone */ }
           await Promise.race([Promise.resolve(p).catch(() => {}), sleep(3000)]);
@@ -6798,7 +6798,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       try {
         if (!w) log.push('§122 skipped');
         else {
-          [cart] = await Actor.createDocuments([{ name: 'BF Test Cart', type: 'vehicle', system: { attributes: { ac: { flat: 5, calc: 'flat' }, hp: { value: 100, max: 100 } } } }]);
+          [cart] = await Actor.createDocuments([{ name: 'BTB Test Cart', type: 'vehicle', system: { attributes: { ac: { flat: 5, calc: 'flat' }, hp: { value: 100, max: 100 } } } }]);
           const td = await cart.getTokenDocument({ x: pcToken.document.x + scene.grid.size, y: pcToken.document.y });
           [cartToken] = await scene.createEmbeddedDocuments('Token', [td.toObject()]);
           await sleep(400);

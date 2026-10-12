@@ -1,29 +1,45 @@
-# Open Roll 5e: Battle Flow
+# Open Roll 5e: By the Books
 
-[![verify](https://github.com/Txpple/fvtt-mod-battleflow/actions/workflows/verify.yml/badge.svg)](https://github.com/Txpple/fvtt-mod-battleflow/actions/workflows/verify.yml)
-[![release](https://github.com/Txpple/fvtt-mod-battleflow/actions/workflows/release.yml/badge.svg)](https://github.com/Txpple/fvtt-mod-battleflow/actions/workflows/release.yml)
+[![verify](https://github.com/Txpple/fvtt-mod-bythebooks/actions/workflows/verify.yml/badge.svg)](https://github.com/Txpple/fvtt-mod-bythebooks/actions/workflows/verify.yml)
+[![release](https://github.com/Txpple/fvtt-mod-bythebooks/actions/workflows/release.yml/badge.svg)](https://github.com/Txpple/fvtt-mod-bythebooks/actions/workflows/release.yml)
 
-A Foundry VTT module for the dnd5e system that automates combat under the D&D 5e 2024 rules. When
-an attack hits, the damage rolls and applies. When a spell demands a save, everyone rolls. When a
-reaction could change the outcome, the player gets a popup with a timer. Every automatic action
-leaves a receipt with a one-click revert. It exists to help new players keep track of the rule
-details of 5e (weapon masteries, maneuvers, reactions, the small rules that are easy to forget)
-and to take routine steps off experienced players. It is one module with no dependencies beyond
-the system.
+*The 2024 rules, played from the sheet; every automatic step with a receipt and a revert; offered,
+never enforced.*
+
+A Foundry VTT module for the dnd5e system that plays the D&D 2024 rules from the character sheet.
+A player who does not know a rule still gets it, as written, with a receipt. A rule belongs here
+when three things hold: it comes from one of the six books, it rides a use or an effect from the
+sheet, and it lands with a receipt and a revert, with chat cards and popups as the only interface.
+The fight is where that shows most (an attack that hits rolls and applies its damage, a save spell
+rolls for everyone, a reaction that could change the outcome gets a popup with a timer), but it is
+not the boundary: rest grants, token senses, token sizes and the Light cantrip are rules from the
+sheet too. It exists to help new players keep track of the rule details of 5e and to take routine
+steps off experienced players. It is one module with no dependencies beyond the system, and it
+pairs with Open Roll 5e: Errata: Errata is where the book is wrong, By the Books is where the book
+is right.
+
+**Formerly Battle Flow.** Until 2.17.0 this module was *Open Roll 5e: Battle Flow*
+(`fvtt-mod-battleflow`); 3.0.0 is the same module under the name that says what it is, and nothing
+it does changed. Foundry cannot rename a package in place, so a world on 2.x installs By the Books
+from the manifest URL below, then in *Manage Modules* enables By the Books **and** disables Battle
+Flow in the same pass, saves and reloads. The active GM's first load moves the settings, standing
+effects and other data to the new name and reports what moved. If both are left enabled, By the
+Books does nothing and shows the GM a permanent warning, since two copies would apply damage twice. Old chat cards keep working, and 3.0.0 still emits the old `battleflow.*` hooks
+beside the new `bythebooks.*` ones for one release so other modules can move on their own schedule.
 
 ## Status
 
-**Usable now, and in use at our own table.** Every book is built; the walks, playing each rule at
-the table, are what remains before 3.0.
+**Usable now, and in use at our own table.** Every book is built; 3.0.0 is the rename, and the
+walks, playing each rule at the table, are what remains.
 
 | Built | Next |
 | --- | --- |
 | The combat chain: hit, damage, apply, reactions, saves, concentration, auras, cover | The walks: each built rule played at the table, book by book |
-| The Player's Handbook: every species, feat, fighting style, class and subclass feature, and spell that touches a fight | The rows that wait for a first customer (the rare shapes no table has needed yet) |
-| The Dungeon Master's Guide: the crit riders and the enchanted weapons | Summons and Wild Shape ([#1](https://github.com/Txpple/fvtt-mod-battleflow/issues/1), [#2](https://github.com/Txpple/fvtt-mod-battleflow/issues/2)) |
+| The Player's Handbook: every species, feat, fighting style, class and subclass feature, and spell with a rule to play | The rows that wait for a first customer (the rare shapes no table has needed yet) |
+| The Dungeon Master's Guide: the crit riders and the enchanted weapons | Summons and Wild Shape ([#1](https://github.com/Txpple/fvtt-mod-bythebooks/issues/1), [#2](https://github.com/Txpple/fvtt-mod-bythebooks/issues/2)) |
 | The Monster Manual: Magic Resistance, Undead Fortitude, Regeneration, the auras, the reactions | The epic boons |
 | Heroes of Faerûn, Arcana Unleashed, Ravenloft: The Horrors Within | |
-| Ten settings; every feature always on | |
+| Twelve settings (nine for the world, three per player); every feature always on | |
 
 Nothing is finished until it has been played. What is in works; what is not in yet is simply left
 to the table, the way vanilla dnd5e does.
@@ -39,8 +55,8 @@ to the table, the way vanilla dnd5e does.
   person gets a say, a person is asked, with a default and a clock.
 - **The system stays underneath.** The card buttons the module takes over are hidden so there
   is one path; the system's damage tray, refund and revert stay.
-- **Combat Plus and FX Studio are separate modules on purpose.** Battle Flow resolves the fight;
-  Combat Plus does the chores around it and FX Studio plays the pictures. Each detects the others
+- **Combat Plus and FX Studio are separate modules on purpose.** By the Books plays the rules;
+  Combat Plus does the chores around the fight and FX Studio plays the pictures. Each detects the others
   and none requires another, so a dnd5e update can never take all three down.
 
 ## Installation
@@ -48,7 +64,7 @@ to the table, the way vanilla dnd5e does.
 Paste the manifest URL into Foundry's *Install Module* dialog:
 
 ```
-https://github.com/Txpple/fvtt-mod-battleflow/releases/latest/download/module.json
+https://github.com/Txpple/fvtt-mod-bythebooks/releases/latest/download/module.json
 ```
 
 - Foundry VTT 14.
@@ -118,10 +134,10 @@ https://github.com/Txpple/fvtt-mod-battleflow/releases/latest/download/module.js
 
 ## The trade
 
-Battle Flow is built to be **easy to run**, not to be configured. That is a deliberate trade
+By the Books is built to be **easy to run**, not to be configured. That is a deliberate trade
 against midi-qol.
 
-| | Battle Flow | midi-qol stack |
+| | By the Books | midi-qol stack |
 | --- | --- | --- |
 | Install | one module | midi + DAE + premades + their dependencies |
 | Settings | twelve | hundreds |
@@ -139,7 +155,7 @@ list. The full list and the reasons are in [DESIGN.md §4](DESIGN.md).
 
 ## Settings
 
-*Game Settings → Configure Settings → Open Roll 5e: Battle Flow.*
+*Game Settings → Configure Settings → Open Roll 5e: By the Books.*
 
 | Setting | Scope | What it does |
 | --- | --- | --- |
@@ -178,7 +194,7 @@ publishes the GitHub release, zip and manifest together, from a `vX.Y.Z` tag.
 <!-- openroll5e:family -->
 ## Part of Open Roll 5e
 
-Battle Flow is one of the Open Roll 5e modules for Foundry VTT, a suite built for one D&D 5e table and
+By the Books is one of the Open Roll 5e modules for Foundry VTT, a suite built for one D&D 5e table and
 shared. Each module installs and works on its own and none needs another; together they cover the
 table from the fog of war to the loot. The other modules:
 

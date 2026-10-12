@@ -1,9 +1,9 @@
 /**
- * Battle Flow — MACHINE, part of scripts/saves/ (ARCHITECTURE.md §7): a placed area is the demand's
+ * By the Books — MACHINE, part of scripts/saves/ (ARCHITECTURE.md §7): a placed area is the demand's
  * authority — adoption, the toolbar area's claim, the spent-area sweep. The area is a REGION tied by
  * `flags.dnd5e.activity`; the card's render is the reliability floor.
  */
-import { MODULE_ID, TITLE, queueFlagWrite, drivesMomentFor } from "../core.js";
+import { readFlag, TITLE, queueFlagWrite, drivesMomentFor } from "../core.js";
 import { cardActivity } from "../lookup.js";
 import { saveTargetEntry } from "../decide/demand.js";
 import { regionShapeTypeFor } from "../decide/geometry.js";
@@ -62,13 +62,13 @@ const templateRefreshes = new Map();   // card id → { again: boolean }
 /** Re-derive a live demand's targets from its regions (verdicts kept, leavers drop, arrivals join);
  * idempotent. ⚠ The render is the floor: createRegion fires BEFORE the stamp. Never await canvas. */
 export async function refreshDemandFromTemplates(card) {
-  if ( !drivesMomentFor(card.getFlag(MODULE_ID, "saves")?.sourceUuid ?? null) ) return;
+  if ( !drivesMomentFor(readFlag(card, "saves")?.sourceUuid ?? null) ) return;
   const inFlight = templateRefreshes.get(card.id);
   if ( inFlight ) { inFlight.again = true; return; }
   const latch = { again: false };
   templateRefreshes.set(card.id, latch);
   try {
-    const flag = card.getFlag(MODULE_ID, "saves");
+    const flag = readFlag(card, "saves");
     if ( flag?.status !== "pending" ) return;
     // A triggered (pinned) demand shares the cast's activity; the area is not its authority.
     if ( flag.pinnedTargets ) return;
@@ -83,7 +83,7 @@ export async function refreshDemandFromTemplates(card) {
       // would match the claimed region and apply.
       const newer = game.messages.contents.some(m => {
         if ( (m.id === card.id) || (m.timestamp <= card.timestamp) ) return false;
-        const f = m.getFlag(MODULE_ID, "saves");
+        const f = readFlag(m, "saves");
         return (f?.activityUuid === flag.activityUuid) && !f.pinnedTargets;   // a triggered demand is not a cast
       });
       if ( newer ) return;
@@ -142,7 +142,7 @@ function refreshTemplatedDemands(region) {
   const bare = isBareTemplate(region);
   if ( !origin && !bare ) return;   // somebody's region, nobody's area — a feature aura, a hazard, a door
   const live = game.messages.contents.filter(m => {
-    const f = m.getFlag(MODULE_ID, "saves");
+    const f = readFlag(m, "saves");
     if ( (f?.status !== "pending") || f.pinnedTargets ) return false;
     if ( origin ) return (f.activityUuid === origin)
       && (!(f.targets ?? []).length || (f.targets ?? []).some(t => !t.done));
@@ -165,7 +165,7 @@ const templateSweepsInFlight = new Set();
  * floor. ⚠ A re-cast reuses the activity uuid: a newer same-activity card disarms this sweep.
  */
 export async function cleanupSpentTemplates(card, { endedConcentrationId = null } = {}) {
-  const flag = card.getFlag(MODULE_ID, "saves");
+  const flag = readFlag(card, "saves");
   if ( !flag?.templated ) return;
   // On a CLOSED demand a verdict-less entry is an orphan; it does not hold the area up.
   const closed = flag.status === "done";
@@ -182,7 +182,7 @@ export async function cleanupSpentTemplates(card, { endedConcentrationId = null 
   }
   const superseded = game.messages.contents.some(m => {
     if ( (m.id === card.id) || (m.timestamp <= card.timestamp) ) return false;
-    const f = m.getFlag(MODULE_ID, "saves");
+    const f = readFlag(m, "saves");
     return (f?.activityUuid === flag.activityUuid) && !f.pinnedTargets;   // a triggered demand is not a re-cast
   });
   if ( superseded ) return;
@@ -207,8 +207,8 @@ listen("deleteActiveEffect", "saves/areas", effect => {
   if ( !(effect.parent instanceof Actor) ) return;
   for ( const m of game.messages.contents ) {
     if ( m.system?.concentration !== effect.id ) continue;
-    if ( !drivesMomentFor(m.getFlag(MODULE_ID, "saves")?.sourceUuid ?? null) ) continue;
-    if ( m.getFlag(MODULE_ID, "saves")?.templated ) {
+    if ( !drivesMomentFor(readFlag(m, "saves")?.sourceUuid ?? null) ) continue;
+    if ( readFlag(m, "saves")?.templated ) {
       void cleanupSpentTemplates(m, { endedConcentrationId: effect.id });
     }
   }

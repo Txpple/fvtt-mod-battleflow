@@ -1,7 +1,7 @@
 // Live suite: effect riders, mastery riders, the Use/Pass ask, the Topple fold and its timer,
 // and the reminders, driven end to end.
 //
-// Every setting touched is restored; every message this run creates is deleted; BF Test fixtures
+// Every setting touched is restored; every message this run creates is deleted; BTB Test fixtures
 // are long-rested (they spend real HP and slots); HP is topped up before any "did not move"
 // assertion; damage searches go by originating id over the WHOLE log.
 //
@@ -47,7 +47,7 @@ const f = await connectSuite({ tag: 'effects', watchdogMs: 600_000 });
 announcePlan('effects', plan, pulled);
 
 const out = await f.evaluate(async ({ sections, titles }) => {
-  const MOD = 'fvtt-mod-battleflow';
+  const MOD = 'fvtt-mod-bythebooks';
   const results = [];
   const log = [];
   const skips = [];
@@ -67,7 +67,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   const sleep = ms => new Promise(r => setTimeout(r, ms));
   // Every moment-event payload published during this run, so a section can assert its resolve was heard.
   const moments = [];
-  const momentHookId = Hooks.on('battleflow.moment', p => moments.push(p));
+  const momentHookId = Hooks.on('bythebooks.moment', p => moments.push(p));
   const momentsOf = (event, since = 0) => moments.filter(p => (p.event === event) && (p.at >= since));
   const plain = p => { try { return JSON.stringify(p) === JSON.stringify(JSON.parse(JSON.stringify(p))); } catch { return false; } };
   const suiteStart = Date.now();
@@ -132,13 +132,13 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   const prior = Object.fromEntries(SETTING_KEYS.map(k => [k, game.settings.get(MOD, k)]));
   const set = (k, v) => game.settings.set(MOD, k, v);
 
-  const scene = game.scenes.getName('Battle Flow Test Range');
-  const victim = game.actors.getName('BF Test Victim');
-  const shielder = game.actors.getName('BF Test Shielder');
-  let pc = game.actors.getName('BF Test PC Attacker');
-  const npc = game.actors.getName('BF Test Attacker');
+  const scene = game.scenes.getName('By the Books Test Range');
+  const victim = game.actors.getName('BTB Test Victim');
+  const shielder = game.actors.getName('BTB Test Shielder');
+  let pc = game.actors.getName('BTB Test PC Attacker');
+  const npc = game.actors.getName('BTB Test Attacker');
   let priorBlade = null; // the blade's run-start mastery — setMastery mutates it per section
-  if (!scene || !victim || !npc) return { fatal: 'missing fixture: scene or BF Test actors' };
+  if (!scene || !victim || !npc) return { fatal: 'missing fixture: scene or BTB Test actors' };
 
   const created = { items: [], effects: [], tokens: [] };
   const priorActor = {};
@@ -190,7 +190,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       game.user.targets.forEach(t => { t.setTarget(false, { releaseOthers: true }); });
       // Sweep this run's chat: fixture speakers, the module's alias, or a module flag.
       const mine = game.messages.filter(m => (m.timestamp >= suiteStart)
-        && (m.speaker?.alias?.startsWith?.('BF Test') || m.speaker?.alias === 'Battle Flow'
+        && (m.speaker?.alias?.startsWith?.('BTB Test') || m.speaker?.alias === 'By the Books'
           || Object.keys(m.flags?.[MOD] ?? {}).length));
       if (mine.length) await ChatMessage.deleteDocuments(mine.map(m => m.id));
     } catch (err) {
@@ -217,9 +217,9 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     // A character-type attacker (masteries are PC-only), made here if absent.
     if (!pc) {
       const weapon = npc.items.find(i => i.system.activities?.some?.(a => a.type === 'attack'));
-      pc = await Actor.create({ name: 'BF Test PC Attacker', type: 'character',
+      pc = await Actor.create({ name: 'BTB Test PC Attacker', type: 'character',
         items: weapon ? [weapon.toObject()] : [] });
-      log.push('created BF Test PC Attacker');
+      log.push('created BTB Test PC Attacker');
     }
 
     // A 2024 weapon with a mastery, found by SHAPE (weapon + mastery + attack activity): names and packs shift.
@@ -418,7 +418,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           JSON.stringify(receipt?.targets?.map(t => ({ uuid: t.uuid, effects: t.effects }))));
         // The Vexed chip joining the effect receipt publishes `effect` (marker `<target>|<effect id>`).
         const efv = momentsOf('effect').filter(p => (p.messageId === dmg?.id) && (p.details?.effectId === vexed?.id));
-        ok('2c. the chip\'s landing was PUBLISHED through the gate: battleflow.moment "effect" (kind effectReceipt, marker victim|effect) — the victim as the target, the Vexed effect by id and name; once, plain and frozen',
+        ok('2c. the chip\'s landing was PUBLISHED through the gate: bythebooks.moment "effect" (kind effectReceipt, marker victim|effect) — the victim as the target, the Vexed effect by id and name; once, plain and frozen',
           (efv.length === 1) && (efv[0].kind === 'effectReceipt') && (efv[0].marker === `${victim.uuid}|${vexed?.id}`) && (efv[0].targets?.[0]?.actorUuid === victim.uuid)
             && (efv[0].ability === vexed?.name) && Object.isFrozen(efv[0]) && plain(efv[0]),
           `effect=${JSON.stringify(efv[0])}`);
@@ -546,7 +546,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           'a Use/Pass dialog is still open');
         // The mastery ask resolving to `done` publishes `mastery`.
         const mv = momentsOf('mastery').filter(p => p.messageId === attackMsg.id);
-        ok('5e. the ask\'s resolve was PUBLISHED through the gate: battleflow.moment "mastery" (kind mastery) — the attacker, slow, used, the victim as the target; once, plain and frozen',
+        ok('5e. the ask\'s resolve was PUBLISHED through the gate: bythebooks.moment "mastery" (kind mastery) — the attacker, slow, used, the victim as the target; once, plain and frozen',
           (mv.length === 1) && (mv[0].kind === 'mastery') && (mv[0].actorUuid === pc.uuid) && (mv[0].details?.key === 'slow') && (mv[0].details?.outcome === 'used')
             && (mv[0].targets?.some(t => t.actorUuid === victim.uuid)) && Object.isFrozen(mv[0]) && plain(mv[0]),
           `mastery=${JSON.stringify(mv[0])}`);
@@ -786,7 +786,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           const dmg2 = await waitDamage(hit.usageId ?? hit.attackMsg.id, { flag: 'effectReceipt' });
           const applied2 = await waitFor(() => chip());
           const revertBtn = await waitFor(() => {
-            const row = document.querySelector(`[data-message-id="${dmg2?.id}"] .battleflow-receipt`);
+            const row = document.querySelector(`[data-message-id="${dmg2?.id}"] .bythebooks-receipt`);
             return [...(row?.querySelectorAll('button') ?? [])].find(b => b.textContent.includes('✕'));
           });
           revertBtn?.click();
@@ -804,7 +804,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           const applied3 = await waitFor(() => chip());
           await applied3?.delete();
           const revertBtn2 = await waitFor(() => {
-            const row = document.querySelector(`[data-message-id="${dmg3?.id}"] .battleflow-receipt`);
+            const row = document.querySelector(`[data-message-id="${dmg3?.id}"] .bythebooks-receipt`);
             return [...(row?.querySelectorAll('button') ?? [])].find(b => b.textContent.includes('✕'));
           });
           revertBtn2?.click();
@@ -819,7 +819,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         if (want(13)) {
           const usageCards = () => game.messages.contents.filter(m =>
             ((m.type === 'usage'))
-            && m.speaker?.alias?.startsWith?.('BF Test'));
+            && m.speaker?.alias?.startsWith?.('BTB Test'));
 
           await setMastery('vex');
           await clearChips();
@@ -1238,7 +1238,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
 
         // 16c. while a concentration ask pends for the same actor and ability, a bare sheet roll is
         // the concentration machine's (ship-order priority).
-        const stub16 = await ChatMessage.create({ content: 'BF test — pending conc ask stub',
+        const stub16 = await ChatMessage.create({ content: 'BTB test — pending conc ask stub',
           flags: { [MOD]: { concentration: {
             status: 'pending', actorUuid: victim.uuid, ability: 'con', dc: 10 } } } });
         await victim.rollSavingThrow({ ability: 'con' }, { configure: false }, {});
@@ -1261,7 +1261,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
 
         // 16e. the twin ask: isActiveGM() is per-USER, so two sessions on one account both stamp; a twin
         // over the same sourceMessageId deletes itself. (Targets arrive done so no popup flashes.)
-        const twin16 = await ChatMessage.create({ content: 'BF test — twin topple ask',
+        const twin16 = await ChatMessage.create({ content: 'BTB test — twin topple ask',
           flags: { [MOD]: { topple: {
             dc: 14, ability: 'con',
             sourceMessageId: card16.getFlag(MOD, 'topple').sourceMessageId,
@@ -1283,25 +1283,25 @@ const out = await f.evaluate(async ({ sections, titles }) => {
 
       // 16f. twin chips (same name and origin, module-fingerprinted) converge to one: the newcomer
       // deletes itself. Clear a crashed run's twins first — they would be ELDERS.
-      for (const stale of victim.effects.filter(e => e.name === 'BF Twin Chip')) await stale.delete();
+      for (const stale of victim.effects.filter(e => e.name === 'BTB Twin Chip')) await stale.delete();
       // ⚠ The origin must RESOLVE: an ActiveEffect create whose origin points at nothing silently
       // creates nothing. The newcomer's return is not held (the watcher may delete it first): converge
       // on the COUNT.
       const eA16 = await ActiveEffect.implementation.create({
-        name: 'BF Twin Chip', origin: victim.uuid,
+        name: 'BTB Twin Chip', origin: victim.uuid,
         flags: { [MOD]: { applied: true } } }, { parent: victim });
       await sleep(60); // distinct server creation stamps — the dedupe orders by them
       void ActiveEffect.implementation.create({
-        name: 'BF Twin Chip', origin: victim.uuid,
+        name: 'BTB Twin Chip', origin: victim.uuid,
         flags: { [MOD]: { applied: true } } }, { parent: victim });
       await sleep(600); // let the twin land before asking for convergence
       const converged16 = await until14(() =>
-        victim.effects.filter(e => e.name === 'BF Twin Chip').length === 1, 6000);
+        victim.effects.filter(e => e.name === 'BTB Twin Chip').length === 1, 6000);
       ok('16f. a twin fingerprinted chip converges to one — newcomer deletes, elder stands',
         !!converged16 && !!eA16 && !!victim.effects.get(eA16.id),
         `converged=${!!converged16} elderStands=${!!(eA16 && victim.effects.get(eA16.id))} `
-          + `count=${victim.effects.filter(e => e.name === 'BF Twin Chip').length}`);
-      for (const e of victim.effects.filter(e => e.name === 'BF Twin Chip')) await e.delete();
+          + `count=${victim.effects.filter(e => e.name === 'BTB Twin Chip').length}`);
+      for (const e of victim.effects.filter(e => e.name === 'BTB Twin Chip')) await e.delete();
       await victim.update({ 'system.abilities.con.save.roll.bonus':
         priorActor[victim.id]['system.abilities.con.save.roll.bonus'] });
     }
@@ -1422,7 +1422,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   } catch (err) {
     return { fatal: `${err?.message || err}\n${err?.stack ?? ''}`, results, log, skips };
   } finally {
-    Hooks.off('battleflow.moment', momentHookId);
+    Hooks.off('bythebooks.moment', momentHookId);
     await teardown();
     for (const a of [victim, shielder, pc, npc].filter(Boolean)) {
       try { await a.longRest?.({ dialog: false, chat: false }); } catch { /* fine */ }

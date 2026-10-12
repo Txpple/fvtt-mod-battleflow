@@ -1,10 +1,10 @@
 /**
- * Battle Flow — Metamagic: the options as a group in the casting window (RULINGS.md *Metamagic*).
+ * By the Books — Metamagic: the options as a group in the casting window (RULINGS.md *Metamagic*).
  * The pick waits on the casting client until the card's `preCreateChatMessage` stamps it as a birth
  * flag; `postUseActivity` spends the points (`poolSpend`). Empowered is a dice-changers row, Seeking a
  * d20 fold kind, the ask at the area is area-ask.js.
  */
-import { MODULE_ID, TITLE, statContext, decisionWindow } from "./core.js";
+import { MODULE_ID, readFlag, TITLE, publish, statContext, decisionWindow } from "./core.js";
 import { cardActivity, featureNamed, lower, namesAnswering, resolveUuid } from "./lookup.js";
 import { metamagicEntries, listedNames, chosenAreaListed } from "./decide/registry.js";
 import { poolOf, spendPoolUses, isPartyMember } from "./shared.js";
@@ -165,7 +165,7 @@ listen("renderActivityUsageDialog", "metamagic", (app, element) => {
     const currentFree = new Set((freePending.get(activity.uuid) ?? []).map(r => r.key));
     const fs = document.createElement("fieldset");
     fs.dataset.bfMetamagicField = "";
-    fs.innerHTML = `<legend>Battle Flow — ${paid ? "Metamagic" : esc(menu.map(r => r.feature).join(", "))}</legend>
+    fs.innerHTML = `<legend>By the Books — ${paid ? "Metamagic" : esc(menu.map(r => r.feature).join(", "))}</legend>
       ${paid ? `<div data-bf-metamagic-pool style="display:flex;justify-content:space-between;font-size:var(--font-size-12,12px);opacity:0.85;margin:0 0 0.25rem;">
         <span>${esc(actor.name)}</span><span><strong>${POOL_NAME}: ${points} of ${max}</strong>${first ? "" : " — no pool found"}</span></div>` : ""}
       ${menu.map(row => rowHTML(row, known.get(row.feature), row.free ? (currentFree.has(row.key) ? row.key : null) : current, { facts, currentType, mark })).join("")}
@@ -282,11 +282,11 @@ function recordForRoll(activity, message, flag = METAMAGIC_FLAG) {
     const id = originIdInData(data);
     const card = id ? game.messages.get(id) : null;
     // A roll that names its card reads that card alone: an earlier cast's pick never rides it.
-    if ( card ) return card.getFlag(MODULE_ID, flag) ?? null;
+    if ( card ) return readFlag(card, flag) ?? null;
     // No origin named (a roll from the sheet): the activity's newest card of the last minute.
     const recent = game.messages.contents.slice(-40).reverse().find(m => (activityUuidOf(m) === activity?.uuid)
-      && m.getFlag(MODULE_ID, flag) && (Math.abs(Date.now() - (m.timestamp ?? 0)) <= 60_000));
-    return recent?.getFlag(MODULE_ID, flag) ?? null;
+      && readFlag(m, flag) && (Math.abs(Date.now() - (m.timestamp ?? 0)) <= 60_000));
+    return readFlag(recent, flag) ?? null;
   } catch { return null; }
 }
 
@@ -399,20 +399,20 @@ function openCastHold(uuid) {
 // The real card's BIRTH lifts the hold, before any `createChatMessage` handler can observe it...
 listen("preCreateChatMessage", "metamagic", doc => {
   const uuid = doc.getFlag?.("dnd5e", "activity")?.uuid ?? null;
-  if ( uuid && doc.getFlag?.(MODULE_ID, METAMAGIC_FLAG)?.chosen ) releaseHold(uuid, doc);
+  if ( uuid && readFlag(doc, METAMAGIC_FLAG)?.chosen ) releaseHold(uuid, doc);
 });
 // ...and a card posted from ANOTHER client fires no preCreate here, so its arrival lifts it too.
 listen("createChatMessage", "metamagic", message => {
   const uuid = activityUuidOf(message);
-  if ( uuid && message.getFlag(MODULE_ID, METAMAGIC_FLAG)?.chosen ) releaseHold(uuid, message);
+  if ( uuid && readFlag(message, METAMAGIC_FLAG)?.chosen ) releaseHold(uuid, message);
 });
 
 // A deleted carrier is the ask withdrawn: the points are spent, so post the card as cast.
 // ⚠ Only the casting client holds one, so exactly one client does this.
 listen("deleteChatMessage", "metamagic", message => {
   try {
-    const ask = message.getFlag(MODULE_ID, AREA_ASK_FLAG);
-    const held = message.getFlag(MODULE_ID, DEFERRED_FLAG);
+    const ask = readFlag(message, AREA_ASK_FLAG);
+    const held = readFlag(message, DEFERRED_FLAG);
     if ( !held || (ask?.status !== "pending") ) return;
     const uuid = held.activityUuid ?? held.pick?.activityUuid ?? "";
     if ( !isHeld(uuid) ) return;
@@ -496,7 +496,7 @@ async function postDeferredCard(held, record, answer, templateIds, extra = null)
   const activity = cardActivity(card, held.pick.activityUuid ?? null);
   const scene = canvas.scene ?? game.scenes.active;
   const templates = (templateIds ?? []).map(id => scene?.regions?.get(id)).filter(Boolean);   // a placed area is a Region
-  Hooks.callAll("battleflow.deferredUsageCard", { activity, message: card, templates });
+  publish("deferredUsageCard", { activity, message: card, templates });
   return card;
 }
 
@@ -508,16 +508,16 @@ async function spendForPick(activity, pick, message) {
   const record = await spendPoolUses(actor, pool, pick.feature, pick.cost ?? 1, POOL_NAME);
   if ( !message || !record ) return;
   // ⚠ An update, not a birth flag: the flash's `updateChatMessage` reader catches it (resources.js).
-  await message.update({ flags: { [MODULE_ID]: { poolSpend: record, [METAMAGIC_FLAG]: { ...(message.getFlag(MODULE_ID, METAMAGIC_FLAG) ?? pick), spent: true } } } });
+  await message.update({ flags: { [MODULE_ID]: { poolSpend: record, [METAMAGIC_FLAG]: { ...(readFlag(message, METAMAGIC_FLAG) ?? pick), spent: true } } } });
 }
 
 /* --- The durable record — one line on the spell's card, every render, idempotent (law 6) ------ */
 
 listen("dnd5e.renderChatMessage", "metamagic", (message, html) => {
   try {
-    const record = message.getFlag(MODULE_ID, METAMAGIC_FLAG);
+    const record = readFlag(message, METAMAGIC_FLAG);
     if ( !record ) return;
-    if ( message.getFlag(MODULE_ID, AREA_ASK_FLAG)?.status === "pending" ) return;   // the ask's own line speaks
+    if ( readFlag(message, AREA_ASK_FLAG)?.status === "pending" ) return;   // the ask's own line speaks
     const content = html.querySelector?.(SURFACES.messageContent) ?? html;
     if ( !content || content.querySelector(".bf-metamagic-line") ) return;
     const div = document.createElement("div");
@@ -530,7 +530,7 @@ listen("dnd5e.renderChatMessage", "metamagic", (message, html) => {
 
 listen("dnd5e.renderChatMessage", "metamagic", (message, html) => {
   try {
-    const free = message.getFlag(MODULE_ID, FREE_FLAG);
+    const free = readFlag(message, FREE_FLAG);
     if ( !Array.isArray(free) || !free.length ) return;
     const content = html.querySelector?.(SURFACES.messageContent) ?? html;
     if ( !content || content.querySelector(".bf-metamagic-free-line") ) return;
@@ -562,12 +562,12 @@ export function empoweredOffer(actor) {
 /* --- The ask at the area: metamagic's answer part (area-ask.js owns the popup and the clock) --- */
 
 registerAskAnswerPart(async (message, ask, outcome) => {
-  const mm = message.getFlag(MODULE_ID, METAMAGIC_FLAG) ?? {};
+  const mm = readFlag(message, METAMAGIC_FLAG) ?? {};
   const rule = (ask.kind === "choose") ? (ask.heightened?.rule ?? mm.rule ?? "") : (mm.rule ?? ask.rule ?? "");
   // What the answer makes CHOSEN on the cast's metamagic record — none for a chosen area alone.
   const mmAnswer = (ask.kind === "careful") ? { chosen: true, protected: outcome.protectedList }
     : ((ask.kind === "heightened") || ask.heightened) ? { chosen: true, target: outcome.mark, rule } : null;
-  const held = message.getFlag(MODULE_ID, DEFERRED_FLAG);
+  const held = readFlag(message, DEFERRED_FLAG);
   if ( held ) {
     await message.setFlag(MODULE_ID, AREA_ASK_FLAG, outcome.done);
     await postDeferredCard({ data: held.data, pick: held.pick }, held.poolSpend ?? null, mmAnswer, held.templateIds ?? [],

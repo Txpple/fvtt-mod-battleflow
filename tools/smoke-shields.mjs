@@ -4,8 +4,8 @@
 // Agathys (the module marks the cast and ends the mark with the temp HP), the reach, a ranged hit
 // striking nothing.
 //
-// Fixtures (tools/fixture-suite.mjs): BF Test Cleric (warded caster), BF Test Ranger (Death Armor's
-// ally), BF Test Attacker (the goblin). The spells are lent from the packs for the run.
+// Fixtures (tools/fixture-suite.mjs): BTB Test Cleric (warded caster), BTB Test Ranger (Death Armor's
+// ally), BTB Test Attacker (the goblin). The spells are lent from the packs for the run.
 // Everything touched is restored or removed, including its combat.
 //
 // Sections: `--section 3`, `--list`. Fixtures and teardown ALWAYS run.
@@ -35,7 +35,7 @@ const f = await connectSuite({ tag: 'shields', watchdogMs: 600_000 });
 announcePlan('shields', plan, pulled);
 
 const out = await f.evaluate(async ({ sections, titles }) => {
-  const MOD = 'fvtt-mod-battleflow';
+  const MOD = 'fvtt-mod-bythebooks';
   const results = [];
   const log = [];
   const skips = [];
@@ -48,7 +48,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   const sleep = ms => new Promise(r => setTimeout(r, ms));
   // Every moment-event payload published during this run, so a section can assert its resolve was heard.
   const moments = [];
-  const momentHookId = Hooks.on('battleflow.moment', p => moments.push(p));
+  const momentHookId = Hooks.on('bythebooks.moment', p => moments.push(p));
   const momentsOf = (event, since = 0) => moments.filter(p => (p.event === event) && (p.at >= since));
   const plain = p => { try { return JSON.stringify(p) === JSON.stringify(JSON.parse(JSON.stringify(p))); } catch { return false; } };
   const suiteStart = Date.now();
@@ -95,14 +95,14 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   const prior = Object.fromEntries(SETTING_KEYS.map(k => [k, game.settings.get(MOD, k)]));
   const set = (k, v) => game.settings.set(MOD, k, v);
 
-  const scene = game.scenes.getName('Battle Flow Test Range');
-  const cleric = game.actors.getName('BF Test Cleric');
-  const ranger = game.actors.getName('BF Test Ranger');
-  const goblin = game.actors.getName('BF Test Attacker');
-  if (!scene || !cleric || !ranger || !goblin) return { fatal: 'missing fixture: scene, BF Test Cleric, BF Test Ranger or BF Test Attacker — run tools/fixture-suite.mjs' };
+  const scene = game.scenes.getName('By the Books Test Range');
+  const cleric = game.actors.getName('BTB Test Cleric');
+  const ranger = game.actors.getName('BTB Test Ranger');
+  const goblin = game.actors.getName('BTB Test Attacker');
+  if (!scene || !cleric || !ranger || !goblin) return { fatal: 'missing fixture: scene, BTB Test Cleric, BTB Test Ranger or BTB Test Attacker — run tools/fixture-suite.mjs' };
   const melee = goblin.items.find(i => (i.type === 'weapon') && i.system.activities?.some?.(a => (a.type === 'attack') && (a.attack?.type?.value === 'melee')));
   const ranged = goblin.items.find(i => (i.type === 'weapon') && i.system.activities?.some?.(a => (a.type === 'attack') && (a.attack?.type?.value === 'ranged')));
-  if (!melee) return { fatal: 'BF Test Attacker has no melee weapon' };
+  if (!melee) return { fatal: 'BTB Test Attacker has no melee weapon' };
   log.push(`goblin melee: ${melee.name}${ranged ? `, ranged: ${ranged.name}` : ' (no ranged weapon — §3b skipped)'}`);
 
   const created = { items: [], tokens: [] };
@@ -148,7 +148,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       for (const [actorId, data] of Object.entries(priorActor)) await game.actors.get(actorId)?.update(data);
       game.user.targets.forEach(t => { t.setTarget(false, { releaseOthers: true }); });
       const mine = game.messages.filter(m => (m.timestamp >= suiteStart)
-        && (m.speaker?.alias?.startsWith?.('BF Test') || m.speaker?.alias === 'Battle Flow' || Object.keys(m.flags?.[MOD] ?? {}).length));
+        && (m.speaker?.alias?.startsWith?.('BTB Test') || m.speaker?.alias === 'By the Books' || Object.keys(m.flags?.[MOD] ?? {}).length));
       if (mine.length) await ChatMessage.deleteDocuments(mine.map(m => m.id));
     } catch (err) {
       log.push(`TEARDOWN ERROR: ${err?.message}`);
@@ -298,12 +298,12 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         `flag=${JSON.stringify(ds)} speaker=${shield?.speaker?.alias} rolls=${shield?.rolls?.map(r => r.formula + ':' + r.options?.type).join('|')}`);
       const receipt = shield?.getFlag(MOD, 'receipt')?.targets?.find(t => t.uuid === goblin.uuid);
       ok('1b. …applied to the GOBLIN through the receipt chokepoint: a receipt on the ward\'s roll card naming the ward, the goblin\'s HP down by the roll',
-        !!receipt && (receipt.taken === ds?.total) && (goblinHP() === hpBefore - (ds?.total ?? 0)) && /Fire Shield on BF Test Cleric/.test(receipt.note ?? ''),
+        !!receipt && (receipt.taken === ds?.total) && (goblinHP() === hpBefore - (ds?.total ?? 0)) && /Fire Shield on BTB Test Cleric/.test(receipt.note ?? ''),
         `receipt=${JSON.stringify(receipt)} hp ${hpBefore}→${goblinHP()} total=${ds?.total}`);
       // The ward's damageShield record publishes `shield`; the receipt on the same card publishes `damage`.
       const shv = momentsOf('shield').filter(p => p.messageId === shield?.id);
       const dmv = momentsOf('damage').filter(p => p.messageId === shield?.id);
-      ok('1y. the ward\'s strike was PUBLISHED through the gate: battleflow.moment "shield" (kind damageShield) — the Cleric, Fire Shield, the goblin as the target, the total and the type — and "damage" (kind receipt) for the receipt on the same card, the goblin\'s taken; once each, plain and frozen',
+      ok('1y. the ward\'s strike was PUBLISHED through the gate: bythebooks.moment "shield" (kind damageShield) — the Cleric, Fire Shield, the goblin as the target, the total and the type — and "damage" (kind receipt) for the receipt on the same card, the goblin\'s taken; once each, plain and frozen',
         (shv.length === 1) && (dmv.length === 1) && (shv[0].kind === 'damageShield') && (shv[0].actorUuid === cleric.uuid) && (shv[0].ability === 'Fire Shield')
           && (shv[0].targets?.[0]?.actorUuid === goblin.uuid) && (shv[0].details?.total === ds?.total) && (shv[0].details?.type === 'fire')
           && (dmv[0].kind === 'receipt') && (dmv[0].marker === goblin.uuid) && (dmv[0].targets?.[0]?.actorUuid === goblin.uuid) && (dmv[0].details?.taken === ds?.total)
@@ -314,7 +314,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         `paid=${JSON.stringify(dmg?.getFlag(MOD, 'damageShields'))} cards=${cards.length}`);
       const text = await waitFor(() => { const t = cardText(shield?.id); return /Damage shield/i.test(t) ? t : null; }, 4000);
       ok('1d. the card says it (R5): the ward, the defender, the dice and the type, at the attacker, the rule folded',
-        /Fire Shield on BF Test Cleric — 2d8 fire to BF Test Attacker/.test(text ?? '') && /every melee hit/.test(text ?? ''),
+        /Fire Shield on BTB Test Cleric — 2d8 fire to BTB Test Attacker/.test(text ?? '') && /every melee hit/.test(text ?? ''),
         (text ?? '').slice(0, 220));
     }
 
@@ -461,7 +461,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   } catch (err) {
     return { fatal: `${err?.message || err}\n${err?.stack ?? ''}`, results, log, skips };
   } finally {
-    Hooks.off('battleflow.moment', momentHookId);
+    Hooks.off('bythebooks.moment', momentHookId);
     await teardown();
   }
 }, sectionArg(plan, SECTIONS));

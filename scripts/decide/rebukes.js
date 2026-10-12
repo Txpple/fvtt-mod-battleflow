@@ -1,5 +1,5 @@
 // @ts-check
-/** Battle Flow — DECISION layer (ARCHITECTURE.md §2): the REBUKE, a Reaction aimed at the creature that
+/** By the Books — DECISION layer (ARCHITECTURE.md §2): the REBUKE, a Reaction aimed at the creature that
  * damaged the bearer (the table is registry.js REBUKES, the machine rebukes.js). */
 
 /** The reach in feet: the row's `range`, else the activity's; null offers nothing (never guessed).

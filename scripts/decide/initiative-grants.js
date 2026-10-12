@@ -1,6 +1,6 @@
 // @ts-check
 /**
- * Battle Flow — DECISION (ARCHITECTURE.md §2): THE INITIATIVE GRANTS (registry.js INITIATIVE_GRANTS — Persistent
+ * By the Books — DECISION (ARCHITECTURE.md §2): THE INITIATIVE GRANTS (registry.js INITIATIVE_GRANTS — Persistent
  * Rage, Uncanny Metabolism): whether a feature's grant is due as its owner's Initiative lands, and the card's words.
  * Pure.
  */

@@ -1,8 +1,8 @@
 /**
- * Battle Flow — MACHINE (ARCHITECTURE.md §7): the chip spend — the attack roll that uses up a Vex or Sap
+ * By the Books — MACHINE (ARCHITECTURE.md §7): the chip spend — the attack roll that uses up a Vex or Sap
  * chip (or a listed effect's marker), receipted on the attack card — and the tidies of expired chips.
  */
-import { MODULE_ID, TITLE, isActiveGM, drivesMomentFor, canApplyTo, whisperNoGM, queueFlagWrite,
+import { readFlag, TITLE, isActiveGM, drivesMomentFor, canApplyTo, whisperNoGM, queueFlagWrite,
   statContext } from "./core.js";
 import { EFFECT_BENDS } from "./decide/registry.js";
 import { TURN_CHIPS, CHIP_FLAG, chipOwnedBy, chipSpentBy, netShownFor, rollModeOf, spendRecord } from "./decide/chips.js";
@@ -32,7 +32,7 @@ async function spendChips(message, ctx) {
   const claimed = [];
   try {
     const attacker = ctx.attacker;
-    const chipKey = e => e.getFlag(MODULE_ID, CHIP_FLAG);
+    const chipKey = e => readFlag(e, CHIP_FLAG);
     // A chip's origin is the WEAPON that applied it; the attacker owns it when that weapon is theirs.
     const owned = e => chipOwnedBy(e.origin, attacker.uuid);
     // Already spent — on the log, or by the roll a moment before this one — is not spent again.
@@ -69,11 +69,11 @@ async function spendChips(message, ctx) {
         const sided = (side === "attacker") ? (r?.attacker || r?.against) : (r?.target || (Number(r?.plus) > 0));
         if ( !r || !sided || !listed.has(String(name.split(" — ")[0])) ) return null;
         // `only: "source"` (Feinting Attack): a target's marker is spent by ITS source's roll alone.
-        if ( (r.only === "source") && (side === "target") && (e.getFlag(MODULE_ID, "sourceUuid") !== attacker.uuid) ) return null;
+        if ( (r.only === "source") && (side === "target") && (readFlag(e, "sourceUuid") !== attacker.uuid) ) return null;
         // `except: "source"` (Sundered): the placer's own roll never spends it.
-        if ( (r.except === "source") && (side === "target") && (e.getFlag(MODULE_ID, "sourceUuid") === attacker.uuid) ) return null;
+        if ( (r.except === "source") && (side === "target") && (readFlag(e, "sourceUuid") === attacker.uuid) ) return null;
         // `against` (Studied Attacks): spent only by a roll AT the creature the chip names.
-        if ( r.against && !targetUuids.has(e.getFlag(MODULE_ID, "against")) ) return null;
+        if ( r.against && !targetUuids.has(readFlag(e, "against")) ) return null;
         return r;
       };
       for ( const e of attacker.effects ) {
@@ -93,7 +93,7 @@ async function spendChips(message, ctx) {
     const mode = rollModeOf(message.rolls?.[0]?.options?.advantageMode);
     // Where the gate stood in for the dialog, honour is the press matching the NET it showed (Vex and Sap
     // net Normal, honouring both), for the kinds it listed.
-    const reminder = message.getFlag(MODULE_ID, REMINDER_FLAG) ?? null;
+    const reminder = readFlag(message, REMINDER_FLAG) ?? null;
     const records = spent.map(s => spendRecord({ id: s.effect.id, name: s.effect.name, img: s.effect.img,
       key: s.key, bearerUuid: s.actor.uuid, bearerName: s.actor.name, mode, net: netShownFor(reminder, s.key) }));
     // The record first, deduped by chip id so a twin elect converges rather than doubling.
@@ -132,7 +132,7 @@ const expiryTidy = new Map();
 
 /** The tidy owns the module's chips and the hold's reaction effect (an expired Shield left on the sheet
  * reads as still up); a hand-dragged pack effect is not ours. */
-const tidyOwns = effect => !!effect.getFlag(MODULE_ID, CHIP_FLAG) || !!effect.getFlag(MODULE_ID, "reactionEffect");
+const tidyOwns = effect => !!readFlag(effect, CHIP_FLAG) || !!readFlag(effect, "reactionEffect");
 
 listen("updateActiveEffect", "chip-spend", (effect, changes) => {
   if ( changes?.duration?.expired !== true ) return;
@@ -171,9 +171,9 @@ async function sweepCombatChips(combat) {
     const actors = new Set(combat.combatants.map(c => c.actor).filter(a => a instanceof Actor));
     await Promise.all([...actors].map(async actor => {
       // …and the reaction's self-cast effect clocked to this combat.
-      const ids = actor.effects.filter(e => TURN_CHIPS.includes(e.getFlag(MODULE_ID, CHIP_FLAG))
-        || (e.getFlag(MODULE_ID, "reactionEffect") && (e._source.start?.combat === combat.id))
-        || (e.getFlag(MODULE_ID, "bystanderMute")?.combat === combat.id)).map(e => e.id);
+      const ids = actor.effects.filter(e => TURN_CHIPS.includes(readFlag(e, CHIP_FLAG))
+        || (readFlag(e, "reactionEffect") && (e._source.start?.combat === combat.id))
+        || (readFlag(e, "bystanderMute")?.combat === combat.id)).map(e => e.id);
       if ( !ids.length ) return;
       try {
         await actor.deleteEmbeddedDocuments("ActiveEffect", ids);
@@ -189,7 +189,7 @@ async function sweepCombatChips(combat) {
 
 // The receipt: the attack card says which chip this roll used up and whether it was honoured (R5).
 listen("dnd5e.renderChatMessage", "chip-spend", (message, html) => {
-  const spend = message.getFlag(MODULE_ID, "chipSpend");
+  const spend = readFlag(message, "chipSpend");
   for ( const r of (spend?.spent ?? []) ) {
     const line = document.createElement("div");
     line.innerHTML = bfCard({

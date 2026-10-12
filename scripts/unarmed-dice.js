@@ -1,9 +1,9 @@
 /**
- * Battle Flow — MACHINE (ARCHITECTURE.md §7): THE UNARMED STRIKE DICE (registry UNARMED_DICE). At
+ * By the Books — MACHINE (ARCHITECTURE.md §7): THE UNARMED STRIKE DICE (registry UNARMED_DICE). At
  * `preRollDamage` the plain strike's flat parts become the feature's own unarmed formula, so a
  * crit doubles the die. Nothing is asked: the die is never worse than the flat.
  */
-import { MODULE_ID, TITLE } from "./core.js";
+import { MODULE_ID, readFlag, TITLE } from "./core.js";
 import { featureNamed, lower } from "./lookup.js";
 import { listedNames, unarmedDiceEntries } from "./decide/registry.js";
 import { UNARMED_DICE } from "./decide/registry.js";
@@ -88,7 +88,7 @@ listen("dnd5e.preRollDamage", "unarmed-dice", (config, _dialog, message) => {
 
 listen("dnd5e.renderChatMessage", "unarmed-dice", (message, html) => {
   try {
-    const flag = message.getFlag(MODULE_ID, UNARMED_FLAG);
+    const flag = readFlag(message, UNARMED_FLAG);
     if ( !flag ) return;
     const content = html.querySelector?.(SURFACES.messageContent) ?? html;
     if ( !content || content.querySelector(".bf-unarmed-dice-line") ) return;

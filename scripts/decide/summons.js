@@ -1,6 +1,6 @@
 // @ts-check
 /**
- * Battle Flow — DECISION layer (ARCHITECTURE.md §2): SUMMONS (issue #1) — what a summon activity
+ * By the Books — DECISION layer (ARCHITECTURE.md §2): SUMMONS (issue #1) — what a summon activity
  * asks before the creature exists, the record the caster's client writes on its cast card, and what
  * the elect lands from it: the form rows off the activity's profiles, the spell's own choice
  * (`SUMMON_CHOICES`), the damage parts narrowed to the chosen type, the shared resistance, the owners

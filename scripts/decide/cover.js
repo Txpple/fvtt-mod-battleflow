@@ -1,6 +1,6 @@
 // @ts-check
 /**
- * Battle Flow — DECISION layer (ARCHITECTURE.md §2): MEASURED COVER, the 2024 DMG's corner-line
+ * By the Books — DECISION layer (ARCHITECTURE.md §2): MEASURED COVER, the 2024 DMG's corner-line
  * rule on a grid (RULINGS *Measured cover*). Pure: points, rectangles and one injected wall test
  * (geometry.js holds the platform's).
  */

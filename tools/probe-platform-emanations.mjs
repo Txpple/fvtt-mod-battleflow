@@ -1,7 +1,7 @@
-// Probe: what dnd5e's own region behaviours do for aura spells, with Battle Flow OUT of the way.
-//   read     — module may stay on. For each aura spell on the BF Test Cleric (given from the
+// Probe: what dnd5e's own region behaviours do for aura spells, with By the Books OUT of the way.
+//   read     — module may stay on. For each aura spell on the BTB Test Cleric (given from the
 //              packs if missing), print activity.behaviors / applicableBehaviors / effects.
-//   walk     — switches Battle Flow OFF in the world (and back ON at the end), starts the spell
+//   walk     — switches By the Books OFF in the world (and back ON at the end), starts the spell
 //              (concentration), creates the region as TemplatePlacement.fromActivity does
 //              (placement needs a click — mimicked), lets the platform attach behaviours, walks a
 //              FRIENDLY, a NEUTRAL and a HOSTILE token in and out, ends concentration, and reports
@@ -21,9 +21,9 @@ async function connect() {
 }
 
 const READ = async (SPELLS) => {
-  const cleric = game.actors.getName("BF Test Cleric");
-  if (!cleric) return { fatal: "no BF Test Cleric" };
-  const out = { system: game.system.version, module: game.modules.get("fvtt-mod-battleflow")?.active, spells: {} };
+  const cleric = game.actors.getName("BTB Test Cleric");
+  if (!cleric) return { fatal: "no BTB Test Cleric" };
+  const out = { system: game.system.version, module: game.modules.get("fvtt-mod-bythebooks")?.active, spells: {} };
   for (const name of SPELLS) {
     let item = cleric.items.find(i => i.type === "spell" && i.name === name);
     if (!item) {
@@ -50,7 +50,7 @@ const READ = async (SPELLS) => {
     out.spells[name] = { ...(out.spells[name] ?? {}), itemEffects: item.effects.map(e => ({ id: e.id, name: e.name, type: e.type, transfer: e.transfer, changes: e.changes.map(c => `${c.key} ${c.type ?? c.mode} ${c.value}`), duration: e.duration.toObject?.() ?? null })), activities: acts };
   }
   out.behaviorTypes = Object.keys(CONFIG.DND5E.activityBehaviorTypes ?? {});
-  out.regionBehaviorTypes = Object.keys(CONFIG.RegionBehavior.dataModels).filter(k => k.startsWith("dnd5e") || k.startsWith("fvtt-mod-battleflow"));
+  out.regionBehaviorTypes = Object.keys(CONFIG.RegionBehavior.dataModels).filter(k => k.startsWith("dnd5e") || k.startsWith("fvtt-mod-bythebooks"));
   return out;
 };
 
@@ -59,16 +59,16 @@ const WALK = async () => {
   const waitFor = async (fn, ms = 6000, step = 150) => { const end = Date.now() + ms; for (;;) { const v = await fn(); if (v) return v; if (Date.now() > end) return null; await sleep(step); } };
   const mv = () => ({ teleport: true, animate: false });
   const log = [];
-  const scene = game.scenes.getName("Battle Flow Test Range");
-  const cleric = game.actors.getName("BF Test Cleric"), ranger = game.actors.getName("BF Test Ranger"), victim = game.actors.getName("BF Test Victim"), paladin = game.actors.getName("BF Test Paladin");
+  const scene = game.scenes.getName("By the Books Test Range");
+  const cleric = game.actors.getName("BTB Test Cleric"), ranger = game.actors.getName("BTB Test Ranger"), victim = game.actors.getName("BTB Test Victim"), paladin = game.actors.getName("BTB Test Paladin");
   if (!scene || !cleric || !ranger || !victim || !paladin) return { fatal: "fixtures missing" };
   const tok = a => scene.tokens.find(t => t.actorId === a.id);
   const clrTok = tok(cleric), rgrTok = tok(ranger), vicTok = tok(victim), palTok = tok(paladin);
   if (game.scenes.active?.id !== scene.id) { await scene.activate(); await sleep(1500); }
   if (canvas.scene?.id !== scene.id) { await scene.view(); await sleep(1500); }
   const home = Object.fromEntries([clrTok, rgrTok, vicTok, palTok].map(t => [t.id, { x: t.x, y: t.y, disposition: t.disposition }]));
-  const bfOff = !game.modules.get("fvtt-mod-battleflow")?.active;
-  log.push(`battleflow active=${!bfOff} isActiveGM=${game.user.isActiveGM}`);
+  const bfOff = !game.modules.get("fvtt-mod-bythebooks")?.active;
+  log.push(`bythebooks active=${!bfOff} isActiveGM=${game.user.isActiveGM}`);
 
   const item = cleric.items.find(i => i.type === "spell" && i.name === "Crusader's Mantle");
   if (!item) return { fatal: "Crusader's Mantle not on the Cleric — run the read phase first" };
@@ -161,7 +161,7 @@ if (phase === "read") {
 } else if (phase === "module-off" || phase === "module-on") {
   const on = phase === "module-on";
   const r = await f.evaluate(async (on) => {
-    const cfg = { ...game.settings.get("core", "moduleConfiguration"), "fvtt-mod-battleflow": on };
+    const cfg = { ...game.settings.get("core", "moduleConfiguration"), "fvtt-mod-bythebooks": on };
     await game.settings.set("core", "moduleConfiguration", cfg);
     return "set";
   }, on);

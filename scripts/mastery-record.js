@@ -1,5 +1,5 @@
 /**
- * Battle Flow — MACHINE (ARCHITECTURE.md §7): THE MASTERY RECORD (issue #3) — the
+ * By the Books — MACHINE (ARCHITECTURE.md §7): THE MASTERY RECORD (issue #3) — the
  * paperwork of Weapon Mastery, kept in dnd5e's own list (`system.traits.weaponProf.mastery.value`,
  * the set the system reads before it stamps a mastery on an attack; mastery.js resolves the stamp).
  * The allowance is the sheet's mastery-mode Trait advancements (decide/mastery-record.js). Four
@@ -10,7 +10,7 @@
  * an over-long list is trimmed there first); the RECORD on the Weapon Mastery feature's card; the PARTY VIEW
  * in the group sheet's header controls. Nothing here decides who may use a mastery — the system does.
  */
-import { MODULE_ID, TITLE, isActiveGM, queueFlagWrite, canAnswerFor, statContext } from "./core.js";
+import { MODULE_ID, readFlag, TITLE, isActiveGM, queueFlagWrite, canAnswerFor, statContext } from "./core.js";
 import { cardItem, lower, resolveUuid } from "./lookup.js";
 import { allowanceOf, fillPicks, recordState, missingPick, restList, trimList } from "./decide/mastery-record.js";
 import { TONE, bfCard, esc, foldedRuleHTML, popupKey } from "./decide/present.js";
@@ -166,7 +166,7 @@ function drawMissing(message, html) {
   if ( !missing ) return;
   const standing = (missing.open > 0) ? `${missing.open} of ${r.allowance} open — pick at your next Long Rest` : `${r.chosen.length} of ${r.allowance} chosen`;
   const row = document.createElement("div");
-  row.className = "battleflow-mastery-record";
+  row.className = "bythebooks-mastery-record";
   row.innerHTML = bfCard({
     img: weapon.img, eyebrow: "Weapon Mastery", tone: "neutral",
     title: `${weapon.name}: ${masteryLabel(mastery)} — not mastered by ${actor.name}`,
@@ -283,7 +283,7 @@ function drawFeature(message, html) {
   if ( !(actor instanceof Actor) || (actor.type !== "character") ) return;
   const r = recordOf(actor);
   const row = document.createElement("div");
-  row.className = "battleflow-mastery-record";
+  row.className = "bythebooks-mastery-record";
   row.innerHTML = bfCard({ img: item.img, eyebrow: "Weapon Mastery", tone: "neutral", title: `${actor.name} has these masteries`, subtitle: standingLine(r), lines: [allowanceHTML(actor), slotListHTML(kindRows(r), r.allowance)] });
   if ( canAnswerFor(actor) ) {
     const shownKey = popupKey(message.id, "masteryShow");
@@ -328,7 +328,7 @@ listen("dnd5e.restCompleted", "mastery-record", (actor, result, config) => {
 
 /** The owner's answer — a swap (`out`, `into`), a trim (`drop`) or a keep; the GM writes it, a player relays it. */
 export async function answerSwap(message, { out = null, into = null, adds = null, drop = null, declined = false } = {}) {
-  const flag = message.getFlag(MODULE_ID, MASTERY_SWAP_FLAG);
+  const flag = readFlag(message, MASTERY_SWAP_FLAG);
   if ( flag?.status !== "pending" ) return;
   const answer = declined ? { declined: true } : drop ? { drop: [...drop] } : { out, into, adds: [...(adds ?? [])] };
   if ( isActiveGM() ) {
@@ -370,7 +370,7 @@ async function landSwap(message) {
     claimed = true;
   });
   if ( !claimed ) return;
-  const flag = message.getFlag(MODULE_ID, MASTERY_SWAP_FLAG);
+  const flag = readFlag(message, MASTERY_SWAP_FLAG);
   let outcome = "kept";
   let after = null;
   try {
@@ -436,7 +436,7 @@ function syncRestGrid(root, { open, over }) {
 }
 
 async function showSwapPopup(message) {
-  const flag = message.getFlag(MODULE_ID, MASTERY_SWAP_FLAG);
+  const flag = readFlag(message, MASTERY_SWAP_FLAG);
   if ( flag?.status !== "pending" ) return;
   const actor = resolveUuid(flag.actorUuid);
   if ( !actor ) return;
@@ -529,7 +529,7 @@ async function showSwapDone(message, flag) {
 
 function drawSwap(message, html, flag) {
   const row = document.createElement("div");
-  row.className = "battleflow-mastery-record";
+  row.className = "bythebooks-mastery-record";
   const actor = resolveUuid(flag.actorUuid);
   if ( flag.status === "pending" ) {
     if ( !canAnswerFor(actor) ) return;
@@ -558,7 +558,7 @@ listen("dnd5e.renderChatMessage", "mastery-record", (message, html) => {
   try {
     if ( isCard(message, CARD.attack) ) drawMissing(message, html);
     else drawFeature(message, html);
-    const swap = message.getFlag(MODULE_ID, MASTERY_SWAP_FLAG);
+    const swap = readFlag(message, MASTERY_SWAP_FLAG);
     if ( swap ) drawSwap(message, html, swap);
   } catch(err) {
     console.error(`${TITLE} | The mastery record's row could not be drawn.`, err);

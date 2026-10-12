@@ -1,5 +1,5 @@
 /**
- * Battle Flow — SPINE (ARCHITECTURE.md §7): the shared sheet and document readers; nothing here
+ * By the Books — SPINE (ARCHITECTURE.md §7): the shared sheet and document readers; nothing here
  * decides. ⚠ It owns no hook, flag or write, and imports only core.js and pure modules; keep it that way.
  * A table's row finds its item by dnd5e's identifier, then by its name (decide/registry.js `matchOf`).
  */

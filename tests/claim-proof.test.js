@@ -259,7 +259,7 @@ describe("the tag → suite table", () => {
 
   it("on the real tree: every battery suite has a tag or a pinned reason, and no two scripts share one", async () => {
     const tags = loadSuiteTags();
-    expect(tags.get("smoke-battleflow")).toBe("smoke");
+    expect(tags.get("smoke-bythebooks")).toBe("smoke");
     expect(tags.get("smoke-twoclient")).toBe("2client");
     expect(tags.get("check-popup-routing")).toBe("topo");
     expect(tags.get("smoke-d20-folds")).toBe("smoke-d20-folds"); // through `const TAG`

@@ -1,5 +1,5 @@
 /**
- * Battle Flow — THE MOMENT EVENTS: a plain frozen event published at every resolve (the module's
+ * By the Books — THE MOMENT EVENTS: a plain frozen event published at every resolve (the module's
  * popups post no dnd5e usage card). ⚠ THE GATE: one publisher watches the RECORDS (decide/moments.js);
  * an unclassified record fails the build (tools/check-moments.mjs). Knows no other module
  * (ARCHITECTURE §7). ⚠ CLIENT-LOCAL: the record's writer (or the row's publisher) publishes, once
@@ -7,7 +7,7 @@
  * word is a contract version bump. Consumers dedupe native cards by `momentId`.
  */
 
-import { MODULE_ID, TITLE } from "./core.js";
+import { MODULE_ID, LEGACY_ID, TITLE, publish } from "./core.js";
 import { MOMENT_KINDS, MOMENT_RECORDS, MOMENT_WORDS, isMomentWord, momentId, newMoments, resolvedMoments } from "./decide/moments.js";
 import { hitTargets } from "./shared.js";
 import { listen, listenOnce } from "./dispatch.js";
@@ -17,7 +17,9 @@ export const MOMENT_CONTRACT = Object.freeze({
   version: 2,
   events: MOMENT_WORDS,
   kinds: MOMENT_KINDS,
-  hooks: Object.freeze(["battleflow.moment", "battleflow.<event>"])
+  // 3.0.0 publishes each under both prefixes, the new first; the battleflow.* pair (formerly Battle Flow)
+  // goes in the next minor (core.js `publish`).
+  hooks: Object.freeze(["bythebooks.moment", "bythebooks.<event>", "battleflow.moment", "battleflow.<event>"])
 });
 
 const uuidOf = x => (typeof x === "string") ? x : (x?.uuid ?? null);
@@ -114,8 +116,8 @@ export function publishMoment(event, { actor = null, item = null, activity = nul
   }
   // Guards a Hooks that is not the platform's (a test, a broken boot).
   try {
-    Hooks.callAll("battleflow.moment", payload);
-    Hooks.callAll(`battleflow.${event}`, payload);
+    publish("moment", payload);
+    publish(event, payload);
   } catch(err) {
     console.warn(`${TITLE} | publishMoment: a subscriber to "${event}" failed — the moment stands.`, err);
   }
@@ -162,8 +164,11 @@ function factsOf(facts, message) {
  * @param {string|null} writerId  the author on create, the updater on update
  * @param {boolean} publish  false on the ready sweep */
 export function observeMessage(message, writerId, publish = true) {
-  const flags = message?.flags?.[MODULE_ID];
-  if ( !flags ) return [];
+  // Both scopes, per key, the new one winning (what `readFlag` answers): a card posted before 3.0.0
+  // (formerly Battle Flow) is remembered on ready by what it resolved, so a later write to it
+  // publishes only what is new.
+  const flags = { ...(message?.flags?.[LEGACY_ID] ?? {}), ...(message?.flags?.[MODULE_ID] ?? {}) };
+  if ( !Object.keys(flags).length ) return [];
   const ctx = ctxOf(message);
   const out = [];
   for ( const key of Object.keys(flags) ) {

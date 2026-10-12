@@ -1,6 +1,6 @@
 // @ts-check
 /**
- * Battle Flow — DECISION (ARCHITECTURE.md §2): is a clock rider (registry.js CLOCK_RIDERS) DUE on
+ * By the Books — DECISION (ARCHITECTURE.md §2): is a clock rider (registry.js CLOCK_RIDERS) DUE on
  * this hit — its ROUND or TURN condition, read by the EDGE off the combat — and why not.
  */
 

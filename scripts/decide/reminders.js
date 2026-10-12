@@ -1,6 +1,6 @@
 // @ts-check
 /**
- * Battle Flow — DECISION: what bends a d20 roll, and what it nets to. Pure, no imports
+ * By the Books — DECISION: what bends a d20 roll, and what it nets to. Pure, no imports
  * (ARCHITECTURE.md §2); the tables come in as parameters. The gate lists every source and the net;
  * a human presses the mode (DESIGN R1). A source whose bend is unknown is listed and does not vote.
  */

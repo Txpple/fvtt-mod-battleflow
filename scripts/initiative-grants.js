@@ -1,11 +1,11 @@
 /**
- * Battle Flow — MACHINE (ARCHITECTURE.md §7): THE INITIATIVE GRANTS (INITIATIVE_GRANTS — Persistent Rage, Uncanny
+ * By the Books — MACHINE (ARCHITECTURE.md §7): THE INITIATIVE GRANTS (INITIATIVE_GRANTS — Persistent Rage, Uncanny
  * Metabolism). As a combatant's Initiative lands (the swap's seam, initiative-swap.js), the GM reads its listed
  * features once per combat: a plain row simply happens (R1) — its item's expended uses back, the feature's own use
  * spent, a card; an `ask` row is OFFERED to the owner (the use is theirs to keep) and the clock answers No. The
  * sheet writes are the GM's; a player's answer relays.
  */
-import { MODULE_ID, TITLE, isActiveGM, queueFlagWrite, canAnswerFor, statContext, drivesMomentFor, decisionWindow } from "./core.js";
+import { MODULE_ID, readFlag, TITLE, isActiveGM, queueFlagWrite, canAnswerFor, statContext, drivesMomentFor, decisionWindow } from "./core.js";
 import { activityNamed, featureNamed, lower, resolveUuid } from "./lookup.js";
 import { poolOf, spendPoolUses } from "./shared.js";
 import { nearestFeet, tokenForUuid } from "./geometry.js";
@@ -108,7 +108,7 @@ listen("updateCombat", "initiative-grants", (combat, changes) => {
 });
 
 async function rearm(combat, ids) {
-  const read = combat.getFlag(MODULE_ID, INITIATIVE_READ_FLAG) ?? {};
+  const read = readFlag(combat, INITIATIVE_READ_FLAG) ?? {};
   const drop = ids.filter(id => read[id]);
   if ( !drop.length ) return;
   await combat.update(Object.fromEntries(drop.map(id => [`flags.${MODULE_ID}.${INITIATIVE_READ_FLAG}.-=${id}`, null])))
@@ -123,7 +123,7 @@ async function readFor(combat, combatant) {
   if ( reading.has(key) ) return;
   const actor = combatant.actor;
   if ( !(actor instanceof Actor) ) return;
-  if ( combat.getFlag(MODULE_ID, INITIATIVE_READ_FLAG)?.[combatant.id] ) return;
+  if ( readFlag(combat, INITIATIVE_READ_FLAG)?.[combatant.id] ) return;
   reading.add(key);
   try {
     // Read the sheet NOW, post, then latch: the in-memory guard covers the posting, the flag every later roll.
@@ -171,7 +171,7 @@ const settle = (current, answer, timedOut = false) => {
 };
 
 async function answerGrant(message, answer, { timedOut = false } = {}) {
-  const flag = message.getFlag(MODULE_ID, INITIATIVE_GRANT_FLAG);
+  const flag = readFlag(message, INITIATIVE_GRANT_FLAG);
   if ( flag?.status !== "pending" ) return;
   if ( isActiveGM() ) {
     await queueFlagWrite(message, INITIATIVE_GRANT_FLAG, current => settle(current, answer, timedOut));
@@ -231,9 +231,9 @@ async function landGrant(message) {
     current.applying = true;
     claimed = true;
   });
-  if ( fallback ) return landFallback(message, message.getFlag(MODULE_ID, INITIATIVE_GRANT_FLAG));
+  if ( fallback ) return landFallback(message, readFlag(message, INITIATIVE_GRANT_FLAG));
   if ( !claimed ) return;
-  const flag = message.getFlag(MODULE_ID, INITIATIVE_GRANT_FLAG);
+  const flag = readFlag(message, INITIATIVE_GRANT_FLAG);
   const record = {};
   try {
     const actor = resolveUuid(flag.actorUuid);
@@ -331,7 +331,7 @@ listen("updateCombatant", "initiative-grants", (combatant, changes) => {
   try {
     if ( !("initiative" in (changes ?? {})) || !isActiveGM() ) return;
     const combat = combatant.parent;
-    const note = combat?.getFlag(MODULE_ID, BONUS_DUE_FLAG)?.[combatant.id];
+    const note = readFlag(combat, BONUS_DUE_FLAG)?.[combatant.id];
     if ( !note || (changes.initiative === null) || (changes.initiative === undefined) ) return;
     const from = Number(changes.initiative);
     void (async () => {
@@ -347,18 +347,18 @@ listen("updateCombatant", "initiative-grants", (combatant, changes) => {
 /* --- the clock: No, on whoever drives the owner's moments --------------------------------------------- */
 
 function armTimer(message) {
-  const flag = message.getFlag(MODULE_ID, INITIATIVE_GRANT_FLAG);
+  const flag = readFlag(message, INITIATIVE_GRANT_FLAG);
   if ( (flag?.status !== "pending") || !flag.deadline || !drivesMomentFor(flag.actorUuid ?? null) ) return;
   armDeadline(timers, message.id, flag.deadline, async () => {
     const live = game.messages.get(message.id);
-    if ( live?.getFlag(MODULE_ID, INITIATIVE_GRANT_FLAG)?.status === "pending" ) await answerGrant(live, "no", { timedOut: true });
+    if ( readFlag(live, INITIATIVE_GRANT_FLAG)?.status === "pending" ) await answerGrant(live, "no", { timedOut: true });
   });
 }
 
 /* --- the popup and the card ------------------------------------------------------------------------- */
 
 async function showGrantPopup(message) {
-  const flag = message.getFlag(MODULE_ID, INITIATIVE_GRANT_FLAG);
+  const flag = readFlag(message, INITIATIVE_GRANT_FLAG);
   if ( flag?.status !== "pending" ) return;
   const actor = resolveUuid(flag.actorUuid);
   if ( !actor ) return;
@@ -376,7 +376,7 @@ async function showGrantPopup(message) {
 
 listen("dnd5e.renderChatMessage", "initiative-grants", (message, html) => {
   try {
-    const flag = message.getFlag(MODULE_ID, INITIATIVE_GRANT_FLAG);
+    const flag = readFlag(message, INITIATIVE_GRANT_FLAG);
     if ( !flag ) return;
     const content = html.querySelector?.(SURFACES.messageContent) ?? html;
     if ( !content || content.querySelector(".bf-initiative-grant-line") ) return;
@@ -401,7 +401,7 @@ listen("dnd5e.renderChatMessage", "initiative-grants", (message, html) => {
 
 // An answer anywhere closes the popup everywhere (law 4); the clock stands down with it.
 listen("updateChatMessage", "initiative-grants", message => {
-  const flag = message.getFlag(MODULE_ID, INITIATIVE_GRANT_FLAG);
+  const flag = readFlag(message, INITIATIVE_GRANT_FLAG);
   if ( !flag ) return;
   if ( flag.status === "pending" ) { armTimer(message); return; }
   disarmDeadline(timers, message.id);

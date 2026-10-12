@@ -1,6 +1,6 @@
 // @ts-check
 /**
- * Battle Flow — DECISION: the hit menu — the options a hit offers grouped by paying feature, the
+ * By the Books — DECISION: the hit menu — the options a hit offers grouped by paying feature, the
  * legal picks, whether a swept-at creature is hit. Pure (ARCHITECTURE.md §2); RULINGS *The hit menu*
  * and *The hit menu — a pick per group*. The reading and arithmetic are decided here, never the choice.
  */

@@ -1,5 +1,5 @@
 /**
- * Battle Flow — SERVICE (ARCHITECTURE.md §7): THE SHARED GALLERY — one creature picker two machines
+ * By the Books — SERVICE (ARCHITECTURE.md §7): THE SHARED GALLERY — one creature picker two machines
  * route through: a summon's `cr`-mode pool (Find Familiar, Wild Companion) and Wild Shape's and the
  * polymorph spells' forms (issues #1, #2). The rows are ruled C (RULINGS *Summons*): the radio, the
  * token art, the name with its stat line and traits, and a right column the caller names. The pool is

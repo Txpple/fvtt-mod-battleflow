@@ -14,7 +14,7 @@ await f.connect();
 console.log('[audit] connected');
 
 const out = await f.evaluate(async () => {
-  const MOD = 'fvtt-mod-battleflow';
+  const MOD = 'fvtt-mod-bythebooks';
   const strip = h => (h ?? '').replace(/<[^>]*>/g, ' ').replace(/&[a-z]+;/gi, ' ')
     .replace(/\s+/g, ' ').trim();
   const raw = game.settings.get(MOD, 'interruptList') ?? '';

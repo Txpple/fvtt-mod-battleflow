@@ -1,12 +1,12 @@
 /**
- * Battle Flow — MACHINE layer (ARCHITECTURE.md §2): the post-roll D20 FOLDS, the spends that patch
+ * By the Books — MACHINE layer (ARCHITECTURE.md §2): the post-roll D20 FOLDS, the spends that patch
  * an already-rolled d20 (ARCHITECTURE.md §11, "Adding a FOLD"). The original `Roll` is never
  * touched: the die posts as its own message stamped `respondsTo` and the verdict is recomputed on
  * a module flag. The module offers by itself only where it owns the number (an attack's snapshot
  * AC, a demanded save's DC); a raw check has no DC in dnd5e, so a check's fold is always a
  * button. Depend downward only: core → decide → spine (ui) → here.
  */
-import { MODULE_ID, TITLE, S, setting, queueFlagWrite, canAnswerFor, isActiveGM, statContext, decisionWindow }
+import { MODULE_ID, readFlag, TITLE, S, setting, queueFlagWrite, canAnswerFor, isActiveGM, statContext, decisionWindow }
   from "./core.js";
 import { ruleHTML } from "./rule-text.js";
 import { answers, d20FoldEntries, metamagicEntries, listedNames } from "./decide/registry.js";
@@ -256,7 +256,7 @@ const REROLL = {
     if ( row.while === "raging" ) {
       rage = rageEffectOf(actor);
       if ( !rage ) return null;
-      if ( (row.once === "rage") && (rage.getFlag(MODULE_ID, "rerollUsed") ?? []).includes(key) ) return null;
+      if ( (row.once === "rage") && (readFlag(rage, "rerollUsed") ?? []).includes(key) ) return null;
     }
     // A row with no bonus (Disciplined Survivor) rerolls flat; a bonus the sheet cannot resolve keeps the fold off.
     const bonus = (row.bonus === null) ? 0 : rerollBonus(actor, item, row);
@@ -281,7 +281,7 @@ const REROLL = {
       if ( message ) await message.setFlag(MODULE_ID, "poolSpend", record);
     }
     if ( (marker.row.once === "rage") && marker.rage ) {
-      const used = marker.rage.getFlag(MODULE_ID, "rerollUsed") ?? [];
+      const used = readFlag(marker.rage, "rerollUsed") ?? [];
       await marker.rage.setFlag(MODULE_ID, "rerollUsed", [...used, marker.key]);
     }
     return true;
@@ -408,7 +408,7 @@ function attackFoldFor(subject, message, roll) {
   if ( !subject || (subject.type !== "attack") ) return null;
   const attacker = subject.actor;
   if ( !attacker || !(message instanceof ChatMessage) || !roll ) return null;
-  if ( message.getFlag(MODULE_ID, "d20fold") ) return null;           // never re-stamp
+  if ( readFlag(message, "d20fold") ) return null;           // never re-stamp
   const spell = subject.item?.type === "spell";
   let offers = availableFolds(attacker, "attack", [], { spell, item: subject.item ?? null });
   // ⚠ A natural 1 stands against an added die; only a reroll replaces it.
@@ -462,7 +462,7 @@ for ( const [hook, testKind] of PLAIN_HOOKS ) {
       if ( !(subject instanceof Actor) ) return;
       const message = rolls?.[0]?.parent;
       if ( !(message instanceof ChatMessage) ) return;
-      if ( message.getFlag(MODULE_ID, "d20fold") ) return;
+      if ( readFlag(message, "d20fold") ) return;
       // ⚠ A DEMANDED (or module concentration) save is offered by `offerFoldOnSave`, which knows the
       // DC; stamping here too would race the withheld verdict.
       if ( (testKind === "save") && pendingSaveDemandFor(subject) ) return;
@@ -488,7 +488,7 @@ for ( const [hook, testKind] of PLAIN_HOOKS ) {
 const initiativeStamps = new Set();   // same-client latch: the two roads below can meet on one message
 async function stampInitiative(actor, combatants, message) {
   if ( !(actor instanceof Actor) ) return;
-  if ( !message || message.getFlag(MODULE_ID, "d20fold") || !message.isAuthor ) return;
+  if ( !message || readFlag(message, "d20fold") || !message.isAuthor ) return;
   if ( initiativeStamps.has(message.id) ) return;
   initiativeStamps.add(message.id);
   try {
@@ -552,14 +552,14 @@ registerWithhold("d20fold", {
 
 async function offerFoldOnSave(rollMessage, card, uuid, total, dc, by = null) {
   try {
-    const existing = rollMessage.getFlag(MODULE_ID, "d20fold");
+    const existing = readFlag(rollMessage, "d20fold");
     if ( existing ) return existing.status === "pending";   // already asked; don't ask twice
     if ( !Number.isFinite(dc) || !Number.isFinite(total) || (total >= dc) ) return false;
     const actor = await fromUuid(uuid);
     if ( !(actor instanceof Actor) ) return false;
     const ability = rollMessage.system?.ability ?? null;
     // The demand the save answers (the DMG's Scarab reads its school and its caster's type).
-    const demand = card?.getFlag?.(MODULE_ID, "saves")?.demand ?? null;
+    const demand = readFlag(card, "saves")?.demand ?? null;
     const offers = availableFolds(actor, "save", [], { ability, demand });
     if ( !offers.length ) return false;
 
@@ -621,7 +621,7 @@ async function answerFold(message, answer, { timedOut = false } = {}) {
     return;
   }
   if ( !claimed ) return;
-  const live = message.getFlag(MODULE_ID, "d20fold");
+  const live = readFlag(message, "d20fold");
   if ( answer === "pass" ) {
     if ( !live?.spends?.length ) await announceIfNeeded(message, live);
     await resumeWithheldSave(live, message);
@@ -638,7 +638,7 @@ async function resolveFold(message, answer) {
   if ( foldInFlight.has(message.id) ) return;
   foldInFlight.add(message.id);   // before the first await
   try {
-    const flag = message.getFlag(MODULE_ID, "d20fold");
+    const flag = readFlag(message, "d20fold");
     if ( !flag || (flag.answer !== answer) || (flag.status !== "pending") ) return;
     const actor = await fromUuid(flag.actorUuid);
     if ( !(actor instanceof Actor) ) return;
@@ -799,7 +799,7 @@ async function resolveFold(message, answer) {
     if ( reoffer ) {
       // Still failing, something left: the window is REDRAWN, not re-popped.
       syncRescuePopup(message);
-      if ( message.getFlag(MODULE_ID, "d20fold")?.deadline ) armFoldTimer(message);
+      if ( readFlag(message, "d20fold")?.deadline ) armFoldTimer(message);
       return;
     }
 
@@ -881,12 +881,12 @@ async function rollDie(formula, actor) {
 // the `cardRow` seam: the same drawer on the shown card or inside the summary.
 listen("dnd5e.renderChatMessage", "d20-folds", cardRow((message, host) => {
   try {
-    const flag = message.getFlag(MODULE_ID, "d20fold");
+    const flag = readFlag(message, "d20fold");
     if ( !flag ) return;
 
     const actor = resolveUuid(flag.actorUuid);
     const block = document.createElement("div");
-    block.className = "battleflow-d20fold";
+    block.className = "bythebooks-d20fold";
     block.style.margin = "0.4rem 0 0";
 
     if ( (flag.status === "pending") && flag.answer ) {
@@ -1037,7 +1037,7 @@ function resolvedLines(flag, message) {
       ? `<strong>The save succeeds</strong> against DC ${flag.dc}.`
       : `Still fails DC ${flag.dc}.`);
   }
-  const refund = message.getFlag(MODULE_ID, "tacticalRefund");
+  const refund = readFlag(message, "tacticalRefund");
   if ( refund ) lines.push(refundLine(refund));
   else if ( (flag.spends ?? []).some(s => refundsOf({ kind: s.kind, name: s.name })) ) {   // Tactical Mind, never a scoped die or a feature's own fold
     lines.push("If the check still fails, this use of Second Wind isn't expended.");
@@ -1050,7 +1050,7 @@ function resolvedLines(flag, message) {
 function foldFolds(message, flag) {
   const specs = (flag?.testKind === "attack") ? ATTACK_FOLDS : SAVE_FOLDS;
   const folds = foldsFrom(
-    key => ((key === "d20fold") ? flag : message.getFlag(MODULE_ID, key)), specs);
+    key => ((key === "d20fold") ? flag : readFlag(message, key)), specs);
   return (flag?.testKind === "attack")
     ? folds.filter(f => f.uuid === flag.targets?.[0]?.uuid) : folds;
 }
@@ -1061,13 +1061,13 @@ const foldBase = (message, flag) => message.rolls?.[0] ?? { total: flag?.baseTot
 /** The d20 folds as RESCUE ROWS in the spine's one window (ARCHITECTURE §5); the KIND is the action token. */
 registerRescue("d20fold", {
   // ⚠ Answered is not pending: the status stays "pending" until the dice land, but the popup withdraws at the answer.
-  isPending: message => { const f = message.getFlag(MODULE_ID, "d20fold"); return (f?.status === "pending") && !f.answer; },
+  isPending: message => { const f = readFlag(message, "d20fold"); return (f?.status === "pending") && !f.answer; },
   subject: message => {
-    const uuid = message.getFlag(MODULE_ID, "d20fold")?.actorUuid;
+    const uuid = readFlag(message, "d20fold")?.actorUuid;
     return resolveUuid(uuid);
   },
   view: message => {
-    const flag = message.getFlag(MODULE_ID, "d20fold");
+    const flag = readFlag(message, "d20fold");
     if ( !flag ) return null;
     return rescueView(key => ((key === "d20fold") ? flag : null), {
       composed: foldedRoll(foldBase(message, flag), foldFolds(message, flag)),
@@ -1099,7 +1099,7 @@ function foldPremiseAlive(message, flag) {
 // EXPIRE + RESUME
 
 listen("updateChatMessage", "d20-folds", (message) => {
-  const flag = message.getFlag(MODULE_ID, "d20fold");
+  const flag = readFlag(message, "d20fold");
   if ( !flag ) return;
   // ⚠ RE-DERIVED EVERY UPDATE from the COMPOSED roll: a sibling's spend usually kills the premise.
   if ( (flag.status === "pending") && !flag.answer && isActiveGM()
@@ -1132,8 +1132,8 @@ const ARMED_KEY = "tactical";
 
 function armedChipFor(actor, testKind, skill = null) {
   return actor?.effects?.find(e => {
-    if ( (e.getFlag(MODULE_ID, CHIP_FLAG) !== "use") || (e.getFlag(MODULE_ID, "useKey") !== ARMED_KEY) ) return false;
-    const a = e.getFlag(MODULE_ID, "armed");
+    if ( (readFlag(e, CHIP_FLAG) !== "use") || (readFlag(e, "useKey") !== ARMED_KEY) ) return false;
+    const a = readFlag(e, "armed");
     if ( !a ) return false;
     if ( testKind === "initiative" ) return !!a.initiative;
     return (testKind === "check") && !!skill && (a.skills ?? []).includes(skill);
@@ -1163,20 +1163,20 @@ listen("dnd5e.postUseActivity", "d20-folds", async (activity, usageConfig, resul
     if ( !entry ) return;
     const scope = scopeOf(entry);
     const message = (results?.message instanceof ChatMessage) ? results.message : null;
-    if ( message?.getFlag(MODULE_ID, "tacticalArmed") ) return;
+    if ( readFlag(message, "tacticalArmed") ) return;
     // The rescue's own spend is already folded into the roll: arm nothing.
-    if ( message?.getFlag(MODULE_ID, "foldSpend") || usageConfig?.data?.flags?.[MODULE_ID]?.foldSpend ) return;
+    if ( readFlag(message, "foldSpend") || usageConfig?.data?.flags?.[MODULE_ID]?.foldSpend ) return;
     const formula = resolveDie(actor, activity.roll?.formula || null);
     const rolled = formula ? await rollDie(formula, actor) : null;
     if ( !rolled ) { console.warn(`${TITLE} | ${entry.name}'s die could not be read off the sheet — add it by hand.`); return; }
     await rolled.roll.toMessage({ speaker: ChatMessage.getSpeaker({ actor }), flavor: `${entry.name} — the die` });
     const total = Number(rolled.summary.total) || 0;
-    const stale = actor.effects.filter(e => (e.getFlag(MODULE_ID, CHIP_FLAG) === "use") && (e.getFlag(MODULE_ID, "useKey") === ARMED_KEY) && (e.getFlag(MODULE_ID, "armed")?.name === entry.name));
+    const stale = actor.effects.filter(e => (readFlag(e, CHIP_FLAG) === "use") && (readFlag(e, "useKey") === ARMED_KEY) && (readFlag(e, "armed")?.name === entry.name));
     if ( stale.length ) await actor.deleteEmbeddedDocuments("ActiveEffect", stale.map(e => e.id)).catch(() => {});
     const what = checkPhrase(scope.skills ?? [], !!scope.initiative);
     const chip = await ActiveEffect.implementation.create({
       name: activity.item.name, img: activity.item.img ?? "icons/svg/dice-target.svg",
-      description: `${await ruleHTML(scope.rule)}<p>Written by Battle Flow when ${esc(entry.name)} was used: the die rolled ${total}; the next ${what} adds it.</p>`,
+      description: `${await ruleHTML(scope.rule)}<p>Written by By the Books when ${esc(entry.name)} was used: the die rolled ${total}; the next ${what} adds it.</p>`,
       origin: activity.item.uuid, disabled: false, transfer: false,
       flags: { [MODULE_ID]: { [CHIP_FLAG]: "use", useKey: ARMED_KEY, armed: { name: entry.name, total, skills: [...(scope.skills ?? [])], initiative: !!scope.initiative, cardId: message?.id ?? null } } }
     }, { parent: actor }).catch(err => { console.error(`${TITLE} | ${entry.name} could not be armed — add the die by hand.`, err); return null; });
@@ -1195,7 +1195,7 @@ listen("dnd5e.postUseActivity", "d20-folds", async (activity, usageConfig, resul
 async function applyArmedFold(message, actor, testKind, { skill = null, combatants = [], total = null } = {}) {
   const chip = armedChipFor(actor, testKind, skill);
   if ( !chip ) return false;
-  const a = chip.getFlag(MODULE_ID, "armed");
+  const a = readFlag(chip, "armed");
   const base = Number(message.rolls?.[0]?.total ?? total ?? 0);
   const window = decisionWindow();
   const spends = [{ kind: "tactical", name: a.name, label: a.name, die: a.total }];
@@ -1231,7 +1231,7 @@ async function applyArmedFold(message, actor, testKind, { skill = null, combatan
 }
 
 async function showArmedNotice(message) {
-  const t = message.getFlag(MODULE_ID, "tacticalArmed");
+  const t = readFlag(message, "tacticalArmed");
   if ( !t || t.spent ) return;
   const actor = resolveUuid(t.sourceUuid);
   // The checks ARE the buttons (Initiative too in a combat); a press rolls it and acknowledges.
@@ -1255,7 +1255,7 @@ async function showArmedNotice(message) {
 }
 
 listen("dnd5e.renderChatMessage", "d20-folds", cardRow((message, host) => {
-  const t = message.getFlag(MODULE_ID, "tacticalArmed");
+  const t = readFlag(message, "tacticalArmed");
   if ( !t ) return;
   const live = !t.spent && (!t.deadline || (t.deadline > Date.now())) && !momentAcknowledged(message, "tacticalArmed");
   const line = document.createElement("div");
@@ -1342,7 +1342,7 @@ async function answerRefund(message, choice) {
     claimed = true;
   });
   if ( !claimed || (choice !== "refunded") ) return;
-  const r = message.getFlag(MODULE_ID, "tacticalRefund");
+  const r = readFlag(message, "tacticalRefund");
   const actor = resolveUuid(r.actorUuid);
   try {
     const pool = await fromUuid(r.poolUuid);
@@ -1366,7 +1366,7 @@ async function answerRefund(message, choice) {
 }
 
 async function showRefundNotice(message) {
-  const r = message.getFlag(MODULE_ID, "tacticalRefund");
+  const r = readFlag(message, "tacticalRefund");
   if ( !r || (r.status !== "pending") ) return;
   const actor = resolveUuid(r.actorUuid);
   await openMomentPopup(message, "refund", actor, {
@@ -1388,10 +1388,11 @@ async function showRefundNotice(message) {
 // The ask shows once the fold is settled: the bar while the clock runs, the recall button until answered.
 listen("dnd5e.renderChatMessage", "d20-folds", cardRow((message, host) => {
   try {
-    const r = message.getFlag(MODULE_ID, "tacticalRefund");
+    const r = readFlag(message, "tacticalRefund");
     if ( !r || (r.status !== "pending") ) return;
-    if ( message.getFlag(MODULE_ID, "d20fold")?.status === "pending" ) return;
-    const block = host.querySelector(".battleflow-d20fold") ?? host;
+    if ( readFlag(message, "d20fold")?.status === "pending" ) return;
+    // Both names: a card posted before 3.0.0 (formerly Battle Flow) may carry the old class in its stored HTML.
+    const block = host.querySelector(".bythebooks-d20fold, .battleflow-d20fold") ?? host;
     const line = document.createElement("div");
     line.innerHTML = momentBarHTML(r, "to answer");
     block.appendChild(line);

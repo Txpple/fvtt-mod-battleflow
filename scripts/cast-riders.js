@@ -1,5 +1,5 @@
 /**
- * Battle Flow — MACHINE (ARCHITECTURE.md §7): THE CAST RIDERS (CAST_RIDERS — Wild Magic Surge, Inspiring Smite):
+ * By the Books — MACHINE (ARCHITECTURE.md §7): THE CAST RIDERS (CAST_RIDERS — Wild Magic Surge, Inspiring Smite):
  * what a feature does right after its bearer casts. Read at `dnd5e.postUseActivity` on the casting client.
  * Wild Magic Surge rolls its d20 itself (R1 — "you can roll" has one sensible answer; a bend by choice) once per
  * turn after a Sorcerer spell cast with a slot, and rolls the pack's table on a 20 — or at once when Tides of
@@ -8,7 +8,7 @@
  * creatures within reach — the rest song's popup (rest-grants.js `askHandOut`), its clock giving all to the
  * paladin (a bend by choice); the Channel Divinity is spent only when something is given.
  */
-import { MODULE_ID, TITLE, decisionWindow, queueFlagWrite } from "./core.js";
+import { MODULE_ID, readFlag, TITLE, decisionWindow, queueFlagWrite } from "./core.js";
 import { activityNamed, activityOfType, featureNamed, lower, resolveUuid } from "./lookup.js";
 import { CAST_RIDERS, castRiderEntries, listedNames, answers } from "./decide/registry.js";
 import { castWithSlot, spellClassOf, surgeLine, surgeOutcome } from "./decide/cast-riders.js";
@@ -44,7 +44,7 @@ function turnKey() {
 
 /** Did this caster already roll this row this turn? The cards are the record. */
 const rolledThisTurn = (actor, name, key) => !!key && game.messages.contents.some(m => {
-  const f = m.getFlag(MODULE_ID, SURGE_FLAG);
+  const f = readFlag(m, SURGE_FLAG);
   return (f?.feature === name) && (f.actorUuid === actor.uuid) && (f.turn === key) && (f.d20 || f.tides);
 });
 
@@ -135,7 +135,7 @@ async function rollTable(uuid, actor) {
 
 listen("dnd5e.renderChatMessage", "cast-riders", (message, html) => {
   try {
-    const r = message.getFlag(MODULE_ID, SURGE_FLAG);
+    const r = readFlag(message, SURGE_FLAG);
     if ( !r ) return;
     const content = html.querySelector?.(SURFACES.messageContent) ?? html;
     if ( !content || content.querySelector(".bf-surge-line") ) return;
@@ -195,7 +195,7 @@ async function chooseSurge(message, text) {
 /** D1 — the Tamed Surge pick: the feature's use spent, the choice recorded on the caster's card and posted. */
 async function chooseTamed(message, text) {
   if ( !message.canUserModify?.(game.user, "update") ) return;
-  const r = message.getFlag(MODULE_ID, SURGE_FLAG);
+  const r = readFlag(message, SURGE_FLAG);
   const actor = resolveUuid(r?.actorUuid);
   const item = actor?.items?.get(r?.tamed?.itemId ?? "");
   if ( !r?.tamed || r.tamed.chosen || !r.tamed.options?.includes(text) || !item ) return;
@@ -220,7 +220,7 @@ function auraMembersOf(actor, auraKey) {
   const scene = tok?.scene ?? tok?.document?.parent ?? null;
   if ( !tok || !scene ) return [];
   const regions = scene.regions.filter(r => {
-    const f = r.getFlag(MODULE_ID, "emanation");
+    const f = readFlag(r, "emanation");
     return (f?.kind === "feature") && (lower(f.key) === lower(auraKey)) && (f.tokenId === tok.id);
   });
   const ids = new Set((tokensInRegions(regions) ?? []).map(e => e.tokenId));
@@ -248,7 +248,7 @@ async function auraEffect({ name, row, feature, actor, message }) {
 
 listen("dnd5e.renderChatMessage", "cast-riders", (message, html) => {
   try {
-    const r = message.getFlag(MODULE_ID, "auraRider");
+    const r = readFlag(message, "auraRider");
     if ( !r?.aura ) return;
     const content = html.querySelector?.(SURFACES.messageContent) ?? html;
     if ( !content || content.querySelector(".bf-cast-rider-line") ) return;

@@ -49,8 +49,8 @@ const WRITE_METHODS = new Set(["setFlag", "unsetFlag", "update", "create", "crea
   "deleteEmbeddedDocuments", "updateEmbeddedDocuments", "applyDamage", "toggleStatusEffect", "use",
   "rollDamage", "rollAttack", "rollSavingThrow", "rollAbilityCheck", "rollSkill", "rollToolCheck",
   "toMessage", "updateSource"]);
-/** Free functions that write (core's serializer). */
-const WRITE_CALLS = new Set(["queueFlagWrite"]);
+/** Free functions that write (core's serializer, and core's clearFlag). */
+const WRITE_CALLS = new Set(["queueFlagWrite", "clearFlag"]);
 const WRITE_STATIC = /^(ChatMessage|ActiveEffect(\.implementation)?|Actor|Item|Scene|Combat)\.(create|createDocuments|deleteDocuments|updateDocuments)$/;
 
 /**

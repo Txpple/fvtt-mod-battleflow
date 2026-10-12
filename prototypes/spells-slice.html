@@ -1,4 +1,4 @@
-<title>Battle Flow Spells Tier 3</title>
+<title>By the Books Spells Tier 3</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Signika:wght@400;600;700&display=swap">
 <style>
   /* layout: the house prototype look — scenes along the top, a mock screen (canvas + chat log), rulings down the side */
@@ -94,7 +94,7 @@
 <div class="wrap">
   <header class="top">
     <div>
-      <div class="eyebrow">Battle Flow · prototype · 2026-09-28 · the spells slice, Tier 3 · for ruling, nothing built</div>
+      <div class="eyebrow">By the Books · prototype · 2026-09-28 · the spells slice, Tier 3 · for ruling, nothing built</div>
       <h1>Tier 3: the area that pulses, Sanctuary's gate, Mirror Image's duplicates</h1>
     </div>
     <p>Three new shapes, each drawn in its states. Pick a scene along the top. The canvas shows what the table sees on the map; the chat log shows the cards. The rulings to make are in the orange panels, and the corrections to the handoff are in the red ones. All of it is drawn to the 2024 text as the PHB pack carries it.</p>
@@ -156,9 +156,9 @@
   const S = {};
 
   S.a1 = () => ({
-    stage: stage(beamAt(150,110) + tok(175,135,"BB","Bugbear Warrior") + tok(330,150,"GB","Goblin Boss") + tok(60,300,"CL","BF Walk Cleric",{pc:true}),
+    stage: stage(beamAt(150,110) + tok(175,135,"BB","Bugbear Warrior") + tok(330,150,"GB","Goblin Boss") + tok(60,300,"CL","BTB Walk Cleric",{pc:true}),
       "The cylinder is placed. The Bugbear is inside; the Goblin Boss is not."),
-    chat: log(msg("BF Walk Cleric", card("pending","Save demand — Moonbeam","The cylinder appears","BF Walk Cleric · Constitution DC 14",
+    chat: log(msg("BTB Walk Cleric", card("pending","Save demand — Moonbeam","The cylinder appears","BTB Walk Cleric · Constitution DC 14",
       [`Bugbear Warrior — <b>7</b> vs DC 14 <span class="verdict hit">FAILED</span> · 2d10 → <b>13</b> Radiant`, MB_RULE]))),
     side: panel("What this is", [
         "<b>Today already.</b> The cast's own save activity demands the save of everyone inside when the cylinder appears. Nothing new here; this scene is the baseline.",
@@ -168,9 +168,9 @@
   });
 
   S.a2 = () => ({
-    stage: stage(beamAt(150,110) + tok(175,135,"BB","Bugbear Warrior",{extra:float("−9")}) + tok(60,300,"CL","BF Walk Cleric",{pc:true}),
+    stage: stage(beamAt(150,110) + tok(175,135,"BB","Bugbear Warrior",{extra:float("−9")}) + tok(60,300,"CL","BTB Walk Cleric",{pc:true}),
       "The Bugbear ends its turn inside the beam."),
-    chat: log(msg("BF Walk Cleric", card("pending","Save demand — Moonbeam","Bugbear Warrior ends its turn in the beam","BF Walk Cleric · Constitution DC 14",
+    chat: log(msg("BTB Walk Cleric", card("pending","Save demand — Moonbeam","Bugbear Warrior ends its turn in the beam","BTB Walk Cleric · Constitution DC 14",
       [`Bugbear Warrior — <b>16</b> vs DC 14 <span class="verdict miss">SAVED</span> · 2d10 → 18, halved → <b>9</b> Radiant`, MB_RULE]))),
     side: panel("What this shows", [
         "<b>The same card as Spirit Guardians' pulse,</b> titled by what happened: who, and why (\"ends its turn in the beam\").",
@@ -179,12 +179,12 @@
   });
 
   S.a3 = () => ({
-    stage: stage(beamAt(150,110) + `<div class="path" style="left:260px;top:185px;width:80px"></div>` + tok(340,160,"GB","",{ghost:true}) + tok(185,160,"GB","Goblin Boss") + tok(60,300,"CL","BF Walk Cleric",{pc:true}),
+    stage: stage(beamAt(150,110) + `<div class="path" style="left:260px;top:185px;width:80px"></div>` + tok(340,160,"GB","",{ghost:true}) + tok(185,160,"GB","Goblin Boss") + tok(60,300,"CL","BTB Walk Cleric",{pc:true}),
       "The Goblin Boss walks into the beam on its turn, then ends its turn there."),
     chat: log(
-      msg("BF Walk Cleric", card("pending","Save demand — Moonbeam","Goblin Boss enters the beam","BF Walk Cleric · Constitution DC 14",
+      msg("BTB Walk Cleric", card("pending","Save demand — Moonbeam","Goblin Boss enters the beam","BTB Walk Cleric · Constitution DC 14",
         [`Goblin Boss — <b>9</b> vs DC 14 <span class="verdict hit">FAILED</span> · 2d10 → <b>11</b> Radiant`, MB_RULE])),
-      msg("BF Walk Cleric", card("neutral","Moonbeam — no save","Goblin Boss ends its turn in the beam","",
+      msg("BTB Walk Cleric", card("neutral","Moonbeam — no save","Goblin Boss ends its turn in the beam","",
         [`<span class="chip used">already saved against Moonbeam this turn</span>`]))),
     side: panel("What this shows", [
         "<b>Entering raises the save the moment the token stops inside.</b> The same seam Spirit Guardians uses (the token's move lands in the region).",
@@ -195,9 +195,9 @@
 
   S.a4 = () => ({
     stage: stage(area(260,100,100) + `<div class="area" style="left:120px;top:120px;width:100px;height:100px;opacity:.25;animation:none"></div>` + `<div class="path" style="left:220px;top:170px;width:40px"></div>`
-      + tok(285,125,"GB","Goblin Boss") + tok(60,300,"CL","BF Walk Cleric",{pc:true}),
+      + tok(285,125,"GB","Goblin Boss") + tok(60,300,"CL","BTB Walk Cleric",{pc:true}),
       "On the Cleric's turn, a Magic action moves the beam onto the Goblin Boss."),
-    chat: log(msg("BF Walk Cleric", card("pending","Save demand — Moonbeam","The beam moves onto Goblin Boss","BF Walk Cleric · Constitution DC 14",
+    chat: log(msg("BTB Walk Cleric", card("pending","Save demand — Moonbeam","The beam moves onto Goblin Boss","BTB Walk Cleric · Constitution DC 14",
       [`Goblin Boss — <b>15</b> vs DC 14 <span class="verdict miss">SAVED</span> · 2d10 → 12, halved → <b>6</b> Radiant`, MB_RULE]))),
     side: panel("What this shows", [
         "<b>The caster drags the area</b> (the system's own template move). Whoever the area now covers and did not before is demanded the save.",
@@ -206,7 +206,7 @@
   });
 
   S.a5 = () => ({
-    stage: stage(beamAt(150,110) + tok(175,135,"BB","Bugbear Warrior") + tok(60,300,"CL","BF Walk Cleric",{pc:true}),
+    stage: stage(beamAt(150,110) + tok(175,135,"BB","Bugbear Warrior") + tok(60,300,"CL","BTB Walk Cleric",{pc:true}),
       "Which spells get the area, and which stay out."),
     chat: log(`<div class="ey-log" style="margin-top:8px">the list</div>`,
       msg("placed areas", card("good","In — the area kind","Moonbeam · Insect Plague · Cloudkill","enter / ends its turn / the area moves onto it · once per turn",[
@@ -231,11 +231,11 @@
   /* ---------- B · Sanctuary ---------- */
   const SANC_RULE = `<div class="rule">Sanctuary · Wisdom save DC 13 · fail: choose a new target, or lose the attack or spell</div>`;
   const ward = `<div class="ring-ward"></div>`;
-  const sancStage = (cap, extra="") => stage(tok(150,150,"AL","BF Walk Ally",{pc:true,extra:ward+extra}) + tok(220,150,"BB","Bugbear Warrior") + tok(150,260,"CL","BF Walk Cleric",{pc:true}), cap);
+  const sancStage = (cap, extra="") => stage(tok(150,150,"AL","BTB Walk Ally",{pc:true,extra:ward+extra}) + tok(220,150,"BB","Bugbear Warrior") + tok(150,260,"CL","BTB Walk Cleric",{pc:true}), cap);
 
   S.b1 = () => ({
     stage: sancStage("The Bugbear targets the warded Ally and presses Attack. Before the d20, the gate stops it."),
-    chat: log(msg("Bugbear Warrior", card("pending","Sanctuary — a save before the attack","Bugbear Warrior → BF Walk Ally","the attack waits for the save",
+    chat: log(msg("Bugbear Warrior", card("pending","Sanctuary — a save before the attack","Bugbear Warrior → BTB Walk Ally","the attack waits for the save",
       [`Bugbear Warrior makes a Wisdom save against Sanctuary`, `<span class="chip">rolling · DC 13</span>`, SANC_RULE]))),
     side: panel("What the gate is", [
         "<b>The same place the buy box sits today:</b> after the attack is pressed, before its d20. The attacker's roll dialog is untouched.",
@@ -246,7 +246,7 @@
 
   S.b2 = () => ({
     stage: sancStage("The save fails. No d20 is rolled; the Bugbear may target someone else.", float("turned aside",true)),
-    chat: log(msg("Bugbear Warrior", card("good","Sanctuary — the save failed","The attack is turned aside","Bugbear Warrior → BF Walk Ally",
+    chat: log(msg("Bugbear Warrior", card("good","Sanctuary — the save failed","The attack is turned aside","Bugbear Warrior → BTB Walk Ally",
       [`Wisdom <b>8</b> vs DC 13 <span class="verdict miss">FAILED</span>`, `No attack roll. <b>Choose a new target, or the attack is lost.</b>`, SANC_RULE]))),
     side: panel("What this shows", [
         "<b>The attack never rolls.</b> The card says so plainly, and it is the attacker's card.",
@@ -258,9 +258,9 @@
   S.b3 = () => ({
     stage: sancStage("The save passes. The attack rolls as normal."),
     chat: log(
-      msg("Bugbear Warrior", card("neutral","Sanctuary — the save passed","The attack goes on","Bugbear Warrior → BF Walk Ally",
+      msg("Bugbear Warrior", card("neutral","Sanctuary — the save passed","The attack goes on","Bugbear Warrior → BTB Walk Ally",
         [`Wisdom <b>15</b> vs DC 13 <span class="verdict hit">PASSED</span>`])),
-      msg("Bugbear Warrior", card("bad","Attack","Morningstar","Bugbear Warrior → BF Walk Ally",[`d20 13 +4 = <b>17</b> vs AC 16 <span class="verdict hit">HIT</span>`]))),
+      msg("Bugbear Warrior", card("bad","Attack","Morningstar","Bugbear Warrior → BTB Walk Ally",[`d20 13 +4 = <b>17</b> vs AC 16 <span class="verdict hit">HIT</span>`]))),
     side: panel("What this shows", [
         "<b>The attack rolls straight after,</b> no second click. The save card sits above it in the log.",
         "<b>Sanctuary stays up.</b> Passing the save does not end the spell."])
@@ -269,7 +269,7 @@
   S.b4 = () => ({
     stage: sancStage("A damaging spell aimed at the Ally is gated the same way; a Fireball is not."),
     chat: log(
-      msg("Goblin Shaman", card("pending","Sanctuary — a save before the spell","Goblin Shaman → BF Walk Ally · Fire Bolt","the spell waits for the save",
+      msg("Goblin Shaman", card("pending","Sanctuary — a save before the spell","Goblin Shaman → BTB Walk Ally · Fire Bolt","the spell waits for the save",
         [`Wisdom <b>6</b> vs DC 13 <span class="verdict miss">FAILED</span>`, `No attack roll. <b>Choose a new target, or the spell is lost.</b>`, SANC_RULE])),
       msg("Goblin Shaman", card("neutral","Burning Hands — no gate","an area of effect","",[`Sanctuary doesn't protect against areas of effect.`]))),
     side: panel("What this shows", [
@@ -281,11 +281,11 @@
   });
 
   S.b5 = () => ({
-    stage: stage(tok(150,150,"AL","BF Walk Ally",{pc:true,extra:float("−(Sanctuary)",true)}) + tok(220,150,"BB","Bugbear Warrior") + tok(150,260,"CL","BF Walk Cleric",{pc:true}),
+    stage: stage(tok(150,150,"AL","BTB Walk Ally",{pc:true,extra:float("−(Sanctuary)",true)}) + tok(220,150,"BB","Bugbear Warrior") + tok(150,260,"CL","BTB Walk Cleric",{pc:true}),
       "The warded Ally attacks. Sanctuary ends."),
     chat: log(
-      msg("BF Walk Ally", card("bad","Attack","Mace","BF Walk Ally → Bugbear Warrior",[`d20 11 +5 = <b>16</b> vs AC 16 <span class="verdict hit">HIT</span>`])),
-      msg("BF Walk Ally", card("neutral","Sanctuary ended","BF Walk Ally made an attack roll","",[`The ward ends when its bearer attacks, casts a spell, or deals damage.`]))),
+      msg("BTB Walk Ally", card("bad","Attack","Mace","BTB Walk Ally → Bugbear Warrior",[`d20 11 +5 = <b>16</b> vs AC 16 <span class="verdict hit">HIT</span>`])),
+      msg("BTB Walk Ally", card("neutral","Sanctuary ended","BTB Walk Ally made an attack roll","",[`The ward ends when its bearer attacks, casts a spell, or deals damage.`]))),
     side: panel("What this shows", [
         "<b>Three things end it:</b> an attack roll, a spell cast, or damage dealt, by the warded creature. The machine ends it on any of the three, and the name floats off as the repeated saves' end does.",
         "<b>The attack still happens.</b> Sanctuary ends as the attack is made, not instead of it."])
@@ -294,14 +294,14 @@
 
   /* ---------- C · Mirror Image ---------- */
   const MI_RULE = `<div class="rule">Mirror Image · on each hit, a d6 per duplicate; any 3 or higher, a duplicate takes the hit and is destroyed</div>`;
-  const miStage = (faces, fl, cap, dup=3) => stage(tok(170,160,"SO","BF Test Sorcerer",{pc:true,extra:(faces?dice(faces):"")+(fl?float(fl,true):"")})
+  const miStage = (faces, fl, cap, dup=3) => stage(tok(170,160,"SO","BTB Test Sorcerer",{pc:true,extra:(faces?dice(faces):"")+(fl?float(fl,true):"")})
     + Array.from({length:dup},(_,i)=>tok(130+i*40,240,"","",{pc:true,ghost:true})).join("") + tok(250,160,"BB","Bugbear Warrior"), cap);
 
   S.c1 = () => ({
     stage: miStage([1,4,2], "−(Duplicate C)", "The hit lands. Three d6 rise off the Sorcerer; the 4 wins, a duplicate takes the hit.", 2),
     chat: log(
-      msg("Bugbear Warrior", card("bad","Attack","Morningstar","Bugbear Warrior → BF Test Sorcerer",[`d20 15 +4 = <b>19</b> vs AC 13 <span class="verdict hit">HIT</span>`])),
-      msg("BF Test Sorcerer", card("good","Mirror Image","A duplicate takes the hit","BF Test Sorcerer",
+      msg("Bugbear Warrior", card("bad","Attack","Morningstar","Bugbear Warrior → BTB Test Sorcerer",[`d20 15 +4 = <b>19</b> vs AC 13 <span class="verdict hit">HIT</span>`])),
+      msg("BTB Test Sorcerer", card("good","Mirror Image","A duplicate takes the hit","BTB Test Sorcerer",
         [`3d6 → 1, <b>4</b>, 2 — a 3 or higher: <b>the duplicate is destroyed</b>, no damage to you`, `<span class="chip used">duplicates: 2 of 3 left</span>`, MI_RULE]))),
     side: panel("What this is", [
         "<b>Automatic, no popup.</b> The rule leaves no choice, so the machine rolls it the moment a hit stands, before damage.",
@@ -314,8 +314,8 @@
   S.c2 = () => ({
     stage: miStage([1,2,1], null, "Every die under 3: the hit gets through to the Sorcerer.", 3),
     chat: log(
-      msg("Bugbear Warrior", card("bad","Attack","Morningstar","Bugbear Warrior → BF Test Sorcerer",[`d20 15 +4 = <b>19</b> vs AC 13 <span class="verdict hit">HIT</span>`, `2d8 + 2 → <b>11</b> Piercing — applied`])),
-      msg("BF Test Sorcerer", card("bad","Mirror Image","The hit gets through","BF Test Sorcerer",
+      msg("Bugbear Warrior", card("bad","Attack","Morningstar","Bugbear Warrior → BTB Test Sorcerer",[`d20 15 +4 = <b>19</b> vs AC 13 <span class="verdict hit">HIT</span>`, `2d8 + 2 → <b>11</b> Piercing — applied`])),
+      msg("BTB Test Sorcerer", card("bad","Mirror Image","The hit gets through","BTB Test Sorcerer",
         [`3d6 → 1, 2, 1 — none 3 or higher: <b>you are hit</b>`, `<span class="chip">duplicates: 3 of 3 left</span>`, MI_RULE]))),
     side: panel("What this shows", [
         "<b>No die at 3 or higher:</b> the damage applies as it would have, and all duplicates stay.",
@@ -324,7 +324,7 @@
 
   S.c3 = () => ({
     stage: miStage([5], "−(Mirror Image)", "One duplicate left, the d6 shows 5: the last one is destroyed and the spell ends.", 0),
-    chat: log(msg("BF Test Sorcerer", card("good","Mirror Image","The last duplicate takes the hit","BF Test Sorcerer",
+    chat: log(msg("BTB Test Sorcerer", card("good","Mirror Image","The last duplicate takes the hit","BTB Test Sorcerer",
       [`1d6 → <b>5</b> — the duplicate is destroyed, no damage to you`, `<b>Mirror Image ended</b> — all three duplicates are gone`, MI_RULE]))),
     side: panel("What this shows", [
         "<b>The spell ends with its last duplicate,</b> as the rule says. The card says so and the name floats off."])
@@ -333,8 +333,8 @@
   S.c4 = () => ({
     stage: miStage(null, null, "The attacker has Blindsight. No dice; the duplicates don't fool it.", 3),
     chat: log(
-      msg("Bugbear Warrior", card("bad","Attack","Morningstar","Bugbear Warrior → BF Test Sorcerer",[`d20 15 +4 = <b>19</b> vs AC 13 <span class="verdict hit">HIT</span>`, `2d8 + 2 → <b>11</b> Piercing — applied`])),
-      msg("BF Test Sorcerer", card("neutral","Mirror Image — no roll","Bugbear Warrior sees through it","",
+      msg("Bugbear Warrior", card("bad","Attack","Morningstar","Bugbear Warrior → BTB Test Sorcerer",[`d20 15 +4 = <b>19</b> vs AC 13 <span class="verdict hit">HIT</span>`, `2d8 + 2 → <b>11</b> Piercing — applied`])),
+      msg("BTB Test Sorcerer", card("neutral","Mirror Image — no roll","Bugbear Warrior sees through it","",
         [`Blindsight: the duplicates don't fool it`]))),
     side: panel("What this shows", [
         "<b>The data settles it:</b> an attacker with the Blinded condition, Blindsight or Truesight on its sheet is unaffected. The machine reads the senses and the status; nobody is asked (R1).",
@@ -345,9 +345,9 @@
   S.c5 = () => ({
     stage: miStage([3,1,6], "−(Duplicate C)", "The Sorcerer's Shield window comes first; Mirror Image rolls only on the hit that stands.", 2),
     chat: log(
-      msg("Bugbear Warrior", card("bad","Attack","Morningstar","Bugbear Warrior → BF Test Sorcerer",[`d20 16 +4 = <b>20</b> vs AC <s class="old">13</s> <b>18</b> <span class="verdict hit">still a HIT</span>`])),
-      msg("BF Test Sorcerer", card("neutral","Reaction — cast","Shield","BF Test Sorcerer",["AC is now <b>18</b>."])),
-      msg("BF Test Sorcerer", card("good","Mirror Image","A duplicate takes the hit","BF Test Sorcerer",
+      msg("Bugbear Warrior", card("bad","Attack","Morningstar","Bugbear Warrior → BTB Test Sorcerer",[`d20 16 +4 = <b>20</b> vs AC <s class="old">13</s> <b>18</b> <span class="verdict hit">still a HIT</span>`])),
+      msg("BTB Test Sorcerer", card("neutral","Reaction — cast","Shield","BTB Test Sorcerer",["AC is now <b>18</b>."])),
+      msg("BTB Test Sorcerer", card("good","Mirror Image","A duplicate takes the hit","BTB Test Sorcerer",
         [`3d6 → <b>3</b>, 1, <b>6</b> — the duplicate is destroyed, no damage to you`, `<span class="chip used">duplicates: 2 of 3 left</span>`]))),
     side: panel("The order at the hit", [
         "<b>First the defender's popup</b> (Shield, Lucky, the rescue rows), which may turn the hit into a miss.",

@@ -2,8 +2,8 @@
 // asked once per combat; allies on its side who are not Incapacitated are listed with their
 // Initiative; Swap exchanges the two numbers in the tracker, No leaves it.
 //
-// Fixtures (tools/fixture-suite.mjs): BF Test Halfling is lent the PHB's Alert; BF Test Cleric and
-// BF Test Bard are its allies, BF Test Victim the enemy. TEMPORARY linked tokens in a strip it finds
+// Fixtures (tools/fixture-suite.mjs): BTB Test Halfling is lent the PHB's Alert; BTB Test Cleric and
+// BTB Test Bard are its allies, BTB Test Victim the enemy. TEMPORARY linked tokens in a strip it finds
 // empty and its own combats, all deleted in teardown with everything else it touched.
 //
 // Sections: `--section 3`, `--list`. Fixtures and teardown ALWAYS run.
@@ -29,7 +29,7 @@ const f = await connectSuite({ tag: 'alert', watchdogMs: 300_000 });
 announcePlan('alert', plan, pulled);
 
 const out = await f.evaluate(async ({ sections, titles }) => {
-  const MOD = 'fvtt-mod-battleflow';
+  const MOD = 'fvtt-mod-bythebooks';
   const results = [];
   const log = [];
   const skips = [];
@@ -50,8 +50,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   const prior = Object.fromEntries(SETTING_KEYS.map(k => [k, game.settings.get(MOD, k)]));
   const set = (k, v) => game.settings.set(MOD, k, v);
 
-  const scene = game.scenes.getName('Battle Flow Test Range');
-  const [halfling, cleric, bard, victim] = ['BF Test Halfling', 'BF Test Cleric', 'BF Test Bard', 'BF Test Victim'].map(n => game.actors.getName(n));
+  const scene = game.scenes.getName('By the Books Test Range');
+  const [halfling, cleric, bard, victim] = ['BTB Test Halfling', 'BTB Test Cleric', 'BTB Test Bard', 'BTB Test Victim'].map(n => game.actors.getName(n));
   if (!scene || !halfling || !cleric || !bard || !victim) return { fatal: 'missing fixtures — run tools/fixture-suite.mjs' };
 
   const lent = [];

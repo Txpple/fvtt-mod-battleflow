@@ -105,7 +105,7 @@ const result = await f.evaluate(async () => {
   return out;
 }, null);
 
-const outFile = process.argv[2] || join(tmpdir(), 'battleflow-clock-riders.json');
+const outFile = process.argv[2] || join(tmpdir(), 'bythebooks-clock-riders.json');
 writeFileSync(outFile, JSON.stringify(result, null, 2));
 console.log(`\n[probe] written ${outFile}`);
 console.log('\n# glossary');

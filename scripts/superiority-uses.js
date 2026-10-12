@@ -1,9 +1,9 @@
 /**
- * Battle Flow — MACHINE (ARCHITECTURE.md §7): the Battle Master's Bonus Action maneuvers (RULINGS
+ * By the Books — MACHINE (ARCHITECTURE.md §7): the Battle Master's Bonus Action maneuvers (RULINGS
  * *The rest of the maneuvers*) — each a USE whose consequence lands on a sheet, and for Lunging
  * and Feinting a die that rides the next hit. The pool is spent by the activity's own consumption.
  */
-import { MODULE_ID, TITLE, canAnswerFor, drivesMomentFor, queueFlagWrite, statContext, decisionWindow } from "./core.js";
+import { MODULE_ID, readFlag, TITLE, canAnswerFor, drivesMomentFor, queueFlagWrite, statContext, decisionWindow } from "./core.js";
 import { ruleHTML } from "./rule-text.js";
 import { cardItem, lower, featureNamed, activityNamed, resolveUuid, resolveDie } from "./lookup.js";
 import { superiorityUseEntries, listedNames } from "./decide/registry.js";
@@ -35,7 +35,7 @@ function dieOf(actor, activity) {
 }
 
 /** The fighter's standing use-chip for a row, or null. */
-const chipFor = (actor, key) => actor?.effects?.find(e => (e.getFlag(MODULE_ID, CHIP_FLAG) === "use") && (e.getFlag(MODULE_ID, "useKey") === key)) ?? null;
+const chipFor = (actor, key) => actor?.effects?.find(e => (readFlag(e, CHIP_FLAG) === "use") && (readFlag(e, "useKey") === key)) ?? null;
 
 // The use: the native follow-up off, the consequence on.
 
@@ -43,7 +43,7 @@ const chipFor = (actor, key) => actor?.effects?.find(e => (e.getFlag(MODULE_ID, 
 // face): polish.js's birth stamp is removed here, one hook later, on every maneuver card.
 listen("preCreateChatMessage", "superiority-uses", doc => {
   try {
-    if ( !isCard(doc, CARD.usage) || !doc.getFlag(MODULE_ID, "castApply") ) return;
+    if ( !isCard(doc, CARD.usage) || !readFlag(doc, "castApply") ) return;
     const item = cardItem(doc);
     if ( !item || (item.type !== "feat") || ![...MANEUVER_FEATURE_NAMES].some(n => answers(n, item)) ) return;
     doc.updateSource({ [`flags.${MODULE_ID}.-=castApply`]: null });
@@ -65,7 +65,7 @@ listen("dnd5e.postUseActivity", "superiority-uses", (activity, _usageConfig, res
     const actor = activity.actor;
     if ( !actor?.isOwner ) return;
     const message = (results?.message instanceof ChatMessage) ? results.message : null;
-    if ( !message || message.getFlag(MODULE_ID, "superiorityUse") ) return;
+    if ( !message || readFlag(message, "superiorityUse") ) return;
     void drive(row, activity, actor, message);
   } catch(err) {
     console.error(`${TITLE} | A maneuver's use failed — apply it by hand.`, err);
@@ -81,12 +81,12 @@ async function drive(row, activity, actor, message) {
     // Evasive Footwork: the die rolled in the open, the number on the sheet until the start of the next turn.
     const roll = die ? await new Roll(die).evaluate() : null;
     if ( roll ) await roll.toMessage({ speaker: ChatMessage.getSpeaker({ actor }), flavor: `${item.name} — the die` });
-    const stale = actor.effects.filter(e => (e.getFlag(MODULE_ID, CHIP_FLAG) === "use") && (e.getFlag(MODULE_ID, "useKey") === row.key));
+    const stale = actor.effects.filter(e => (readFlag(e, CHIP_FLAG) === "use") && (readFlag(e, "useKey") === row.key));
     if ( stale.length ) await actor.deleteEmbeddedDocuments("ActiveEffect", stale.map(e => e.id));
     const clock = chipClock(row.bonus.window, placeOf(actor));
     const effect = roll ? await ActiveEffect.implementation.create({
       name: item.name, img: item.img ?? "icons/svg/shield.svg",
-      description: `${await ruleHTML(row.rule)}<p>Written by Battle Flow when ${esc(item.name)} was used: ${row.bonus.what} +${roll.total} until the start of ${esc(actor.name)}'s next turn.</p>`,
+      description: `${await ruleHTML(row.rule)}<p>Written by By the Books when ${esc(item.name)} was used: ${row.bonus.what} +${roll.total} until the start of ${esc(actor.name)}'s next turn.</p>`,
       origin: item.uuid, disabled: false, transfer: false,
       changes: [{ key: row.bonus.key, mode: CONST.ACTIVE_EFFECT_MODES.ADD, value: String(roll.total) }],
       ...(clock ? chipData(clock) : {}),
@@ -117,12 +117,12 @@ async function drive(row, activity, actor, message) {
   }
   if ( row.chip ) {
     // Lunging Attack: a chip until the end of the turn; the next melee hit's offer ticks the die.
-    const stale = actor.effects.filter(e => (e.getFlag(MODULE_ID, CHIP_FLAG) === "use") && (e.getFlag(MODULE_ID, "useKey") === row.key));
+    const stale = actor.effects.filter(e => (readFlag(e, CHIP_FLAG) === "use") && (readFlag(e, "useKey") === row.key));
     if ( stale.length ) await actor.deleteEmbeddedDocuments("ActiveEffect", stale.map(e => e.id));
     const clock = chipClock(row.chip.window, placeOf(actor));
     await ActiveEffect.implementation.create({
       name: item.name, img: item.img ?? "icons/svg/aura.svg",
-      description: `${await ruleHTML(row.rule)}<p>Written by Battle Flow when ${esc(item.name)} was used; the next melee hit this turn may add the die.</p>`,
+      description: `${await ruleHTML(row.rule)}<p>Written by By the Books when ${esc(item.name)} was used; the next melee hit this turn may add the die.</p>`,
       origin: item.uuid, disabled: false, transfer: false,
       ...(clock ? chipData(clock) : {}),
       flags: { [MODULE_ID]: { [CHIP_FLAG]: "use", useKey: row.key, die } }
@@ -149,7 +149,7 @@ async function drive(row, activity, actor, message) {
 // Bait and Switch: the choice (the moment spine).
 
 async function chooseBait(card, uuid) {
-  const flag = card.getFlag(MODULE_ID, "baitSwitch");
+  const flag = readFlag(card, "baitSwitch");
   if ( !flag || flag.chosen || !flag.options?.some(o => o.uuid === uuid) ) return;
   await queueFlagWrite(card, "baitSwitch", current => {
     if ( current.chosen ) return false;
@@ -159,7 +159,7 @@ async function chooseBait(card, uuid) {
 }
 
 async function showBaitPopup(card) {
-  const bs = card.getFlag(MODULE_ID, "baitSwitch");
+  const bs = readFlag(card, "baitSwitch");
   if ( !bs || bs.chosen ) return;
   const actor = resolveUuid(bs.sourceUuid);
   // live only: Bait and Switch is a maneuver FEATURE — never used up, so the sheet is the truth
@@ -176,7 +176,7 @@ async function showBaitPopup(card) {
 
 const baitTimers = new Map();
 function armBaitTimer(card) {
-  const bs = card.getFlag(MODULE_ID, "baitSwitch");
+  const bs = readFlag(card, "baitSwitch");
   if ( !bs || bs.chosen || !bs.deadline || !drivesMomentFor(bs.sourceUuid ?? null) ) { disarmDeadline(baitTimers, card.id); return; }
   armDeadline(baitTimers, card.id, bs.deadline, async id => {
     try {
@@ -193,7 +193,7 @@ function armBaitTimer(card) {
 }
 
 async function settleBait(card) {
-  const bs = card.getFlag(MODULE_ID, "baitSwitch");
+  const bs = readFlag(card, "baitSwitch");
   if ( !bs?.chosen || bs.resolved ) return;
   if ( !drivesMomentFor(bs.sourceUuid ?? null) ) return;
   try {
@@ -228,7 +228,7 @@ function lungeFor(_attackMessage, activity) {
   if ( !attacker || (activity.attack?.type?.value !== "melee") ) return null;
   const chip = chipFor(attacker, row.key);
   if ( !chip ) return null;
-  const die = chip.getFlag(MODULE_ID, "die") ?? null;
+  const die = readFlag(chip, "die") ?? null;
   const type = [...(activity.item?.system?.damage?.base?.types ?? [])][0] ?? null;
   return { row, chip, die, type, attacker };
 }
@@ -272,7 +272,7 @@ listen("dnd5e.preRollDamage", "superiority-uses", (config, _dialog, message) => 
     const rode = [];
     // Lunging: the chip on the attacker, a melee hit, the offer's tick (absent: rides).
     const lunge = lungeFor(attackMessage, activity);
-    if ( lunge?.die && (attackMessage.getFlag(MODULE_ID, "lungePick") !== false) ) {
+    if ( lunge?.die && (readFlag(attackMessage, "lungePick") !== false) ) {
       push(lunge.die);
       rode.push({ key: lunge.row.key, formula: lunge.die, type, why: lunge.row.rider.caveat, rule: lunge.row.rule });
       void lunge.chip.delete().catch(() => {});
@@ -283,10 +283,10 @@ listen("dnd5e.preRollDamage", "superiority-uses", (config, _dialog, message) => 
       if ( !row.marker || !names.has(lower(key)) ) continue;
       const hits = hitTargets(attackMessage);
       if ( !hits.length ) continue;
-      const spent = attackMessage.getFlag(MODULE_ID, "chipSpend")?.spent ?? [];
+      const spent = readFlag(attackMessage, "chipSpend")?.spent ?? [];
       const feinted = hits.every(t => {
         const target = resolveUuid(t.uuid);
-        const marker = target?.effects?.find(e => (lower(e.name) === lower(row.marker.effect)) && (e.getFlag(MODULE_ID, "sourceUuid") === attacker.uuid));
+        const marker = target?.effects?.find(e => (lower(e.name) === lower(row.marker.effect)) && (readFlag(e, "sourceUuid") === attacker.uuid));
         return !!marker || spent.some(s => (lower(s.name) === lower(row.marker.effect)) && (s.uuid === t.uuid));
       });
       if ( !feinted ) continue;
@@ -308,7 +308,7 @@ listen("dnd5e.preRollDamage", "superiority-uses", (config, _dialog, message) => 
 // The cards say it (R5).
 
 listen("dnd5e.renderChatMessage", "superiority-uses", (message, html) => {
-  const su = message.getFlag(MODULE_ID, "superiorityUse");
+  const su = readFlag(message, "superiorityUse");
   if ( su ) {
     const line = document.createElement("div");
     // The maneuver card's one shape: the art, `Maneuver — Name`, `Name — what happened`, the cost.
@@ -318,7 +318,7 @@ listen("dnd5e.renderChatMessage", "superiority-uses", (message, html) => {
       subtitle: `${spend}${su.line ? ` · ${su.line}` : ""}`, lines: [ruleLine(su.rule)] });
     html.querySelector(SURFACES.messageContent)?.appendChild(line);
   }
-  const bs = message.getFlag(MODULE_ID, "baitSwitch");
+  const bs = readFlag(message, "baitSwitch");
   if ( bs ) {
     const chosenName = bs.options?.find(o => o.uuid === bs.chosen)?.name ?? null;
     const fighterName = bs.options?.[0]?.name ?? "the fighter";
@@ -337,7 +337,7 @@ listen("dnd5e.renderChatMessage", "superiority-uses", (message, html) => {
     }
     armBaitTimer(message);
   }
-  const sr = message.getFlag(MODULE_ID, "superiorityRide");
+  const sr = readFlag(message, "superiorityRide");
   if ( sr?.rode?.length ) {
     for ( const r of sr.rode ) {
       const line = document.createElement("div");

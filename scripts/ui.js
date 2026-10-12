@@ -1,9 +1,9 @@
 /**
- * Battle Flow — THE SPINE (ARCHITECTURE.md §5): popups and their cascade, countdown bars, the ACK,
+ * By the Books — THE SPINE (ARCHITECTURE.md §5): popups and their cascade, countdown bars, the ACK,
  * moment clocks, and the relay / rescue / demand / resumable / withhold registries.
  * ⚠ Imports NO machine (ARCHITECTURE §7).
  */
-import { MODULE_ID, TITLE, S, setting, isActiveGM, deadlineIsLive, canAnswerFor, keepsMessage, queueFlagWrite, DICE_WAIT_SECONDS } from "./core.js";
+import { MODULE_ID, readFlag, TITLE, S, setting, isActiveGM, deadlineIsLive, canAnswerFor, keepsMessage, queueFlagWrite, DICE_WAIT_SECONDS } from "./core.js";
 import { TONE, popupKey, bfCard, momentBarHTML, holdBarHTML, nextCascadeSlot, cascadePosition,
   pileBackToFront, rescuePaneHTML, rescueRowsHTML } from "./decide/present.js";
 import { pendingDemands, resolveDemand } from "./decide/demand.js";
@@ -208,14 +208,14 @@ export async function openMomentPopup(message, sub, subject, {
 const localAcks = new Set();
 
 export function momentAcknowledged(message, flagKey) {
-  return (message.getFlag(MODULE_ID, flagKey)?.acknowledged === true)
+  return (readFlag(message, flagKey)?.acknowledged === true)
     || localAcks.has(`${message.id}|${flagKey}`);
 }
 
 export async function acknowledgeMoment(message, flagKey) {
   if ( momentAcknowledged(message, flagKey) ) return;
   if ( message.isOwner ) {
-    const flag = foundry.utils.deepClone(message.getFlag(MODULE_ID, flagKey) ?? {});
+    const flag = foundry.utils.deepClone(readFlag(message, flagKey) ?? {});
     flag.acknowledged = true;
     await message.setFlag(MODULE_ID, flagKey, flag);   // the update re-renders every client
     return;
@@ -307,11 +307,11 @@ export function disarmDeadline(timers, id) {
 
 /** The elect-owned single-answer clock; expiry re-checks the live flag. */
 export function armAskTimer(timers, message, flagKey, expire) {
-  const flag = message?.getFlag(MODULE_ID, flagKey);
+  const flag = readFlag(message, flagKey);
   if ( !flag?.deadline || (flag.status !== "pending") || flag.answer || !isActiveGM() ) return;
   armDeadline(timers, message.id, flag.deadline, async () => {
     const live = game.messages.get(message.id);
-    const cur = live?.getFlag(MODULE_ID, flagKey);
+    const cur = readFlag(live, flagKey);
     if ( !cur || (cur.status !== "pending") || cur.answer ) return;
     await expire(live);
   });
@@ -337,10 +337,10 @@ export async function dramaticVerdictPause(rollMessage) {
 // The first row on a card (dispatch.js ORDER): every client shows a live `damageOffer`'s bar (a flag
 // this file does not own).
 listen("dnd5e.renderChatMessage", "ui", (message, html) => {
-  const offer = message.getFlag(MODULE_ID, "damageOffer");
+  const offer = readFlag(message, "damageOffer");
   if ( (offer?.status === "pending") && (offer.deadline > Date.now()) ) {
     const row = document.createElement("div");
-    row.className = "battleflow-damage-offer";
+    row.className = "bythebooks-damage-offer";
     row.style.margin = "0.4rem 0 0";
     row.innerHTML = bfCard({
       eyebrow: "Damage", tone: "pending",
@@ -408,11 +408,11 @@ export function registerRelay(envelopeKey, { flagKey, targetOf, owns, fold, clea
 // ⚠ The folds repeat every guard INSIDE the serializer: two answers can land in one tick.
 listen("createChatMessage", "ui", message => {
   for ( const [envelopeKey, relay] of relays ) {
-    const envelope = message.getFlag(MODULE_ID, envelopeKey);
+    const envelope = readFlag(message, envelopeKey);
     if ( !envelope ) continue;
     const target = game.messages.get(relay.targetOf(envelope));
     const flagKey = (typeof relay.flagKey === "function") ? relay.flagKey(envelope) : relay.flagKey;
-    const flag = target?.getFlag(MODULE_ID, flagKey);
+    const flag = readFlag(target, flagKey);
     if ( !flag || !relay.owns(flag, target) ) continue;
     const written = queueFlagWrite(target, flagKey, current => relay.fold(current, envelope, message));
     if ( relay.cleanup ) {
@@ -721,7 +721,7 @@ function demandCards() {
   for ( const m of game.messages.contents ) {
     let flags = null;
     for ( const k of keys ) {
-      const f = m.getFlag(MODULE_ID, k);
+      const f = readFlag(m, k);
       if ( !f ) continue;
       flags ??= {};
       flags[k] = f;
@@ -736,8 +736,8 @@ const withCards = matches => matches.map(x => ({ ...x, card: game.messages.get(x
 /** Which demand this roll answers — `{ flagKey, matches: [{ card, entry }] }` or null. */
 export function demandAnsweredBy(rollMessage) {
   const facts = {
-    respondsTo: rollMessage.getFlag(MODULE_ID, "respondsTo") ?? null,
-    saveFor: rollMessage.getFlag(MODULE_ID, "saveFor") ?? null,
+    respondsTo: readFlag(rollMessage, "respondsTo") ?? null,
+    saveFor: readFlag(rollMessage, "saveFor") ?? null,
     originatingMessage: originIdOf(rollMessage),
     actorUuid: rollMessage.getAssociatedActor?.()?.uuid ?? null,
     ability: abilityOf(rollMessage),
@@ -769,7 +769,7 @@ export function registerResumable(flagKey, { pending, drives, drive, flagless = 
 function resume(message, cause) {
   for ( const [flagKey, r] of resumables ) {
     let flag;
-    try { flag = message.getFlag(MODULE_ID, flagKey) ?? null; } catch { continue; }
+    try { flag = readFlag(message, flagKey) ?? null; } catch { continue; }
     if ( !flag && !r.flagless ) continue;
     const key = `${flagKey}|${message.id}`;
     if ( resuming.has(key) ) continue;

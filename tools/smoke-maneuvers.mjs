@@ -9,8 +9,8 @@
 //     timer is the ONE Decision Timer now, so the demanded saves roll themselves (saveRolls auto)
 //     rather than wait on a save timer.
 //   - The fold fixtures are found by their dnd5e identifier (the tables are the only list):
-//     "BF Shield Master" carries shield-master, "BF Great Weapon Master" great-weapon-master.
-// ⚠ Run `smoke-battleflow` FIRST (BF Test Attacker / BF Test Victim). Sections are named after
+//     "BTB Shield Master" carries shield-master, "BTB Great Weapon Master" great-weapon-master.
+// ⚠ Run `smoke-bythebooks` FIRST (BTB Test Attacker / BTB Test Victim). Sections are named after
 // their fold; fixtures and teardown always run.
 import { announcePlan, connectSuite, finish, sectionArg, sectionPlan } from './harness.mjs';
 
@@ -47,7 +47,7 @@ const f = await connectSuite({ tag: 'maneuvers', watchdogMs: 600_000 });
 announcePlan('maneuvers', plan, pulled);
 
 const out = await f.evaluate(async ({ sections, titles }) => {
-  const MOD = 'fvtt-mod-battleflow';
+  const MOD = 'fvtt-mod-bythebooks';
   // The spent Reaction is an effect chip.
   const clearReaction = async a => { const ids = (a?.effects ?? []).filter(e => e.getFlag(MOD, 'mastery') === 'reaction').map(e => e.id); if (ids.length) await a.deleteEmbeddedDocuments('ActiveEffect', ids).catch(() => {}); };
   const spendReactionOf = async a => { await a.createEmbeddedDocuments('ActiveEffect', [{ name: 'Reaction — used', img: 'icons/svg/clockwork.svg', transfer: false, flags: { [MOD]: { mastery: 'reaction' } } }]); };
@@ -85,10 +85,10 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   const prior = Object.fromEntries(SETTING_KEYS.map(k => [k, game.settings.get(MOD, k)]));
   const set = (k, v) => game.settings.set(MOD, k, v);
 
-  const scene = game.scenes.getName('Battle Flow Test Range');
-  const enemy = game.actors.getName('BF Test Attacker');
-  const victim = game.actors.getName('BF Test Victim');
-  if (!scene || !enemy || !victim) return { fatal: 'missing fixtures — run smoke-battleflow first' };
+  const scene = game.scenes.getName('By the Books Test Range');
+  const enemy = game.actors.getName('BTB Test Attacker');
+  const victim = game.actors.getName('BTB Test Victim');
+  if (!scene || !enemy || !victim) return { fatal: 'missing fixtures — run smoke-bythebooks first' };
 
   const created = { tokens: [], enemyItems: [], victimItems: [] };
   let pc = null;
@@ -106,7 +106,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       if (liveItems.length) await enemy.deleteEmbeddedDocuments('Item', liveItems);
       const liveVictimItems = created.victimItems.filter(id => victim.items.get(id));
       if (liveVictimItems.length) await victim.deleteEmbeddedDocuments('Item', liveVictimItems);
-      for (const e of victim.effects.filter(x => x.name === 'BF Test Prone')) await e.delete().catch(() => {});
+      for (const e of victim.effects.filter(x => x.name === 'BTB Test Prone')) await e.delete().catch(() => {});
       for (const [actorId, data] of Object.entries(priorActor)) {
         await game.actors.get(actorId)?.update(data);
       }
@@ -114,7 +114,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       if (pc) await pc.delete().catch(() => {});
       game.user.targets.forEach(t => { t.setTarget(false, { releaseOthers: true }); });
       const mine = game.messages.filter(m => (m.timestamp >= suiteStart)
-        && (m.speaker?.alias?.startsWith?.('BF Test') || m.speaker?.alias === 'Battle Flow'
+        && (m.speaker?.alias?.startsWith?.('BTB Test') || m.speaker?.alias === 'By the Books'
           || Object.keys(m.flags?.[MOD] ?? {}).length));
       if (mine.length) await ChatMessage.deleteDocuments(mine.map(m => m.id));
     } catch (err) {
@@ -148,10 +148,10 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     const stale = scene.tokens.filter(t => [enemy.id, victim.id].includes(t.actorId)).map(t => t.id);
     if (stale.length) await scene.deleteEmbeddedDocuments('Token', stale);
     const enemyWeapon = enemy.items.find(i => i.system.activities?.some?.(a => a.type === 'attack'));
-    if (!enemyWeapon) return { fatal: 'BF Test Attacker has no weapon' };
+    if (!enemyWeapon) return { fatal: 'BTB Test Attacker has no weapon' };
 
     pc = await Actor.create({
-      name: 'BF Test Maneuver PC', type: 'character',
+      name: 'BTB Test Maneuver PC', type: 'character',
       system: { abilities: { str: { value: 16 }, dex: { value: 16 } },
         attributes: { hp: { value: 30, max: 30 } } },
       items: [foundry.utils.mergeObject(enemyWeapon.toObject(), {
@@ -159,7 +159,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     });
     // The pool first: the maneuvers' consumption targets its id.
     const [pool] = await pc.createEmbeddedDocuments('Item', [{
-      name: 'BF Combat Superiority', type: 'feat',
+      name: 'BTB Combat Superiority', type: 'feat',
       system: { type: { value: 'feat' }, uses: { spent: 0, max: '4', recovery: [] } }
     }]);
     await pc.createEmbeddedDocuments('Item', [
@@ -496,7 +496,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         const bowSrc = await importByName('Shortbow');
         if (bowSrc) {
           const [bow] = await enemy.createEmbeddedDocuments('Item', [
-            { ...bowSrc, name: 'BF Test Bow', system: { ...bowSrc.system, equipped: true } }]);
+            { ...bowSrc, name: 'BTB Test Bow', system: { ...bowSrc.system, equipped: true } }]);
           created.enemyItems.push(bow.id);
           const bowAct = bow.system.activities?.contents?.find(a => a.type === 'attack');
           game.user.targets.forEach(t => { t.setTarget(false, { releaseOthers: true }); });
@@ -541,7 +541,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         // Make the ENEMY riposte-eligible and force the driven attack to miss: only the
         // riposteFor guard stops a chained offer.
         const [ePool] = await enemy.createEmbeddedDocuments('Item', [{
-          name: 'BF Enemy Superiority', type: 'feat',
+          name: 'BTB Enemy Superiority', type: 'feat',
           system: { type: { value: 'feat' }, uses: { spent: 0, max: '4', recovery: [] } }
         }]);
         created.enemyItems.push(ePool.id);
@@ -620,7 +620,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       {
         const [offhand] = await pc.createEmbeddedDocuments('Item', [
           foundry.utils.mergeObject(enemyWeapon.toObject(), {
-            name: 'BF Test Offhand', system: { equipped: true } }, { inplace: false })]);
+            name: 'BTB Test Offhand', system: { equipped: true } }, { inplace: false })]);
         // Attack with the offhand first: the default tracks USAGE, not inventory order.
         const offAct = pc.items.get(offhand.id)?.system.activities.find(a => a.type === 'attack');
         await acFlat(victim, 1);
@@ -690,7 +690,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       // A listed feat whose save presses an effect on failure (DC 30: always fails; the effect
       // wired by its real id after creation).
       const [bashFeat] = await pc.createEmbeddedDocuments('Item', [{
-        name: 'BF Shield Master', type: 'feat',
+        name: 'BTB Shield Master', type: 'feat',
         system: { type: { value: 'feat' }, identifier: 'shield-master', activities: {
           bfbash0000000000: {
             _id: 'bfbash0000000000', type: 'save',
@@ -701,7 +701,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
             target: { affects: { type: 'creature' } }
           }
         } },
-        effects: [{ name: 'BF Test Prone', icon: 'icons/svg/falling.svg',
+        effects: [{ name: 'BTB Test Prone', icon: 'icons/svg/falling.svg',
           transfer: false, statuses: ['prone'] }]
       }]);
       const proneEffect = bashFeat.effects.contents[0];
@@ -738,7 +738,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           `popup=${!!popup} verbatim=${(popup?.textContent ?? '').includes('cause it to have the Prone condition')} tooltip=${!!popup?.querySelector('img[data-tooltip]')}`);
         popup?.querySelector('button[data-action="push"]')?.click();
         const applied = await until(() => card?.getFlag(MOD, 'saves')?.targets?.[0]?.applied, 15000);
-        const pressed = victim.effects.some(e => e.name === 'BF Test Prone');
+        const pressed = victim.effects.some(e => e.name === 'BTB Test Prone');
         const pushMsg = game.messages.contents.find(m => (m.timestamp >= suiteStart)
           && /pushes .* 5 feet/.test(m.content ?? ''));
         ok('B1d. push — NO press lands (custom or standard), the announce card does (the Push idiom)',
@@ -758,9 +758,9 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         const chip = await until(() => victim.effects.find(e => e.statuses.has('prone')), 6000);
         ok('B2. (x) prone — the STANDARD Prone chip lands: canonical id, attacker origin, no custom effect',
           !!applied && (chip?.id === 'dnd5eprone000000') && (chip?.origin === pc.uuid)
-            && !victim.effects.some(e => e.name === 'BF Test Prone'),
+            && !victim.effects.some(e => e.name === 'BTB Test Prone'),
           `applied=${!!applied} chip=${chip?.id ?? null} origin=${chip?.origin ?? null} want=${pc.uuid} `
-            + `custom=${victim.effects.some(e => e.name === 'BF Test Prone')}`);
+            + `custom=${victim.effects.some(e => e.name === 'BTB Test Prone')}`);
         await chip?.delete().catch(() => {});
       }
 
@@ -793,7 +793,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           `answer=${t?.choice?.answer} timedOut=${!!t?.choice?.timedOut} chip=${chip?.id ?? null}`);
         await chip?.delete().catch(() => {});
         await set('holdTimer', 0);
-        await closeDialogs('BF Shield Master');
+        await closeDialogs('BTB Shield Master');
       }
 
       /* B4 — the HIT is the trigger: offer → drive → demand → choice → press. */
@@ -878,7 +878,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         await chip?.delete().catch(() => {});
         await pcToken.document.update(pcHome, { animate: false });
         await acFlat(victim, 25);
-        await closeDialogs('BF Shield Master');
+        await closeDialogs('BTB Shield Master');
       }
       // Off the sheet: every table row is live, so a weapon hit beside the victim in §T would bash.
       await pc.deleteEmbeddedDocuments('Item', [bashFeat.id]).catch(() => {});
@@ -1057,16 +1057,16 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       await victim.update({ 'system.abilities.dex.value': 16 });
       {
         const [shield] = await victim.createEmbeddedDocuments('Item', [{
-          name: 'BF Test Shield', type: 'equipment',
+          name: 'BTB Test Shield', type: 'equipment',
           system: { type: { value: 'shield' }, equipped: true, armor: { value: 2 } }
         }]);
         created.victimItems.push(shield.id);
         const [interposeFeat] = await victim.createEmbeddedDocuments('Item', [{
-          name: 'BF Shield Master', type: 'feat', system: { type: { value: 'feat' }, identifier: 'shield-master' } }]);
+          name: 'BTB Shield Master', type: 'feat', system: { type: { value: 'feat' }, identifier: 'shield-master' } }]);
         created.victimItems.push(interposeFeat.id);
       }
       const [dexBlast] = await pc.createEmbeddedDocuments('Item', [{
-        name: 'BF Test Dex Blast', type: 'feat',
+        name: 'BTB Test Dex Blast', type: 'feat',
         system: { type: { value: 'feat' }, activities: {
           bfdexblast000000: {
             _id: 'bfdexblast000000', type: 'save',
@@ -1115,7 +1115,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
             && !reactionChip(victim),
           `applied=${!!applied} hp ${hpBefore}→${victim.system.attributes.hp.value} card=${!!validation}`);
         await set('holdTimer', 0);
-        await closeDialogs('BF Shield Master');
+        await closeDialogs('BTB Shield Master');
       }
 
       /* I2 — the buzzer PASSES (a Reaction is never spent by a timer): the saved half applies. */
@@ -1133,13 +1133,13 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           (t?.choice?.answer === 'pass') && !!t?.choice?.timedOut && (dropped === 5),
           `answer=${t?.choice?.answer} timedOut=${!!t?.choice?.timedOut} dropped=${dropped}`);
         await set('holdTimer', 0);
-        await closeDialogs('BF Shield Master');
+        await closeDialogs('BTB Shield Master');
         await victim.update({ 'system.attributes.hp.value': victim.system.attributes.hp.max });
       }
 
       /* I3 — a FAILED save never offers and never spends: full damage, no choice, no popup. */
       const [dexHard] = await pc.createEmbeddedDocuments('Item', [{
-        name: 'BF Test Dex Blast Hard', type: 'feat',
+        name: 'BTB Test Dex Blast Hard', type: 'feat',
         system: { type: { value: 'feat' }, activities: {
           bfdexhard0000000: {
             _id: 'bfdexhard0000000', type: 'save',
@@ -1167,7 +1167,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
             && !reactionChip(victim),
           `applied=${!!applied} dropped=${dropped} offered=${offered} settle=${!!settle}`);
         await set('holdTimer', 0);
-        await closeDialogs('BF Shield Master');
+        await closeDialogs('BTB Shield Master');
         await victim.update({ 'system.attributes.hp.value': victim.system.attributes.hp.max });
       }
     }
@@ -1177,11 +1177,11 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       {
         // The bash feat and the blasts leave first (their popups would stack). ⚠ BY NAME: a
         // `--section H` run never made them.
-        const inTheWay = ['BF Shield Master', 'BF Test Dex Blast', 'BF Test Dex Blast Hard'];
+        const inTheWay = ['BTB Shield Master', 'BTB Test Dex Blast', 'BTB Test Dex Blast Hard'];
         await pc.deleteEmbeddedDocuments('Item',
           pc.items.filter(i => inTheWay.includes(i.name)).map(i => i.id)).catch(() => {});
         const [gwm] = await pc.createEmbeddedDocuments('Item', [{
-          name: 'BF Great Weapon Master', type: 'feat', system: { type: { value: 'feat' }, identifier: 'great-weapon-master' } }]);
+          name: 'BTB Great Weapon Master', type: 'feat', system: { type: { value: 'feat' }, identifier: 'great-weapon-master' } }]);
         await set('holdTimer', 15);   // the notice family pops only inside a live window
         await acFlat(victim, 1);
         let hew = null, dmg = null;
@@ -1282,7 +1282,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
      * slots reused as they free; the FIRST moment's popup stays in front. */
     if (want('Q')) {
       {
-        const uiMod = await import('/modules/fvtt-mod-battleflow/scripts/ui.js');
+        const uiMod = await import('/modules/fvtt-mod-bythebooks/scripts/ui.js');
         const anyMsg = game.messages.contents.at(-1);
         const mk = title => new foundry.applications.api.DialogV2({
           window: { title }, position: { width: 300 },
@@ -1291,8 +1291,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           rejectClose: false
         });
         const zOf = d => Number(d.position?.zIndex ?? d.element?.style?.zIndex ?? 0);
-        const d1 = mk('BF Cascade First');
-        const d2 = mk('BF Cascade Second');
+        const d1 = mk('BTB Cascade First');
+        const d2 = mk('BTB Cascade Second');
         await uiMod.openManagedPopup('bf-cascade-1', anyMsg, d1);
         await uiMod.openManagedPopup('bf-cascade-2', anyMsg, d2);
         await sleep(300);
@@ -1304,7 +1304,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           zOf(d1) > zOf(d2), `z1=${zOf(d1)} z2=${zOf(d2)}`);
         await d1.close();
         await sleep(150);
-        const d3 = mk('BF Cascade Third');
+        const d3 = mk('BTB Cascade Third');
         await uiMod.openManagedPopup('bf-cascade-3', anyMsg, d3);
         await sleep(300);
         ok('Q3. (s) a freed slot is reused — the third lands on the anchor, never on the survivor',
@@ -1314,9 +1314,9 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         await sleep(150);
         // THE RANK: the mastery fronts the bash offer though it arrives second; the unranked go
         // behind both. Real subs, through the real popups' opener.
-        const dBash = mk('BF Rank Bash');
-        const dMast = mk('BF Rank Mastery');
-        const dHold = mk('BF Rank Hold');
+        const dBash = mk('BTB Rank Bash');
+        const dMast = mk('BTB Rank Mastery');
+        const dHold = mk('BTB Rank Hold');
         await uiMod.openManagedPopup(`${anyMsg.id}|bashoffer`, anyMsg, dBash);
         await uiMod.openManagedPopup(`${anyMsg.id}|mastery`, anyMsg, dMast);
         await sleep(300);

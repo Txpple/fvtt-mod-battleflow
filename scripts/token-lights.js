@@ -1,7 +1,7 @@
 /**
- * Battle Flow — token lights, senses and sizes: a use or effect whose text changes the token, carried on an effect.
+ * By the Books — token lights, senses and sizes: a use or effect whose text changes the token, carried on an effect.
  */
-import { MODULE_ID, TITLE, canApplyTo, drivesMomentFor, isActiveGM, queueFlagWrite, statContext } from "./core.js";
+import { MODULE_ID, readFlag, TITLE, canApplyTo, drivesMomentFor, isActiveGM, queueFlagWrite, statContext } from "./core.js";
 import { ruleHTML } from "./rule-text.js";
 import { lower, resolveUuid, namesAnswering } from "./lookup.js";
 import { tokenLightEntries, tokenSenseEntries, tokenSizeEntries, listedNames } from "./decide/registry.js";
@@ -69,7 +69,7 @@ function standingLights(key, sourceUuid) {
   for ( const scene of game.scenes ) for ( const t of scene.tokens ) if ( t.actor && !t.actorLink ) actors.add(t.actor);
   for ( const actor of actors ) {
     for ( const e of actor.effects ) {
-      const f = e.getFlag(MODULE_ID, LIGHT_FLAG);
+      const f = readFlag(e, LIGHT_FLAG);
       if ( f && (f.key === key) && (f.sourceUuid === sourceUuid) ) out.push(e);
     }
   }
@@ -122,7 +122,7 @@ async function applyLight(payload) {
     const actor = await fromUuid(t.uuid);
     if ( !(actor instanceof Actor) ) continue;
     if ( !canApplyTo(actor) ) { skipped.push(t.name); continue; }
-    const stale = actor.effects.filter(e => e.getFlag(MODULE_ID, LIGHT_FLAG)?.key === row.key);
+    const stale = actor.effects.filter(e => readFlag(e, LIGHT_FLAG)?.key === row.key);
     if ( stale.length ) await actor.deleteEmbeddedDocuments("ActiveEffect", stale.map(e => e.id)).catch(() => {});
     const data = lightEffectData(row, item, activity, actor, payload.sourceUuid, await ruleHTML(row.rule));
     if ( !data ) { skipped.push(t.name); continue; }
@@ -140,7 +140,7 @@ async function driveLight(message) {
     claimed = true;
   });
   if ( !claimed ) return;
-  const payload = message.getFlag(MODULE_ID, LIGHT_FLAG);
+  const payload = readFlag(message, LIGHT_FLAG);
   const { landed, skipped } = await applyLight(payload);
   await queueFlagWrite(message, LIGHT_FLAG, current => { current.landed = landed; current.skipped = skipped; });
   // The effect receipt: its revert takes the light off with the effect.
@@ -162,7 +162,7 @@ registerResumable(LIGHT_FLAG, {
 /* --- the card says it (R5) -------------------------------------------------------------------- */
 
 listen("dnd5e.renderChatMessage", "token-lights", (message, html) => {
-  const f = message.getFlag(MODULE_ID, LIGHT_FLAG);
+  const f = readFlag(message, LIGHT_FLAG);
   if ( !f?.done || !(f.landed || f.skipped) ) return;
   const row = TOKEN_LIGHTS[f.key];
   if ( !row ) return;
@@ -196,7 +196,7 @@ listen("deleteActiveEffect", "token-lights", effect => {
     const still = actor.items.some(i => !answersItem(i, effect.name)
       && i.effects.some(e => (e.id !== effect.id) && (e.type === "enchantment") && (lower(e.name) === lower(effect.name))));
     if ( still ) return;
-    const lit = actor.effects.filter(e => keys.includes(e.getFlag(MODULE_ID, LIGHT_FLAG)?.key));
+    const lit = actor.effects.filter(e => keys.includes(readFlag(e, LIGHT_FLAG)?.key));
     if ( lit.length ) void actor.deleteEmbeddedDocuments("ActiveEffect", lit.map(e => e.id))
       .catch(err => console.warn(`${TITLE} | Could not put the light out — delete it by hand.`, err));
   } catch(err) {

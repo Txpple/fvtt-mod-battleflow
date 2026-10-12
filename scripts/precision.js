@@ -1,11 +1,11 @@
 /**
- * Battle Flow — MACHINE (ARCHITECTURE.md §7): Precision Attack, the `precision` fold — a missed
+ * By the Books — MACHINE (ARCHITECTURE.md §7): Precision Attack, the `precision` fold — a missed
  * attack patched by a superiority die. Accepting USES the maneuver, rolls the die publicly,
  * writes per-target verdicts through the fold registry, and re-drives the damage.
  * ⚠ The flag never touches `hold` (one hold per message; any hold verdict is authoritative).
  * ⚠ Offered only when the attack hit NOBODY: one damage roll serves every target.
  */
-import { MODULE_ID, TITLE, S, setting, isActiveGM, queueFlagWrite, canAnswerFor, statContext, decisionWindow } from "./core.js";
+import { MODULE_ID, readFlag, TITLE, S, setting, isActiveGM, queueFlagWrite, canAnswerFor, statContext, decisionWindow } from "./core.js";
 import { cardActivity, resolveUuid, usableManeuver, maneuverDieFormula } from "./lookup.js";
 import { maneuverFoldEntries } from "./decide/registry.js";
 import { hitTargets } from "./shared.js";
@@ -29,7 +29,7 @@ function precisionFor(subject, attackMessage, roll) {
   if ( !subject || (subject.type !== "attack") ) return null;
   const attacker = subject.actor;
   if ( !attacker || !(attackMessage instanceof ChatMessage) || !roll ) return null;
-  if ( attackMessage.getFlag(MODULE_ID, "precision") ) return null;   // never re-stamp
+  if ( readFlag(attackMessage, "precision") ) return null;   // never re-stamp
   if ( roll.isFumble ) return null;                                    // a natural 1 stands
   const entry = maneuverFoldEntries().find(e => e.kind === "precision");
   if ( !entry ) return null;
@@ -133,7 +133,7 @@ async function resolvePrecision(message) {
   if ( precisionInFlight.has(message.id) ) return;
   precisionInFlight.add(message.id);   // before the first await
   try {
-    const flag = message.getFlag(MODULE_ID, "precision");
+    const flag = readFlag(message, "precision");
     if ( !flag || (flag.answer !== "use") || (flag.status !== "pending") ) return;
     const attacker = await fromUuid(flag.attackerUuid);
     const item = attacker?.items?.get(flag.itemId);
@@ -196,7 +196,7 @@ async function resolvePrecision(message) {
     });
     // Graze already paid on this miss: announce it, never unwind it.
     if ( (masteryOf(message) === "graze")
-      && message.getFlag(MODULE_ID, "receipt")?.targets?.length ) {
+      && readFlag(message, "receipt")?.targets?.length ) {
       lines.push("⚠ Graze already paid on the miss — revert its receipt if you rule it void.");
     }
     await ChatMessage.create({
@@ -225,7 +225,7 @@ async function resolvePrecision(message) {
 
 /** The fold contributions for ONE target; `flag` may be the pending spend, not yet on the message. */
 const precisionFolds = (message, flag) => foldsFrom(
-  key => ((key === "precision") ? flag : message.getFlag(MODULE_ID, key)), ATTACK_FOLDS)
+  key => ((key === "precision") ? flag : readFlag(message, key)), ATTACK_FOLDS)
   .filter(f => f.uuid === flag?.targets?.[0]?.uuid);
 
 /** The roll the folds compose over — the real d20 where there is one, the stamp's copy otherwise. */
@@ -233,14 +233,14 @@ const precisionBase = (message, flag) => message.rolls?.[0] ?? { total: flag?.at
 
 /** PRECISION AS A RESCUE ROW (ARCHITECTURE §5): a d20 fold on the same roll shares its window. */
 registerRescue("precision", {
-  isPending: message => message.getFlag(MODULE_ID, "precision")?.status === "pending",
+  isPending: message => readFlag(message, "precision")?.status === "pending",
   subject: message => {
-    const uuid = message.getFlag(MODULE_ID, "precision")?.attackerUuid;
+    const uuid = readFlag(message, "precision")?.attackerUuid;
     return resolveUuid(uuid);
   },
   // Composed here, not in the spine: ui.js reads no world setting and imports no machine.
   view: message => {
-    const flag = message.getFlag(MODULE_ID, "precision");
+    const flag = readFlag(message, "precision");
     if ( !flag ) return null;
     return rescueView(key => ((key === "precision") ? flag : null), {
       composed: foldedRoll(precisionBase(message, flag), precisionFolds(message, flag)),
@@ -265,10 +265,10 @@ async function mootPrecision(message) {
 // The row on the attack card, the watcher, the cleanup.
 
 listen("dnd5e.renderChatMessage", "precision", (message, html) => {
-  const p = message.getFlag(MODULE_ID, "precision");
+  const p = readFlag(message, "precision");
   if ( p ) {
     const row = document.createElement("div");
-    row.className = "battleflow-maneuver";
+    row.className = "bythebooks-maneuver";
     const pending = p.status === "pending";
     row.innerHTML = bfCard({
       img: p.itemImg, eyebrow: `Maneuver — ${p.itemName}`,
@@ -303,7 +303,7 @@ listen("dnd5e.renderChatMessage", "precision", (message, html) => {
 
 // Every client closes answered popups; the timers disarm when nothing is pending.
 listen("updateChatMessage", "precision", message => {
-  const p = message.getFlag(MODULE_ID, "precision");
+  const p = readFlag(message, "precision");
   if ( p ) {
     // The premise is re-derived every update: once any fold makes it a hit, the offer goes.
     if ( (p.status === "pending") && !p.answer && isActiveGM() && hitTargets(message).length ) {

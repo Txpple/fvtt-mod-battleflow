@@ -155,7 +155,7 @@ if (byChange) {
   }
   console.log("");
 } else if (positionals.length) {
-  // Needs are pulled, not refused: smoke-hold runs smoke-battleflow immediately before it.
+  // Needs are pulled, not refused: smoke-hold runs smoke-bythebooks immediately before it.
   const unknown = positionals.filter(a => !ORDER.some(s => s.name === a));
   if (unknown.length) {
     console.error(`no such suite: ${unknown.join(", ")}. Try --list.`);

@@ -1,8 +1,8 @@
 /**
- * Battle Flow — Shared EDGE helpers: the hit test, the attack-chain lookup, status forcing, turn
+ * By the Books — Shared EDGE helpers: the hit test, the attack-chain lookup, status forcing, turn
  * chits, the Reaction chip and pool spends (ARCHITECTURE.md §7).
  */
-import { MODULE_ID, TITLE, activeCombatFor, canApplyTo, combatStamp } from "./core.js";
+import { MODULE_ID, readFlag, TITLE, activeCombatFor, canApplyTo, combatStamp } from "./core.js";
 import { CHIP_FLAG, chipClock, chitStamp, reactionStands, reactionStandsEveryTurn } from "./decide/chips.js";
 import { REACTION_RESETS, identifierOf } from "./decide/registry.js";
 import { foldsFrom, hitsAmong } from "./decide/verdict.js";
@@ -16,7 +16,7 @@ export function hitTargets(attackMessage) {
   if ( !(roll instanceof dnd5e.dice.D20Roll) ) return [];
   return hitsAmong({
     targets: targetsOf(attackMessage),
-    folds: foldsFrom(key => attackMessage.getFlag(MODULE_ID, key)),
+    folds: foldsFrom(key => readFlag(attackMessage, key)),
     roll: { isCritical: roll.isCritical, isFumble: roll.isFumble, total: roll.total }
   });
 }
@@ -27,7 +27,7 @@ export const masteryLabel = key => CONFIG.DND5E.weaponMasteries[key]?.label ?? k
 /** The attack roll a damage message descends from; null outside an attack chain.
  * ⚠ The `attackFor` stamp leads: a volley's rays share one usage card, so walking back is the fallback. */
 export function resolveAttackMessage(damageMessage) {
-  const forId = damageMessage.getFlag(MODULE_ID, "attackFor");
+  const forId = readFlag(damageMessage, "attackFor");
   if ( forId ) {
     const stamped = game.messages.get(forId);
     if ( stamped ) return stamped;
@@ -66,7 +66,7 @@ export function chipSpentOnRecord(effect, { limit = 100 } = {}) {
   for ( let i = log.length - 1, n = 0; (i >= 0) && (n < limit); i--, n++ ) {
     const m = log[i];
     if ( m.timestamp < since ) continue;
-    const spent = m.getFlag(MODULE_ID, "chipSpend")?.spent;
+    const spent = readFlag(m, "chipSpend")?.spent;
     if ( spent?.some(s => (s.id === effect.id) && (s.uuid === bearerUuid)) ) return true;
   }
   return false;
@@ -204,8 +204,8 @@ export function chitStampOf(effect) {
 export function turnChitStands(actor, key, riderKey = null) {
   const stamp = activeCombatFor(actor) ? combatStamp() : null;
   if ( !stamp || !actor ) return false;
-  return actor.effects.some(e => (e.getFlag(MODULE_ID, CHIP_FLAG) === key)
-    && (!riderKey || (e.getFlag(MODULE_ID, "riderKey") === riderKey)) && (chitStampOf(e) === stamp));
+  return actor.effects.some(e => (readFlag(e, CHIP_FLAG) === key)
+    && (!riderKey || (readFlag(e, "riderKey") === riderKey)) && (chitStampOf(e) === stamp));
 }
 
 /**
@@ -217,8 +217,8 @@ export function turnChitStands(actor, key, riderKey = null) {
 export async function writeTurnChit(actor, key, { name, img = null, description = "", origin = null, riderKey = null }) {
   if ( !actor || !canApplyTo(actor) ) return null;
   if ( !activeCombatFor(actor) ) return null;   // the attacker's own combat, or no turn to be once-per
-  const stale = actor.effects.filter(e => (e.getFlag(MODULE_ID, CHIP_FLAG) === key)
-    && (!riderKey || (e.getFlag(MODULE_ID, "riderKey") === riderKey)));
+  const stale = actor.effects.filter(e => (readFlag(e, CHIP_FLAG) === key)
+    && (!riderKey || (readFlag(e, "riderKey") === riderKey)));
   // Best-effort: the platform may already have deleted an expired chit.
   if ( stale.length ) await actor.deleteEmbeddedDocuments("ActiveEffect", stale.map(e => e.id).filter(id => actor.effects.get(id))).catch(() => {});
   const clock = chipClock(key, turnPlace());
@@ -235,7 +235,7 @@ export async function writeTurnChit(actor, key, { name, img = null, description 
 /** Is this creature's Reaction spent? Stamp arithmetic too, so it dies without a GM's mark. */
 export function reactionSpent(actor) {
   if ( !actor ) return false;
-  const chips = actor.effects?.filter(e => e.getFlag(MODULE_ID, CHIP_FLAG) === "reaction") ?? [];
+  const chips = actor.effects?.filter(e => readFlag(e, CHIP_FLAG) === "reaction") ?? [];
   if ( !chips.length ) return false;
   const combat = activeCombatFor(actor);
   const now = combat ? { round: combat.round, turn: combat.turn } : null;
@@ -258,7 +258,7 @@ export async function spendReaction(actor, { origin = null, what = "a Reaction" 
   const clock = chipClock("reaction", placeOf(actor));
   if ( !clock?.start ) return null;                       // not in the running combat — no turn to bring it back
   if ( reactionSpent(actor) ) return null;
-  const stale = actor.effects.filter(e => e.getFlag(MODULE_ID, CHIP_FLAG) === "reaction");
+  const stale = actor.effects.filter(e => readFlag(e, CHIP_FLAG) === "reaction");
   if ( stale.length ) await actor.deleteEmbeddedDocuments("ActiveEffect", stale.map(e => e.id));
   return ActiveEffect.implementation.create({
     name: "Reaction — used", img: "icons/svg/clockwork.svg",
@@ -278,11 +278,11 @@ export const STORED_FLAG = "storedDice";
 const storedTurnNow = () => { const c = game.combat; return c?.started ? `${c.id}:${c.round}:${c.turn}` : null; };
 
 /** The bearer's chip for a STORED_DICE row, or null. */
-export const storedChipOf = (actor, key) => actor?.effects?.find?.(e => e.getFlag(MODULE_ID, STORED_FLAG)?.key === key) ?? null;
+export const storedChipOf = (actor, key) => actor?.effects?.find?.(e => readFlag(e, STORED_FLAG)?.key === key) ?? null;
 
 /** May a face be spent now? One left, and (`oncePerTurn`) none spent this combat turn. */
 export function storedFacesUsable(chip, row) {
-  const f = chip?.getFlag?.(MODULE_ID, STORED_FLAG);
+  const f = readFlag(chip, STORED_FLAG);
   if ( !f?.faces?.length ) return false;
   const now = storedTurnNow();
   return !(row?.oncePerTurn && now && (f.turn === now));
@@ -291,7 +291,7 @@ export function storedFacesUsable(chip, row) {
 /** Spend one face: struck off the chip (renamed to what is left, deleted when empty), the turn stamped. */
 export async function spendStoredFace(actor, key, face) {
   const chip = storedChipOf(actor, key);
-  const f = chip?.getFlag(MODULE_ID, STORED_FLAG);
+  const f = readFlag(chip, STORED_FLAG);
   if ( !chip || !f ) return false;
   const faces = withoutFace(f.faces, face);
   if ( faces.length === f.faces.length ) return false;
@@ -307,7 +307,7 @@ export function bystanderMuted(actor, key) {
   const combat = activeCombatFor(actor);
   if ( !combat || !actor ) return false;
   const want = String(key ?? "").toLowerCase();
-  return actor.effects?.some(e => { const m = e.getFlag(MODULE_ID, "bystanderMute");
+  return actor.effects?.some(e => { const m = readFlag(e, "bystanderMute");
     return m && (String(m.key ?? "").toLowerCase() === want) && (m.combat === combat.id); }) ?? false;
 }
 
@@ -467,10 +467,10 @@ export function poolSpendsOn(message) {
   }
   const own = actor?.hasPlayerOwner ?? true;
   const hand = [];
-  const flagged = message?.getFlag?.(MODULE_ID, "poolSpend");
+  const flagged = readFlag(message, "poolSpend");
   if ( flagged ) hand.push(...(Array.isArray(flagged) ? flagged : [flagged]));
-  for ( const t of (message?.getFlag?.(MODULE_ID, "hold")?.targets ?? []) ) if ( t.poolSpend ) hand.push(t.poolSpend);
-  const hm = message?.getFlag?.(MODULE_ID, "hitManeuver");
+  for ( const t of (readFlag(message, "hold")?.targets ?? []) ) if ( t.poolSpend ) hand.push(t.poolSpend);
+  const hm = readFlag(message, "hitManeuver");
   for ( const pick of (Array.isArray(hm?.picks) ? hm.picks : (hm ? [hm] : [])) ) if ( pick?.poolSpend ) hand.push(pick.poolSpend);
   for ( const r of hand ) {
     let spender = null;

@@ -1,7 +1,7 @@
 // Fighting-style smoke suite: one table, gated on what the PC holds, the styles shown as effects
-// on the player. BF Test Fighter (tools/fixture-suite.mjs) is lent the PHB's styles, feats and
+// on the player. BTB Test Fighter (tools/fixture-suite.mjs) is lent the PHB's styles, feats and
 // weapons for the run (its own gear unequipped and put back). Damage is rolled straight off the
-// weapon's attack activity in its attack mode, dice forced; BF Test Victim stands targeted.
+// weapon's attack activity in its attack mode, dice forced; BTB Test Victim stands targeted.
 // Settings, lent items, the token, messages and equipped boxes are all restored.
 import { announcePlan, connectSuite, finish, sectionArg, sectionPlan } from './harness.mjs';
 
@@ -35,7 +35,7 @@ const f = await connectSuite({ tag: 'styles', watchdogMs: 420_000 });
 announcePlan('styles', plan, pulled);
 
 const out = await f.evaluate(async ({ sections, titles }) => {
-  const MOD = 'fvtt-mod-battleflow';
+  const MOD = 'fvtt-mod-bythebooks';
   const results = [];
   const log = [];
   const skips = [];
@@ -56,10 +56,10 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   const prior = Object.fromEntries(SETTING_KEYS.map(k => [k, game.settings.get(MOD, k)]));
   const set = (k, v) => game.settings.set(MOD, k, v);
 
-  const scene = game.scenes.getName('Battle Flow Test Range');
-  const actor = game.actors.getName('BF Test Fighter');
-  const victim = game.actors.getName('BF Test Victim');
-  if (!scene || !actor || !victim) return { fatal: 'missing fixture: the range, BF Test Fighter or BF Test Victim — run tools/fixture-suite.mjs' };
+  const scene = game.scenes.getName('By the Books Test Range');
+  const actor = game.actors.getName('BTB Test Fighter');
+  const victim = game.actors.getName('BTB Test Victim');
+  if (!scene || !actor || !victim) return { fatal: 'missing fixture: the range, BTB Test Fighter or BTB Test Victim — run tools/fixture-suite.mjs' };
 
   const realPRNG = CONFIG.Dice.randomUniform;
   const faces = spec => {
@@ -71,7 +71,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   const floats = [];
   if (canvas.interface) canvas.interface.createScrollingText = (origin, text, opts) => { floats.push(String(text)); return realFloat?.(origin, text, opts); };
   const dicePlays = [];
-  const diceHook = Hooks.on('battleflow.styleDice', p => dicePlays.push(p));
+  const diceHook = Hooks.on('bythebooks.styleDice', p => dicePlays.push(p));
 
   const equippedBefore = actor.items.filter(i => i.system?.equipped === true).map(i => i.id);
   const lent = [];
@@ -82,7 +82,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     restored = true;
     CONFIG.Dice.randomUniform = realPRNG;
     if (canvas.interface && realFloat) canvas.interface.createScrollingText = realFloat;
-    Hooks.off('battleflow.styleDice', diceHook);
+    Hooks.off('bythebooks.styleDice', diceHook);
     try { for (const [k, v] of Object.entries(prior)) await set(k, v); }
     catch (err) { log.push(`TEARDOWN settings ERROR: ${err?.message}`); }
     try {
@@ -300,7 +300,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
 
     // ---- 9. Blind Fighting
     if (want(9)) {
-      const { judgeRoll } = await import('/modules/fvtt-mod-battleflow/scripts/reminders.js');
+      const { judgeRoll } = await import('/modules/fvtt-mod-bythebooks/scripts/reminders.js');
       const [fdoc] = await scene.createEmbeddedDocuments('Token', [
         foundry.utils.mergeObject(actor.prototypeToken.toObject(), { x: 1500, y: 1900, actorId: actor.id, actorLink: true, disposition: 1 }, { inplace: false })]);
       placed.push(fdoc.id);
@@ -340,9 +340,9 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           { x: 1500, y: 1900, actorId: actor.id, actorLink: true, disposition: 1 }, { inplace: false })]))[0];
       if (!placed.includes(fdoc.id)) placed.push(fdoc.id);
       for (let i = 0; i < 40 && !canvas.tokens.get(fdoc.id); i++) await sleep(250);
-      // A creature of its own, so no other token inherits the Grappled (the fixture's unlinked BF Test
+      // A creature of its own, so no other token inherits the Grappled (the fixture's unlinked BTB Test
       // Victim wears its base actor's effects).
-      const held = (await Actor.create({ ...victim.toObject(), _id: undefined, name: 'BF Temp Grappled', folder: null }));
+      const held = (await Actor.create({ ...victim.toObject(), _id: undefined, name: 'BTB Temp Grappled', folder: null }));
       const [hdoc] = await scene.createEmbeddedDocuments('Token', [foundry.utils.mergeObject(held.prototypeToken.toObject(),
         { x: 1600, y: 1900, actorId: held.id, actorLink: true, disposition: -1 }, { inplace: false })]);
       placed.push(hdoc.id);
@@ -471,7 +471,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           (calc?.amount === 9 - pb) && (calc?.bfArmorBlock?.amount === pb), `amount=${calc?.amount} block=${JSON.stringify(calc?.bfArmorBlock ?? null)}`);
         const hpA = Number(actor.system.attributes.hp.value);
         const pops = [];
-        const popHook = Hooks.on('battleflow.armorBlock', p => pops.push(p));
+        const popHook = Hooks.on('bythebooks.armorBlock', p => pops.push(p));
         await actor.applyDamage(nine, { originatingMessage: card });
         await sleep(300);
         const flag = actor.getFlag(MOD, 'armorBlock');
@@ -481,7 +481,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         await sleep(20);
         await actor.applyDamage(nine, { originatingMessage: card });
         await sleep(300);
-        Hooks.off('battleflow.armorBlock', popHook);
+        Hooks.off('bythebooks.armorBlock', popHook);
         ok('12c2. a second block of the same amount pops again', pops.length === 2, `pops=${JSON.stringify(pops)}`);
         const hpB = Number(actor.system.attributes.hp.value);
         await actor.applyDamage(nine, {});

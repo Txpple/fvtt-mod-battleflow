@@ -1,8 +1,8 @@
 /**
- * Battle Flow — MACHINE, part of scripts/saves/ (ARCHITECTURE.md §7): the VIEWS — the card row and
+ * By the Books — MACHINE, part of scripts/saves/ (ARCHITECTURE.md §7): the VIEWS — the card row and
  * the create / update / delete watchers with their resume floors. index.js is the only public face.
  */
-import { MODULE_ID, rollerUserFor,
+import { readFlag, rollerUserFor,
   drivesMomentFor, canAnswerFor, savesRollThemselves } from "../core.js";
 import { resolveUuid } from "../lookup.js";
 import { verdictTail, verdictText } from "../decide/verdict.js";
@@ -24,13 +24,13 @@ listen("createChatMessage", "saves/views", message => {
   // A save roll folds into the demand it answers; the demand names its own driver, so the gate sits inside.
   if ( isCard(message, CARD.save) ) {
     const found = saveAnsweredBy(message);
-    if ( found && drivesMomentFor(found.card.getFlag(MODULE_ID, "saves")?.sourceUuid ?? null) )
+    if ( found && drivesMomentFor(readFlag(found.card, "saves")?.sourceUuid ?? null) )
       void foldSaveAnswer(found.card, found.uuid, message);
   }
   // The damage roll: existing verdicts apply now, on the demand's driver; the rest as they fold.
   if ( isCard(message, CARD.damage) ) {
     const origin = message.getOriginatingMessage?.();
-    const demand = (origin && (origin !== message)) ? origin.getFlag(MODULE_ID, "saves") : null;
+    const demand = (origin && (origin !== message)) ? readFlag(origin, "saves") : null;
     if ( demand && drivesMomentFor(demand.sourceUuid ?? null) ) void reconcileSaveDamage(origin);
   }
 });
@@ -41,7 +41,7 @@ listen("updateChatMessage", "saves/views", message => {
     void flipForcedSave(message);
   }
 
-  const flag = message.getFlag(MODULE_ID, "saves");
+  const flag = readFlag(message, "saves");
   if ( !flag ) return;
   // Every client closes popups whose decision is made; the timer disarms when nothing is left.
   for ( const t of flag.targets ?? [] ) {
@@ -90,7 +90,7 @@ listen("deleteChatMessage", "saves/views", message => {
 
 // A spell that chooses its targets: who its area affects, one line above the demand's rows.
 listen("dnd5e.renderChatMessage", "saves/views", (message, html) => {
-  const record = message.getFlag(MODULE_ID, AREA_CHOICE_FLAG);
+  const record = readFlag(message, AREA_CHOICE_FLAG);
   if ( !Array.isArray(record?.chosen) ) return;
   const content = html.querySelector?.(SURFACES.messageContent) ?? html;
   if ( !content || content.querySelector(".bf-area-choice") ) return;
@@ -102,7 +102,7 @@ listen("dnd5e.renderChatMessage", "saves/views", (message, html) => {
 });
 
 listen("dnd5e.renderChatMessage", "saves/views", (message, html) => {
-  const flag = message.getFlag(MODULE_ID, "saves");
+  const flag = readFlag(message, "saves");
   if ( !flag ) return;
 
   // A WAITING demand (targetless template stamp): run the adoption floor on the elect — the template
@@ -111,10 +111,10 @@ listen("dnd5e.renderChatMessage", "saves/views", (message, html) => {
     if ( flag.status !== "pending" ) return;
     void refreshDemandFromTemplates(message);   // gated on the demand's own driver inside
     // The area has landed and its caster is being asked; the ask's own line speaks.
-    if ( message.getFlag(MODULE_ID, AREA_ASK_FLAG)?.status === "pending" ) return;
+    if ( readFlag(message, AREA_ASK_FLAG)?.status === "pending" ) return;
     const abilityLabel = CONFIG.DND5E.abilities[flag.abilities?.[0]]?.label ?? flag.abilities?.[0] ?? "";
     const row = document.createElement("div");
-    row.className = "battleflow-saves";
+    row.className = "bythebooks-saves";
     row.style.marginTop = "0.35rem";
     const line = document.createElement("div");
     Object.assign(line.style, {
@@ -127,7 +127,7 @@ listen("dnd5e.renderChatMessage", "saves/views", (message, html) => {
   }
 
   const row = document.createElement("div");
-  row.className = "battleflow-saves";
+  row.className = "bythebooks-saves";
   row.style.marginTop = "0.35rem";
 
   const pending = flag.status === "pending";
@@ -190,8 +190,8 @@ listen("dnd5e.renderChatMessage", "saves/views", (message, html) => {
       void refreshDemandFromTemplates(message);
       for ( const t of flag.targets ) {
         if ( t.done ) continue;
-        const landed = game.messages.find(m => (m.getFlag(MODULE_ID, "respondsTo") === message.id)
-          && (m.getFlag(MODULE_ID, "saveFor") === t.uuid));
+        const landed = game.messages.find(m => (readFlag(m, "respondsTo") === message.id)
+          && (readFlag(m, "saveFor") === t.uuid));
         if ( landed ) void foldSaveAnswer(message, t.uuid, landed);
       }
     }

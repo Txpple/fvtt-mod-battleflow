@@ -1,11 +1,11 @@
 /**
- * Battle Flow — SPINE: THE DICE THAT RISE (RULINGS *Dice that rise*) — chips over a token on the
+ * By the Books — SPINE: THE DICE THAT RISE (RULINGS *Dice that rise*) — chips over a token on the
  * canvas interface, off with core's scrolling-text setting; per client, nothing stored.
  * A chip: `{label, was?, up?, flat?, drop?, lost?}` — `was` the face it turns FROM; `up` the gold
  * edge; `flat` a bonus, not a die; `drop` a die that no longer counts; `lost` a dropped critical.
  */
 
-import { MODULE_ID, TITLE } from "./core.js";
+import { readFlag, TITLE } from "./core.js";
 import { changedDice } from "./decide/dice-chips.js";
 import { listen } from "./dispatch.js";
 
@@ -145,7 +145,7 @@ export function driftChip(from, to, label) {
 
 // Every client plays a roll message's `diceRise` record once, as it arrives.
 listen("createChatMessage", "dice-rise", message => {
-  const rise = message.getFlag?.(MODULE_ID, "diceRise");
+  const rise = readFlag(message, "diceRise");
   if ( !rise?.on ) { platformChanged(message); return; }
   try {
     const from = tokenForUuid(rise.on);
@@ -159,7 +159,7 @@ listen("createChatMessage", "dice-rise", message => {
 /** Dice the PLATFORM changed (Halfling Luck, Reliable Talent) turn over above the roller. */
 function platformChanged(message) {
   try {
-    if ( message.getFlag?.(MODULE_ID, "fightingStyle")?.styles?.some(e => e.raised?.length) ) return;
+    if ( readFlag(message, "fightingStyle")?.styles?.some(e => e.raised?.length) ) return;
     if ( !message.rolls?.length ) return;
     const chips = changedDice(message.rolls.map(r => (typeof r?.toJSON === "function") ? r.toJSON() : r));
     if ( !chips.length ) return;

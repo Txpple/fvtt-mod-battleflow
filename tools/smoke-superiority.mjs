@@ -2,7 +2,7 @@
 // Bonus Action uses (Evasive Footwork, Bait and Switch, Lunging Attack, Feinting Attack), Ambush and
 // Tactical Assessment as scoped d20 folds, Commander's Strike as a notice and a chip, and Rally as
 // the platform's own heal.
-// Fixtures: BF Test Fighter (Battle Master 5), BF Test Ranger, BF Test Attacker; the maneuvers come
+// Fixtures: BTB Test Fighter (Battle Master 5), BTB Test Ranger, BTB Test Attacker; the maneuvers come
 // from the 2024 PHB pack for the run. Everything it writes is restored or removed.
 import { announcePlan, connectSuite, finish, sectionArg, sectionPlan } from './harness.mjs';
 
@@ -43,7 +43,7 @@ const f = await connectSuite({ tag: 'superiority', watchdogMs: 900_000 });
 announcePlan('superiority', plan, pulled);
 
 const out = await f.evaluate(async ({ sections, titles }) => {
-  const MOD = 'fvtt-mod-battleflow';
+  const MOD = 'fvtt-mod-bythebooks';
   const results = [];
   const log = [];
   const skips = [];
@@ -57,7 +57,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   const suiteStart = Date.now();
   // Every moment published during the run (events.js): plain facts, uuids, never documents.
   const moments = [];
-  const momentHookId = Hooks.on('battleflow.moment', p => moments.push(p));
+  const momentHookId = Hooks.on('bythebooks.moment', p => moments.push(p));
   const momentsOf = (event, since = 0) => moments.filter(p => (p.event === event) && (p.at >= since));
   const plain = p => { try { return JSON.stringify(p) === JSON.stringify(JSON.parse(JSON.stringify(p))); } catch { return false; } };
   const ledger = globalThis.__bfHookLedger ?? null;
@@ -77,11 +77,11 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   const prior = Object.fromEntries(SETTING_KEYS.map(k => [k, game.settings.get(MOD, k)]));
   const set = (k, v) => game.settings.set(MOD, k, v);
 
-  const scene = game.scenes.getName('Battle Flow Test Range');
-  const fighter = game.actors.getName('BF Test Fighter');
-  const ranger = game.actors.getName('BF Test Ranger');
-  const goblin = game.actors.getName('BF Test Attacker');
-  if (!scene || !fighter || !ranger || !goblin) return { fatal: 'missing fixture: scene, BF Test Fighter, BF Test Ranger or BF Test Attacker — run tools/fixture-suite.mjs' };
+  const scene = game.scenes.getName('By the Books Test Range');
+  const fighter = game.actors.getName('BTB Test Fighter');
+  const ranger = game.actors.getName('BTB Test Ranger');
+  const goblin = game.actors.getName('BTB Test Attacker');
+  if (!scene || !fighter || !ranger || !goblin) return { fatal: 'missing fixture: scene, BTB Test Fighter, BTB Test Ranger or BTB Test Attacker — run tools/fixture-suite.mjs' };
   const pool = fighter.items.find(i => i.name === 'Combat Superiority');
   const sword = fighter.items.find(i => (i.type === 'weapon') && (i.name === 'Greataxe'))
     ?? fighter.items.find(i => (i.type === 'weapon') && (i.name === 'Longsword'))
@@ -132,7 +132,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       for (const [actorId, data] of Object.entries(priorActor)) await game.actors.get(actorId)?.update(data);
       game.user.targets.forEach(t => { t.setTarget(false, { releaseOthers: true }); });
       const mine = game.messages.filter(m => (m.timestamp >= suiteStart)
-        && (m.speaker?.alias?.startsWith?.('BF Test') || m.speaker?.alias === 'Battle Flow' || Object.keys(m.flags?.[MOD] ?? {}).length || m.getFlag('core', 'initiativeRoll')));
+        && (m.speaker?.alias?.startsWith?.('BTB Test') || m.speaker?.alias === 'By the Books' || Object.keys(m.flags?.[MOD] ?? {}).length || m.getFlag('core', 'initiativeRoll')));
       if (mine.length) await ChatMessage.deleteDocuments(mine.map(m => m.id));
     } catch (err) {
       log.push(`TEARDOWN ERROR: ${err?.message}`);
@@ -300,7 +300,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const held = momentsOf('hold-answered').filter(p => p.messageId === msg?.id);
       const man = momentsOf('maneuver').filter(p => p.messageId === msg?.id);
       const h = held[0], m = man[0];
-      ok('1e. the resolve was PUBLISHED: battleflow.moment "hold-answered" — the fighter, Parry, the attack message, the goblin as the target, answer cast, the reduction, the spend; and "maneuver" beside it (mode reduce); once each, plain and frozen',
+      ok('1e. the resolve was PUBLISHED: bythebooks.moment "hold-answered" — the fighter, Parry, the attack message, the goblin as the target, answer cast, the reduction, the spend; and "maneuver" beside it (mode reduce); once each, plain and frozen',
         (held.length === 1) && (man.length === 1) && !!h && !!m && (h.actorUuid === fighter.uuid) && (h.ability === 'Parry') && (h.attackId === msg?.id)
           && (h.targets?.[0]?.actorUuid === goblin.uuid) && (h.details?.answer === 'cast') && (h.details?.kind === 'damage') && (h.details?.reduceBy === rt?.reduceBy)
           && (h.spend?.pool === 'Combat Superiority') && (h.spend?.left === 3) && (m.details?.mode === 'reduce') && (m.spend?.left === 3)
@@ -623,9 +623,9 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     // INTERRUPT_REDUCTIONS' second row: the same machine as Parry, the row's own voice, the item's
     // own uses, never the heal.
     if (want(12)) {
-      const goliath = game.actors.getName('BF Test Goliath');
+      const goliath = game.actors.getName('BTB Test Goliath');
       const stone = goliath?.items.find(i => (i.type === 'feat') && (i.name === "Stone's Endurance"));
-      if (!goliath || !stone) ok('12a. the BF Test Goliath fixture carries Stone\'s Endurance (run tools/fixture-suite.mjs)', false, `goliath=${!!goliath} stone=${!!stone}`);
+      if (!goliath || !stone) ok('12a. the BTB Test Goliath fixture carries Stone\'s Endurance (run tools/fixture-suite.mjs)', false, `goliath=${!!goliath} stone=${!!stone}`);
       else {
         const priorStoneSpent = stone.system._source.uses?.spent ?? 0;
         priorActor[goliath.id] = {
@@ -696,7 +696,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   } catch (err) {
     return { fatal: `${err?.message || err}\n${err?.stack ?? ''}`, results, log, skips };
   } finally {
-    Hooks.off('battleflow.moment', momentHookId);
+    Hooks.off('bythebooks.moment', momentHookId);
     await teardown();
   }
 }, sectionArg(plan, SECTIONS));

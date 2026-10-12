@@ -1,10 +1,10 @@
 /**
- * Battle Flow — MACHINE (ARCHITECTURE.md §7): THE INITIATIVE SWAP — trade the owner's Initiative
+ * By the Books — MACHINE (ARCHITECTURE.md §7): THE INITIATIVE SWAP — trade the owner's Initiative
  * with a willing ally's once all have rolled; the owner's pick stands for the ally's willingness.
  * The GM posts one card per listed, non-Incapacitated owner per roll; the clock answers No. The
  * tracker is the GM's: a player's answer relays, and the swap reads both LIVE numbers.
  */
-import { MODULE_ID, TITLE, isActiveGM, queueFlagWrite, canAnswerFor, statContext, drivesMomentFor, decisionWindow } from "./core.js";
+import { MODULE_ID, readFlag, TITLE, isActiveGM, queueFlagWrite, canAnswerFor, statContext, drivesMomentFor, decisionWindow } from "./core.js";
 import { featureNamed, itemNamed, lower, resolveUuid } from "./lookup.js";
 import { initiativeSwapEntries, listedNames } from "./decide/registry.js";
 import { INITIATIVE_SWAPS } from "./decide/registry.js";
@@ -56,7 +56,7 @@ listen("updateCombat", "initiative-swap", (combat, changes) => {
 
 /** Drop the latch of every asked holder whose Initiative is cleared — its next roll asks again. */
 function rearm(combat) {
-  const asked = combat.getFlag(MODULE_ID, ASKED_FLAG) ?? {};
+  const asked = readFlag(combat, ASKED_FLAG) ?? {};
   const cleared = Object.keys(asked).filter(id => {
     const c = combat.combatants.get(id);
     return c && ((c.initiative === null) || (c.initiative === undefined));
@@ -72,7 +72,7 @@ async function askFor(combat) {
   if ( !combatants.length || combatants.some(c => (c.initiative === null) || (c.initiative === undefined)) ) return;
   posting.add(combat.id);
   try {
-    const asked = { ...(combat.getFlag(MODULE_ID, ASKED_FLAG) ?? {}) };
+    const asked = { ...(readFlag(combat, ASKED_FLAG) ?? {}) };
     for ( const c of combatants ) {
       if ( asked[c.id] ) continue;
       const actor = c.actor;
@@ -126,7 +126,7 @@ const settle = (current, answer, pick, timedOut = false) => {
 };
 
 async function answerSwap(message, answer, pick = null, { timedOut = false } = {}) {
-  const flag = message.getFlag(MODULE_ID, SWAP_FLAG);
+  const flag = readFlag(message, SWAP_FLAG);
   if ( flag?.status !== "pending" ) return;
   if ( isActiveGM() ) {
     await queueFlagWrite(message, SWAP_FLAG, current => settle(current, answer, pick, timedOut));
@@ -160,7 +160,7 @@ async function landSwap(message) {
     claimed = true;
   });
   if ( !claimed ) return;
-  const flag = message.getFlag(MODULE_ID, SWAP_FLAG);
+  const flag = readFlag(message, SWAP_FLAG);
   const record = {};
   try {
     const combat = game.combats.get(flag.combatId);
@@ -189,18 +189,18 @@ registerResumable(SWAP_FLAG, {
 /* --- the clock: No, on whoever drives the owner's moments ------------------------------------------ */
 
 function armTimer(message) {
-  const flag = message.getFlag(MODULE_ID, SWAP_FLAG);
+  const flag = readFlag(message, SWAP_FLAG);
   if ( (flag?.status !== "pending") || !flag.deadline || !drivesMomentFor(flag.actorUuid ?? null) ) return;
   armDeadline(timers, message.id, flag.deadline, async () => {
     const live = game.messages.get(message.id);
-    if ( live?.getFlag(MODULE_ID, SWAP_FLAG)?.status === "pending" ) await answerSwap(live, "no", null, { timedOut: true });
+    if ( readFlag(live, SWAP_FLAG)?.status === "pending" ) await answerSwap(live, "no", null, { timedOut: true });
   });
 }
 
 /* --- the popup and the card -------------------------------------------------------------------------- */
 
 async function showSwapPopup(message) {
-  const flag = message.getFlag(MODULE_ID, SWAP_FLAG);
+  const flag = readFlag(message, SWAP_FLAG);
   if ( flag?.status !== "pending" ) return;
   const actor = resolveUuid(flag.actorUuid);
   if ( !actor ) return;
@@ -280,7 +280,7 @@ function swapLine(flag) {
 
 listen("dnd5e.renderChatMessage", "initiative-swap", (message, html) => {
   try {
-    const flag = message.getFlag(MODULE_ID, SWAP_FLAG);
+    const flag = readFlag(message, SWAP_FLAG);
     if ( !flag ) return;
     const content = html.querySelector?.(SURFACES.messageContent) ?? html;
     if ( !content || content.querySelector(".bf-initiative-swap-line") ) return;
@@ -305,7 +305,7 @@ listen("dnd5e.renderChatMessage", "initiative-swap", (message, html) => {
 
 // An answer anywhere closes the popup everywhere (law 4); the clock stands down with it.
 listen("updateChatMessage", "initiative-swap", message => {
-  const flag = message.getFlag(MODULE_ID, SWAP_FLAG);
+  const flag = readFlag(message, SWAP_FLAG);
   if ( !flag ) return;
   if ( flag.status === "pending" ) { armTimer(message); return; }
   disarmDeadline(timers, message.id);

@@ -1,5 +1,5 @@
 /**
- * Battle Flow — MACHINE (ARCHITECTURE.md §7): SUMMONS (issue #1) — the player casts and places, the
+ * By the Books — MACHINE (ARCHITECTURE.md §7): SUMMONS (issue #1) — the player casts and places, the
  * active GM's client makes the creature. dnd5e's summon activity places only for a user who holds
  * Create Token (and Create Actor for a compendium import) in a world with Allow Summoning on, and its
  * dialog cannot ask what a spell's own text asks (the dragon's damage type). Here the system's placement
@@ -12,7 +12,7 @@
  * stamps `applied`. With no GM online the card holds and says so (DESIGN §4). Dismiss deletes what the
  * elect made, and the concentration effect's end asks it.
  */
-import { MODULE_ID, TITLE, activeCombatFor, isActiveGM, queueFlagWrite, canAnswerFor, statContext } from "./core.js";
+import { MODULE_ID, readFlag, TITLE, activeCombatFor, isActiveGM, queueFlagWrite, canAnswerFor, statContext } from "./core.js";
 import { cardActivity, lower, resolveUuid } from "./lookup.js";
 import { SUMMON_CHOICES, summonChoiceEntries, listedNames } from "./decide/registry.js";
 import { profileRows, choiceRowKey, formNeeds, summonRecord, placedAnswer, narrowedActivities, resistanceEffectData,
@@ -131,7 +131,7 @@ async function answerPlacement(message, flag, answer) {
 }
 
 async function showSummonPopup(message) {
-  const flag = message.getFlag(MODULE_ID, SUMMON_FLAG);
+  const flag = readFlag(message, SUMMON_FLAG);
   if ( flag?.status !== "asked" ) return;
   const caster = resolveUuid(flag.sourceUuid);
   if ( !caster ) return;
@@ -202,7 +202,7 @@ async function landSummon(message) {
     claimed = true;
   });
   if ( !claimed ) return;
-  const flag = message.getFlag(MODULE_ID, SUMMON_FLAG);
+  const flag = readFlag(message, SUMMON_FLAG);
   const landed = [];
   let outcome = "landed";
   let failure = null;
@@ -281,7 +281,7 @@ async function dismissSummon(message) {
     claimed = true;
   });
   if ( !claimed ) return;
-  const flag = message.getFlag(MODULE_ID, SUMMON_FLAG);
+  const flag = readFlag(message, SUMMON_FLAG);
   try {
     const byScene = new Map();
     for ( const l of flag.landed ?? [] ) byScene.set(l.sceneId, [...(byScene.get(l.sceneId) ?? []), l.tokenId]);
@@ -304,7 +304,7 @@ registerResumable(SUMMON_FLAG, {
   pending: flag => (flag?.status === "placed") && ((!flag.applied && !flag.applying) || (flag.applied && flag.dismissAsked && !flag.dismissed && !flag.dismissing)),
   drives: () => isActiveGM(),
   drive: async message => {
-    const flag = message.getFlag(MODULE_ID, SUMMON_FLAG);
+    const flag = readFlag(message, SUMMON_FLAG);
     if ( flag?.applied ) await dismissSummon(message); else await landSummon(message);
   }
 });
@@ -325,7 +325,7 @@ listen("deleteActiveEffect", "summons", effect => {
     if ( !isActiveGM() || !(effect?.parent instanceof Actor) || !effect.statuses?.has?.("concentrating") ) return;
     const casterUuid = effect.parent.uuid;
     for ( const message of game.messages.contents ) {
-      const f = message.getFlag(MODULE_ID, SUMMON_FLAG);
+      const f = readFlag(message, SUMMON_FLAG);
       if ( !f?.applied || f.dismissAsked || (f.concentrationId !== effect.id) || (f.sourceUuid !== casterUuid) ) continue;
       void askDismiss(message).catch(err => console.warn(`${TITLE} | Could not dismiss the summon with its concentration — delete the token by hand.`, err));
     }
@@ -336,7 +336,7 @@ listen("deleteActiveEffect", "summons", effect => {
 
 function drawSummon(message, html, flag) {
   const row = document.createElement("div");
-  row.className = "battleflow-summon";
+  row.className = "bythebooks-summon";
   const caster = resolveUuid(flag.sourceUuid);
   const mine = canAnswerFor(caster);
   if ( flag.status === "asked" ) {
@@ -368,7 +368,7 @@ function drawSummon(message, html, flag) {
 
 listen("dnd5e.renderChatMessage", "summons", (message, html) => {
   try {
-    const flag = message.getFlag(MODULE_ID, SUMMON_FLAG);
+    const flag = readFlag(message, SUMMON_FLAG);
     if ( flag ) drawSummon(message, html, flag);
   } catch(err) {
     console.error(`${TITLE} | The summon's row could not be drawn.`, err);

@@ -1,5 +1,5 @@
 /**
- * Battle Flow — MACHINE (ARCHITECTURE.md §7): THE TURN-START GRANT (TURN_GRANTS) — a landed effect whose
+ * By the Books — MACHINE (ARCHITECTURE.md §7): THE TURN-START GRANT (TURN_GRANTS) — a landed effect whose
  * text pays the bearer at the start of each of its turns what the pack rolls once, at the cast
  * (Heroism's Temporary Hit Points): the origin item's activity is rolled again on the caster's numbers
  * and landed on the bearer with a receipt, no choice (R1). The precedent is the emanation's turn-start heal.
@@ -13,7 +13,7 @@
  * Rage); `while: "raging"` pays only while the Rage stands; `to: "ally"` rolls the amount and GIVES it to one
  * creature within reach — the owner's pick, the rest song's popup (Life-Giving Force).
  */
-import { MODULE_ID, TITLE, drivesMomentFor, statContext, isActiveGM, queueFlagWrite, canAnswerFor, decisionWindow } from "./core.js";
+import { MODULE_ID, readFlag, TITLE, drivesMomentFor, statContext, isActiveGM, queueFlagWrite, canAnswerFor, decisionWindow } from "./core.js";
 import { activityNamed, activityOfType, cardActivity, featureNamed, lower, resolveUuid } from "./lookup.js";
 import { chitStampOf, effectSourceOf, poolOf } from "./shared.js";
 import { endOptionsOf } from "./decide/turn-grants.js";
@@ -40,7 +40,7 @@ const paid = new Set();
  * names the pack, NOTES §2). */
 const originItemOf = effect => effectSourceOf(effect)?.item ?? null;
 
-const settledAt = place => game.messages.contents.some(m => m.getFlag(MODULE_ID, GRANT_FLAG)?.place === place);
+const settledAt = place => game.messages.contents.some(m => readFlag(m, GRANT_FLAG)?.place === place);
 
 /** The bearer's listed effects at one of its moments (`on`): each row's grant or damage, once per turn. */
 function payEffects(actor, combat, { on, round, turn, why }) {
@@ -277,7 +277,7 @@ const settleEnd = (current, answer, timedOut = false) => {
 
 /** The owner answers (a status, or "keep"): written on the card, relayed to the GM when this client cannot write it. */
 async function answerEnd(message, answer, { timedOut = false } = {}) {
-  const flag = message.getFlag(MODULE_ID, END_FLAG);
+  const flag = readFlag(message, END_FLAG);
   if ( flag?.status !== "pending" ) return;
   if ( isActiveGM() || message.canUserModify?.(game.user, "update") ) {
     await queueFlagWrite(message, END_FLAG, current => settleEnd(current, answer, timedOut));
@@ -303,7 +303,7 @@ async function landEnd(message) {
     claimed = true;
   });
   if ( !claimed ) return;
-  const flag = message.getFlag(MODULE_ID, END_FLAG);
+  const flag = readFlag(message, END_FLAG);
   const record = {};
   try {
     const actor = resolveUuid(flag.actorUuid), bearer = resolveUuid(flag.bearerUuid);
@@ -337,16 +337,16 @@ registerResumable(END_FLAG, {
 });
 
 function armEndTimer(message) {
-  const flag = message.getFlag(MODULE_ID, END_FLAG);
+  const flag = readFlag(message, END_FLAG);
   if ( (flag?.status !== "pending") || !flag.deadline || !drivesMomentFor(flag.actorUuid ?? null) ) return;
   armDeadline(endTimers, message.id, flag.deadline, async () => {
     const live = game.messages.get(message.id);
-    if ( live?.getFlag(MODULE_ID, END_FLAG)?.status === "pending" ) await answerEnd(live, "keep", { timedOut: true });
+    if ( readFlag(live, END_FLAG)?.status === "pending" ) await answerEnd(live, "keep", { timedOut: true });
   });
 }
 
 async function showEndPopup(message) {
-  const flag = message.getFlag(MODULE_ID, END_FLAG);
+  const flag = readFlag(message, END_FLAG);
   if ( flag?.status !== "pending" ) return;
   const actor = resolveUuid(flag.actorUuid);
   if ( !actor ) return;
@@ -378,7 +378,7 @@ function endLine(flag) {
 
 listen("dnd5e.renderChatMessage", "turn-grants", (message, html) => {
   try {
-    const flag = message.getFlag(MODULE_ID, END_FLAG);
+    const flag = readFlag(message, END_FLAG);
     if ( !flag ) return;
     const content = html.querySelector?.(SURFACES.messageContent) ?? html;
     if ( !content || content.querySelector(".bf-condition-end-line") ) return;
@@ -403,7 +403,7 @@ listen("dnd5e.renderChatMessage", "turn-grants", (message, html) => {
 
 // An answer anywhere closes the popup everywhere (law 4); the clock stands down with it.
 listen("updateChatMessage", "turn-grants", message => {
-  const flag = message.getFlag(MODULE_ID, END_FLAG);
+  const flag = readFlag(message, END_FLAG);
   if ( !flag ) return;
   if ( flag.status === "pending" ) { armEndTimer(message); return; }
   disarmDeadline(endTimers, message.id);
@@ -464,7 +464,7 @@ function blockedBy(actor, item, combat) {
   const labels = Object.fromEntries(Object.entries(CONFIG.DND5E.damageTypes ?? {}).map(([k, v]) => [k, v?.label ?? k]));
   const types = blockingTypes(item.system?.description?.value ?? "", labels);
   if ( !types.length ) return null;
-  const entries = game.messages.contents.flatMap(m => m.getFlag(MODULE_ID, "receipt")?.targets ?? []);
+  const entries = game.messages.contents.flatMap(m => readFlag(m, "receipt")?.targets ?? []);
   const verdict = damagedSince({ entries, uuid: actor.uuid, combatId: combat.id, round: combat.round, turn: combat.turn, types });
   return verdict.blocked ? { type: verdict.type, label: labels[verdict.type] ?? verdict.type, types } : null;
 }

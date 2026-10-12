@@ -1,7 +1,7 @@
-// Battle Flow emanations smoke test: an aura applies itself to the creatures inside it. The
+// By the Books emanations smoke test: an aura applies itself to the creatures inside it. The
 // platform keeps the geometry and clock (a Region attached to the token); the module puts the
 // pack's effect on it with the source's numbers, and raises the saves a spell demands on entry
-// or turn end. Fixtures (tools/fixture-suite.mjs): BF Test Paladin, Cleric, Ranger, Victim.
+// or turn end. Fixtures (tools/fixture-suite.mjs): BTB Test Paladin, Cleric, Ranger, Victim.
 // Harness discipline: settings restored; regions, templates, combats and messages deleted;
 // member effects and chits cleared; tokens go home. Sections: `--section 3`, `--list`.
 import { announcePlan, connectSuite, finish, sectionArg, sectionPlan } from './harness.mjs';
@@ -16,7 +16,7 @@ export const COVERS = [
 
 const SECTIONS = {
   1: 'the behaviour type is registered at init, and the sweep raises the Paladin\'s aura: a Region attached to the token, the class\'s own 10 feet, the Paladin\'s +3 resolved into the effect',
-  2: 'an ally walking in receives "Protected — BF Test Paladin" with the PALADIN\'s Charisma, not its own; walking out loses it',
+  2: 'an ally walking in receives "Protected — BTB Test Paladin" with the PALADIN\'s Charisma, not its own; walking out loses it',
   3: 'reach: a hostile inside a helpful aura receives nothing',
   4: 'the AREA moving onto a standing ally applies it; moving away lifts it',
   5: 'Incapacitated on the Paladin lifts the aura from everyone inside; recovering restores it',
@@ -37,12 +37,12 @@ const SECTIONS = {
   15: 'Antilife Shell: a ring and a card, nothing applied; ends with concentration',
   16: 'a NO-SAVE concentration area (Fog Cloud, 2026-09-19): no demand card, no dependent at 6.0 — the module\'s own sweep ends the region with the concentration, exactly the areas the effect is tied to; a re-cast\'s area stands when the old concentration goes; an untied area is swept only when no other concentration of the spell stands',
   24: 'THE GM\'S SIDE — Fear Aura (2026-09-28): the Monster lent the trait raises a harmful ring off its save activity\'s Emanation; the Victim STARTING its turn inside is demanded the Wisdom save (cause turnStart, the failure\'s Frightened named), a failure lands Frightened by the verdict; the Monster Incapacitated, the next turn start asks nothing',
-  25: 'Displacement (2026-09-28): the Victim attacking the Monster wearing the text-only trait sees "BF Test Monster is — Displacement", net Disadvantage; the Monster Incapacitated, the row is gone',
+  25: 'Displacement (2026-09-28): the Victim attacking the Monster wearing the text-only trait sees "BTB Test Monster is — Displacement", net Disadvantage; the Monster Incapacitated, the row is gone',
   17: "Polearm Master's Reactive Strike (2026-09-27): holding a Glaive, an invisible ring of its reach stands (no card); the hostile MOVING in raises Hew's reminder 'Reactive Strike' on the wielder; the ring sliding over a standing hostile does not; one walked move THROUGH the reach raises it too; the Glaive put away, the ring goes",
   26: "THE PHB CLASSES — B5 (2026-09-30) Branches of the Tree: lent to the Ranger, no ring without a Rage; a Rage effect standing raises an invisible 30-ft harmful ring (no card); the hostile STARTING its turn inside raises Hew's reminder 'Branches of the Tree' on the rager (cause turnStart); the Rage gone, the ring goes",
   27: "Inspiring Movement: an invisible 5-ft harmful ring (no card); the enemy ENDING its turn beside the bard raises the reminder 'Inspiring Movement' (cause turnEnd — new to the alert vocabulary); a turn ended 20 ft away raises nothing",
   28: "Wrath of the Sea: the Cleric lent the Druid class, Circle of the Sea and the feature; no ring until 'Manifesting Ocean Spray' stands, then a 5-ft ring off @scale.sea.wrath-range (reach all, no member effect) with a card; at the druid's turn start a card lists the creatures inside with a button each; the Victim picked is demanded the Constitution save at the spell DC with the cold rolled, the push named; the card records the pick and the demand (once this turn); the spray gone, the ring goes",
-  29: "Aura of Devotion: Aura of Courage's row — the ring at the Paladin's aura scale, the ally inside wears 'Devoted — BF Test Paladin', the hostile nothing; the feature gone, the ring and the effect go"
+  29: "Aura of Devotion: Aura of Courage's row — the ring at the Paladin's aura scale, the ally inside wears 'Devoted — BTB Test Paladin', the hostile nothing; the feature gone, the ring and the effect go"
 };
 const DEPENDS = { 2: [1], 3: [1], 4: [1], 5: [1], 7: [6], 8: [6], 11: [1] };
 
@@ -51,7 +51,7 @@ const f = await connectSuite({ tag: 'emanations', watchdogMs: 600_000 });
 announcePlan('emanations', plan, pulled);
 
 const out = await f.evaluate(async ({ sections, titles }) => {
-  const MOD = 'fvtt-mod-battleflow';
+  const MOD = 'fvtt-mod-bythebooks';
   const TYPE = `${MOD}.emanation`;
   const results = [];
   const log = [];
@@ -77,12 +77,12 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   const prior = Object.fromEntries(SETTING_KEYS.map(k => [k, game.settings.get(MOD, k)]));
   const set = (k, v) => game.settings.set(MOD, k, v);
 
-  const scene = game.scenes.getName('Battle Flow Test Range');
-  const paladin = game.actors.getName('BF Test Paladin');
-  const cleric = game.actors.getName('BF Test Cleric');
-  const ranger = game.actors.getName('BF Test Ranger');
-  const victim = game.actors.getName('BF Test Victim');
-  if (!scene || !paladin || !cleric || !ranger || !victim) return { fatal: 'missing fixture: scene, BF Test Paladin, BF Test Cleric, BF Test Ranger or BF Test Victim — run tools/fixture-suite.mjs' };
+  const scene = game.scenes.getName('By the Books Test Range');
+  const paladin = game.actors.getName('BTB Test Paladin');
+  const cleric = game.actors.getName('BTB Test Cleric');
+  const ranger = game.actors.getName('BTB Test Ranger');
+  const victim = game.actors.getName('BTB Test Victim');
+  if (!scene || !paladin || !cleric || !ranger || !victim) return { fatal: 'missing fixture: scene, BTB Test Paladin, BTB Test Cleric, BTB Test Ranger or BTB Test Victim — run tools/fixture-suite.mjs' };
   const tok = actor => scene.tokens.find(t => t.actorId === actor.id) ?? null;
   const palTok = tok(paladin), clrTok = tok(cleric), rgrTok = tok(ranger), vicTok = tok(victim);
   if (!palTok || !clrTok || !rgrTok || !vicTok) return { fatal: 'a fixture token is missing from the range — run tools/fixture-suite.mjs' };
@@ -137,7 +137,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       await sleep(600);
       await clearMembers();
       const mine = game.messages.filter(m => (m.timestamp >= suiteStart)
-        && (m.speaker?.alias?.startsWith?.('BF Test') || m.speaker?.alias === 'Battle Flow' || Object.keys(m.flags?.[MOD] ?? {}).length));
+        && (m.speaker?.alias?.startsWith?.('BTB Test') || m.speaker?.alias === 'By the Books' || Object.keys(m.flags?.[MOD] ?? {}).length));
       if (mine.length) await ChatMessage.deleteDocuments(mine.map(m => m.id));
       // The range's rings come down with the scene going inactive (§11); the prior active scene returns.
       if (elsewhere && game.scenes.get(elsewhere.id)) await elsewhere.delete().catch(() => {});
@@ -166,7 +166,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
 
     // ================================================== 1. the type, the sweep, the region
     if (want(1)) {
-      ok('1a. the Battle Flow behaviour type is registered on CONFIG (init)', !!CONFIG.RegionBehavior.dataModels[TYPE], Object.keys(CONFIG.RegionBehavior.dataModels).filter(k => k.startsWith(MOD)).join(','));
+      ok('1a. the By the Books behaviour type is registered on CONFIG (init)', !!CONFIG.RegionBehavior.dataModels[TYPE], Object.keys(CONFIG.RegionBehavior.dataModels).filter(k => k.startsWith(MOD)).join(','));
       // Start from nothing: delete any standing aura; the sweep the deletion schedules raises it
       // again (a feature's aura is always on) and posts the card §1g reads.
       for (const r of scene.regions.filter(r => r.getFlag(MOD, 'emanation')?.kind === 'feature')) { if (scene.regions.get(r.id)) await r.delete().catch(() => {}); }
@@ -194,7 +194,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const saveBefore = saveBonus();
       await rgrTok.update(inside, mv());
       const fx = await waitFor(() => memberFx(ranger, region.id)[0] ?? null, 6000);
-      ok('2a. the Ranger receives "Protected — BF Test Paladin"', fx?.name === 'Protected — BF Test Paladin', `effects=${memberFx(ranger).map(e => e.name).join(',')}`);
+      ok('2a. the Ranger receives "Protected — BTB Test Paladin"', fx?.name === 'Protected — BTB Test Paladin', `effects=${memberFx(ranger).map(e => e.name).join(',')}`);
       ok('2b. …with the PALADIN\'s Charisma (+3), not the Ranger\'s', String(fx?.changes?.[0]?.value) === String(chaMod), `value=${fx?.changes?.[0]?.value} paladinCha=${chaMod} rangerCha=${ranger.system.abilities.cha.mod}`);
       ok('2c. the Ranger\'s save bonus now carries it', String(saveBonus()).includes(String(chaMod)), `before="${saveBefore}" after="${saveBonus()}"`);
       // ⚠ The three floors are serialized (one create each): wait for all three, not the first.
@@ -283,7 +283,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       template = await waitFor(() => scene.regions.find(r => r.getFlag('dnd5e', 'activity') === sgAct.uuid) ?? null, 8000);
       const sgShape = template?.shapes?.[0] ?? null;
       ok('6-. the area placed itself on the Cleric — no click: the platform\'s emanation shape on the token\'s base, 15 ft from the edge, the placement\'s flags (activity, item, the token as origin, spell level)', !!sgShape && (sgShape.type === 'emanation') && (sgShape.base?.x === clrTok.x) && (sgShape.base?.y === clrTok.y) && (sgShape.radius === 15 * px) && (template.getFlag('dnd5e', 'item') === sgItemUuid()) && (template.getFlag('dnd5e', 'origin') === clrTok.uuid) && (template.getFlag('dnd5e', 'spellLevel') === 3), `region=${template?.id} shape=${JSON.stringify(sgShape)} flags=${JSON.stringify(template?.flags?.dnd5e)}`);
-      ok('6-2. no platform behaviour rides the adopted ring (the §3.6 ruling) — only Battle Flow\'s', !!template && !template.behaviors.some(b => String(b.type).startsWith('dnd5e.')), `behaviours=${template?.behaviors.map(b => b.type).join(',')}`);
+      ok('6-2. no platform behaviour rides the adopted ring (the §3.6 ruling) — only By the Books\'s', !!template && !template.behaviors.some(b => String(b.type).startsWith('dnd5e.')), `behaviours=${template?.behaviors.map(b => b.type).join(',')}`);
       const conc = [...(cleric.concentration?.effects ?? [])].at(-1);
       ok('6+. …and the Cleric is concentrating on it (the effect the area will end with)', !!conc && (conc.flags?.dnd5e?.activity?.uuid === sgAct.uuid), `conc=${conc?.name} activity=${conc?.flags?.dnd5e?.activity?.uuid}`);
       // Adoption writes the flag, the behaviour, then the attachment: wait for the last.
@@ -293,7 +293,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       ok('6b. its behaviour carries Half Speed and the harmful reach', (beh?.system?.reach === 'harmful') && (beh?.system?.effect?.name === 'Half Speed'), `system=${JSON.stringify(beh?.system)}`);
       const vicActor = vicTok.actor;
       const fx = await waitFor(() => memberFx(vicActor, sgRegion?.id)[0] ?? null, 6000);
-      // Battle Flow owns the EFFECT: one per region per creature, the pack's change, a status. Whether
+      // By the Books owns the EFFECT: one per region per creature, the pack's change, a status. Whether
       // the platform then halves the sheet's speed depends on its prepare order, so speed is logged, not asserted.
       ok('6c. the hostile Victim inside is Half Speed — ONE effect carrying the pack\'s change, and it wears a status so the token shows it', !!fx && (memberFx(vicActor, sgRegion?.id).length === 1) && fx.changes.some(c => /movement/.test(c.key) && (String(c.value) === '0.5')) && vicActor.effects.get(fx.id)?.statuses?.has?.('bfEmanation'), `speed=${vicActor.system.attributes.movement.speed} walk=${vicActor.system.attributes.movement.walk} source=${vicActor.system._source.attributes.movement.speeds?.walk} fx=${memberFx(vicActor, sgRegion?.id).map(e => e.name).join(',')} statuses=${[...(vicActor.effects.get(fx?.id)?.statuses ?? [])].join(',')}`);
       await sleep(1500);
@@ -306,7 +306,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       // The cast's own save demand reaches enemies only: allies and the caster inside owe none.
       const castCard = await waitFor(() => { const m = game.messages.contents.filter(x => (x.timestamp >= suiteStart) && x.getFlag(MOD, 'saves') && !x.getFlag(MOD, 'saves').pinnedTargets && x.getFlag(MOD, 'saves').activityUuid === sgAct.uuid).at(-1); return m?.getFlag(MOD, 'saves')?.targets?.length ? m : null; }, 8000);
       const castTargets = castCard?.getFlag(MOD, 'saves')?.targets?.map(t => t.name) ?? [];
-      ok('6f. the cast\'s demand asks the hostile Victim and NOT the allied Ranger or the Cleric standing inside', castTargets.includes(vicTok.name) && !castTargets.includes('BF Test Ranger') && !castTargets.includes('BF Test Cleric'), `targets=[${castTargets.join(', ')}]`);
+      ok('6f. the cast\'s demand asks the hostile Victim and NOT the allied Ranger or the Cleric standing inside', castTargets.includes(vicTok.name) && !castTargets.includes('BTB Test Ranger') && !castTargets.includes('BTB Test Cleric'), `targets=[${castTargets.join(', ')}]`);
     }
 
     // ================================================== 7. the triggers
@@ -333,12 +333,12 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       pendingUse?.catch?.(() => { /* closed below */ });
       const usageApp = await waitFor(() => [...foundry.applications.instances.values()].find(a => /ActivityUsageDialog|UsageDialog/.test(a.constructor?.name ?? '') && a.element?.querySelector?.('[data-bf-emanation-type-field]')) ?? null, 6000);
       const radios = usageApp?.element?.querySelectorAll('input[name="bf-emanation-type"]') ?? [];
-      ok('7c2c. the CASTING WINDOW carries the choice — a Battle Flow fieldset with a radio per type, radiant checked', (radios.length === 2) && [...radios].some(r => r.value === 'radiant' && r.checked), `dialog=${usageApp?.constructor?.name} radios=${[...radios].map(r => `${r.value}${r.checked ? '✓' : ''}`).join(',')}`);
+      ok('7c2c. the CASTING WINDOW carries the choice — a By the Books fieldset with a radio per type, radiant checked', (radios.length === 2) && [...radios].some(r => r.value === 'radiant' && r.checked), `dialog=${usageApp?.constructor?.name} radios=${[...radios].map(r => `${r.value}${r.checked ? '✓' : ''}`).join(',')}`);
       try { await usageApp?.close(); } catch { /* gone */ }
       ok('7c3. the trigger\'s roll wears radiant', (dmg?.rolls?.[0]?.options?.type === 'radiant') && (dmg?.getFlag(MOD, 'emanationType')?.type === 'radiant'), `type=${dmg?.rolls?.[0]?.options?.type} flag=${JSON.stringify(dmg?.getFlag(MOD, 'emanationType'))}`);
       // The caster picks necrotic over the relay envelope; the next roll wears it.
       if (emCard) {
-        await ChatMessage.create({ whisper: [game.user.id], speaker: { alias: 'Battle Flow' }, content: '<p>necrotic</p>', flags: { [MOD]: { emanationTypeAnswer: { cardId: emCard.id, type: 'necrotic' } } } });
+        await ChatMessage.create({ whisper: [game.user.id], speaker: { alias: 'By the Books' }, content: '<p>necrotic</p>', flags: { [MOD]: { emanationTypeAnswer: { cardId: emCard.id, type: 'necrotic' } } } });
         const picked = await waitFor(() => emCard.getFlag(MOD, 'emanationCard')?.chosen ? emCard.getFlag(MOD, 'emanationCard') : null, 6000);
         ok('7c4. the pick folds onto the card over the relay: necrotic, chosen', picked?.damageType === 'necrotic', `flag=${JSON.stringify(picked && { damageType: picked.damageType, chosen: picked.chosen })}`);
       }
@@ -402,10 +402,10 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       // activity uuid and a region stamped the same; a re-cast is a NEWER effect and region.
       const fogAct = `Actor.${cleric.id}.Item.bfFogCloud000000.Activity.bfFogCloudAct000`;
       const mkRegion = async name => (await scene.createEmbeddedDocuments('Region', [{ name, shapes: [{ type: 'circle', x: 300, y: 300, radius: 100 }], flags: { dnd5e: { activity: fogAct } } }]))[0];
-      const mkConc = async () => (await cleric.createEmbeddedDocuments('ActiveEffect', [{ name: 'Concentrating: BF Fog', statuses: ['concentrating'], flags: { dnd5e: { activity: { uuid: fogAct } } } }]))[0];
+      const mkConc = async () => (await cleric.createEmbeddedDocuments('ActiveEffect', [{ name: 'Concentrating: BTB Fog', statuses: ['concentrating'], flags: { dnd5e: { activity: { uuid: fogAct } } } }]))[0];
       // The casting client writes `areas` on its concentration effect; the fake writes it by hand.
-      const e1 = await mkConc(); const r1 = await mkRegion('BF Fog area 1'); await e1.setFlag(MOD, 'areas', [r1.uuid]);
-      const e2 = await mkConc(); const r2 = await mkRegion('BF Fog area 2'); await e2.setFlag(MOD, 'areas', [r2.uuid]);
+      const e1 = await mkConc(); const r1 = await mkRegion('BTB Fog area 1'); await e1.setFlag(MOD, 'areas', [r1.uuid]);
+      const e2 = await mkConc(); const r2 = await mkRegion('BTB Fog area 2'); await e2.setFlag(MOD, 'areas', [r2.uuid]);
       let e3 = null, e4 = null, r3 = null;
       try {
         await e1.delete();
@@ -417,7 +417,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         ok('16b. the LAST concentration ending takes the last area down — no demand card, no dependent, the module\'s sweep alone', !!allGone, `r2=${!!scene.regions.get(r2.id)}`);
         // 16c. an UNTIED area is spared while another concentration of the spell stands, and swept
         // when the last one goes.
-        e3 = await mkConc(); r3 = await mkRegion('BF Fog area 3 (untied)'); e4 = await mkConc();
+        e3 = await mkConc(); r3 = await mkRegion('BTB Fog area 3 (untied)'); e4 = await mkConc();
         await e3.delete(); await sleep(800);
         const sparedC = !!scene.regions.get(r3.id);
         await e4.delete();
@@ -436,7 +436,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       await rgrTok.update(inside, mv());
       const three = await waitFor(() => memberFx(ranger).length === 3 ? true : null, 8000);
       ok('11a. the Ranger inside the ring wears the three auras on the ACTIVE range', !!three, memberFx(ranger).map(e => e.name).join(' | '));
-      elsewhere = await Scene.create({ name: 'BF Test Elsewhere', width: 2000, height: 2000, grid: { size: 100, distance: 5 } });
+      elsewhere = await Scene.create({ name: 'BTB Test Elsewhere', width: 2000, height: 2000, grid: { size: 100, distance: 5 } });
       // The linked Ranger stands on that scene too: no ring is raised there (no Paladin token), and
       // the range's ring must not reach the Ranger through the actor.
       await elsewhere.createEmbeddedDocuments('Token', [foundry.utils.mergeObject(ranger.prototypeToken.toObject(), { x: 500, y: 500, actorId: ranger.id }, { inplace: false })]);
@@ -450,7 +450,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       // Ranger's token inside). ⚠ The effect goes down first, wearing the region id the create will
       // carry: a sweep landing between region and effect would remove the region and orphan the effect.
       const staleId = foundry.utils.randomID();
-      await ranger.createEmbeddedDocuments('ActiveEffect', [{ name: 'Protected — BF Test Paladin (stale)', flags: { [MOD]: { emanation: { regionId: staleId } } } }]);
+      await ranger.createEmbeddedDocuments('ActiveEffect', [{ name: 'Protected — BTB Test Paladin (stale)', flags: { [MOD]: { emanation: { regionId: staleId } } } }]);
       const stale = await scene.createEmbeddedDocuments('Region', [{ _id: staleId, name: 'stale ring', shapes: [{ type: 'circle', x: palTok.x + grid / 2, y: palTok.y + grid / 2, radius: 12.5 * px }], flags: { [MOD]: { emanation: { kind: 'feature', key: 'Aura of Protection', tokenId: palTok.id, itemUuid: paladin.items.find(i => i.name === 'Aura of Protection')?.uuid } } } }], { keepId: true });
       await sleep(800);
       Hooks.call(`${MOD}.emanationsChanged`);   // the same everywhere-sweep ready runs
@@ -553,14 +553,14 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       template = tpl ?? template;
       ok('12a. Aura of Life cast: the area placed itself on the Cleric (30 ft from the token\'s edge) and its region is adopted, attached', !!tpl && (tpl.shapes?.[0]?.type === 'emanation') && (tpl.shapes?.[0]?.radius === 30 * px) && !!region && (region.attachment?.token?.id === clrTok.id), `shape=${JSON.stringify(tpl?.shapes?.[0])} region=${region?.id} attached=${region?.attachment?.token?.id}`);
       const fx = await waitFor(() => memberFx(ranger, region?.id)[0] ?? null, 6000);
-      ok('12b. the allied Ranger inside wears "Aura of Life — BF Test Cleric": the pack\'s own effect — Resistance to necrotic', !!fx && /^Aura of Life — BF Test Cleric/.test(fx.name) && fx.changes.some(c => (c.key === 'system.traits.dr.value') && (c.value === 'necrotic')), `fx=${fx?.name} changes=${JSON.stringify(fx?.changes)}`);
+      ok('12b. the allied Ranger inside wears "Aura of Life — BTB Test Cleric": the pack\'s own effect — Resistance to necrotic', !!fx && /^Aura of Life — BTB Test Cleric/.test(fx.name) && fx.changes.some(c => (c.key === 'system.traits.dr.value') && (c.value === 'necrotic')), `fx=${fx?.name} changes=${JSON.stringify(fx?.changes)}`);
       await sleep(800);
       ok('12c. the hostile Victim inside receives nothing (a helpful aura)', memberFx(vicTok.actor, region?.id).length === 0, memberFx(vicTok.actor).map(e => e.name).join(','));
       // A spell's emanation is "you and your allies": the caster wears it too, exactly once.
       const own = await waitFor(() => memberFx(cleric, region?.id)[0] ?? null, 6000);
       const lifeOnCleric = cleric.effects.filter(e => /^Aura of Life/.test(e.name));
-      ok('12c2. the CASTER wears its own spell aura from the ring — "Aura of Life — BF Test Cleric", exactly one Aura of Life effect on the sheet (the cast slice does not double it)',
-        !!own && /^Aura of Life — BF Test Cleric/.test(own.name) && (lifeOnCleric.length === 1), `own=${own?.name} all=${JSON.stringify(cleric.effects.map(e => e.name))}`);
+      ok('12c2. the CASTER wears its own spell aura from the ring — "Aura of Life — BTB Test Cleric", exactly one Aura of Life effect on the sheet (the cast slice does not double it)',
+        !!own && /^Aura of Life — BTB Test Cleric/.test(own.name) && (lifeOnCleric.length === 1), `own=${own?.name} all=${JSON.stringify(cleric.effects.map(e => e.name))}`);
       // The ally at 0 HP at the start of its turn regains the activity's own 1 HP.
       const rgrHP = ranger.system._source.attributes.hp.value;
       await ranger.update({ 'system.attributes.hp.value': 0 });
@@ -606,7 +606,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       await combat.nextTurn();                       // round 2 — the Cleric's turn starts
       const notice = await waitFor(() => game.messages.find(m => (m.timestamp >= suiteStart) && m.getFlag(MOD, 'emanationRemind')?.key === 'Aura of Vitality') ?? null, 8000);
       const rf = notice?.getFlag(MOD, 'emanationRemind');
-      ok('14c. at the CASTER\'s turn start a notice card names Start of Turn Heal as theirs to use, with the creatures inside', !!rf && (rf.activityName === 'Start of Turn Heal') && (rf.activityUuid === [...act.item.system.activities].find(a => a.name === 'Start of Turn Heal')?.uuid) && /BF Test Ranger/.test(notice.content), `flag=${JSON.stringify(rf)}`);
+      ok('14c. at the CASTER\'s turn start a notice card names Start of Turn Heal as theirs to use, with the creatures inside', !!rf && (rf.activityName === 'Start of Turn Heal') && (rf.activityUuid === [...act.item.system.activities].find(a => a.name === 'Start of Turn Heal')?.uuid) && /BTB Test Ranger/.test(notice.content), `flag=${JSON.stringify(rf)}`);
       const el = await waitFor(() => document.querySelector(`.message[data-message-id="${notice?.id}"] button`) ?? null, 4000);
       ok('14d. …and the card carries the button for the caster (a GM answers for the fixture)', !!el && /Start of Turn Heal/.test(el.textContent ?? ''), el?.textContent ?? 'no button');
       await combat.delete(); combat = null;
@@ -753,7 +753,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           `card=${!!inCard} flag=${JSON.stringify(f && { abilities: f.abilities, dc: f.dc, targets: f.targets.map(t => t.name), effectsHandled: f.effectsHandled, pinned: f.pinnedTargets })} title=${inCard?.content?.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').slice(0, 120)}`);
         const dmg = await waitFor(() => game.messages.find(m => (m.timestamp >= t18) && (m._source.system?.origin === inCard?.id) && (m.type === 'damage')) ?? null, 8000);
         ok('18d. the spell\'s damage rolled against the demand (2d10 at 2nd level, radiant)', !!dmg && /2d10/.test(dmg.rolls?.[0]?.formula ?? '') && (dmg.rolls?.[0]?.options?.type === 'radiant'), `formula=${dmg?.rolls?.[0]?.formula} type=${dmg?.rolls?.[0]?.options?.type}`);
-        ok('18e. the card names the CASTER, not a source token ("entered BF Test Cleric\'s Moonbeam")', /BF Test Cleric.s Moonbeam/.test(inCard?.content ?? ''), inCard?.content?.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').slice(0, 160) ?? '');
+        ok('18e. the card names the CASTER, not a source token ("entered BTB Test Cleric\'s Moonbeam")', /BTB Test Cleric.s Moonbeam/.test(inCard?.content ?? ''), inCard?.content?.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').slice(0, 160) ?? '');
         await closeDialogs();
         // The beam MOVES onto the standing Ranger (the caster\'s Magic action is a drag of the template).
         const n1 = triggerCards().length;
@@ -1030,7 +1030,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     }
 
     // ================================================== 24 / 25. the GM's side — the Monster
-    const monster = game.actors.getName('BF Test Monster');
+    const monster = game.actors.getName('BTB Test Monster');
     const monTok = monster ? tok(monster) : null;
     const lendTrait = async name => {
       const pack = game.packs.get('dnd-monster-manual.features');
@@ -1045,7 +1045,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       else if (!on && carriers.length) await actor.deleteEmbeddedDocuments('ActiveEffect', carriers.map(e => e.id));
       await sleep(300);
     };
-    if ((want(24) || want(25)) && (!monster || !monTok)) { ok('24/25-. BF Test Monster on the range', false, 'missing fixture: BF Test Monster or its token — run tools/fixture-suite.mjs'); }
+    if ((want(24) || want(25)) && (!monster || !monTok)) { ok('24/25-. BTB Test Monster on the range', false, 'missing fixture: BTB Test Monster or its token — run tools/fixture-suite.mjs'); }
 
     if (want(24) && monster && monTok) {
       let aura = null;
@@ -1144,8 +1144,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           return { text, net };
         };
         const up = club ? await gateAt() : null;
-        ok('25a. the Victim attacking the Monster with Displacement on its sheet: the gate lists "BF Test Monster is — Displacement", net Disadvantage',
-          !!club && !!up && /BF Test Monster is — Displacement/.test(up.text) && (up.net === 'disadvantage'), `club=${!!club} net=${up?.net} text=${up?.text?.slice(0, 200)}`);
+        ok('25a. the Victim attacking the Monster with Displacement on its sheet: the gate lists "BTB Test Monster is — Displacement", net Disadvantage',
+          !!club && !!up && /BTB Test Monster is — Displacement/.test(up.text) && (up.net === 'disadvantage'), `club=${!!club} net=${up?.net} text=${up?.text?.slice(0, 200)}`);
         await setIncapacitated(monster, true);
         const off = club ? await gateAt() : null;
         ok('25b. the Monster Incapacitated: no Displacement row', !!off && !/Displacement/.test(off.text), `net=${off?.net} text=${off?.text?.slice(0, 200)}`);
@@ -1355,8 +1355,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           const worn = await waitFor(() => memberFx(ranger).find(e => e.getFlag(MOD, 'emanation')?.key === 'Aura of Devotion') ?? null, 8000);
           await sleep(1200);
           const onVictim = memberFx(vicActor()).find(e => e.getFlag(MOD, 'emanation')?.key === 'Aura of Devotion') ?? null;
-          ok('29a. Aura of Devotion lent: the ring rises at the Paladin\'s aura scale; the ally inside wears "Devoted — BF Test Paladin", the hostile nothing',
-            !!ring && (ring.shapes?.[0]?.radius === 10 * px) && !!worn && /^Devoted — BF Test Paladin/.test(worn.name) && !onVictim,
+          ok('29a. Aura of Devotion lent: the ring rises at the Paladin\'s aura scale; the ally inside wears "Devoted — BTB Test Paladin", the hostile nothing',
+            !!ring && (ring.shapes?.[0]?.radius === 10 * px) && !!worn && /^Devoted — BTB Test Paladin/.test(worn.name) && !onVictim,
             `ring=${ring?.id} radius=${ring?.shapes?.[0]?.radius} expected=${10 * px} worn=${worn?.name ?? 'none'} victim=${onVictim?.name ?? 'none'}`);
           await feat.delete(); feat = null;
           const lifted = await waitFor(() => (!featureRegion(palTok, 'Aura of Devotion') && !memberFx(ranger).some(e => e.getFlag(MOD, 'emanation')?.key === 'Aura of Devotion')) ? true : null, 8000);

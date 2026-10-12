@@ -1,6 +1,6 @@
 // @ts-check
 /**
- * Battle Flow — DECISION layer (ARCHITECTURE.md §2): the ray table (registry.js RAY_TABLES) — which rays a
+ * By the Books — DECISION layer (ARCHITECTURE.md §2): the ray table (registry.js RAY_TABLES) — which rays a
  * creature's faces pick, and the cards' words. No `game`: the machine (prismatic.js) rolls the faces.
  */
 

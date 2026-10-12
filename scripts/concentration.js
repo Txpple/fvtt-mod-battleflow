@@ -1,10 +1,10 @@
 /**
- * Battle Flow — the concentration assist (a machine, ARCHITECTURE.md §7): damage → ask → roll →
+ * By the Books — the concentration assist (a machine, ARCHITECTURE.md §7): damage → ask → roll →
  * verdict → break. The save is mandatory: one answer (roll), and the clock's expiry rolls. A
  * failure presses `endConcentration`, whose `dependentOn` cascade strips every riding effect.
  * ⚠ dnd5e never ends concentration at 0 HP or on Incapacitated; this machine does (no save).
  */
-import { MODULE_ID, TITLE, S, setting, rollerUserFor, canAnswerFor, drivesMomentFor, canApplyTo, whisperNoGM, statContext, decisionWindow, savesRollThemselves } from "./core.js";
+import { MODULE_ID, readFlag, TITLE, S, setting, rollerUserFor, canAnswerFor, drivesMomentFor, canApplyTo, whisperNoGM, statContext, decisionWindow, savesRollThemselves } from "./core.js";
 import { cardItem, featureNamed, lower, resolveUuid, wieldedNamed } from "./lookup.js";
 import { rollConfigFor } from "./shared.js";
 import { concentrationExemptEntries, damageRuleEntries, listedNames } from "./decide/registry.js";
@@ -221,10 +221,10 @@ async function rollConcentrationAnswer(askMessage, { timedOut = false, mode = nu
   if ( concRollsInFlight.has(askMessage.id) ) return;
   concRollsInFlight.add(askMessage.id);
   try {
-    const ask = askMessage.getFlag(MODULE_ID, "concentration");
+    const ask = readFlag(askMessage, "concentration");
     if ( !ask || (ask.status !== "pending") ) return;
     // ⚠ A landed answer wins though the ask still reads pending; whole-log by flag, never a tail.
-    if ( game.messages.some(m => m.getFlag(MODULE_ID, "respondsTo") === askMessage.id) ) return;
+    if ( game.messages.some(m => readFlag(m, "respondsTo") === askMessage.id) ) return;
     const actor = await fromUuid(ask.actorUuid);
     if ( !(actor instanceof Actor) || !actor.isOwner ) return;
     // A breaker's Disadvantage rides the straight roll too, unless a mode was pressed.
@@ -256,7 +256,7 @@ async function rollConcentrationAnswer(askMessage, { timedOut = false, mode = nu
 function pendingConcAsks(actorUuid) {
   return game.messages
     .filter(m => {
-      const c = m.getFlag(MODULE_ID, "concentration");
+      const c = readFlag(m, "concentration");
       return c && (c.status === "pending") && (c.actorUuid === actorUuid);
     })
     .sort((a, b) => a.timestamp - b.timestamp);
@@ -289,19 +289,19 @@ async function foldConcentrationRoll(askMessage, rollMessage) {
   if ( !askMessage || concFolds.has(askMessage.id) ) return;
   concFolds.add(askMessage.id);
   try {
-    const ask = foundry.utils.deepClone(askMessage.getFlag(MODULE_ID, "concentration") ?? {});
+    const ask = foundry.utils.deepClone(readFlag(askMessage, "concentration") ?? {});
     if ( ask.status !== "pending" ) return;
     const roll = rollMessage.rolls?.[0];
     if ( !roll ) return;
 
     // WITHHELD: a failure waits for a rescue offer (never the clock's own roll); the ask records
     // the paused roll so its buzzer folds that one rather than rolling a second save.
-    if ( !rollMessage.getFlag(MODULE_ID, "timedOut")
+    if ( !readFlag(rollMessage, "timedOut")
       && await withholds(rollMessage, { by: "concentration", card: askMessage, uuid: ask.actorUuid, total: roll.total, dc: ask.dc }) ) {
       if ( ask.withheld !== rollMessage.id ) await askMessage.setFlag(MODULE_ID, "concentration", { ...ask, withheld: rollMessage.id });
       return;
     }
-    const judged = foldedSave({ total: roll.total, dc: ask.dc, folds: foldsFrom(key => rollMessage.getFlag(MODULE_ID, key), SAVE_FOLDS) });
+    const judged = foldedSave({ total: roll.total, dc: ask.dc, folds: foldsFrom(key => readFlag(rollMessage, key), SAVE_FOLDS) });
 
     const actor = await fromUuid(ask.actorUuid);
     // ⚠ Visibility frozen AT VERDICT TIME (a flip during the pause must not re-address), and stored.
@@ -311,7 +311,7 @@ async function foldConcentrationRoll(askMessage, rollMessage) {
     ask.outcome = {
       total: judged.total,
       success: judged.outcome === "saved",
-      ...(rollMessage.getFlag(MODULE_ID, "timedOut") ? { timedOut: true } : {}),
+      ...(readFlag(rollMessage, "timedOut") ? { timedOut: true } : {}),
       rollMessageId: rollMessage.id,
       // Crash-resume contract: a stale outcome with `answeredAt` and no `applied` is re-driven.
       answeredAt: Date.now(),
@@ -344,7 +344,7 @@ registerWithheld("concentration", {
 /** The resume contract's receipt. */
 async function markConcApplied(askMessage) {
   const live = game.messages.get(askMessage.id);
-  const cur = foundry.utils.deepClone(live?.getFlag(MODULE_ID, "concentration") ?? null);
+  const cur = foundry.utils.deepClone(readFlag(live, "concentration") ?? null);
   if ( !cur?.outcome || cur.outcome.applied ) return;
   cur.outcome.applied = true;
   await live.setFlag(MODULE_ID, "concentration", cur);
@@ -360,7 +360,7 @@ async function resumeConcOutcome(askMessage) {
   if ( concResumes.has(askMessage.id) ) return;
   concResumes.add(askMessage.id);
   try {
-    const ask = foundry.utils.deepClone(askMessage.getFlag(MODULE_ID, "concentration") ?? {});
+    const ask = foundry.utils.deepClone(readFlag(askMessage, "concentration") ?? {});
     if ( (ask.status !== "done") || !ask.outcome?.answeredAt || ask.outcome.applied ) return;
     const actor = await fromUuid(ask.actorUuid);
     const whisper = ask.outcome.whisperIds ?? null;
@@ -437,12 +437,12 @@ const armConcTimer = message => armAskTimer(concTimers, message, "concentration"
 
 async function fireConcTimer(askMessage) {
   // A roll paused for a rescue offer is THE answer.
-  const withheld = askMessage.getFlag(MODULE_ID, "concentration")?.withheld;
+  const withheld = readFlag(askMessage, "concentration")?.withheld;
   const paused = withheld ? game.messages.get(withheld) : null;
   if ( paused ) return foldConcentrationRoll(askMessage, paused);
-  const landed = game.messages.find(m => m.getFlag(MODULE_ID, "respondsTo") === askMessage.id);
+  const landed = game.messages.find(m => readFlag(m, "respondsTo") === askMessage.id);
   if ( landed ) return foldConcentrationRoll(askMessage, landed);
-  const ask = askMessage.getFlag(MODULE_ID, "concentration");
+  const ask = readFlag(askMessage, "concentration");
   const actor = await fromUuid(ask?.actorUuid ?? "");
   if ( !(actor instanceof Actor) ) {
     const gone = foundry.utils.deepClone(ask ?? {});
@@ -459,11 +459,11 @@ listen("createChatMessage", "concentration", message => {
   {
     const askId = concAskAnsweredBy(message);
     const askMsg = askId ? game.messages.get(askId) : null;
-    const subject = askMsg?.getFlag(MODULE_ID, "concentration")?.actorUuid ?? null;
+    const subject = readFlag(askMsg, "concentration")?.actorUuid ?? null;
     if ( askMsg && drivesMomentFor(subject) ) void foldConcentrationRoll(askMsg, message);
   }
   // A fresh ask: arm the clock; in auto mode the elected roller rolls, no popup.
-  const ask = message.getFlag(MODULE_ID, "concentration");
+  const ask = readFlag(message, "concentration");
   if ( ask?.status === "pending" ) {
     armConcTimer(message);
     if ( savesRollThemselves() ) void autoRollConcentration(message);
@@ -471,7 +471,7 @@ listen("createChatMessage", "concentration", message => {
 });
 
 async function autoRollConcentration(askMessage) {
-  const ask = askMessage.getFlag(MODULE_ID, "concentration");
+  const ask = readFlag(askMessage, "concentration");
   const actor = await fromUuid(ask?.actorUuid ?? "");
   if ( !(actor instanceof Actor) ) return;
   if ( !(rollerUserFor(actor)?.isSelf ?? false) ) return;
@@ -480,7 +480,7 @@ async function autoRollConcentration(askMessage) {
 
 // A resolved ask closes its popup; the queue advances by re-rendering the actor's next ask.
 listen("updateChatMessage", "concentration", message => {
-  const ask = message.getFlag(MODULE_ID, "concentration");
+  const ask = readFlag(message, "concentration");
   if ( !ask ) return;
   const dialog = livePopups.get(popupKey(message.id, "concentration"));
   if ( dialog && (ask.status !== "pending") ) void dialog.close();
@@ -504,14 +504,14 @@ listen("deleteChatMessage", "concentration", message => {
  * re-volunteers, re-drives a stale unapplied outcome.
  */
 listen("dnd5e.renderChatMessage", "concentration", (message, html) => {
-  const ask = message.getFlag(MODULE_ID, "concentration");
+  const ask = readFlag(message, "concentration");
   if ( !ask ) return;
 
   if ( (ask.status === "done") && ask.outcome?.answeredAt && !ask.outcome.applied
     && drivesMomentFor(ask.actorUuid) && (Date.now() - ask.outcome.answeredAt > 20_000) ) void resumeConcOutcome(message);
 
   const row = document.createElement("div");
-  row.className = "battleflow-concentration";
+  row.className = "bythebooks-concentration";
 
   if ( ask.status === "pending" ) {
     row.innerHTML = holdBarHTML(ask, "to roll");
@@ -519,7 +519,7 @@ listen("dnd5e.renderChatMessage", "concentration", (message, html) => {
     armConcTimer(message);
 
     if ( drivesMomentFor(ask.actorUuid) ) {
-      const landed = game.messages.find(m => m.getFlag(MODULE_ID, "respondsTo") === message.id);
+      const landed = game.messages.find(m => readFlag(m, "respondsTo") === message.id);
       if ( landed ) void foldConcentrationRoll(message, landed);
     }
     if ( savesRollThemselves() ) void autoRollConcentration(message);
@@ -530,11 +530,11 @@ listen("dnd5e.renderChatMessage", "concentration", (message, html) => {
       const shownKey = popupKey(message.id, "concentration");
       if ( pendingConcAsks(ask.actorUuid)[0]?.id === message.id && !shownMoments.has(shownKey) ) {
         shownMoments.add(shownKey);
-        void showConcPopup(message, message.getFlag(MODULE_ID, "concentration"));
+        void showConcPopup(message, readFlag(message, "concentration"));
       }
       row.appendChild(momentButton("Roll", () => {
         shownMoments.delete(shownKey);
-        void showConcPopup(message, message.getFlag(MODULE_ID, "concentration"));
+        void showConcPopup(message, readFlag(message, "concentration"));
       }, { margin: "0.25rem 0 0" }));
     }
   } else {
@@ -567,13 +567,13 @@ async function showConcPopup(message, ask) {
   if ( concDialogsOpening.has(key) || concRollsInFlight.has(message.id) ) return;
   concDialogsOpening.add(key);
   try {
-    if ( game.messages.some(m => m.getFlag(MODULE_ID, "respondsTo") === message.id) ) return;
+    if ( game.messages.some(m => readFlag(m, "respondsTo") === message.id) ) return;
     const actor = await fromUuid(ask.actorUuid);
     if ( !(actor instanceof Actor) || !canAnswerFor(actor) ) return;
     const abilityLabel = CONFIG.DND5E.abilities[ask.ability]?.label ?? "Constitution";
     const demand = new DialogCarried({
       cardId: message.id, key, failed: null,
-      owed: card => card.getFlag(MODULE_ID, "concentration")?.status === "pending",
+      owed: card => readFlag(card, "concentration")?.status === "pending",
       present: () => ({
         img: actor.img ?? null,
         eyebrow: "Concentration check",
@@ -586,7 +586,7 @@ async function showConcPopup(message, ask) {
         ],
         tone: "pending"
       }),
-      bar: card => card.getFlag(MODULE_ID, "concentration")
+      bar: card => readFlag(card, "concentration")
     });
     const rolls = await actor.rollConcentration(
       { target: ask.dc, ...breakerRolls(ask) },
@@ -609,7 +609,7 @@ async function foldConcentrationAutoFail(askMessage, sources = []) {
   if ( !askMessage || concFolds.has(askMessage.id) ) return;
   concFolds.add(askMessage.id);
   try {
-    const ask = foundry.utils.deepClone(askMessage.getFlag(MODULE_ID, "concentration") ?? {});
+    const ask = foundry.utils.deepClone(readFlag(askMessage, "concentration") ?? {});
     if ( ask.status !== "pending" ) return;
     const actor = await fromUuid(ask.actorUuid);
     const whisper = setting(S.concVisibility) ? null : concRecipients(actor);

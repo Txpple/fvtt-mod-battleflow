@@ -18,7 +18,7 @@ const out = await f.evaluate(async () => {
   const sleep = ms => new Promise(r => setTimeout(r, ms));
   const err = e => ({ name: e?.name ?? null, message: e?.message ?? String(e),
     stack: (e?.stack ?? "").split("\n").slice(0, 6).join(" | ") });
-  const MOD = "fvtt-mod-battleflow";
+  const MOD = "fvtt-mod-bythebooks";
 
   // ⚠ `click -> revertTarget(...)` returns a promise nobody holds: a rejection surfaces only here.
   const rejections = [];
@@ -28,16 +28,16 @@ const out = await f.evaluate(async () => {
   const onError = ev => errors.push({ message: ev.message, file: ev.filename, line: ev.lineno });
   window.addEventListener("error", onError);
 
-  const scene = game.scenes.getName("Battle Flow Test Range");
-  const attacker = game.actors.getName("BF Test Attacker");
-  const victimBase = game.actors.getName("BF Test Victim");
+  const scene = game.scenes.getName("By the Books Test Range");
+  const attacker = game.actors.getName("BTB Test Attacker");
+  const victimBase = game.actors.getName("BTB Test Victim");
   report.env = {
     foundry: game.version, system: `${game.system.id} ${game.system.version}`,
     combats: game.combats.size, scene: scene?.name ?? null,
     attacker: attacker?.name ?? null, victim: victimBase?.name ?? null
   };
   if (!scene || !attacker || !victimBase) {
-    return { ...report, fatal: "the smoke-battleflow fixtures are not on this world" };
+    return { ...report, fatal: "the smoke-bythebooks fixtures are not on this world" };
   }
 
   const vTokenDoc = scene.tokens.find(t => t.actorId === victimBase.id);
@@ -97,7 +97,7 @@ const out = await f.evaluate(async () => {
     report.dom = {
       instances: roots.length,
       receipts: roots.map(r => {
-        const rec = r.querySelector(".battleflow-receipt");
+        const rec = r.querySelector(".bythebooks-receipt");
         return {
           container: r.closest("#chat-notifications") ? "notifications"
             : r.closest("#chat") ? "chat-log" : (r.closest("[id]")?.id ?? "unknown"),
@@ -110,7 +110,7 @@ const out = await f.evaluate(async () => {
       })
     };
 
-    const button = document.querySelector(`[data-message-id="${damageMsg.id}"] .battleflow-receipt button`);
+    const button = document.querySelector(`[data-message-id="${damageMsg.id}"] .bythebooks-receipt button`);
     report.click = { found: !!button, text: (button?.textContent ?? "").trim(),
       connected: button?.isConnected ?? null };
     if (button) {

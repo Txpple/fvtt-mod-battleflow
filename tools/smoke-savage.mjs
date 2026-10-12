@@ -1,7 +1,7 @@
 // Savage Attacker smoke suite (RULINGS *Savage Attacker*): on a weapon hit, one question (use it on
 // THIS hit?); "Roll again" rerolls the weapon's dice as a set and the higher set stands; the damage
 // waits for the answer and lands once; once per turn by the `rider` chit; the defender's hold first.
-// Fixtures: BF Test Halfling (tools/fixture-suite.mjs) and BF Test Victim. Everything it writes is
+// Fixtures: BTB Test Halfling (tools/fixture-suite.mjs) and BTB Test Victim. Everything it writes is
 // restored or removed.
 import { announcePlan, connectSuite, finish, sectionArg, sectionPlan } from './harness.mjs';
 
@@ -32,7 +32,7 @@ const f = await connectSuite({ tag: 'savage', watchdogMs: 600_000 });
 announcePlan('savage', plan, pulled);
 
 const out = await f.evaluate(async ({ sections, titles }) => {
-  const MOD = 'fvtt-mod-battleflow';
+  const MOD = 'fvtt-mod-bythebooks';
   const results = [];
   const log = [];
   const skips = [];
@@ -44,7 +44,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   };
   const sleep = ms => new Promise(r => setTimeout(r, ms));
   const moments = [];
-  const momentHookId = Hooks.on('battleflow.moment', p => moments.push(p));
+  const momentHookId = Hooks.on('bythebooks.moment', p => moments.push(p));
   const momentsOf = (event, since = 0) => moments.filter(p => (p.event === event) && (p.at >= since));
   const suiteStart = Date.now();
   const ledger = globalThis.__bfHookLedger ?? null;
@@ -60,11 +60,11 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   const prior = Object.fromEntries(SETTING_KEYS.map(k => [k, game.settings.get(MOD, k)]));
   const set = (k, v) => game.settings.set(MOD, k, v);
 
-  const scene = game.scenes.getName('Battle Flow Test Range');
-  const victim = game.actors.getName('BF Test Victim');
-  const halfling = game.actors.getName('BF Test Halfling');
-  if (!scene || !victim || !halfling) return { fatal: 'missing fixture: scene, BF Test Victim or BF Test Halfling — run tools/fixture-suite.mjs' };
-  if (!halfling.items.find(i => i.name === 'Savage Attacker')) return { fatal: 'BF Test Halfling lacks Savage Attacker — re-run fixture-suite' };
+  const scene = game.scenes.getName('By the Books Test Range');
+  const victim = game.actors.getName('BTB Test Victim');
+  const halfling = game.actors.getName('BTB Test Halfling');
+  if (!scene || !victim || !halfling) return { fatal: 'missing fixture: scene, BTB Test Victim or BTB Test Halfling — run tools/fixture-suite.mjs' };
+  if (!halfling.items.find(i => i.name === 'Savage Attacker')) return { fatal: 'BTB Test Halfling lacks Savage Attacker — re-run fixture-suite' };
 
   const created = { tokens: [], items: [] };
   const priorActor = {};
@@ -121,7 +121,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       for (const [actorId, data] of Object.entries(priorActor)) await game.actors.get(actorId)?.update(data);
       game.user.targets.forEach(t => { t.setTarget(false, { releaseOthers: true }); });
       const mine = game.messages.filter(m => (m.timestamp >= suiteStart)
-        && (m.speaker?.alias?.startsWith?.('BF Test') || m.speaker?.alias === 'Battle Flow'
+        && (m.speaker?.alias?.startsWith?.('BTB Test') || m.speaker?.alias === 'By the Books'
           || Object.keys(m.flags?.[MOD] ?? {}).length));
       if (mine.length) await ChatMessage.deleteDocuments(mine.map(m => m.id));
     } catch (err) {
@@ -182,7 +182,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     const textOf = el => (el?.textContent ?? '').replace(/\s+/g, ' ').trim();
     const cardText = id => textOf(document.querySelector(`.message[data-message-id="${id}"]`));
     const shortsword = halfling.items.find(i => (i.type === 'weapon') && (i.name === 'Shortsword'));
-    if (!shortsword) return { fatal: 'BF Test Halfling has no Shortsword' };
+    if (!shortsword) return { fatal: 'BTB Test Halfling has no Shortsword' };
     const act = shortsword.system.activities.find(a => a.type === 'attack');
     const dexMod = Number(halfling.system.abilities.dex.mod);
     const damageFor = originId => game.messages.contents.find(m => (m.type === 'damage') && (m._source.system?.origin === originId));
@@ -366,7 +366,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       ok('6a. while the defender\'s hold is open the offer stays DUE — no popup, no receipt',
         !!hold && (either(game.messages.get(s.dmg.id))?.status === 'due') && !eitherPopup() && !receiptOf(game.messages.get(s.dmg.id)),
         `hold=${hold?.status} either=${either(game.messages.get(s.dmg.id))?.status} popup=${!!eitherPopup()}`);
-      const { answerHold } = await import('/modules/fvtt-mod-battleflow/scripts/hold/answer.js');
+      const { answerHold } = await import('/modules/fvtt-mod-bythebooks/scripts/hold/answer.js');
       await answerHold(s.attackMsg, victim.uuid, 'pass');
       const popup = await waitFor(eitherPopup, 10000);
       ok('6b. the hold answered (a pass), the damage stands and the offer asks', !!popup && (either(game.messages.get(s.dmg.id))?.status === 'pending'),
@@ -513,7 +513,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   } catch (err) {
     return { fatal: `${err?.message || err}\n${err?.stack ?? ''}`, results, log, skips };
   } finally {
-    Hooks.off('battleflow.moment', momentHookId);
+    Hooks.off('bythebooks.moment', momentHookId);
     await teardown();
   }
 }, sectionArg(plan, SECTIONS));

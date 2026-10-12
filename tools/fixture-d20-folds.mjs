@@ -11,8 +11,8 @@ const f = await connectSuite({ tag: TAG, watchdogMs: 180_000, requireElect: fals
 
 const out = await f.evaluate(async () => {
   const log = [];
-  const fighter = game.actors.getName("BF Test Fighter");
-  const bard = game.actors.getName("BF Test Bard");
+  const fighter = game.actors.getName("BTB Test Fighter");
+  const bard = game.actors.getName("BTB Test Bard");
   if (!fighter || !bard) return { error: "fixtures missing — create the PCs first" };
 
   const feat = bard.items.find(i => i.name === "Bardic Inspiration");
@@ -85,7 +85,7 @@ const out = await f.evaluate(async () => {
   // reaches the database), so the grants are made here from the premium pack.
   const LEVEL = 3;                                  // Battle Master's own prerequisite level
   const klass = fighter.itemTypes.class.find(c => c.system.identifier === "fighter");
-  if (!klass) return { error: "BF Test Fighter has no Fighter class item" };
+  if (!klass) return { error: "BTB Test Fighter has no Fighter class item" };
   if (klass.system.levels < LEVEL) {
     await klass.update({ "system.levels": LEVEL });
     log.push(`set Fighter to level ${LEVEL} — the level the superiority scale reads`);
@@ -131,8 +131,8 @@ const out = await f.evaluate(async () => {
   // ⚠ Restore the target: the suite's applied damage leaves the foe at 0 HP (and Graze then skips
   // a dead target). Heal it and clear any forced AC; sections pin their own.
   // ⚠ The test range's goblin only — never the first NPC on the world's active scene (2026-10-07).
-  const foeToken = game.scenes.getName("Battle Flow Test Range")?.tokens.find(t => t.actor && (t.actor.type === "npc")
-    && /^BF Test /.test(t.actor.name ?? ""));
+  const foeToken = game.scenes.getName("By the Books Test Range")?.tokens.find(t => t.actor && (t.actor.type === "npc")
+    && /^BTB Test /.test(t.actor.name ?? ""));
   if (foeToken) {
     const foe = foeToken.actor;
     const src = foe.system._source.attributes.ac;

@@ -2,7 +2,7 @@
 // dice land — no popup — and the new faces stand; the healing WAITS for the new dice (cast.js's
 // claim) and lands once. Battle Medic's own `r1` is taken off so it goes the same road.
 //
-// Fixtures: BF Test Cleric (tools/fixture-suite.mjs) is lent the PHB's Healer and Cure Wounds; BF Test
+// Fixtures: BTB Test Cleric (tools/fixture-suite.mjs) is lent the PHB's Healer and Cure Wounds; BTB Test
 // Victim is the one healed. Settings, lent items, messages, the PRNG and hit points are put back.
 //
 // Sections: `--section 3`, `--list`. Fixtures and teardown ALWAYS run.
@@ -29,7 +29,7 @@ const f = await connectSuite({ tag: 'heal', watchdogMs: 300_000 });
 announcePlan('heal', plan, pulled);
 
 const out = await f.evaluate(async ({ sections, titles }) => {
-  const MOD = 'fvtt-mod-battleflow';
+  const MOD = 'fvtt-mod-bythebooks';
   const results = [];
   const log = [];
   const skips = [];
@@ -50,10 +50,10 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   const prior = Object.fromEntries(SETTING_KEYS.map(k => [k, game.settings.get(MOD, k)]));
   const set = (k, v) => game.settings.set(MOD, k, v);
 
-  const scene = game.scenes.getName('Battle Flow Test Range');
-  const cleric = game.actors.getName('BF Test Cleric');
-  const victim = game.actors.getName('BF Test Victim');
-  if (!scene || !cleric || !victim) return { fatal: 'missing fixture: the test range, BF Test Cleric or BF Test Victim — run tools/fixture-suite.mjs' };
+  const scene = game.scenes.getName('By the Books Test Range');
+  const cleric = game.actors.getName('BTB Test Cleric');
+  const victim = game.actors.getName('BTB Test Victim');
+  if (!scene || !cleric || !victim) return { fatal: 'missing fixture: the test range, BTB Test Cleric or BTB Test Victim — run tools/fixture-suite.mjs' };
 
   const lent = [];
   let clericPrior = null;

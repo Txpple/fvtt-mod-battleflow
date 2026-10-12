@@ -1,8 +1,8 @@
 // @ts-check
 /**
- * Battle Flow — auto-apply damage, the shared receipt applier, and the payout pipeline. Split shape (ARCHITECTURE.md §7).
+ * By the Books — auto-apply damage, the shared receipt applier, and the payout pipeline. Split shape (ARCHITECTURE.md §7).
  */
-import { MODULE_ID, TITLE, drivesMomentFor, canApplyTo, whisperNoGM, queueFlagWrite, statContext, isActiveGM } from "./core.js";
+import { readFlag, TITLE, drivesMomentFor, canApplyTo, whisperNoGM, queueFlagWrite, statContext, isActiveGM } from "./core.js";
 import { receiptEntry, joinDamageReceipt } from "./decide/receipt.js";
 import { interruptMultiplier, reduceDamages } from "./decide/verdict.js";
 import { INTERRUPT_MULTIPLIERS } from "./decide/registry.js";
@@ -25,12 +25,12 @@ function payoutSubject(message) {
 
 // FLAGLESS resumable, judged at creation; a hold or a pending dice changer holds it, and each
 // settling write is the bus event. ⚠ The `attackDamage|<id>` latch guards re-entry: over-applying is the worst failure.
-const eitherWaits = message => DICE_CHANGE_WAITS.includes(message.getFlag(MODULE_ID, DICE_CHANGE_FLAG)?.status);
+const eitherWaits = message => DICE_CHANGE_WAITS.includes(readFlag(message, DICE_CHANGE_FLAG)?.status);
 registerResumable("attackDamage", {
   flagless: true,
   pending: (_flag, message, cause) => (cause === "create")
-    || ((message.getFlag(MODULE_ID, "attackHoldPending") === false) && !message.getFlag(MODULE_ID, "receipt"))
-    || (!!message.getFlag(MODULE_ID, DICE_CHANGE_FLAG) && !eitherWaits(message) && !message.getFlag(MODULE_ID, "receipt")),
+    || ((readFlag(message, "attackHoldPending") === false) && !readFlag(message, "receipt"))
+    || (!!readFlag(message, DICE_CHANGE_FLAG) && !eitherWaits(message) && !readFlag(message, "receipt")),
   drives: (_flag, message) => drivesMomentFor(payoutSubject(message)),
   drive: resolveAttackDamage
 });
@@ -39,13 +39,13 @@ async function resolveAttackDamage(message) {
   if ( !isCard(message, CARD.damage) ) return; // healing is typed "healing"
   const attackMessage = resolveAttackMessage(message);
   if ( !attackMessage ) return;
-  if ( message.getFlag(MODULE_ID, "attackHoldPending") === true ) {
+  if ( readFlag(message, "attackHoldPending") === true ) {
     // Claimed for a hold: a hold already RESOLVED (released before this roll landed) applies now.
-    const hold = attackMessage.getFlag(MODULE_ID, "hold");
+    const hold = readFlag(attackMessage, "hold");
     if ( !hold || (hold.status === "pending") ) return;
   }
   if ( eitherWaits(message) ) return;
-  if ( message.getFlag(MODULE_ID, "receipt") ) return;
+  if ( readFlag(message, "receipt") ) return;
   const hits = hitTargets(attackMessage);
   // A miss that still pays (Potent Cantrip): the judged targets the roll missed take the row's share.
   const share = missShareFor(attackMessage.getAssociatedActivity?.() ?? message.getAssociatedActivity?.() ?? null);
@@ -61,7 +61,7 @@ async function resolveAttackDamage(message) {
 /** The judged targets this attack MISSED — never one a duplicate absorbed — still standing and writable here. */
 async function missedTargets(attackMessage, hits) {
   const hit = new Set(hits.map(t => t.uuid));
-  const hold = attackMessage.getFlag(MODULE_ID, "hold");
+  const hold = readFlag(attackMessage, "hold");
   const out = [];
   for ( const t of targetsOf(attackMessage) ) {
     if ( hit.has(t.uuid) || (t.ac === null) || (t.ac === undefined) ) continue;
@@ -97,7 +97,7 @@ async function resolveDamagePayouts(damageMessage, attackMessage, hits) {
 async function applyToHitTargets(damageMessage, attackMessage, hits) {
   const damages = damagePartsOf(damageMessage.rolls);
   // A held attack lands per reactor (Uncanny Dodge's multiplier): one application per group.
-  const hold = attackMessage?.getFlag(MODULE_ID, "hold");
+  const hold = readFlag(attackMessage, "hold");
   const groups = new Map();
   for ( const target of hits ) {
     const entry = (hold?.status === "resolved") ? hold.targets?.find(t => t.uuid === target.uuid) : null;
@@ -214,7 +214,7 @@ export async function applyDamagesWithReceipt(receiptMessage, hits, damages, { n
  * @param {{delta: number, feature: string}} outcome
  */
 export async function moveAppliedDamage(message, { delta, feature }) {
-  const receipt = message.getFlag(MODULE_ID, "receipt");
+  const receipt = readFlag(message, "receipt");
   const targets = (receipt?.targets ?? []).filter(t => !t.reverted);
   if ( !targets.length || !delta ) return;
   const type = message.rolls?.[0]?.options?.type ?? null;

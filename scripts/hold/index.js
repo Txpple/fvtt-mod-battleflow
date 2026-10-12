@@ -1,6 +1,6 @@
 // @ts-check
 /**
- * Battle Flow — MACHINE (ARCHITECTURE.md §7): the reaction hold — a pause, NOT a system: the chain
+ * By the Books — MACHINE (ARCHITECTURE.md §7): the reaction hold — a pause, NOT a system: the chain
  * pauses on "you are hit" and a human answers (DESIGN.md §4). One `hold` flag on the attack message;
  * a DIRECTORY whose only public face is this file (the layer checker enforces it). The parts' hooks
  * run in dispatch.js's ORDER; cross-part calls are hoisted functions, which keeps the cycle through

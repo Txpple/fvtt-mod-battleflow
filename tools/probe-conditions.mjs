@@ -4,11 +4,11 @@
 // system's damage calculation makes of a 10-point hit (the receipt reads that calculation).
 // Every status pressed is removed in `finally`.
 //
-//   node tools/probe-conditions.mjs [--actor "BF Test Victim"]
+//   node tools/probe-conditions.mjs [--actor "BTB Test Victim"]
 import { connectSuite, disposeSafely, loadEnv } from "./harness.mjs";
 
 const env = loadEnv();
-const actorName = (() => { const i = process.argv.indexOf("--actor"); return i > 0 ? process.argv[i + 1] : "BF Test Victim"; })();
+const actorName = (() => { const i = process.argv.indexOf("--actor"); return i > 0 ? process.argv[i + 1] : "BTB Test Victim"; })();
 const f = await connectSuite({ tag: "probe-conditions", watchdogMs: 240_000, requireElect: false, env });
 
 const out = await f.evaluate(async ({ actorName }) => {

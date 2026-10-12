@@ -1,10 +1,10 @@
 // @ts-check
 /**
- * Battle Flow — the reaction hold, part 4: THE SPELL TRIGGER (ARCHITECTURE.md §5). A listed spell
+ * By the Books — the reaction hold, part 4: THE SPELL TRIGGER (ARCHITECTURE.md §5). A listed spell
  * at the moment of USE (Magic Missile against Shield) has no attack roll, so the hold enters here;
  * a `negate` answer IS the verdict (no re-test, no AC arithmetic). Resolution: `continueSpellHold`.
  */
-import { MODULE_ID, TITLE, statContext, decisionWindow, queueFlagWrite } from "../core.js";
+import { MODULE_ID, readFlag, TITLE, statContext, decisionWindow, queueFlagWrite } from "../core.js";
 import { answers, blockEntries } from "../decide/registry.js";
 import { bfCard, esc } from "../decide/present.js";
 import { reactionSpent, statSourceOf } from "../shared.js";
@@ -36,17 +36,17 @@ listen("dnd5e.postUseActivity", "hold/spell-hold", (activity, _usageConfig, resu
  * roll can land a beat later, so wait for it briefly. */
 async function releaseUnheldSpellDamage(activity, holdMessage) {
   try {
-    if ( holdMessage.getFlag(MODULE_ID, "hold") ) return; // held — resolution owns the release
+    if ( readFlag(holdMessage, "hold") ) return; // held — resolution owns the release
     const itemUuid = activity?.item?.uuid ?? null;
     if ( !itemUuid ) return;
     const damage = await waitForWrite(() => game.messages.contents.filter(m =>
       isCard(m, CARD.damage)
       && (m.author?.id === game.user.id)
       && (itemUuidOf(m) === itemUuid)
-      && (m.getFlag(MODULE_ID, "spellDamage") === true)
+      && (readFlag(m, "spellDamage") === true)
       && (m.timestamp >= holdMessage.timestamp - 10_000)).pop() ?? null, { ms: 4000 });
     if ( !damage ) return; // rolled with subsequentActions:false, or autoApply off — fine
-    if ( damage.getFlag(MODULE_ID, "spellHoldPending") )
+    if ( readFlag(damage, "spellHoldPending") )
       await damage.setFlag(MODULE_ID, "spellHoldPending", false);
   } catch(err) {
     console.error(`${TITLE} | Could not release the spell damage claim.`, err);
@@ -56,7 +56,7 @@ async function releaseUnheldSpellDamage(activity, holdMessage) {
 /** Stamp a `negate` hold in the attack hold's flag shape (so its surfaces are reused); `trigger: "spell"`
  * is how the roll-dependent paths branch. */
 async function stampSpellHold(message, entries) {
-  if ( message.getFlag(MODULE_ID, "hold") ) return;      // already held; never re-stamp
+  if ( readFlag(message, "hold") ) return;      // already held; never re-stamp
   const targets = targetsOf(message);
   if ( !targets.length ) return;
 

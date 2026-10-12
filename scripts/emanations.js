@@ -1,10 +1,10 @@
 /**
- * Battle Flow — Emanations: an aura applies itself to the creatures inside it, and the platform keeps the geometry and the clock.
- * Split shape (ARCHITECTURE.md §7); battleflow.js is the only esmodules entry.
+ * By the Books — Emanations: an aura applies itself to the creatures inside it, and the platform keeps the geometry and the clock.
+ * Split shape (ARCHITECTURE.md §7); bythebooks.js is the only esmodules entry.
  * Owns the lifecycle of the rings, the floor that keeps member effects true, and the triggers.
  * Only the active GM writes. Rulings: RULINGS *Emanations*.
  */
-import { MODULE_ID, TITLE, isActiveGM, activeCombatFor, statContext, whisperNoGM, drivesMomentFor, decisionWindow, queueFlagWrite } from "./core.js";
+import { MODULE_ID, readFlag, TITLE, isActiveGM, activeCombatFor, statContext, whisperNoGM, drivesMomentFor, decisionWindow, queueFlagWrite } from "./core.js";
 import { saveDemandData, saveTargetEntry } from "./decide/demand.js";
 import { lower, itemNamed, activityNamed, activityOfType, resolveUuid, namesAnswering, applicableProfiles, wearsEffectNamed } from "./lookup.js";
 import { ruleHTML } from "./rule-text.js";
@@ -24,7 +24,7 @@ import { momentButton, registerRelay, waitForWrite } from "./ui.js";
 import { rollDamageForSave } from "./auto-damage.js";
 import { applyDamagesWithReceipt } from "./auto-apply.js";
 import { SURFACES } from "./surfaces.js";
-import { listen, listenOnce } from "./dispatch.js";
+import { listen, listenOnce, isPassive } from "./dispatch.js";
 
 // An attached Region does the geometry and raises enter/exit/turn events (NOTES *v14 models an emanation end to end*).
 // The pack's formulas resolve against the WEARER, so a member's effect has the source's numbers read in.
@@ -47,7 +47,7 @@ const standing = tok => ({ x: tok._source?.x ?? tok.x, y: tok._source?.y ?? tok.
   width: tok._source?.width ?? tok.width, height: tok._source?.height ?? tok.height, shape: tok._source?.shape ?? tok.shape });
 
 const behaviorOf = region => region?.behaviors?.find(b => b.type === TYPE) ?? null;
-const flagOf = region => region?.getFlag?.(MODULE_ID, FLAG) ?? null;
+const flagOf = region => readFlag(region, FLAG) ?? null;
 
 /* --- the behaviour type: registered at init, events handled on the GM ---------------------- */
 
@@ -60,7 +60,7 @@ listenOnce("init", "emanations", () => {
   class EmanationBehaviorType extends Base {
     static defineSchema() {
       return {
-        key: new F.StringField({ blank: false, label: "Emanation", hint: "The Battle Flow emanation row this area carries." }),
+        key: new F.StringField({ blank: false, label: "Emanation", hint: "The By the Books emanation row this area carries." }),
         source: new F.StringField({ nullable: true, initial: null, label: "Source token", hint: "The token the emanation originates from (uuid)." }),
         item: new F.StringField({ nullable: true, initial: null, label: "Source item", hint: "The feature or spell on the source's sheet (uuid)." }),
         reach: new F.StringField({ initial: "helpful", choices: { helpful: "Allies and neutrals", harmful: "Enemies", all: "Every creature" }, label: "Reach" }),
@@ -108,11 +108,12 @@ listenOnce("init", "emanations", () => {
   }
   CONFIG.RegionBehavior.dataModels[TYPE] = EmanationBehaviorType;
   CONFIG.RegionBehavior.typeIcons[TYPE] = "fa-solid fa-circle-dot";
-  if ( CONFIG.RegionBehavior.typeLabels ) CONFIG.RegionBehavior.typeLabels[TYPE] = "Battle Flow Emanation";
+  if ( CONFIG.RegionBehavior.typeLabels ) CONFIG.RegionBehavior.typeLabels[TYPE] = "By the Books Emanation";
 });
 
 /** Region events reach every client; the active GM acts. With no GM, the mover's client says so once per event. */
 function gmHandles(event) {
+  if ( isPassive() ) return false;   // the old package still runs: its own copy handles the region (scripts/dispatch.js)
   if ( game.users.activeGM?.isSelf ) return true;
   if ( !game.users.activeGM && event?.user?.isSelf ) void whisperNoGM("an emanation's effect", "The aura stands on the map; apply its effect by hand.");
   return false;
@@ -146,7 +147,7 @@ function regionsOfGroup(group) {
 
 /** This aura's member effects on this actor: stamped with its group, or naming one of its regions. */
 const memberEffects = (actor, group, regionIds) => actor?.effects?.filter(e => {
-  const f = e.getFlag(MODULE_ID, FLAG);
+  const f = readFlag(e, FLAG);
   return !!f && ((f.group === group) || regionIds.has(f.regionId));
 }) ?? [];
 
@@ -209,7 +210,7 @@ async function reconcileAuraNow(group, gone) {
       if ( have.length > 1 ) await actor.deleteEmbeddedDocuments("ActiveEffect", have.slice(1).map(e => e.id));
       if ( have.length ) {
         // A copy missing its group or row key learns them, so it outlives the region it names.
-        const f = have[0].getFlag(MODULE_ID, FLAG);
+        const f = readFlag(have[0], FLAG);
         if ( (f.group !== group) || (f.key !== row.key) ) await have[0].setFlag(MODULE_ID, FLAG, { ...f, group, key: row.key });
         continue;
       }
@@ -586,7 +587,7 @@ async function pickCard(region, row, token, combat) {
 
 // The pick's buttons on the bearer's card: the driver answers; the answer is a fold onto the card (R2).
 listen("dnd5e.renderChatMessage", "emanations", (message, html) => {
-  const p = message.getFlag(MODULE_ID, "emanationPick");
+  const p = readFlag(message, "emanationPick");
   if ( !p?.candidates?.length ) return;
   const holder = html.querySelector(SURFACES.messageContent);
   if ( !holder ) return;
@@ -609,7 +610,7 @@ listen("dnd5e.renderChatMessage", "emanations", (message, html) => {
 });
 
 async function choosePick(card, choice) {
-  const flag = card.getFlag(MODULE_ID, "emanationPick");
+  const flag = readFlag(card, "emanationPick");
   if ( !flag || flag.picked || !flag.candidates?.some(c => c.tokenId === choice.tokenId) ) return;
   if ( card.canUserModify?.(game.user, "update") ) {
     await card.setFlag(MODULE_ID, "emanationPick", { ...flag, picked: choice });
@@ -635,7 +636,7 @@ listen("updateChatMessage", "emanations", (message, changes) => {
   try {
     if ( !isActiveGM() ) return;
     if ( !foundry.utils.hasProperty(changes, `flags.${MODULE_ID}.emanationPick`) ) return;
-    const p = message.getFlag(MODULE_ID, "emanationPick");
+    const p = readFlag(message, "emanationPick");
     if ( !p?.picked || p.demanded ) return;
     void queueFlagWrite(message, "emanationPick", current => {
       if ( current.demanded ) return false;
@@ -718,7 +719,7 @@ async function remind(region, row, token) {
 
 // The notice's button: the caster's client uses the activity on whatever they have targeted.
 listen("dnd5e.renderChatMessage", "emanations", (message, html) => {
-  const r = message.getFlag(MODULE_ID, "emanationRemind");
+  const r = readFlag(message, "emanationRemind");
   if ( !r?.activityUuid ) return;
   const caster = resolveUuid(r.sourceUuid);
   if ( !canAnswerFor(caster) ) return;
@@ -1088,7 +1089,7 @@ async function adoptChoices(region, row, casterTok) {
 async function applyCardChoices(card) {
   try {
     if ( !isActiveGM() ) return;
-    const c = card.getFlag(MODULE_ID, "emanationCard");
+    const c = readFlag(card, "emanationCard");
     if ( !c?.regionId || (!c.band && !c.picks) ) return;
     const scene = c.sceneId ? game.scenes.get(c.sceneId) : null;
     const region = (scene ?? game.scenes.active)?.regions?.get(c.regionId) ?? null;
@@ -1111,7 +1112,7 @@ async function applyCardChoices(card) {
   } catch(err) { console.warn(`${TITLE} | The card's choice could not reach the region — edit it by hand.`, err); }
 }
 
-listen("updateChatMessage", "emanations", message => { if ( message.getFlag(MODULE_ID, "emanationCard") ) void applyCardChoices(message); });
+listen("updateChatMessage", "emanations", message => { if ( readFlag(message, "emanationCard") ) void applyCardChoices(message); });
 
 // The pick is a fold onto the card (R2): the GM writes it straight, a player's travels by relay; the region follows the card.
 registerRelay("emanationPickAnswer", {
@@ -1133,7 +1134,7 @@ registerRelay("emanationPickAnswer", {
 });
 
 async function answerPick(card, answer) {
-  const flag = card.getFlag(MODULE_ID, "emanationCard");
+  const flag = readFlag(card, "emanationCard");
   if ( !flag ) return;
   if ( card.canUserModify?.(game.user, "update") ) {
     const next = { ...flag };
@@ -1154,7 +1155,7 @@ async function answerPick(card, answer) {
 const capWord = s => `${String(s).charAt(0).toUpperCase()}${String(s).slice(1)}`;
 
 listen("dnd5e.renderChatMessage", "emanations", (message, html) => {
-  const c = message.getFlag(MODULE_ID, "emanationCard");
+  const c = readFlag(message, "emanationCard");
   if ( !c?.band && !c?.picks ) return;
   const holder = html.querySelector(SURFACES.messageContent);
   if ( !holder ) return;
@@ -1278,7 +1279,7 @@ listen("renderActivityUsageDialog", "emanations", (app, element) => {
     const cap = s => `${s.charAt(0).toUpperCase()}${s.slice(1)}`;
     const fs = document.createElement("fieldset");
     fs.dataset.bfEmanationTypeField = "";
-    fs.innerHTML = `<legend>Battle Flow — damage type</legend>
+    fs.innerHTML = `<legend>By the Books — damage type</legend>
       <div class="form-group"><label>${esc(activity.item.name)} deals</label>
         <div class="form-fields" style="gap:0.75rem;">${types.map(t => `<label style="display:flex;align-items:center;gap:0.3rem;"><input type="radio" name="bf-emanation-type" value="${t}" ${t === current ? "checked" : ""}> ${cap(t)}</label>`).join("")}</div>
         <p class="hint">${cap(current)} is the default — ${why}. The pick applies to every roll of this cast; the spell's card can change it later.</p></div>`;
@@ -1296,7 +1297,7 @@ async function carryDamageTypeChoice(activity) {
     // The card is the elect's to post, from the area it adopts.
     const card = await waitForWrite(() => emanationCardFor(activity.uuid), { ms: 10_000 });
     if ( !card ) return;   // no GM adopted the area — no card to carry it
-    if ( card.getFlag(MODULE_ID, "emanationCard")?.damageType !== type ) await chooseDamageType(card, type);
+    if ( readFlag(card, "emanationCard")?.damageType !== type ) await chooseDamageType(card, type);
   } catch(err) {
     console.warn(`${TITLE} | The damage-type pick could not be carried to the card — its buttons still can.`, err);
   }
@@ -1318,11 +1319,11 @@ async function endConcentrationAreas(effect) {
     const activityUuid = effect.flags?.dnd5e?.activity?.uuid ?? null;
     if ( !activityUuid ) return;
     const actor = (effect.parent instanceof Actor) ? effect.parent : null;
-    const tied = effect.getFlag(MODULE_ID, AREAS_FLAG);
+    const tied = readFlag(effect, AREAS_FLAG);
     const another = !!actor?.effects?.some(e => (e.id !== effect.id) && e.statuses?.has?.("concentrating")
       && (e.flags?.dnd5e?.activity?.uuid === activityUuid));
     const untiedIsOurs = !Array.isArray(tied) && !another;
-    const demanded = game.messages.contents.some(m => (m.system?.concentration === effect.id) && m.getFlag(MODULE_ID, "saves")?.templated);
+    const demanded = game.messages.contents.some(m => (m.system?.concentration === effect.id) && readFlag(m, "saves")?.templated);
     for ( const scene of game.scenes ) {
       for ( const region of scene.regions.filter(r => r.getFlag("dnd5e", "activity") === activityUuid) ) {
         const own = !!flagOf(region);                                   // this module's own emanation placement
@@ -1351,7 +1352,7 @@ listen("dnd5e.postUseActivity", "emanations", async (activity, _usageConfig, res
       ?? actor.effects.filter(e => e.statuses?.has?.("concentrating") && (e.flags?.dnd5e?.activity?.uuid === activity.uuid)).at(-1)
       ?? null;
     if ( !effect ) return;
-    const prior = effect.getFlag(MODULE_ID, AREAS_FLAG) ?? [];
+    const prior = readFlag(effect, AREAS_FLAG) ?? [];
     await effect.setFlag(MODULE_ID, AREAS_FLAG, [...new Set([...prior, ...regions.map(r => r.uuid)])]);
   } catch(err) {
     console.warn(`${TITLE} | Could not tie a cast's area to its concentration — the area may outlive the spell.`, err);
@@ -1421,7 +1422,7 @@ async function announce(row, actor, item, range, effect, verb, { activity = null
 
 /** The cast's emanation card for this activity — the newest one, where the pick lives. */
 function emanationCardFor(activityUuid) {
-  return game.messages.contents.filter(m => m.getFlag(MODULE_ID, "emanationCard")?.activityUuid === activityUuid).at(-1) ?? null;
+  return game.messages.contents.filter(m => readFlag(m, "emanationCard")?.activityUuid === activityUuid).at(-1) ?? null;
 }
 
 // The pick is a fold onto the card (R2): the GM writes it straight, a player's travels by relay.
@@ -1437,7 +1438,7 @@ registerRelay("emanationTypeAnswer", {
 });
 
 async function chooseDamageType(card, type) {
-  const flag = card.getFlag(MODULE_ID, "emanationCard");
+  const flag = readFlag(card, "emanationCard");
   if ( !flag?.types?.includes(type) ) return;
   if ( card.canUserModify?.(game.user, "update") ) {
     await card.setFlag(MODULE_ID, "emanationCard", { ...flag, damageType: type, damageWhy: "chosen", chosen: true });
@@ -1448,7 +1449,7 @@ async function chooseDamageType(card, type) {
 }
 
 listen("dnd5e.renderChatMessage", "emanations", (message, html) => {
-  const f = message.getFlag(MODULE_ID, "emanationCard");
+  const f = readFlag(message, "emanationCard");
   if ( !f?.types?.length ) return;
   const row = document.createElement("div");
   row.style.cssText = "display:flex;gap:0.35rem;align-items:center;margin-top:0.35rem;flex-wrap:wrap;";
@@ -1480,7 +1481,7 @@ listen("dnd5e.preRollDamage", "emanations", (config, _dialog, message) => {
     const types = partTypesOf(activity);
     if ( types.length < 2 ) return;
     const card = emanationCardFor(activity.uuid);
-    const chosen = card?.getFlag(MODULE_ID, "emanationCard")?.damageType ?? null;
+    const chosen = readFlag(card, "emanationCard")?.damageType ?? null;
     const { type } = damageTypeFor(types, activity.actor?.system?.details?.alignment ?? null, chosen);
     if ( !type ) return;
     for ( const roll of config.rolls ?? [] ) {
@@ -1561,7 +1562,7 @@ for ( const hook of ["createItem", "deleteItem"] ) {
 for ( const hook of ["createActiveEffect", "deleteActiveEffect", "updateActiveEffect"] ) {
   listen(hook, "emanations", effect => {
     const actor = (effect?.parent instanceof Actor) ? effect.parent : effect?.parent?.parent;
-    if ( !(actor instanceof Actor) || effect.getFlag?.(MODULE_ID, FLAG) ) return;   // never re-sweep on our own member effects
+    if ( !(actor instanceof Actor) || readFlag(effect, FLAG) ) return;   // never re-sweep on our own member effects
     for ( const s of scenesWith(actor) ) scheduleScene(s);
   });
 }

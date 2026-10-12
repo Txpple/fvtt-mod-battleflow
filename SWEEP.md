@@ -10,7 +10,7 @@ Frost's Chill switched to clock riders the same day; Savage Attacker's popup and
 interrupt kind); **five PARKED** with triggers; **Relentless Endurance
 HELD** for Slice B's kill moment; **one pick per hit** for now. A fifth document by design,
 for the length of the sweep: it holds the survey behind a planned pass over every racial
-trait, class feature, subclass feature, feat and spell that would qualify for Battle Flow, in
+trait, class feature, subclass feature, feat and spell that would qualify for By the Books, in
 that order. As each slice is scoped, what it settles moves into DESIGN §8 / RULINGS / BACKLOG;
 when the sweep is done, this file goes.
 

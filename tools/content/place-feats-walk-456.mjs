@@ -1,9 +1,9 @@
-// Build the PHB feats walk scene for groups 4–6 (RULINGS *The PHB feats — groups 4–6*) on its own scene, Battle Flow Walk.
+// Build the PHB feats walk scene for groups 4–6 (RULINGS *The PHB feats — groups 4–6*) on its own scene, By the Books Walk.
 // CLEARS every token on the walk scene, then builds one walker per feat plus the creature each rule needs:
-//   north: BF Walk Caster (hostile; Bless, Command, a Scimitar) with BF Feat Mage Slayer 5 ft west and
-//          BF Feat Sentinel 5 ft east; BF Feat Polearm Master (Glaive held) three squares north of it.
-//   south: BF Feat Inspiring Leader and BF Feat Chef, 5 ft apart, out of the north's 30 ft.
-// Walkers start at HALF HP (a Short Rest has Hit Dice worth spending) and are CLEAN copies of BF Test
+//   north: BTB Walk Caster (hostile; Bless, Command, a Scimitar) with BTB Feat Mage Slayer 5 ft west and
+//          BTB Feat Sentinel 5 ft east; BTB Feat Polearm Master (Glaive held) three squares north of it.
+//   south: BTB Feat Inspiring Leader and BTB Feat Chef, 5 ft apart, out of the north's 30 ft.
+// Walkers start at HALF HP (a Short Rest has Hit Dice worth spending) and are CLEAN copies of BTB Test
 // Fighter / Sorcerer, so every card line is the feat's. Linked tokens; idempotent; asserts nothing.
 // ⚠ Disconnect the MCP bridge first.
 import { connectSuite } from '../harness.mjs';
@@ -13,7 +13,7 @@ const out = await f.evaluate(async () => {
   const log = [];
   // ⚠ The walk's OWN scene, built here, never a campaign's map (2026-10-07: these once cleared a campaign scene).
   // 4200 × 3500 at a 140 px grid: every SPOT below is in that grid's squares.
-  const WALK = 'Battle Flow Walk';
+  const WALK = 'By the Books Walk';
   let scene = game.scenes.getName(WALK);
   if (!scene) {
     const sceneFolder = game.folders.find(x => (x.name === 'Test Suite') && (x.type === 'Scene'))
@@ -23,9 +23,9 @@ const out = await f.evaluate(async () => {
       ownership: { default: 2 } });
     log.push(`created the ${WALK} scene`);
   }
-  const fighter = game.actors.getName('BF Test Fighter');
-  const sorcerer = game.actors.getName('BF Test Sorcerer');
-  if (!fighter || !sorcerer) return { error: 'BF Test Fighter or BF Test Sorcerer is missing — run fixture-suite first' };
+  const fighter = game.actors.getName('BTB Test Fighter');
+  const sorcerer = game.actors.getName('BTB Test Sorcerer');
+  if (!fighter || !sorcerer) return { error: 'BTB Test Fighter or BTB Test Sorcerer is missing — run fixture-suite first' };
   const folder = game.folders.find(x => (x.name === 'Test Suite') && (x.type === 'Actor'))
     ?? await Folder.create({ name: 'Test Suite', type: 'Actor', color: '#4b5563' });
 
@@ -50,14 +50,14 @@ const out = await f.evaluate(async () => {
 
   // --- 2. the walk's actors, rebuilt fresh
   const WALKERS = {
-    'BF Feat Mage Slayer': { base: 'fighter', feat: 'Mage Slayer', items: [['Longsword', 'weapon', true]] },
-    'BF Feat Sentinel': { base: 'fighter', feat: 'Sentinel', items: [['Longsword', 'weapon', true]] },
-    'BF Feat Polearm Master': { base: 'fighter', feat: 'Polearm Master', items: [['Glaive', 'weapon', true], ['Quarterstaff', 'weapon', false]] },
-    'BF Feat Inspiring Leader': { base: 'sorcerer', feat: 'Inspiring Leader', items: [['Fire Bolt', 'spell', true]] },
-    'BF Feat Chef': { base: 'fighter', feat: 'Chef', items: [['Longsword', 'weapon', true], ["Cook's Utensils", 'tool', false]] }
+    'BTB Feat Mage Slayer': { base: 'fighter', feat: 'Mage Slayer', items: [['Longsword', 'weapon', true]] },
+    'BTB Feat Sentinel': { base: 'fighter', feat: 'Sentinel', items: [['Longsword', 'weapon', true]] },
+    'BTB Feat Polearm Master': { base: 'fighter', feat: 'Polearm Master', items: [['Glaive', 'weapon', true], ['Quarterstaff', 'weapon', false]] },
+    'BTB Feat Inspiring Leader': { base: 'sorcerer', feat: 'Inspiring Leader', items: [['Fire Bolt', 'spell', true]] },
+    'BTB Feat Chef': { base: 'fighter', feat: 'Chef', items: [['Longsword', 'weapon', true], ["Cook's Utensils", 'tool', false]] }
   };
   const KEEP = { fighter: ['Second Wind', 'Action Surge', 'Extra Attack'], sorcerer: [] };
-  const CASTER = 'BF Walk Caster';
+  const CASTER = 'BTB Walk Caster';
   const stale = game.actors.filter(a => (a.name in WALKERS) || (a.name === CASTER)).map(a => a.id);
   if (stale.length) await Actor.deleteDocuments(stale);
   if (stale.length) log.push(`rebuilt: ${stale.length} earlier walk actor(s) deleted`);
@@ -67,8 +67,8 @@ const out = await f.evaluate(async () => {
     delete o._id;
     o.items = o.items.filter(i => (i.type === 'class') || keep.includes(i.name));
     o.effects = [];
-    if (o.flags) delete o.flags['fvtt-mod-battleflow'];
-    if (o.flags) delete o.flags.battleflow;
+    if (o.flags) delete o.flags['fvtt-mod-bythebooks'];
+    if (o.flags) delete o.flags.bythebooks;
     foundry.utils.setProperty(o, 'system.traits.weaponProf.mastery.value', []);
     foundry.utils.setProperty(o, 'system.traits.dr.value', []);
     foundry.utils.setProperty(o, 'system.attributes.inspiration', false);   // no Heroic Inspiration row beside the feat's
@@ -127,11 +127,11 @@ const out = await f.evaluate(async () => {
   // --- 3. placed (the walk scene's grid is 140 px: one square, 5 ft)
   const SPOTS = {
     [CASTER]: [1820, 1400],
-    'BF Feat Mage Slayer': [1680, 1400],
-    'BF Feat Sentinel': [1960, 1400],
-    'BF Feat Polearm Master': [1820, 980],   // three squares north of the Caster: move the Caster one square toward it — its Glaive reaches 10 ft
-    'BF Feat Inspiring Leader': [1820, 2380],
-    'BF Feat Chef': [1960, 2380]
+    'BTB Feat Mage Slayer': [1680, 1400],
+    'BTB Feat Sentinel': [1960, 1400],
+    'BTB Feat Polearm Master': [1820, 980],   // three squares north of the Caster: move the Caster one square toward it — its Glaive reaches 10 ft
+    'BTB Feat Inspiring Leader': [1820, 2380],
+    'BTB Feat Chef': [1960, 2380]
   };
   const tokens = [];
   for (const [name, [x, y]] of Object.entries(SPOTS)) {

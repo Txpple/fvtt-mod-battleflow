@@ -20,7 +20,7 @@ const MANIFEST = join(REPO, "module.json");
 
 /** The tag the download URL must name, derived from the version — the two are never typed twice. */
 const downloadFor = (repoUrl, version) =>
-  `${repoUrl}/releases/download/v${version}/fvtt-mod-battleflow.zip`;
+  `${repoUrl}/releases/download/v${version}/fvtt-mod-bythebooks.zip`;
 
 const raw = readFileSync(MANIFEST, "utf8");
 const manifest = JSON.parse(raw);

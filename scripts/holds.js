@@ -1,11 +1,11 @@
 /**
- * Battle Flow — THE HOLD REGISTRY: while the module asks the caster a question (Careful Spell), the
+ * By the Books — THE HOLD REGISTRY: while the module asks the caster a question (Careful Spell), the
  * cast's card is held and a consumer (FX Studio) is told *not yet*. Contract: ARCHITECTURE *The
  * public API*. ⚠ A courtesy: consumers bound their own wait. ⚠ CLIENT-LOCAL: elsewhere `holdFor()`
  * is null. ⚠ Refcounts, opaque keys and explicit release serve BACKLOG *The modal sequence*.
  */
 
-import { MODULE_ID, TITLE } from "./core.js";
+import { MODULE_ID, TITLE, publish } from "./core.js";
 import { listenOnce } from "./dispatch.js";
 
 /** The contract's version, for other modules. */
@@ -58,7 +58,7 @@ export function raiseHold(subject, { reason = "unspecified", bound = null } = {}
       }, Number(bound));
     }
     holds.set(key, entry);
-    Hooks.callAll("battleflow.holdOpened", { subject: key, reason });
+    publish("holdOpened", { subject: key, reason });
   }
   let lowered = false;
   return (message = null) => {
@@ -85,7 +85,7 @@ function settle(key, message) {
   if ( entry.settled ) return;
   entry.settled = true;
   entry.resolve(message);
-  Hooks.callAll("battleflow.castReleased", { activityUuid: key, subject: key, message });
+  publish("castReleased", { activityUuid: key, subject: key, message });
 }
 
 /** Settle NOW, whatever the refcount; `message` is the card, or null for "nothing was posted". */

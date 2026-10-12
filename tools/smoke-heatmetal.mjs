@@ -1,8 +1,8 @@
-// Battle Flow damage-cast smoke test (Heat Metal): the PHB's Heat Metal is a bare damage activity
+// By the Books damage-cast smoke test (Heat Metal): the PHB's Heat Metal is a bare damage activity
 // plus an unchained save activity, and dnd5e's DamageActivity rolls nothing after the card. The
 // dice roll at the use and land on the target, the save follows through the saves machine, Heated
 // Metal lands on a failure, and both gates (attack, check) read it.
-// Fixtures (tools/fixture-suite.mjs): BF Test Cleric (given Heat Metal), BF Test Attacker (the holder).
+// Fixtures (tools/fixture-suite.mjs): BTB Test Cleric (given Heat Metal), BTB Test Attacker (the holder).
 // Harness discipline: settings restored; messages, the added item and placed tokens removed;
 // effects cleared; concentration ended. Sections: `--section 3`, `--list`.
 import { announcePlan, connectSuite, finish, sectionArg, sectionPlan } from './harness.mjs';
@@ -33,7 +33,7 @@ const f = await connectSuite({ tag: 'heatmetal', watchdogMs: 600_000 });
 announcePlan('heatmetal', plan, pulled);
 
 const out = await f.evaluate(async ({ sections, titles }) => {
-  const MOD = 'fvtt-mod-battleflow';
+  const MOD = 'fvtt-mod-bythebooks';
   const results = [];
   const log = [];
   const skips = [];
@@ -61,12 +61,12 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   const prior = Object.fromEntries(SETTING_KEYS.map(k => [k, game.settings.get(MOD, k)]));
   const set = (k, v) => game.settings.set(MOD, k, v);
 
-  const scene = game.scenes.getName('Battle Flow Test Range');
-  const cleric = game.actors.getName('BF Test Cleric');
-  const goblin = game.actors.getName('BF Test Attacker');
-  if (!scene || !cleric || !goblin) return { fatal: 'missing fixture: scene, BF Test Cleric or BF Test Attacker — run tools/fixture-suite.mjs' };
+  const scene = game.scenes.getName('By the Books Test Range');
+  const cleric = game.actors.getName('BTB Test Cleric');
+  const goblin = game.actors.getName('BTB Test Attacker');
+  if (!scene || !cleric || !goblin) return { fatal: 'missing fixture: scene, BTB Test Cleric or BTB Test Attacker — run tools/fixture-suite.mjs' };
   const melee = goblin.items.find(i => (i.type === 'weapon') && i.system.activities?.some?.(a => (a.type === 'attack') && (a.attack?.type?.value === 'melee')));
-  if (!melee) return { fatal: 'BF Test Attacker has no melee weapon' };
+  if (!melee) return { fatal: 'BTB Test Attacker has no melee weapon' };
 
   const created = { items: [], tokens: [] };
   const priorActor = {};
@@ -103,7 +103,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       for (const [actorId, data] of Object.entries(priorActor)) await game.actors.get(actorId)?.update(data);
       game.user.targets.forEach(t => { t.setTarget(false, { releaseOthers: true }); });
       const mine = game.messages.filter(m => (m.timestamp >= suiteStart)
-        && (m.speaker?.alias?.startsWith?.('BF Test') || m.speaker?.alias === 'Battle Flow' || Object.keys(m.flags?.[MOD] ?? {}).length));
+        && (m.speaker?.alias?.startsWith?.('BTB Test') || m.speaker?.alias === 'By the Books' || Object.keys(m.flags?.[MOD] ?? {}).length));
       if (mine.length) await ChatMessage.deleteDocuments(mine.map(m => m.id));
     } catch (err) {
       log.push(`TEARDOWN ERROR: ${err?.message}`);

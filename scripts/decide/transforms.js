@@ -1,6 +1,6 @@
 // @ts-check
 /**
- * Battle Flow — DECISION layer (ARCHITECTURE.md §2): TRANSFORMS (issue #2) — what a listed transform
+ * By the Books — DECISION layer (ARCHITECTURE.md §2): TRANSFORMS (issue #2) — what a listed transform
  * activity asks before the form exists, the record the owner's client writes on the use's card, the Known
  * Forms a Wild Shape item holds and how they change, and what ends a form (RULINGS *Wild Shape and the
  * polymorph spells*; the shared gallery's rows are decide/gallery.js). ⚠ PURE: no `game`, no imports.
@@ -190,7 +190,7 @@ export function formEffectData({ itemName, formName, img = null, origin = null, 
     name: `${itemName} — ${formName}`, img: img ?? "icons/svg/paw.svg",
     type: "base", description, disabled: false, transfer: false, origin: origin ?? null,
     duration: { ...(duration ?? {}) },
-    flags: { "fvtt-mod-battleflow": { form: { messageId, originalId, key } } }
+    flags: { "fvtt-mod-bythebooks": { form: { messageId, originalId, key } } }
   };
   if ( dependentOn ) data.flags.dnd5e = { dependentOn };
   return data;

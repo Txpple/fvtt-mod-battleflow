@@ -1,8 +1,8 @@
 /**
- * Battle Flow — Receipts: the revert row on damage cards, a view of the receipt flags. Who and
+ * By the Books — Receipts: the revert row on damage cards, a view of the receipt flags. Who and
  * what is public; HP pools and the revert controls are GM-only.
  */
-import { MODULE_ID, TITLE, queueFlagWrite } from "./core.js";
+import { readFlag, TITLE, queueFlagWrite } from "./core.js";
 import { clearStatus } from "./shared.js";
 import { receiptAmounts, revertPlan, traitPhrase } from "./decide/receipt.js";
 import { revertEffect } from "./effect-riders.js";
@@ -15,8 +15,8 @@ function typeLabel(type) {
 }
 
 listen("dnd5e.renderChatMessage", "receipts", (message, html) => {
-  const receipt = message.getFlag(MODULE_ID, "receipt");
-  const effectReceipt = message.getFlag(MODULE_ID, "effectReceipt");
+  const receipt = readFlag(message, "receipt");
+  const effectReceipt = readFlag(message, "effectReceipt");
   if ( !receipt?.targets?.length && !effectReceipt?.targets?.length ) return;
   // Everyone sees WHO the damage landed on; only the GM sees the pool and the revert.
   const isGM = game.user.isGM;
@@ -29,7 +29,7 @@ listen("dnd5e.renderChatMessage", "receipts", (message, html) => {
   }
 
   const row = document.createElement("div");
-  row.className = "battleflow-receipt";
+  row.className = "bythebooks-receipt";
   Object.assign(row.style, {
     margin: "0.25rem 0 0", padding: "0.25rem 0.5rem",
     border: "1px solid var(--color-border-light-2, #999a)", borderRadius: "4px",
@@ -216,7 +216,7 @@ listen("dnd5e.renderChatMessage", "receipts", (message, html) => {
 
 /** Restore one receipt target's pre-application HP, re-reading the flag (never the DOM). */
 export async function revertTarget(message, uuid) {
-  const plan = revertPlan(message.getFlag(MODULE_ID, "receipt"), uuid);
+  const plan = revertPlan(readFlag(message, "receipt"), uuid);
   if ( !plan ) return;
 
   const actor = await fromUuid(uuid);

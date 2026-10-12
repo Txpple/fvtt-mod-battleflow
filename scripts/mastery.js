@@ -1,9 +1,9 @@
 /**
- * Battle Flow — MACHINE (ARCHITECTURE.md §7): weapon mastery riders — the payouts, the mastery
+ * By the Books — MACHINE (ARCHITECTURE.md §7): weapon mastery riders — the payouts, the mastery
  * ask, the reminders and the Cleave arm. topple.js owns the `topple` flag's lifecycle;
  * chip-spend.js owns the spend, the expiry tidy and the combat sweep.
  */
-import { MODULE_ID, TITLE, S, setting, drivesMomentFor, canApplyTo, whisperNoGM, queueFlagWrite, canAnswerFor, combatStamp, activeCombatFor, statContext, decisionWindow } from "./core.js";
+import { MODULE_ID, readFlag, TITLE, S, setting, drivesMomentFor, canApplyTo, whisperNoGM, queueFlagWrite, canAnswerFor, combatStamp, activeCombatFor, statContext, decisionWindow } from "./core.js";
 import { resolveUuid } from "./lookup.js";
 import { effectRecord, joinEffectReceipt, takenOf } from "./decide/receipt.js";
 import { MASTERY_KINDS, MASTERY_NATIVE, MASTERY_RULES } from "./decide/registry.js";
@@ -61,7 +61,7 @@ function masteryContext(attackMessage) {
 
 /** What this target TOOK (Vex/Slow's gate): the receipt, else the roll total (blind to immunity). */
 function dealtFor(damageMessage, uuid) {
-  const entry = damageMessage?.getFlag(MODULE_ID, "receipt")?.targets?.find(t => t.uuid === uuid);
+  const entry = readFlag(damageMessage, "receipt")?.targets?.find(t => t.uuid === uuid);
   if ( entry ) return takenOf(entry);
   return damageMessage?.rolls?.reduce((n, r) => n + r.total, 0) ?? 0;
 }
@@ -78,7 +78,7 @@ export async function resolveHitMastery(damageMessage, attackMessage, hits, { pi
     if ( !ctx ) return;
     if ( !picked && stamped ) {
       const options = tacticalOptions(ctx);
-      if ( options && !attackMessage.getFlag(MODULE_ID, MASTERY_PICK_FLAG) ) {
+      if ( options && !readFlag(attackMessage, MASTERY_PICK_FLAG) ) {
         await stampMasteryPick(attackMessage, damageMessage, ctx, options, stamped, hits);
         return;
       }
@@ -212,11 +212,11 @@ async function applyMasteryEffect(receiptMessage, ctx, key, targets) {
 
     // Sweep dead chips first: an expired chip stays under Unavailable Effects and hides the live one.
     // ⚠ ONE batched delete: a synthetic actor rebuilds from the delta per write (NOTES §1).
-    const dead = actor.effects.filter(e => e.getFlag(MODULE_ID, CHIP_FLAG) && chipIsDead(e.duration ?? {}));
+    const dead = actor.effects.filter(e => readFlag(e, CHIP_FLAG) && chipIsDead(e.duration ?? {}));
     if ( dead.length ) await actor.deleteEmbeddedDocuments("ActiveEffect", dead.map(e => e.id));
 
     const existing = actor.effects.find(e =>
-      (e.getFlag(MODULE_ID, CHIP_FLAG) === key) && (e.origin === ctx.weapon.uuid));
+      (readFlag(e, CHIP_FLAG) === key) && (e.origin === ctx.weapon.uuid));
     let applied;
     if ( existing ) {
       // ⚠ `?? existing`: Document#update returns UNDEFINED on an empty diff. The window restarts here.
@@ -250,7 +250,7 @@ async function applyMasteryEffect(receiptMessage, ctx, key, targets) {
  */
 async function cleaveChitStands(ctx) {
   const attacker = ctx.attacker;
-  const chits = attacker.effects.filter(e => e.getFlag(MODULE_ID, CHIP_FLAG) === "cleave");
+  const chits = attacker.effects.filter(e => readFlag(e, CHIP_FLAG) === "cleave");
   if ( !activeCombatFor(attacker) ) return false;
   const stamp = combatStamp();
   if ( stamp && chits.some(e => chitStampOf(e) === stamp) ) return true;
@@ -422,7 +422,7 @@ function cleaveArmFresh(arm) {
 
 /** The live arm on an actor, with staleness applied at read time (stale ⇒ unset, null). */
 function liveCleaveArm(actor) {
-  const arm = actor?.getFlag(MODULE_ID, "cleaveArm");
+  const arm = readFlag(actor, "cleaveArm");
   if ( !arm ) return null;
   if ( !cleaveArmFresh(arm) ) { void actor.unsetFlag(MODULE_ID, "cleaveArm"); return null; }
   return arm;
@@ -497,7 +497,7 @@ async function stampMasteryPick(attackMessage, damageMessage, ctx, options, stam
 
 /** One answer, first writer wins; the decider owns the attack message. `pass` takes no mastery. */
 export async function answerMasteryPick(message, key, { timedOut = false } = {}) {
-  const p = foundry.utils.deepClone(message.getFlag(MODULE_ID, MASTERY_PICK_FLAG) ?? {});
+  const p = foundry.utils.deepClone(readFlag(message, MASTERY_PICK_FLAG) ?? {});
   if ( (p.status !== "pending") || p.answer ) return;
   if ( (key !== "pass") && !(p.options ?? []).some(o => o.key === key) ) return;
   p.answer = key;
@@ -513,7 +513,7 @@ async function executeMasteryPick(message) {
   if ( pickExecutions.has(message.id) ) return;
   pickExecutions.add(message.id);
   try {
-    const p = foundry.utils.deepClone(message.getFlag(MODULE_ID, MASTERY_PICK_FLAG) ?? {});
+    const p = foundry.utils.deepClone(readFlag(message, MASTERY_PICK_FLAG) ?? {});
     if ( (p.status !== "pending") || !p.answer ) return;
     p.status = "done";
     disarmPickTimer(message.id);
@@ -528,7 +528,7 @@ async function executeMasteryPick(message) {
 
 /** Expiry takes the stamped mastery — the weapon's own, or what the dialog chose. */
 const armPickTimer = message =>
-  armAskTimer(pickTimers, message, MASTERY_PICK_FLAG, live => answerMasteryPick(live, live.getFlag(MODULE_ID, MASTERY_PICK_FLAG)?.stamped ?? "pass", { timedOut: true }));
+  armAskTimer(pickTimers, message, MASTERY_PICK_FLAG, live => answerMasteryPick(live, readFlag(live, MASTERY_PICK_FLAG)?.stamped ?? "pass", { timedOut: true }));
 const disarmPickTimer = messageId => disarmAskTimer(pickTimers, messageId);
 
 /** The pick popup: one button per mastery (the weapon's own first), and Pass. */
@@ -557,7 +557,7 @@ listen("renderRollConfigurationDialog", "mastery", (_app, element) => {
   if ( !select || (select.options?.length < 2) ) return;
   const group = select.closest(SURFACES.formGroup) ?? select;
   const note = document.createElement("div");
-  note.className = "battleflow-mastery-note";
+  note.className = "bythebooks-mastery-note";
   note.innerHTML = bfCard({ eyebrow: "Weapon Mastery — Tactical Master", tone: "neutral", title: "Picked on a hit", subtitle: "Sap, Push or Slow — the popup asks when the attack lands." });
   group.replaceWith(note);
 });
@@ -582,7 +582,7 @@ async function stampMasteryAsk(attackMessage, damageMessage, ctx, key, targets) 
 
 /** One answer, first writer wins. The decider owns the attack message (it is their roll). */
 async function answerMastery(message, answer, { timedOut = false } = {}) {
-  const m = foundry.utils.deepClone(message.getFlag(MODULE_ID, "mastery") ?? {});
+  const m = foundry.utils.deepClone(readFlag(message, "mastery") ?? {});
   if ( (m.status !== "pending") || m.answer ) return;
   m.answer = answer;
   m.answeredAt = Date.now();   // the crash-resume horizon
@@ -598,7 +598,7 @@ async function executeMasteryAnswer(message) {
   if ( masteryExecutions.has(message.id) ) return;
   masteryExecutions.add(message.id);
   try {
-    const m = foundry.utils.deepClone(message.getFlag(MODULE_ID, "mastery") ?? {});
+    const m = foundry.utils.deepClone(readFlag(message, "mastery") ?? {});
     if ( (m.status !== "pending") || !m.answer ) return;
     m.status = "done";
     m.outcome = (m.answer === "use") ? "used" : (m.timedOut ? "timed out" : "passed");
@@ -616,20 +616,20 @@ async function executeMasteryAnswer(message) {
 
 // The answer channel: every client closes an answered popup; the elect executes.
 listen("updateChatMessage", "mastery", message => {
-  const p = message.getFlag(MODULE_ID, MASTERY_PICK_FLAG);
+  const p = readFlag(message, MASTERY_PICK_FLAG);
   if ( p ) {
     const dialog = livePopups.get(popupKey(message.id, MASTERY_PICK_FLAG));
     if ( dialog && ((p.status !== "pending") || p.answer) ) void dialog.close();
     if ( drivesMomentFor(p?.attackerUuid) && (p.status === "pending") && p.answer ) void executeMasteryPick(message);
   }
-  const m = message.getFlag(MODULE_ID, "mastery");
+  const m = readFlag(message, "mastery");
   if ( m ) {
     const dialog = livePopups.get(popupKey(message.id, "mastery"));
     if ( dialog && ((m.status !== "pending") || m.answer) ) void dialog.close();
     if ( drivesMomentFor(m?.attackerUuid) && (m.status === "pending") && m.answer ) void executeMasteryAnswer(message);
   }
 
-  if ( message.getFlag(MODULE_ID, "masteryNotice")?.acknowledged ) {
+  if ( readFlag(message, "masteryNotice")?.acknowledged ) {
     const dialog = livePopups.get(popupKey(message.id, "notice"));
     if ( dialog ) void dialog.close();
   }
@@ -669,10 +669,10 @@ async function showMasteryPopup(message, m) {
 
 // The card rows: the ask, the notice and the strip's receipt. Stateless.
 listen("dnd5e.renderChatMessage", "mastery", (message, html) => {
-  const p = message.getFlag(MODULE_ID, MASTERY_PICK_FLAG);
+  const p = readFlag(message, MASTERY_PICK_FLAG);
   if ( p ) {
     const row = document.createElement("div");
-    row.className = "battleflow-mastery-pick";
+    row.className = "bythebooks-mastery-pick";
     const pending = p.status === "pending";
     row.innerHTML = bfCard({
       img: p.weapon?.img, eyebrow: "Weapon Mastery — Tactical Master",
@@ -689,14 +689,14 @@ listen("dnd5e.renderChatMessage", "mastery", (message, html) => {
       if ( canAnswerFor(attacker) && !p.answer ) {
         const shownKey = popupKey(message.id, MASTERY_PICK_FLAG);
         if ( !shownMoments.has(shownKey) ) { shownMoments.add(shownKey); void showMasteryPickPopup(message, p); }
-        row.appendChild(momentButton("Answer", () => { void showMasteryPickPopup(message, message.getFlag(MODULE_ID, MASTERY_PICK_FLAG)); }, { margin: "0.25rem 0 0" }));
+        row.appendChild(momentButton("Answer", () => { void showMasteryPickPopup(message, readFlag(message, MASTERY_PICK_FLAG)); }, { margin: "0.25rem 0 0" }));
       }
     }
   }
-  const m = message.getFlag(MODULE_ID, "mastery");
+  const m = readFlag(message, "mastery");
   if ( m ) {
     const row = document.createElement("div");
-    row.className = "battleflow-mastery";
+    row.className = "bythebooks-mastery";
     const label = masteryLabel(m.key);
     const pending = m.status === "pending";
     const outcome = m.outcome === "used" ? `${label} used`
@@ -725,14 +725,14 @@ listen("dnd5e.renderChatMessage", "mastery", (message, html) => {
           void showMasteryPopup(message, m);
         }
         row.appendChild(momentButton("Answer", () => {
-          void showMasteryPopup(message, message.getFlag(MODULE_ID, "mastery"));
+          void showMasteryPopup(message, readFlag(message, "mastery"));
         }, { margin: "0.25rem 0 0" }));
       }
     }
   }
 
   // The reminder popup rides the notice card; the deadline keeps an old log render from nagging.
-  const notice = message.getFlag(MODULE_ID, "masteryNotice");
+  const notice = readFlag(message, "masteryNotice");
   if ( notice ) {
     // ⚠ A WINDOWLESS notice (noticeTimer 0) is live until acknowledged — never test the deadline alone.
     const live = (!notice.deadline || (notice.deadline > Date.now()))
@@ -753,7 +753,7 @@ listen("dnd5e.renderChatMessage", "mastery", (message, html) => {
     }
     // Read-only: display must never consume a stale arm; the strip owns that.
     if ( notice.key === "cleave" ) {
-      const arm = (attacker instanceof Actor) ? attacker.getFlag(MODULE_ID, "cleaveArm") : null;
+      const arm = (attacker instanceof Actor) ? readFlag(attacker, "cleaveArm") : null;
       if ( cleaveArmFresh(arm) && (arm.itemId === notice.weapon?.id) ) {
         const armed = document.createElement("div");
         armed.innerHTML = bfCard({
@@ -764,13 +764,13 @@ listen("dnd5e.renderChatMessage", "mastery", (message, html) => {
         html.querySelector(SURFACES.messageContent)?.appendChild(armed);
       } else if ( canAnswerFor(attacker) && live ) {
         html.querySelector(SURFACES.messageContent)?.appendChild(momentButton("Answer", () => {
-          void showMasteryNotice(message, message.getFlag(MODULE_ID, "masteryNotice"));
+          void showMasteryNotice(message, readFlag(message, "masteryNotice"));
         }, { margin: "0.25rem 0 0" }));
       }
     }
   }
 
-  const stripped = message.getFlag(MODULE_ID, "cleaveStripped");
+  const stripped = readFlag(message, "cleaveStripped");
   if ( stripped ) {
     const line = document.createElement("div");
     line.innerHTML = bfCard({

@@ -134,3 +134,105 @@ describe("registrations", () => {
     ]);
   });
 });
+
+describe("the migration mark (3.0.0's rename): a scope move is never a moment", () => {
+  it("drops a document hook whose options carry the mark, on every document type and every phase", () => {
+    const ran = [];
+    for (const hook of [
+      "updateActor",
+      "preUpdateItem",
+      "createActiveEffect",
+      "deleteRegionBehavior"
+    ]) {
+      dispatch.listen(hook, "ui", (...args) => ran.push([hook, args.length]));
+    }
+    fire("updateActor", {}, {}, { [dispatch.MIGRATION_MARK]: true }, "u1");
+    fire("preUpdateItem", {}, {}, { bythebooksMigration: true }, "u1");
+    fire("createActiveEffect", {}, { bythebooksMigration: true }, "u1");
+    fire("deleteRegionBehavior", {}, { bythebooksMigration: true }, "u1");
+    expect(ran).toEqual([]);
+    fire("updateActor", {}, {}, { diff: true }, "u1");
+    expect(ran).toEqual([["updateActor", 4]]);
+  });
+
+  it("leaves a hook that is not a document's alone, mark or none", () => {
+    const hook = hookName();
+    let count = 0;
+    dispatch.listen(hook, "ui", () => count++);
+    fire(hook, { bythebooksMigration: true });
+    expect(count).toBe(1);
+  });
+
+  it("drops the synthetic updateActor a token delta's write raises, which carries the write's options", () => {
+    const ran = [];
+    dispatch.listen("updateActor", "ui", actor => ran.push(actor.name));
+    dispatch.listen("updateToken", "ui", token => ran.push(token.name));
+    // A delta write: the ActorDelta's update hands its options to the synthetic actor's updateActor
+    // and to the token's updateToken, both on the writing client.
+    const options = { diff: true, recursive: true, bythebooksMigration: true };
+    fire("updateActor", { name: "synthetic" }, { flags: {} }, options, "gm");
+    fire("updateToken", { name: "token" }, { delta: { flags: {} } }, options, "gm");
+    expect(ran).toEqual([]);
+  });
+
+  it("has no latch: an unmarked write on the migrating client still runs while the move is in flight", () => {
+    const ran = [];
+    dispatch.listen("updateCombat", "ui", () => ran.push("turn"));
+    fire("updateCombat", {}, { turn: 2 }, { diff: true }, "gm");
+    expect(ran).toEqual(["turn"]);
+    expect("setMigrating" in dispatch).toBe(false);
+  });
+});
+
+describe("the coexistence gate: passive while the old package runs", () => {
+  it("runs only the passive keeps while the gate says the old package is active", () => {
+    const ran = [];
+    dispatch.listen("init", "settings", () => ran.push("init|settings"));
+    dispatch.listen("init", "emanations", () => ran.push("init|emanations"));
+    dispatch.listen("init", "ui", () => ran.push("init|ui"));
+    dispatch.listen("ready", "migrate", () => ran.push("ready|migrate"));
+    dispatch.listen("ready", "events", () => ran.push("ready|events"));
+    const hook = hookName();
+    dispatch.listen(hook, "mastery", () => ran.push("mastery"));
+    dispatch.setPassiveGate(() => true);
+    try {
+      expect(dispatch.isPassive()).toBe(true);
+      fire("init");
+      fire("ready");
+      fire(hook);
+      expect(ran).toEqual(["init|settings", "init|emanations", "ready|migrate"]);
+    } finally {
+      dispatch.setPassiveGate(() => false);
+    }
+    expect(dispatch.isPassive()).toBe(false);
+    fire(hook);
+    expect(ran.at(-1)).toBe("mastery");
+  });
+
+  it("asks once and keeps the answer; a question asked too early is asked again", () => {
+    let asked = 0;
+    let ready = false;
+    dispatch.setPassiveGate(() => {
+      asked++;
+      if (!ready) throw new Error("no game yet");
+      return false;
+    });
+    try {
+      expect(dispatch.isPassive()).toBe(false);
+      ready = true;
+      expect(dispatch.isPassive()).toBe(false);
+      expect(dispatch.isPassive()).toBe(false);
+      expect(asked).toBe(2);
+    } finally {
+      dispatch.setPassiveGate(() => false);
+    }
+  });
+
+  it("keeps the passive list to the three handlers that must run", () => {
+    expect([...dispatch.PASSIVE_KEEPS]).toEqual([
+      "init|settings",
+      "init|emanations",
+      "ready|migrate"
+    ]);
+  });
+});

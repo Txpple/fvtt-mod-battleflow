@@ -3,7 +3,7 @@
 // leave the save demand, Heightened's mark rides it into the save gate. Stage 3: Twinned,
 // Transmuted, Extended. Stage 4: Seeking and Empowered. §20–§22: a spell that chooses its
 // targets (the PHB's Slow, added for the run).
-// Fixtures: BF Test Sorcerer (tools/fixture-suite.mjs), the goblins, BF Test Ranger. Settings,
+// Fixtures: BTB Test Sorcerer (tools/fixture-suite.mjs), the goblins, BTB Test Ranger. Settings,
 // messages, pool, slots, token positions and dialogs are all restored.
 import { announcePlan, connectSuite, finish, loadEnv, sectionArg, sectionPlan } from './harness.mjs';
 
@@ -53,14 +53,14 @@ const f = await connectSuite({ tag: 'metamagic', watchdogMs: 600_000 });
 announcePlan('metamagic', plan, pulled);
 
 const out = await f.evaluate(async ({ sections, titles, extra }) => {
-  const MOD = 'fvtt-mod-battleflow';
+  const MOD = 'fvtt-mod-bythebooks';
   const results = [];
   const log = [];
   const skips = [];
   const errors = [];
   const ok = (name, pass, detail = '') => results.push({ name, pass, detail });
   const want = id => {
-    try { const a = game.actors.getName('BF Test Sorcerer'); if (a) log.push(`hp@${id}: ${a.system.attributes.hp.value}/${a.system.attributes.hp.max} dead=${a.statuses?.has?.('dead')}`); } catch { /* trace only */ }
+    try { const a = game.actors.getName('BTB Test Sorcerer'); if (a) log.push(`hp@${id}: ${a.system.attributes.hp.value}/${a.system.attributes.hp.max} dead=${a.statuses?.has?.('dead')}`); } catch { /* trace only */ }
     if (!sections || sections.includes(String(id))) return true;
     skips.push(`§${id} ${titles?.[id] ?? ''}`);
     return false;
@@ -72,7 +72,7 @@ const out = await f.evaluate(async ({ sections, titles, extra }) => {
   const count = name => ledger?.[name] ?? 0;
   const origError = console.error, origWarn = console.warn;
   console.error = (...a) => { errors.push(a.map(x => (x instanceof Error) ? `${x} @ ${(x.stack ?? '').split('\n').slice(1, 5).join(' < ')}` : String(x)).join(' ')); origError(...a); };   // the stack's top frames: a red names its line
-  console.warn = (...a) => { if (String(a[0]).includes('Battle Flow')) errors.push(a.map(String).join(' ')); origWarn(...a); };
+  console.warn = (...a) => { if (String(a[0]).includes('By the Books')) errors.push(a.map(String).join(' ')); origWarn(...a); };
 
   const mod = game.modules.get(MOD);
   if (!mod?.active) return { fatal: `module active=${mod?.active}` };
@@ -82,10 +82,10 @@ const out = await f.evaluate(async ({ sections, titles, extra }) => {
   const prior = Object.fromEntries(SETTING_KEYS.map(k => [k, game.settings.get(MOD, k)]));
   const set = (k, v) => game.settings.set(MOD, k, v);
 
-  const scene = game.scenes.getName('Battle Flow Test Range');
-  const sorc = game.actors.getName('BF Test Sorcerer');
-  const attacker = game.actors.getName('BF Test Attacker');
-  if (!scene || !sorc || !attacker) return { fatal: 'missing fixture: scene, BF Test Sorcerer or BF Test Attacker — run tools/fixture-suite.mjs' };
+  const scene = game.scenes.getName('By the Books Test Range');
+  const sorc = game.actors.getName('BTB Test Sorcerer');
+  const attacker = game.actors.getName('BTB Test Attacker');
+  if (!scene || !sorc || !attacker) return { fatal: 'missing fixture: scene, BTB Test Sorcerer or BTB Test Attacker — run tools/fixture-suite.mjs' };
   const tok = actor => scene.tokens.find(t => t.actorId === actor.id) ?? null;
   const sorcTok = tok(sorc), attTok = tok(attacker);
   if (!sorcTok || !attTok) return { fatal: 'a fixture token is missing — run tools/fixture-suite.mjs' };
@@ -181,7 +181,7 @@ const out = await f.evaluate(async ({ sections, titles, extra }) => {
     if (sorc.system.attributes.hp.value < sorc.system.attributes.hp.max) await sorc.update({ 'system.attributes.hp.value': sorc.system.attributes.hp.max });
     for (const e of sorc.effects.filter(e => e.statuses?.has?.('dead'))) await e.delete().catch(() => {});
     // The Ranger too: §10/§11's Fireballs can kill him.
-    const rgr0 = game.actors.getName('BF Test Ranger');
+    const rgr0 = game.actors.getName('BTB Test Ranger');
     if (rgr0 && rgr0.system.attributes.hp.value < rgr0.system.attributes.hp.max) await rgr0.update({ 'system.attributes.hp.value': rgr0.system.attributes.hp.max });
     for (const e of (rgr0?.effects ?? []).filter(e => e.statuses?.has?.('dead') || e.statuses?.has?.('bloodied'))) await e.delete().catch(() => {});
     log.push(`Font of Magic: ${p0.system.uses.value}/${p0.system.uses.max}; CHA mod ${sorc.system.abilities.cha.mod}`);
@@ -189,7 +189,7 @@ const out = await f.evaluate(async ({ sections, titles, extra }) => {
     if (want(1)) {
       const { app, fs } = await openWindow('Fireball');
       const rows = rowsOf(fs);
-      ok('1a. the casting window carries a Battle Flow fieldset', !!fs, `dialog=${app?.constructor?.name}`);
+      ok('1a. the casting window carries a By the Books fieldset', !!fs, `dialog=${app?.constructor?.name}`);
       ok('1b. eight cast-time rows (Empowered and Seeking are later moments)', rows.length === 8, rows.map(r => r.key).join(','));
       const fit = rows.filter(r => !r.off).map(r => r.key).sort();
       ok('1c. Careful, Distant, Heightened, Quickened, Subtle, Transmuted fit Fireball', fit.join(',') === 'careful,distant,heightened,quickened,subtle,transmuted', fit.join(','));
@@ -292,8 +292,8 @@ const out = await f.evaluate(async ({ sections, titles, extra }) => {
     }
 
     // ---- Stage 2: the save demand
-    const ranger = game.actors.getName('BF Test Ranger');
-    const victim = game.actors.getName('BF Test Victim');
+    const ranger = game.actors.getName('BTB Test Ranger');
+    const victim = game.actors.getName('BTB Test Victim');
     const rgrTok = ranger ? tok(ranger) : null, vicTok = victim ? tok(victim) : null;
     const homes = Object.fromEntries([rgrTok, vicTok].filter(Boolean).map(t => [t.id, { x: t.x, y: t.y }]));
     const templates = (globalThis.__bfMetamagicTemplates = []);
@@ -328,7 +328,7 @@ const out = await f.evaluate(async ({ sections, titles, extra }) => {
       const g = scene.grid.size;
       // The area as dnd5e 6.0 places it: a Region, the platform's circle (radius in pixels), the ACTIVITY on its flag.
       const [tpl] = await scene.createEmbeddedDocuments('Region', [{
-        name: 'BF metamagic area', shapes: [{ type: 'circle', x: sorcTok.x + g / 2, y: sorcTok.y + g / 2, radius: 20 * (g / scene.grid.distance) }],
+        name: 'BTB metamagic area', shapes: [{ type: 'circle', x: sorcTok.x + g / 2, y: sorcTok.y + g / 2, radius: 20 * (g / scene.grid.distance) }],
         flags: { dnd5e: { activity: card.getFlag(MOD, 'saves')?.activityUuid ?? spellAct('Fireball').uuid } }
       }]);
       templates.push(tpl.id);
@@ -359,9 +359,9 @@ const out = await f.evaluate(async ({ sections, titles, extra }) => {
       await gather();
       await set('saveTimer', 0);
       const { card, why, askRows, heldEmpty, damageBefore, offerBefore, deferred, damageAfter } = await castArea('careful');
-      ok('9x. the ask opened at the area listing everyone inside — four, the Sorcerer and the Ranger ticked, the goblins not — while the demand waited empty', askRows?.length === 4 && askRows.filter(r => r.checked).map(r => r.name).sort().join(',') === 'BF Test Ranger,BF Test Sorcerer' && heldEmpty === true, `rows=${askRows?.map(r => `${r.name}:${r.checked}`).join(',')} heldEmpty=${heldEmpty}`);
+      ok('9x. the ask opened at the area listing everyone inside — four, the Sorcerer and the Ranger ticked, the goblins not — while the demand waited empty', askRows?.length === 4 && askRows.filter(r => r.checked).map(r => r.name).sort().join(',') === 'BTB Test Ranger,BTB Test Sorcerer' && heldEmpty === true, `rows=${askRows?.map(r => `${r.name}:${r.checked}`).join(',')} heldEmpty=${heldEmpty}`);
       ok('9z. the dice waited on the answer: no damage roll and no damage popup while the ask stood, the deferral on the card; the roll landed after OK', askRows && damageBefore === 0 && offerBefore === false && deferred === true && (damageAfter ?? 0) > 0, JSON.stringify({ damageBefore, offerBefore, deferred, damageAfter }));
-      ok('9y. two groups: the Sorcerer (player-owned for the run) under Party, the Ranger and the goblins under Non-Party; every row names its token', askRows?.find(r => r.name === 'BF Test Sorcerer')?.group === 'Party' && askRows?.filter(r => r.name !== 'BF Test Sorcerer').every(r => r.group === 'Non-Party') && askRows.every(r => !!r.token), askRows?.map(r => r.name + '@' + r.group).join(','));
+      ok('9y. two groups: the Sorcerer (player-owned for the run) under Party, the Ranger and the goblins under Non-Party; every row names its token', askRows?.find(r => r.name === 'BTB Test Sorcerer')?.group === 'Party' && askRows?.filter(r => r.name !== 'BTB Test Sorcerer').every(r => r.group === 'Non-Party') && askRows.every(r => !!r.token), askRows?.map(r => r.name + '@' + r.group).join(','));
       if (card) keepCards.add(card.id);
       const saves = card?.getFlag(MOD, 'saves'), mm = card?.getFlag(MOD, 'metamagic');
       log.push(`§9: saves=${JSON.stringify({ status: saves?.status, templated: saves?.templated, awaiting: saves?.awaitingTemplate, n: saves?.targets?.length, mmKeys: Object.keys(mm ?? {}) })} areas=${scene.regions.filter(r => r.getFlag('dnd5e', 'activity') === saves?.activityUuid).length} otherDemands=${game.messages.filter(m => m.id !== card?.id && m.getFlag(MOD, 'saves')?.activityUuid === saves?.activityUuid).length}`);
@@ -371,13 +371,13 @@ const out = await f.evaluate(async ({ sections, titles, extra }) => {
       ok('9b. the answer is the caster first and the Ranger, marked chosen', mm?.chosen === true && (mm?.protected?.length === 2) && (mm.protected[0].uuid === sorc.uuid) && (mm.protected[1].uuid === ranger.uuid), JSON.stringify(mm?.protected));
       ok('9c. the demand holds the two goblins and neither ally', (saves?.targets?.length === 2) && saves.targets.every(t => [attacker.id, victim.id].some(id => String(t.uuid).endsWith(id))), names(saves?.targets));
       const line = card ? await renderedLine(card, 'bf-metamagic-line') : null;
-      ok('9d. the card names the protected: no save, no damage', /Careful Spell — .*protected: no save, no damage/.test(line ?? '') && /BF Test Sorcerer/.test(line ?? '') && /BF Test Ranger/.test(line ?? ''), line);
+      ok('9d. the card names the protected: no save, no damage', /Careful Spell — .*protected: no save, no damage/.test(line ?? '') && /BTB Test Sorcerer/.test(line ?? '') && /BTB Test Ranger/.test(line ?? ''), line);
       await sleep(800);
       const asks = savePopups().map(demandText);
-      ok('9e. asks open for the goblins and none for a protected creature', (asks.length === 2) && !asks.some(t => /Saving throw\s+(BF Test Sorcerer|BF Test Ranger):/.test(t.replace(/\s+/g, ' '))), asks.map(t => t.replace(/\s+/g, ' ').trim().slice(0, 60)).join(' | '));
+      ok('9e. asks open for the goblins and none for a protected creature', (asks.length === 2) && !asks.some(t => /Saving throw\s+(BTB Test Sorcerer|BTB Test Ranger):/.test(t.replace(/\s+/g, ' '))), asks.map(t => t.replace(/\s+/g, ' ').trim().slice(0, 60)).join(' | '));
       ok('9f. no picker on the card - the ticks are in the casting window (the second look, 2026-09-09)', !document.querySelector(`[data-message-id="${card?.id}"] [data-bf-metamagic-adjust]`), '');
       await closeDialogs();
-    } else if (want(9)) ok('9. fixtures', false, 'BF Test Ranger or BF Test Victim missing');
+    } else if (want(9)) ok('9. fixtures', false, 'BTB Test Ranger or BTB Test Victim missing');
 
     if (want(10) && rgrTok && vicTok) {
       await gather();
@@ -396,11 +396,11 @@ const out = await f.evaluate(async ({ sections, titles, extra }) => {
       const buttons = [...(marked?.element?.querySelectorAll?.('[data-application-part="buttons"] button[data-action]') ?? [])];
       log.push(`§10 gate buttons: ${buttons.map(b => `${b.dataset.action}[${b.className}]`).join(' ')}`);
       ok('10e. …and Disadvantage as the net', /Net Disadvantage/.test(gateText), gateText.slice(0, 80));
-      const other = savePopups().find(app => !demandText(app).includes(markedName) && /BF Test/.test(demandText(app)));
+      const other = savePopups().find(app => !demandText(app).includes(markedName) && /BTB Test/.test(demandText(app)));
       const otherGate = other?.element?.querySelector?.('[data-bf-reminder]')?.textContent ?? '';
       ok('10f. the other goblin\'s gate carries no Heightened source', !/Heightened Spell/.test(otherGate), otherGate.replace(/\s+/g, ' ').slice(0, 100));
       await closeDialogs();
-    } else if (want(10)) ok('10. fixtures', false, 'BF Test Ranger or BF Test Victim missing');
+    } else if (want(10)) ok('10. fixtures', false, 'BTB Test Ranger or BTB Test Victim missing');
 
     if (want(11) && rgrTok && vicTok) {
       await gather();
@@ -420,7 +420,7 @@ const out = await f.evaluate(async ({ sections, titles, extra }) => {
       const second = radios.filter(r => /Hobgoblin|Goblin/.test(r.name))[1];
       ok('11b. the second goblin picked is the one the demand marks', mm?.chosen === true && !!mm?.target && saves?.demand?.heightened?.uuid === second?.uuid && mm.target.uuid === second?.uuid, why || JSON.stringify({ target: mm?.target, mark: saves?.demand?.heightened?.name }));
       await closeDialogs();
-    } else if (want(11)) ok('11. fixtures', false, 'BF Test Ranger or BF Test Victim missing');
+    } else if (want(11)) ok('11. fixtures', false, 'BTB Test Ranger or BTB Test Victim missing');
 
     await scatter();
 
@@ -502,7 +502,7 @@ const out = await f.evaluate(async ({ sections, titles, extra }) => {
       for (const e of sorc.effects.filter(e => e.statuses?.has?.('concentrating'))) await e.delete().catch(() => {});
       await vicActor.update({ 'system.abilities.wis.save.roll.bonus': bonus0 });
       game.user.targets.forEach(t => { t.setTarget(false, { releaseOthers: false }); });
-    } else if (want(14)) ok('14. fixtures', false, 'BF Test Victim missing');
+    } else if (want(14)) ok('14. fixtures', false, 'BTB Test Victim missing');
 
     // ---- Stage 4: Seeking and Empowered
     if (want(15)) {
@@ -675,7 +675,7 @@ const out = await f.evaluate(async ({ sections, titles, extra }) => {
       await closeDialogs();
       game.user.targets.forEach(t => { t.setTarget(false, { releaseOthers: false }); });
       await scatter();
-    } else if (want(17)) ok('17. fixtures', false, 'BF Test Ranger missing');
+    } else if (want(17)) ok('17. fixtures', false, 'BTB Test Ranger missing');
 
     if (want(18) && rgrTok) {
       await gather();
@@ -702,7 +702,7 @@ const out = await f.evaluate(async ({ sections, titles, extra }) => {
       const gone = await castArea('careful');
       ok('18y. the ask at the area lists exactly the four inside — never the Paladin or the Mage out on the range', gone.askRows?.length === 4 && !gone.askRows.some(r => /Paladin|Mage|Cleric|Rogue|Shielder/.test(r.name)), gone.why || gone.askRows?.map(r => r.name).join(','));
       await scatter();
-    } else if (want(18)) ok('18. fixtures', false, 'BF Test Ranger missing');
+    } else if (want(18)) ok('18. fixtures', false, 'BTB Test Ranger missing');
 
     if (want(19)) {
       const p19 = pool(); if (p19.system.uses.spent) await p19.update({ 'system.uses.spent': 0 });
@@ -746,14 +746,14 @@ const out = await f.evaluate(async ({ sections, titles, extra }) => {
         globalThis.__bfMetamagicSlow = slow?.id ?? null;   // ours to delete in teardown — a Slow already there is not
       }
       const moments = [];
-      const momentHook = Hooks.on('battleflow.moment', p => moments.push(p));
+      const momentHook = Hooks.on('bythebooks.moment', p => moments.push(p));
       const holdsOpened = [];
-      const holdHook = Hooks.on('battleflow.holdOpened', p => holdsOpened.push(p));
+      const holdHook = Hooks.on('bythebooks.holdOpened', p => holdsOpened.push(p));
       const g = scene.grid.size;
       /** A rectangle Region carrying the cast's activity, as dnd5e 6.0 places a Cube (the §9 idiom). */
       const placeRect = async (card, x, y, w, h) => {
         const [tpl] = await scene.createEmbeddedDocuments('Region', [{
-          name: 'BF chosen area', shapes: [{ type: 'rectangle', x, y, width: w, height: h }],
+          name: 'BTB chosen area', shapes: [{ type: 'rectangle', x, y, width: w, height: h }],
           flags: { dnd5e: { activity: card.getFlag(MOD, 'saves')?.activityUuid ?? spellAct('Slow').uuid } }
         }]);
         templates.push(tpl.id);
@@ -817,7 +817,7 @@ const out = await f.evaluate(async ({ sections, titles, extra }) => {
           const rows = askRowsOf(ask?.element);
           const heldEmpty = !(card.getFlag(MOD, 'saves')?.targets?.length);
           ok('20b. the question opens at the area: three rows — never the caster — the goblins ticked, the Ranger not, the demand waiting empty',
-            rows.length === 3 && !rows.some(r => r.name === 'BF Test Sorcerer') && rows.filter(r => r.checked).every(r => isGoblin(r.uuid)) && rows.filter(r => r.checked).length === 2 && heldEmpty,
+            rows.length === 3 && !rows.some(r => r.name === 'BTB Test Sorcerer') && rows.filter(r => r.checked).every(r => isGoblin(r.uuid)) && rows.filter(r => r.checked).length === 2 && heldEmpty,
             `rows=${rows.map(r => `${r.name}:${r.checked}`).join(',')} heldEmpty=${heldEmpty} saves=${!!saves0}`);
           const title = ask?.element?.textContent?.replace(/\s+/g, ' ') ?? '';
           ok('20c. it asks in the spell\'s own words — "Who does Slow affect? Up to 6." and the sentence that grants the choice', /Who does Slow affect\? Up to 6\./.test(title) && /up to six creatures of your choice/.test(title), title.slice(0, 160));
@@ -827,13 +827,13 @@ const out = await f.evaluate(async ({ sections, titles, extra }) => {
           const filled = await waitFor(() => { const f2 = card.getFlag(MOD, 'saves'); return (f2?.targets?.length) ? f2 : null; }, 8000);
           ok('20e. OK → the goblins owe the save and the Ranger does not', filled?.targets?.length === 2 && filled.targets.every(t => isGoblin(t.uuid)), names(filled?.targets));
           const record = card.getFlag(MOD, 'areaChoice');
-          ok('20f. the choice rides the card, asked, the Ranger left out', record?.asked === true && record.chosen?.length === 2 && record.left?.some(c => c.name === 'BF Test Ranger') && record.cap === 6, JSON.stringify(record ? { asked: record.asked, chosen: names(record.chosen), left: names(record.left), cap: record.cap } : null));
+          ok('20f. the choice rides the card, asked, the Ranger left out', record?.asked === true && record.chosen?.length === 2 && record.left?.some(c => c.name === 'BTB Test Ranger') && record.cap === 6, JSON.stringify(record ? { asked: record.asked, chosen: names(record.chosen), left: names(record.left), cap: record.cap } : null));
           const line = await renderedLine(card, 'bf-area-choice');
-          ok('20g. the card line names the chosen and the not chosen', /Slow — chosen: .*not chosen: BF Test Ranger/.test(line ?? ''), line);
+          ok('20g. the card line names the chosen and the not chosen', /Slow — chosen: .*not chosen: BTB Test Ranger/.test(line ?? ''), line);
           ok('20i. an answered choice publishes one "choice" moment, the chosen as its targets', moments.some(p => (p.kind === 'areaChoice') && (p.event === 'choice') && (p.targets?.length === 2)), moments.filter(p => p.kind === 'areaChoice').map(p => `${p.event}:${p.targets?.length}`).join(',') || 'none');
           await sleep(600);
           const asks = savePopups().map(demandText);
-          ok('20j. save asks open for the goblins, none for the Ranger', !asks.some(t => /BF Test Ranger/.test(t)), asks.map(t => t.replace(/\s+/g, ' ').trim().slice(0, 50)).join(' | '));
+          ok('20j. save asks open for the goblins, none for the Ranger', !asks.some(t => /BTB Test Ranger/.test(t)), asks.map(t => t.replace(/\s+/g, ' ').trim().slice(0, 50)).join(' | '));
           await closeDialogs();
         }
 
@@ -868,7 +868,7 @@ const out = await f.evaluate(async ({ sections, titles, extra }) => {
             await placeRect(card, sorcTok.x - g, sorcTok.y - (2 * g), 4 * g, 4 * g);
             const ask = await askFor(card);
             const rows = askRowsOf(ask?.element);
-            const ranger22 = rows.find(r => r.name === 'BF Test Ranger');
+            const ranger22 = rows.find(r => r.name === 'BTB Test Ranger');
             const goblins = rows.filter(r => isGoblin(r.uuid));
             ok('22a. ONE popup: the choice ticks with a Disadvantage radio on each row — live on the ticked goblins, dead on the unticked Ranger, the first goblin marked',
               rows.length === 3 && !!ranger22 && ranger22.mark?.disabled === true && goblins.every(r => r.mark && !r.mark.disabled) && goblins[0]?.mark?.checked === true,
@@ -885,11 +885,11 @@ const out = await f.evaluate(async ({ sections, titles, extra }) => {
           await closeDialogs();
         }
       } finally {
-        Hooks.off('battleflow.moment', momentHook);
-        Hooks.off('battleflow.holdOpened', holdHook);
+        Hooks.off('bythebooks.moment', momentHook);
+        Hooks.off('bythebooks.holdOpened', holdHook);
         await scatter();
       }
-    } else if (want(20) || want(21) || want(22)) ok('20-22. fixtures', false, 'BF Test Ranger or BF Test Victim missing');
+    } else if (want(20) || want(21) || want(22)) ok('20-22. fixtures', false, 'BTB Test Ranger or BTB Test Victim missing');
 
     if (want(23)) {
       const pack23 = game.packs.get('dnd-players-handbook.feats');
@@ -947,8 +947,8 @@ const out = await f.evaluate(async ({ sections, titles, extra }) => {
       ok('8b. dnd5e.postUseActivity fired', count('dnd5e.postUseActivity') > 0, `count=${count('dnd5e.postUseActivity')}`);
     }
 
-    const bf = errors.filter(e => /Battle Flow/.test(e) && !/deprecat/i.test(e));
-    ok('no Battle Flow errors or warnings during the run', bf.length === 0, bf.slice(0, 3).join(' | '));
+    const bf = errors.filter(e => /By the Books/.test(e) && !/deprecat/i.test(e));
+    ok('no By the Books errors or warnings during the run', bf.length === 0, bf.slice(0, 3).join(' | '));
     void subtleCard;
   } catch (err) {
     ok('suite threw', false, `${err.message}\n${err.stack}`);

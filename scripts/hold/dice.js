@@ -1,9 +1,9 @@
 // @ts-check
 /**
- * Battle Flow — the reaction hold's DICE: a bent attack's d20s, or a cast AC reaction's bonus, rise
+ * By the Books — the reaction hold's DICE: a bent attack's d20s, or a cast AC reaction's bonus, rise
  * over the creature hit. Every client, once, off the record landing; a reload replays nothing.
  */
-import { MODULE_ID, TITLE } from "../core.js";
+import { readFlag, TITLE } from "../core.js";
 import { bentChips } from "../decide/rescue-hit.js";
 import { acChips } from "../decide/dice-chips.js";
 import { duplicateChips } from "../decide/duplicates.js";
@@ -16,7 +16,7 @@ const played = new Set();
 const keyOf = (message, target, which = "bent") => `${message.id}|${target.uuid}|${which}`;
 const isShield = t => (t?.answer === "cast") && (t?.kind === "ac");
 const hasDuplicateDice = t => !!t?.duplicates?.faces?.length;
-const bentTargets = message => (message?.getFlag?.(MODULE_ID, "hold")?.targets ?? []).filter(t => t?.bent || isShield(t) || hasDuplicateDice(t));
+const bentTargets = message => (readFlag(message, "hold")?.targets ?? []).filter(t => t?.bent || isShield(t) || hasDuplicateDice(t));
 
 listenOnce("ready", "hold/dice", () => {
   for ( const message of (game.messages ?? []) ) for ( const t of bentTargets(message) ) { played.add(keyOf(message, t)); played.add(keyOf(message, t, "dup")); }

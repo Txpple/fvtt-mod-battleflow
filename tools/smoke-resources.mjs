@@ -1,4 +1,4 @@
-// Battle Flow smoke test: resource use notices. A player-owned actor spending a recovery-rhythm
+// By the Books smoke test: resource use notices. A player-owned actor spending a recovery-rhythm
 // pool flashes the banner and grows the durable card line; pools without recovery, NPC spends and
 // the OFF switch stay silent. The three pool shapes: self item-uses, cross-item pool,
 // activity-level uses. An ability with its own dice flashes AFTER them (released by card link,
@@ -31,7 +31,7 @@ const f = await connectSuite({ tag: 'resources', watchdogMs: 300_000 });
 announcePlan('resources', plan, pulled);
 
 const out = await f.evaluate(async ({ sections, titles }) => {
-  const MOD = 'fvtt-mod-battleflow';
+  const MOD = 'fvtt-mod-bythebooks';
   const results = [];
   const log = [];
   const skips = [];
@@ -61,8 +61,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   const prior = Object.fromEntries(SETTING_KEYS.map(k => [k, game.settings.get(MOD, k)]));
   const set = (k, v) => game.settings.set(MOD, k, v);
 
-  const victim = game.actors.getName('BF Test Victim');
-  if (!victim) return { fatal: 'missing fixture: BF Test Victim' };
+  const victim = game.actors.getName('BTB Test Victim');
+  if (!victim) return { fatal: 'missing fixture: BTB Test Victim' };
   // A card's associated actor is its TOKEN's actor first: an unlinked victim speaks as its synthetic actor.
   const speaker = () => game.scenes.active?.tokens.find(t => t.actorId === victim.id)?.actor ?? victim;
   // A qualifying spender is PLAYER-OWNED: grant a non-GM user ownership, restore the exact map after.
@@ -83,7 +83,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       await victim.update({ ownership: priorOwnership }, { diff: false, recursive: false });
       document.querySelectorAll('.bf-resource-banner').forEach(b => { b.remove(); });
       const mine = game.messages.filter(m => (m.timestamp >= suiteStart)
-        && (m.speaker?.alias?.startsWith?.('BF Test') || Object.keys(m.flags?.[MOD] ?? {}).length
+        && (m.speaker?.alias?.startsWith?.('BTB Test') || Object.keys(m.flags?.[MOD] ?? {}).length
           || (m.type === 'usage')));
       if (mine.length) await ChatMessage.deleteDocuments(mine.map(m => m.id));
     } catch (err) {
@@ -118,12 +118,12 @@ const out = await f.evaluate(async ({ sections, titles }) => {
 
     // -------------------------------------------------- fixtures: the three pool shapes
     const [pool] = await victim.createEmbeddedDocuments('Item', [{
-      name: 'BF Notice Pool', type: 'feat',
+      name: 'BTB Notice Pool', type: 'feat',
       system: { uses: { spent: 0, max: '4', recovery: [{ period: 'sr', type: 'recoverAll' }] } }
     }]);
     created.items.push(pool.id);
     const [feat] = await victim.createEmbeddedDocuments('Item', [{
-      name: 'BF Notice Feat', type: 'feat',
+      name: 'BTB Notice Feat', type: 'feat',
       system: {
         uses: { spent: 0, max: '3', recovery: [{ period: 'lr', type: 'recoverAll' }] },
         activities: {
@@ -142,7 +142,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     }]);
     created.items.push(feat.id);
     const [mundane] = await victim.createEmbeddedDocuments('Item', [{
-      name: 'BF Notice Torchlike', type: 'consumable',
+      name: 'BTB Notice Torchlike', type: 'consumable',
       system: {
         type: { value: 'trinket' },
         uses: { spent: 0, max: '1', recovery: [] },   // uses but NO recovery — the noise shape
@@ -162,8 +162,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const card1 = await useAndCard(acts('bfnoticeself0000'));
       const b1 = bannerNow();
       ok('1a the banner flashed: who, what, and x of y remaining',
-        !!b1 && b1.textContent.includes(`${speaker().name} used BF Notice Feat`)
-          && b1.textContent.includes('BF Notice Feat: 2 of 3 remaining'),
+        !!b1 && b1.textContent.includes(`${speaker().name} used BTB Notice Feat`)
+          && b1.textContent.includes('BTB Notice Feat: 2 of 3 remaining'),
         b1 ? b1.textContent.trim().slice(0, 120) : 'NO banner');
       ok('1b the card keeps the durable line',
         !!card1 && !!lineFor(card1.id) && lineFor(card1.id).textContent.includes('2 of 3'),
@@ -180,11 +180,11 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const card2 = await useAndCard(acts('bfnoticepool0000'));
       const b2 = bannerNow();
       ok('2a the banner names the POOL that paid, not the ability\'s own uses',
-        !!b2 && b2.textContent.includes('used BF Notice Feat')
-          && b2.textContent.includes('BF Notice Pool: 3 of 4 remaining'),
+        !!b2 && b2.textContent.includes('used BTB Notice Feat')
+          && b2.textContent.includes('BTB Notice Pool: 3 of 4 remaining'),
         b2 ? b2.textContent.trim().slice(0, 120) : 'NO banner');
       ok('2b the card line names the pool too',
-        !!card2 && !!lineFor(card2.id) && lineFor(card2.id).textContent.includes('BF Notice Pool'));
+        !!card2 && !!lineFor(card2.id) && lineFor(card2.id).textContent.includes('BTB Notice Pool'));
       await until(() => !bannerNow(), 6000);   // let it fade before the next section
     }
 
@@ -226,7 +226,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     if (want(5)) {
       log.push('§5 deferred flash');
       [healFeat] = await victim.createEmbeddedDocuments('Item', [{
-        name: 'BF Notice Heal', type: 'feat',
+        name: 'BTB Notice Heal', type: 'feat',
         system: {
           uses: { spent: 0, max: '3', recovery: [{ period: 'sr', type: 'recoverAll' }] },
           activities: { bfnoticeheal0000: { _id: 'bfnoticeheal0000', type: 'heal', name: 'Heal',
@@ -256,7 +256,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         JSON.stringify({ link: healRoll?._source.system?.origin ?? null, card: card5?.id }));
       const b5 = bannerNow();
       ok('5e the flash released WITH the dice — after the roll, not the use',
-        !!b5 && b5.textContent.includes('used BF Notice Heal')
+        !!b5 && b5.textContent.includes('used BTB Notice Heal')
           && b5.textContent.includes('2 of 3 remaining'),
         b5 ? b5.textContent.trim().slice(0, 120) : 'NO banner');
       await until(() => !bannerNow(), 6000);   // let it fade before §6 measures silence
@@ -283,7 +283,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       // ⚠ §7 owns its pools: §§1/4b/4c exhaust the shared feat, and in a full battery dnd5e would
       // refuse the consumption and post no card.
       const [feat7] = await victim.createEmbeddedDocuments('Item', [{
-        name: 'BF Stamp Feat', type: 'feat',
+        name: 'BTB Stamp Feat', type: 'feat',
         system: {
           uses: { spent: 0, max: '9', recovery: [{ period: 'sr', type: 'recoverAll' }] },
           activities: { bfstampself00000: { _id: 'bfstampself00000', type: 'utility',
@@ -293,7 +293,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       }]);
       created.items.push(feat7.id);
       const [mundane7] = await victim.createEmbeddedDocuments('Item', [{
-        name: 'BF Stamp Torchlike', type: 'consumable',
+        name: 'BTB Stamp Torchlike', type: 'consumable',
         system: {
           type: { value: 'trinket' },
           uses: { spent: 0, max: '2', recovery: [] },   // uses but NO recovery
@@ -309,7 +309,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const stamp7 = await until(() => card7?.getFlag(MOD, 'spend'), 6000);
       ok('7a a qualifying spend stamps rows + EXPLICIT null combat + the spender as source',
         !!stamp7 && stamp7.combat === null && stamp7.sourceUuid === speaker().uuid
-          && stamp7.rows?.length === 1 && stamp7.rows[0].pool === 'BF Stamp Feat'
+          && stamp7.rows?.length === 1 && stamp7.rows[0].pool === 'BTB Stamp Feat'
           && (typeof stamp7.rows[0].left === 'number') && (typeof stamp7.rows[0].max === 'number')
           && !stamp7.slots,
         JSON.stringify(stamp7 ?? null));
@@ -336,7 +336,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
 
       // Slot spends stamp a slots row with the post-spend pool (no recovery-pool row).
       const [slotcaster] = await victim.createEmbeddedDocuments('Item', [{
-        name: 'BF Notice Slotcast', type: 'feat',
+        name: 'BTB Notice Slotcast', type: 'feat',
         system: { activities: { bfnoticeslot0000: { _id: 'bfnoticeslot0000', type: 'utility',
           name: 'Slot Cast', activation: { type: 'action' },
           consumption: { targets: [{ type: 'spellSlots', target: '1', value: '1' }] } } } }

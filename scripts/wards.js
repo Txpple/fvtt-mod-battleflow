@@ -1,5 +1,5 @@
 /**
- * Battle Flow — MACHINE (ARCHITECTURE.md §7): THE WARDS (WARDS) — a standing effect that makes whoever
+ * By the Books — MACHINE (ARCHITECTURE.md §7): THE WARDS (WARDS) — a standing effect that makes whoever
  * targets its bearer save FIRST (Sanctuary). The gate sits where the buy box sits, before the roll
  * (`dnd5e.preRollAttack`) and before a damaging spell's cast (`dnd5e.preUseActivity`): the use is vetoed,
  * the save demanded of the attacker through the saves machine on a card of this file's, and on a success
@@ -7,7 +7,7 @@
  * (the target is the attacker's to change — a new attack is a new attack). The ward ends on the bearer's
  * own attack roll, cast or damage roll, no choice (R1). Rulings: RULINGS *The spells slice — Tier 3*.
  */
-import { MODULE_ID, TITLE, drivesMomentFor, statContext, decisionWindow, queueFlagWrite, canApplyTo } from "./core.js";
+import { MODULE_ID, readFlag, TITLE, drivesMomentFor, statContext, decisionWindow, queueFlagWrite, canApplyTo } from "./core.js";
 import { activityNamed, resolveUuid } from "./lookup.js";
 import { effectSourceOf } from "./shared.js";
 import { WARDS, answers, wardEntries, listedNames } from "./decide/registry.js";
@@ -51,7 +51,7 @@ function hasPass(key) {
 
 /** Is a ward demand for this attacker at this ward still unanswered? */
 const pendingFor = (attackerUuid, wardUuid) => game.messages.contents.some(m => {
-  const w = m.getFlag(MODULE_ID, WARD_FLAG);
+  const w = readFlag(m, WARD_FLAG);
   return w && (w.attackerUuid === attackerUuid) && (w.wardUuid === wardUuid) && !w.settled;
 });
 
@@ -162,9 +162,9 @@ function retrigger(activity, gate, configure = true) {
 
 const settling = new Set();
 async function settleWard(card) {
-  const w = card.getFlag(MODULE_ID, WARD_FLAG);
+  const w = readFlag(card, WARD_FLAG);
   if ( !w || w.settled ) return;
-  const entry = card.getFlag(MODULE_ID, "saves")?.targets?.find(t => t.uuid === w.attackerUuid);
+  const entry = readFlag(card, "saves")?.targets?.find(t => t.uuid === w.attackerUuid);
   if ( !entry?.done || !drivesMomentFor(w.attackerUuid) ) return;
   if ( settling.has(card.id) ) return;
   settling.add(card.id);
@@ -197,9 +197,9 @@ listen("updateChatMessage", "wards", message => { void settleWard(message); void
 const floated = new Set();
 function floatAside(message) {
   try {
-    const w = message.getFlag(MODULE_ID, WARD_FLAG);
+    const w = readFlag(message, WARD_FLAG);
     if ( !w || floated.has(message.id) ) return;
-    const entry = message.getFlag(MODULE_ID, "saves")?.targets?.find(t => t.uuid === w.attackerUuid);
+    const entry = readFlag(message, "saves")?.targets?.find(t => t.uuid === w.attackerUuid);
     if ( !entry?.done || (entry.outcome === "saved") ) return;
     floated.add(message.id);
     const token = tokenForUuid(w.wardUuid);
@@ -215,11 +215,11 @@ function floatAside(message) {
 
 listen("dnd5e.renderChatMessage", "wards", (message, html) => {
   try {
-    const w = message.getFlag(MODULE_ID, WARD_FLAG);
+    const w = readFlag(message, WARD_FLAG);
     if ( !w ) return;
     void settleWard(message);   // the reload-resume twin of the update watcher
     const content = html.querySelector?.(SURFACES.messageContent) ?? html;
-    const entry = message.getFlag(MODULE_ID, "saves")?.targets?.find(t => t.uuid === w.attackerUuid);
+    const entry = readFlag(message, "saves")?.targets?.find(t => t.uuid === w.attackerUuid);
     if ( !entry?.done || !content || content.querySelector(".bf-ward-line") ) return;
     const verdict = wardVerdict(entry.outcome, w.gate);
     const words = wardWords({ spell: w.key, attacker: "", ward: w.wardName, gate: w.gate });

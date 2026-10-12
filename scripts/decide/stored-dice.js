@@ -1,6 +1,6 @@
 // @ts-check
 /**
- * Battle Flow — DECISION (ARCHITECTURE.md §2): THE STORED DICE (registry.js STORED_DICE — Portent): d20s rolled at
+ * By the Books — DECISION (ARCHITECTURE.md §2): THE STORED DICE (registry.js STORED_DICE — Portent): d20s rolled at
  * a rest and kept as faces, each spent once to REPLACE a D20 Test's d20. Which faces can turn a roll, the
  * outcome of the swap, and the chip's name. Pure.
  */

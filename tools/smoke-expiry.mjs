@@ -1,4 +1,4 @@
-// Battle Flow expiry smoke test: the platform's clock on the chips. A real Combat stepped through
+// By the Books expiry smoke test: the platform's clock on the chips. A real Combat stepped through
 // rounds while Foundry's own registry expires the mastery chips on the rules' boundaries; the Vex
 // and Sap spends; the once-per-turn Cleave chit; the sweep on combat delete; out of combat (no clock).
 // ⚠ Every boundary asserted here was measured first (tools/probe-expiry.mjs).
@@ -33,7 +33,7 @@ const f = await connectSuite({ tag: 'expiry', watchdogMs: 600_000 });
 announcePlan('expiry', plan, pulled);
 
 const out = await f.evaluate(async ({ sections, titles }) => {
-  const MOD = 'fvtt-mod-battleflow';
+  const MOD = 'fvtt-mod-bythebooks';
   const results = [];
   const log = [];
   const skips = [];
@@ -63,11 +63,11 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   const prior = Object.fromEntries(SETTING_KEYS.map(k => [k, game.settings.get(MOD, k)]));
   const set = (k, v) => game.settings.set(MOD, k, v);
 
-  const scene = game.scenes.getName('Battle Flow Test Range');
-  const victim = game.actors.getName('BF Test Victim');
-  const pc = game.actors.getName('BF Test PC Attacker');
-  const npc = game.actors.getName('BF Test Attacker');
-  if (!scene || !victim || !pc || !npc) return { fatal: 'missing fixture: scene or BF Test actors' };
+  const scene = game.scenes.getName('By the Books Test Range');
+  const victim = game.actors.getName('BTB Test Victim');
+  const pc = game.actors.getName('BTB Test PC Attacker');
+  const npc = game.actors.getName('BTB Test Attacker');
+  if (!scene || !victim || !pc || !npc) return { fatal: 'missing fixture: scene or BTB Test actors' };
 
   const created = { items: [], tokens: [] };
   const priorActor = {};
@@ -109,7 +109,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       }
       game.user.targets.forEach(t => { t.setTarget(false, { releaseOthers: true }); });
       const mine = game.messages.filter(m => (m.timestamp >= suiteStart)
-        && (m.speaker?.alias?.startsWith?.('BF Test') || m.speaker?.alias === 'Battle Flow'
+        && (m.speaker?.alias?.startsWith?.('BTB Test') || m.speaker?.alias === 'By the Books'
           || Object.keys(m.flags?.[MOD] ?? {}).length));
       if (mine.length) await ChatMessage.deleteDocuments(mine.map(m => m.id));
     } catch (err) {
@@ -303,7 +303,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       return { target: li.querySelector('button[data-action="rollAttack"]') ?? li, clientY: 200,
         altKey: false, ctrlKey: false, metaKey: false, shiftKey: false };
     };
-    /** The system's own roll dialog carrying Battle Flow's section (the gate lives inside it). */
+    /** The system's own roll dialog carrying By the Books' section (the gate lives inside it). */
     const findGate = async () => {
       const app = await waitFor(() => [...foundry.applications.instances.values()]
         .find(a => /RollConfigurationDialog/.test(a.constructor?.name ?? '') && a.rendered && a.element) ?? null, 6000);

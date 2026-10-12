@@ -1,12 +1,12 @@
 /**
- * Battle Flow — MACHINE (ARCHITECTURE.md §7): THE REPEATING SAVE (REPEAT_SAVES) — a landed effect's save
+ * By the Books — MACHINE (ARCHITECTURE.md §7): THE REPEATING SAVE (REPEAT_SAVES) — a landed effect's save
  * repeated at the bearer's turn end, when damage lands on it, or as its own action offered at its turn
  * start. The demand is the saves machine's, raised on a card of this file's; the verdict's success
  * removes the effect through the cast card's receipt, no choice (R1); the card says what happened. The
  * platform floats the name off the token for an effect with a status or a change (NOTES §1); the float
  * here is for the bare ones. The precedent is the emanation's `trigger on "turnEnd"`.
  */
-import { MODULE_ID, TITLE, drivesMomentFor, statContext, decisionWindow, queueFlagWrite, canAnswerFor, canApplyTo } from "./core.js";
+import { MODULE_ID, readFlag, TITLE, drivesMomentFor, statContext, decisionWindow, queueFlagWrite, canAnswerFor, canApplyTo } from "./core.js";
 import { activityNamed, activityOfType, answersOrEnchanted, resolveUuid } from "./lookup.js";
 import { effectSourceOf, forceStatus } from "./shared.js";
 import { REPEAT_SAVES, repeatSaveEntries, listedNames } from "./decide/registry.js";
@@ -29,7 +29,7 @@ const originItemOf = effect => effectSourceOf(effect)?.item ?? null;
 
 /** The listed row a standing effect answers, with its item — null for almost every effect. */
 function rowOf(effect) {
-  if ( !effect || effect.disabled || effect.getFlag(MODULE_ID, COUNT_FLAG)?.locked ) return null;
+  if ( !effect || effect.disabled || readFlag(effect, COUNT_FLAG)?.locked ) return null;
   const item = originItemOf(effect);
   // THE DMG — an enchanted weapon is its row's item too (Sword of Wounding on a "Longsword of Wounding").
   const found = repeatRowFor({ table: REPEAT_SAVES, item, effectName: effect.name, listed: listedNames(repeatSaveEntries()), answers: answersOrEnchanted });
@@ -37,8 +37,8 @@ function rowOf(effect) {
 }
 
 /** Is a repeat for this effect still unanswered anywhere in the log? */
-const pendingFor = effect => game.messages.contents.some(m => (m.getFlag(MODULE_ID, REPEAT_FLAG)?.effectUuid === effect.uuid)
-  && (m.getFlag(MODULE_ID, "saves")?.status === "pending"));
+const pendingFor = effect => game.messages.contents.some(m => (readFlag(m, REPEAT_FLAG)?.effectUuid === effect.uuid)
+  && (readFlag(m, "saves")?.status === "pending"));
 
 /* --- the triggers ------------------------------------------------------------------------------ */
 
@@ -174,7 +174,7 @@ async function offerRepeat(effect, row, combat) {
 }
 
 /** Has this offer been taken — a repeat card for its effect born after it? */
-const offerTaken = (card, offer) => game.messages.contents.some(m => (m.getFlag(MODULE_ID, REPEAT_FLAG)?.effectUuid === offer.effectUuid)
+const offerTaken = (card, offer) => game.messages.contents.some(m => (readFlag(m, REPEAT_FLAG)?.effectUuid === offer.effectUuid)
   && (m.timestamp >= card.timestamp));
 
 /* --- the verdict: the effect ends on a success, holds or tallies on a failure ---------------------- */
@@ -182,9 +182,9 @@ const offerTaken = (card, offer) => game.messages.contents.some(m => (m.getFlag(
 const settling = new Set();
 
 async function settleRepeat(card) {
-  const rep = card.getFlag(MODULE_ID, REPEAT_FLAG);
+  const rep = readFlag(card, REPEAT_FLAG);
   if ( !rep || rep.settled ) return;
-  const flag = card.getFlag(MODULE_ID, "saves");
+  const flag = readFlag(card, "saves");
   const entry = flag?.targets?.find(t => t.uuid === rep.actorUuid);
   if ( !entry?.done || !drivesMomentFor(flag.sourceUuid ?? null) ) return;
   if ( settling.has(card.id) ) return;
@@ -201,7 +201,7 @@ async function settleRepeat(card) {
     const effect = (actor instanceof Actor) ? (actor.effects.get(rep.effectId) ?? null) : null;
     const row = REPEAT_SAVES[rep.key] ?? null;
     if ( !row ) return;
-    const verdict = repeatVerdict(row, entry.outcome, effect?.getFlag(MODULE_ID, COUNT_FLAG) ?? null);
+    const verdict = repeatVerdict(row, entry.outcome, readFlag(effect, COUNT_FLAG) ?? null);
     let landed = "";
     if ( !effect ) landed = " (the effect was already gone)";
     else if ( !canApplyTo(actor) ) landed = " — no GM: end it by hand";
@@ -259,7 +259,7 @@ listen("dnd5e.renderChatMessage", "repeat-saves", (message, html) => {
   try {
     const content = html.querySelector?.(SURFACES.messageContent) ?? html;
     if ( !content ) return;
-    const rep = message.getFlag(MODULE_ID, REPEAT_FLAG);
+    const rep = readFlag(message, REPEAT_FLAG);
     if ( rep ) {
       void settleRepeat(message);   // the reload-resume twin of the update watcher
       if ( rep.says && !content.querySelector(".bf-repeat-line") ) {
@@ -271,7 +271,7 @@ listen("dnd5e.renderChatMessage", "repeat-saves", (message, html) => {
       }
       return;
     }
-    const offer = message.getFlag(MODULE_ID, OFFER_FLAG);
+    const offer = readFlag(message, OFFER_FLAG);
     if ( !offer ) return;
     const actor = resolveUuid(offer.actorUuid);
     const effect = (actor instanceof Actor) ? actor.effects.find(e => e.uuid === offer.effectUuid) : null;

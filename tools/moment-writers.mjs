@@ -136,6 +136,8 @@ function literalKeys(src, open) {
 for (const f of files) {
   const src = f.src;
   for (const m of src.matchAll(/\b(?:setFlag|unsetFlag)\(MODULE_ID,\s*("([^"]+)"|([A-Z][A-Z0-9_]*))/g)) note(resolveKey(m[2] ?? m[3]), f, lineAt(src, m.index));
+  // core.js `clearFlag(doc, key)`: the unsetFlag of a card that may carry the legacy scope (3.0.0's rename).
+  for (const m of src.matchAll(/\bclearFlag\(\s*[\w.?]+\s*,\s*("([^"]+)"|([A-Z][A-Z0-9_]*))/g)) note(resolveKey(m[2] ?? m[3]), f, lineAt(src, m.index));
   for (const m of src.matchAll(/\bqueueFlagWrite\(\s*[\w.]+\s*,\s*("([^"]+)"|([A-Z][A-Z0-9_]*))/g)) note(resolveKey(m[2] ?? m[3]), f, lineAt(src, m.index));
   for (const m of src.matchAll(/flags\.\$\{MODULE_ID\}\.(?:\$\{([A-Z][A-Z0-9_]*)\}|(-=)?([A-Za-z_]\w*))/g)) note(resolveKey(m[1] ?? m[3]), f, lineAt(src, m.index));
   for (const m of src.matchAll(/\[MODULE_ID\]\s*:\s*\{/g)) {
@@ -225,7 +227,8 @@ const WORLD_WRITERS = {
   "ui.js": "spine plumbing: an envelope's cleanup delete, a popup's lifecycle — presentation",
   "core.js": "spine plumbing: the flag-write serializer every record goes through — the record is the resolve",
   "holds.js": "the hold registry — client-local memory, no world write; listed because its release deletes nothing",
-  "events.js": "the gate itself — publishes, never writes"
+  "events.js": "the gate itself — publishes, never writes",
+  "migrate.js": "the rename's migration (3.0.0): a document's legacy flag scope moved under the new id, the old emanation behaviours retyped, the old world settings copied — no record and no moment; its writes carry the migration mark and the dispatcher drops their hooks"
 };
 
 /**

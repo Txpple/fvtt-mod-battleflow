@@ -32,7 +32,7 @@ const f = await connectSuite({ tag: 'riders', watchdogMs: 300_000 });
 announcePlan('riders', plan, pulled);
 
 const out = await f.evaluate(async ({ sections, titles }) => {
-  const MOD = 'fvtt-mod-battleflow';
+  const MOD = 'fvtt-mod-bythebooks';
   const results = [];
   const log = [];
   const skips = [];
@@ -60,12 +60,12 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     reactionHold: game.settings.get(MOD, 'reactionHold'),
   };
 
-  const scene = game.scenes.getName('Battle Flow Test Range');
-  const attacker = game.actors.getName('BF Test Attacker');
-  const victim = game.actors.getName('BF Test Victim');
-  const bystander = game.actors.getName('BF Test Shielder'); // stands in as a SECOND marker
+  const scene = game.scenes.getName('By the Books Test Range');
+  const attacker = game.actors.getName('BTB Test Attacker');
+  const victim = game.actors.getName('BTB Test Victim');
+  const bystander = game.actors.getName('BTB Test Shielder'); // stands in as a SECOND marker
   if (!scene || !attacker || !victim || !bystander) {
-    return { fatal: 'missing fixture: scene "Battle Flow Test Range" or a BF Test actor' };
+    return { fatal: 'missing fixture: scene "By the Books Test Range" or a BTB Test actor' };
   }
 
   const created = { items: [], effects: [], tokens: [], messages: [] };
@@ -144,7 +144,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
 
     const weapon = attacker.items.find(i => i.system?.activities?.some?.(a => a.type === 'attack'));
     const activity = () => attacker.items.get(weapon.id).system.activities.find(a => a.type === 'attack');
-    if (!weapon) return { fatal: 'BF Test Attacker has no attack activity' };
+    if (!weapon) return { fatal: 'BTB Test Attacker has no attack activity' };
     log.push(`weapon: ${weapon.name}`);
 
     // ---- LINKED tokens, so token.actor IS the base actor and the uuid test is unambiguous

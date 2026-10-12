@@ -1,8 +1,8 @@
 /**
- * Battle Flow — Sneak Attack: the dice ride the damage, Cunning Strike costs come off first, the
+ * By the Books — Sneak Attack: the dice ride the damage, Cunning Strike costs come off first, the
  * effects go through the saves machine, once per turn is a chit. Split shape (ARCHITECTURE.md §7).
  */
-import { MODULE_ID, TITLE, activeCombatFor, drivesMomentFor, queueFlagWrite, statContext } from "./core.js";
+import { MODULE_ID, readFlag, TITLE, activeCombatFor, drivesMomentFor, queueFlagWrite, statContext } from "./core.js";
 import { verdictsOn } from "./decide/demand.js";
 import { lower, featureNamed, namesAnswering } from "./lookup.js";
 import { registerResumable, registerOfferPart } from "./ui.js";
@@ -45,7 +45,7 @@ function cunningDC(actor, activity = null) {
 
 /** The armed, not-yet-rolled Sneak Attack on an attack message, or null. */
 function sneakArmedOn(attackMessage) {
-  const s = attackMessage?.getFlag(MODULE_ID, "sneak");
+  const s = readFlag(attackMessage, "sneak");
   return (s?.armed && !s.rolled) ? s : null;
 }
 
@@ -180,7 +180,7 @@ const effectsRun = new Set();
 // The damage message landing, on its author's client. ⚠ `dnd5e.rollDamage` does not reliably hand over the message.
 listen("createChatMessage", "sneak", message => {
   if ( !message.isAuthor ) return;
-  const sd = message.getFlag(MODULE_ID, "sneakDamage");
+  const sd = readFlag(message, "sneakDamage");
   if ( !sd || sd.effectsDone || effectsRun.has(message.id) ) return;
   effectsRun.add(message.id);
   void runCunningEffects(message, sd, null);
@@ -239,8 +239,8 @@ async function runCunningEffects(damageMessage, sd, activity) {
 const followups = new Set();
 
 async function settleCunningFollowups(card) {
-  const cunning = card.getFlag(MODULE_ID, "cunning");
-  const saves = card.getFlag(MODULE_ID, "saves");
+  const cunning = readFlag(card, "cunning");
+  const saves = readFlag(card, "saves");
   const verdicts = verdictsOn(saves);
   if ( !cunning?.onFail || !verdicts.length ) return;
   if ( !drivesMomentFor(saves.sourceUuid ?? null) ) return;
@@ -278,14 +278,14 @@ async function settleCunningFollowups(card) {
 // The follow-up on a failed save: on the answer's write and on reload, never at birth (no verdict yet).
 registerResumable("cunning", {
   pending: (flag, _message, cause) => (cause !== "create") && !!flag.onFail,
-  drives: (_flag, message) => drivesMomentFor(message.getFlag(MODULE_ID, "saves")?.sourceUuid ?? null),
+  drives: (_flag, message) => drivesMomentFor(readFlag(message, "saves")?.sourceUuid ?? null),
   drive: settleCunningFollowups
 });
 
 /* --- the cards say it (R5) -------------------------------------------------------------------- */
 
 listen("dnd5e.renderChatMessage", "sneak", (message, html) => {
-  const sd = message.getFlag(MODULE_ID, "sneakDamage");
+  const sd = readFlag(message, "sneakDamage");
   if ( sd ) {
     const picks = sd.cunning ?? [];
     const line = document.createElement("div");
@@ -302,7 +302,7 @@ listen("dnd5e.renderChatMessage", "sneak", (message, html) => {
     });
     html.querySelector(SURFACES.messageContent)?.appendChild(line);
   }
-  const cunning = message.getFlag(MODULE_ID, "cunning");
+  const cunning = readFlag(message, "cunning");
   if ( cunning ) {
     const line = document.createElement("div");
     line.innerHTML = bfCard({

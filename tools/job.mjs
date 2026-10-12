@@ -14,7 +14,7 @@
  * The body runs as `async (arg, log) => { … }` in the GM client's page: `game`, `canvas`,
  * `fromUuid`, every global the suites use. `log(...)` collects lines that print with the result.
  * Return a JSON-able value. Exit 0 on a result, 1 when the body threw, 3 on the watchdog.
- * ⚠ It MUTATES whatever the body mutates, as the suite identity, on the sandbox (BF_HOST for another
+ * ⚠ It MUTATES whatever the body mutates, as the suite identity, on the sandbox (BTB_HOST for another
  * instance, deliberately). One job at a time: the suite lock refuses a job beside a battery.
  */
 import { readFileSync } from "node:fs";

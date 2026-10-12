@@ -1,6 +1,6 @@
 // @ts-check
 /**
- * Battle Flow — DECISION: an emanation's reach, range and member effect, the SOURCE's numbers read in
+ * By the Books — DECISION: an emanation's reach, range and member effect, the SOURCE's numbers read in
  * (the platform would resolve against the wearer). Pure (ARCHITECTURE.md §2); RULINGS *Emanations*.
  */
 
@@ -435,7 +435,7 @@ export function memberEffectData(row, effect, { sourceName, itemUuid, regionId, 
   return {
     name: `${effect.name} — ${sourceName}`,
     img: effect.img ?? "icons/svg/aura.svg",
-    description: `${rule}<p>${row.key}: ${esc(sourceName)}'s emanation. Battle Flow keeps this while the creature stands inside it.</p>`,
+    description: `${rule}<p>${row.key}: ${esc(sourceName)}'s emanation. By the Books keeps this while the creature stands inside it.</p>`,
     origin: itemUuid ?? null,
     disabled: false, transfer: false,
     ...(status ? { statuses: [status] } : {}),

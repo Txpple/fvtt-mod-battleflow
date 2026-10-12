@@ -5,7 +5,7 @@ import { connectSuite, disposeSafely, loadEnv } from "./harness.mjs";
 const env = loadEnv();
 const f = await connectSuite({ tag: "probe-web", watchdogMs: 120_000, requireElect: false, env });
 const out = await f.evaluate(async () => {
-  const MOD = "fvtt-mod-battleflow";
+  const MOD = "fvtt-mod-bythebooks";
   const info = { casters: [] };
   for ( const actor of game.actors ) {
     const web = actor.items.find(i => i.name === "Web");
@@ -25,7 +25,7 @@ const out = await f.evaluate(async () => {
   const cards = game.messages.contents.filter(m => m.getFlag(MOD, "saves") && /web/i.test(m.getFlag(MOD, "saves")?.item?.name ?? "")).slice(-2);
   info.cards = cards.map(m => ({ id: m.id, saves: m.getFlag(MOD, "saves"), effectReceipt: m.getFlag(MOD, "effectReceipt") ?? null,
     itemUuid: m.system?.item?.uuid ?? null, activityUuid: m.system?.activity?.uuid ?? null }));
-  const dummy = game.actors.getName("BF Test Dummy");
+  const dummy = game.actors.getName("BTB Test Dummy");
   info.dummyEffects = dummy?.effects.map(e => ({ name: e.name, statuses: [...e.statuses], origin: e.origin })) ?? null;
   return info;
 }, null);

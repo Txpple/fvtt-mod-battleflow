@@ -4,9 +4,9 @@
 // Mirror Image's duplicates rolled on a hit that stands (a duplicate destroyed and the hit absorbed; the hit
 // through on low dice; the last duplicate ending it; an attacker with Blindsight rolling nothing).
 //
-// Fixtures: BF Test Attacker (the goblin) swings a lent club with FLAT damage (no damage dice, so the PRNG
-// queue is the d20 then the d6s); BF Test Victim wears Sanctuary's Warded from BF Test Cleric's lent spell;
-// BF Test Sorcerer wears Mirror Image's three duplicates from its own lent spell. Settings, lent items,
+// Fixtures: BTB Test Attacker (the goblin) swings a lent club with FLAT damage (no damage dice, so the PRNG
+// queue is the d20 then the d6s); BTB Test Victim wears Sanctuary's Warded from BTB Test Cleric's lent spell;
+// BTB Test Sorcerer wears Mirror Image's three duplicates from its own lent spell. Settings, lent items,
 // effects, hit points, the tokens and messages are put back.
 //
 // Sections: `--section 2`, `--list`. Fixtures and teardown ALWAYS run.
@@ -29,7 +29,7 @@ const SECTIONS = {
   6: 'Mirror Image: every die under 3 — the hit gets through, the damage applies, every duplicate stands',
   7: 'Mirror Image: one duplicate left and a 3 or higher — the last is destroyed and the card says the spell ended',
   8: 'Mirror Image: the attacker has Blindsight — no dice, no hold for it, a card says it sees through',
-  9: 'a PLAYER CHARACTER (BF Test Fighter) at the warded Victim: gated, its save rolled by the elect, the attack made again on a pass'
+  9: 'a PLAYER CHARACTER (BTB Test Fighter) at the warded Victim: gated, its save rolled by the elect, the attack made again on a pass'
 };
 const DEPENDS = {};
 
@@ -38,7 +38,7 @@ const f = await connectSuite({ tag: 'wards', watchdogMs: 600_000 });
 announcePlan('wards', plan, pulled);
 
 const out = await f.evaluate(async ({ sections, titles }) => {
-  const MOD = 'fvtt-mod-battleflow';
+  const MOD = 'fvtt-mod-bythebooks';
   const results = [];
   const log = [];
   const skips = [];
@@ -53,7 +53,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
 
   const mod = game.modules.get(MOD);
   if (!mod?.active) return { fatal: `module active=${mod?.active}` };
-  const { WARDS, DUPLICATES } = await import('/modules/fvtt-mod-battleflow/scripts/decide/registry.js');
+  const { WARDS, DUPLICATES } = await import('/modules/fvtt-mod-bythebooks/scripts/decide/registry.js');
   if (!WARDS?.Sanctuary || !DUPLICATES?.['Mirror Image']) return { fatal: 'WARDS / DUPLICATES are not in the loaded code — OLD code (reload the box)' };
 
   const SETTING_KEYS = ['autoDamage', 'autoApply', 'playerRollDamage', 'damageTimer', 'dramaticBeat', 'requireTarget',
@@ -62,12 +62,12 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   const prior = Object.fromEntries(SETTING_KEYS.map(k => [k, game.settings.get(MOD, k)]));
   const set = (k, v) => game.settings.set(MOD, k, v);
 
-  const scene = game.scenes.getName('Battle Flow Test Range');
-  const attacker = game.actors.getName('BF Test Attacker');
-  const victim = game.actors.getName('BF Test Victim');
-  const cleric = game.actors.getName('BF Test Cleric');
-  const sorcerer = game.actors.getName('BF Test Sorcerer');
-  if (!scene || !attacker || !victim || !cleric || !sorcerer) return { fatal: 'missing fixture: the test range, BF Test Attacker, BF Test Victim, BF Test Cleric or BF Test Sorcerer — run tools/fixture-suite.mjs' };
+  const scene = game.scenes.getName('By the Books Test Range');
+  const attacker = game.actors.getName('BTB Test Attacker');
+  const victim = game.actors.getName('BTB Test Victim');
+  const cleric = game.actors.getName('BTB Test Cleric');
+  const sorcerer = game.actors.getName('BTB Test Sorcerer');
+  if (!scene || !attacker || !victim || !cleric || !sorcerer) return { fatal: 'missing fixture: the test range, BTB Test Attacker, BTB Test Victim, BTB Test Cleric or BTB Test Sorcerer — run tools/fixture-suite.mjs' };
 
   const created = { tokens: [], items: {} };
   const priorActor = {};
@@ -111,7 +111,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       await attacker.update({ 'system.attributes.senses': priorSenses });
       game.user.targets.forEach(t => { t.setTarget(false, { releaseOthers: true }); });
       const mine = game.messages.filter(m => (m.timestamp >= suiteStart)
-        && (m.speaker?.alias?.startsWith?.('BF Test') || m.speaker?.alias === 'Battle Flow' || Object.keys(m.flags?.[MOD] ?? {}).length));
+        && (m.speaker?.alias?.startsWith?.('BTB Test') || m.speaker?.alias === 'By the Books' || Object.keys(m.flags?.[MOD] ?? {}).length));
       if (mine.length) await ChatMessage.deleteDocuments(mine.map(m => m.id));
     } catch (err) {
       log.push(`TEARDOWN ERROR: ${err?.message}`);
@@ -175,7 +175,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       return null;
     };
     // The goblin's club: FLAT damage, so the only dice on the table are the d20 and the duplicates' d6s.
-    const [club] = await attacker.createEmbeddedDocuments('Item', [{ name: 'BF Test Club', type: 'weapon', system: {
+    const [club] = await attacker.createEmbeddedDocuments('Item', [{ name: 'BTB Test Club', type: 'weapon', system: {
       type: { value: 'simpleM' }, equipped: true, proficient: 1,
       damage: { base: { number: 0, denomination: 0, custom: { enabled: true, formula: '1' }, types: ['bludgeoning'] } },
       activities: { bfclub0000000000: { type: 'attack', _id: 'bfclub0000000000', name: 'Attack', attack: { ability: 'str', type: { value: 'melee', classification: 'weapon' } },
@@ -381,9 +381,9 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     if (want(9)) {
       await clearWards(); await clearDupes();
       await wear(victim, sanctuary, ['Warded']);
-      const fighter = game.actors.getName('BF Test Fighter');
+      const fighter = game.actors.getName('BTB Test Fighter');
       const weapon = fighter?.items.find(i => (i.type === 'weapon') && i.system.activities?.some?.(a => a.type === 'attack'));
-      if (!fighter || !weapon) { ok('9-. BF Test Fighter with a weapon', false, 'missing'); }
+      if (!fighter || !weapon) { ok('9-. BTB Test Fighter with a weapon', false, 'missing'); }
       else {
         const { token: ftrTok } = await placeToken(fighter, 1300, 1700);
         priorActor[fighter.id] = { 'system.abilities.wis.save.roll.bonus': fighter.system._source.abilities?.wis?.save?.roll?.bonus ?? '' };

@@ -1,10 +1,10 @@
 /**
- * Battle Flow — resource use notices: "used [ability], x of y remaining" as a screen flash plus a
+ * By the Books — resource use notices: "used [ability], x of y remaining" as a screen flash plus a
  * line on the usage card, read by every client off `system.deltas`. THE RHYTHM GATE: only a pool
  * that recovers on a rest announces (no name list). Player-owned actors only; NPC pools stay secret.
  * The elect also stamps a `spend` flag for the ledger.
  */
-import { MODULE_ID, TITLE, S, setting, isActiveGM, statContext } from "./core.js";
+import { MODULE_ID, readFlag, TITLE, S, setting, isActiveGM, statContext } from "./core.js";
 import { poolSpendsOn } from "./shared.js";
 import { esc, spendLine } from "./decide/present.js";
 import { SURFACES } from "./surfaces.js";
@@ -138,7 +138,7 @@ listen("updateChatMessage", "resources", message => {
 
 listen("createChatMessage", "resources", message => {
   if ( !isActiveGM() ) return;
-  if ( message.getFlag(MODULE_ID, "spend") ) return;   // never re-stamp
+  if ( readFlag(message, "spend") ) return;   // never re-stamp
   const rows = spendRows(message);
   const slots = slotRows(message);
   if ( !rows.length && !slots.length ) return;

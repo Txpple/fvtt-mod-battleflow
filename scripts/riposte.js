@@ -1,8 +1,8 @@
 /**
- * Battle Flow — MACHINE (ARCHITECTURE.md §7): Riposte, the `riposte` fold. An enemy's melee miss
+ * By the Books — MACHINE (ARCHITECTURE.md §7): Riposte, the `riposte` fold. An enemy's melee miss
  * answered with a real driven attack, the superiority die riding its damage (why a fold: precision.js).
  */
-import { MODULE_ID, TITLE, isActiveGM, queueFlagWrite, canAnswerFor, statContext, decisionWindow } from "./core.js";
+import { MODULE_ID, readFlag, TITLE, isActiveGM, queueFlagWrite, canAnswerFor, statContext, decisionWindow } from "./core.js";
 import { cardActivity, resolveUuid, usableManeuver, maneuverDieFormula, meleeOptions, preferredMeleeOption } from "./lookup.js";
 import { maneuverFoldEntries } from "./decide/registry.js";
 import { RULE_TEXT } from "./decide/registry.js";
@@ -27,8 +27,8 @@ listen("createChatMessage", "riposte", async message => {
   try {
     if ( !isActiveGM() ) return;
     if ( !isCard(message, CARD.attack) ) return;
-    if ( message.getFlag(MODULE_ID, "riposte") ) return;               // never re-stamp
-    if ( message.getFlag(MODULE_ID, "riposteFor") ) return;            // a driven attack never chains re-offers
+    if ( readFlag(message, "riposte") ) return;               // never re-stamp
+    if ( readFlag(message, "riposteFor") ) return;            // a driven attack never chains re-offers
     const entry = maneuverFoldEntries().find(e => e.kind === "riposte");
     if ( !entry ) return;
     const attackActivity = cardActivity(message, activityUuidOf(message));
@@ -75,7 +75,7 @@ listen("createChatMessage", "riposte", async message => {
 
 /* Per-reactor answers don't fit armAskTimer's single-answer shape: a per-target gate on the raw clock. */
 function armRiposteTimer(message) {
-  const flag = message?.getFlag(MODULE_ID, "riposte");
+  const flag = readFlag(message, "riposte");
   if ( !flag?.deadline || (flag.status !== "pending") || !isActiveGM() ) return;
   if ( !(flag.reactors ?? []).some(r => !r.answer) ) return;
   armDeadline(riposteTimers, message.id, flag.deadline, fireRiposteTimer);
@@ -104,7 +104,7 @@ async function fireRiposteTimer(messageId) {
  * message, so their answer relays as their OWN message; the elect's 20s crash-resume covers a dead client. */
 async function answerRiposte(message, uuid, answer, { weaponId = null, weaponName = null } = {}) {
   if ( !message.isOwner ) {
-    const live = message.getFlag(MODULE_ID, "riposte");
+    const live = readFlag(message, "riposte");
     const reactor = live?.reactors?.find(x => x.uuid === uuid);
     if ( !reactor || reactor.answer || (live.status !== "pending") ) return;
     const actor = resolveUuid(uuid);
@@ -156,7 +156,7 @@ registerRelay("riposteAnswer", {
 
 /** Has this reactor's driven attack already been made? The provenance flags ARE the receipt. */
 const riposteDriven = (messageId, uuid) => game.messages.contents.some(m =>
-  (m.getFlag(MODULE_ID, "riposteFor") === messageId) && (m.getFlag(MODULE_ID, "riposteBy") === uuid));
+  (readFlag(m, "riposteFor") === messageId) && (readFlag(m, "riposteBy") === uuid));
 
 /** The accept path: use the maneuver, spend the reaction, arm the die, drive the attack. `trusted`:
  * the relay branch trusts its own just-posted answer rather than wait for the elect's fold. */
@@ -165,7 +165,7 @@ async function resolveRiposte(message, uuid, weaponId, { trusted = false } = {})
   if ( riposteInFlight.has(key) ) return;
   riposteInFlight.add(key);
   try {
-    const flag = message.getFlag(MODULE_ID, "riposte");
+    const flag = readFlag(message, "riposte");
     const reactor = flag?.reactors?.find(r => r.uuid === uuid);
     if ( !reactor ) return;
     if ( !trusted && (reactor.answer !== "riposte") ) return;
@@ -243,7 +243,7 @@ listen("dnd5e.preRollDamage", "riposte", (config, _dialog, message) => {
       if ( origin ) {
         const chainAttacks = isCard(origin, CARD.attack)
           ? [origin] : (origin.getAssociatedRolls?.("attack") ?? []);
-        if ( !chainAttacks.some(a => a.getFlag(MODULE_ID, "riposteFor")) ) return;
+        if ( !chainAttacks.some(a => readFlag(a, "riposteFor")) ) return;
       }
     }
     riposteDie.delete(actor.uuid);   // one-shot, consumed
@@ -265,12 +265,12 @@ listen("dnd5e.rollAttack", "riposte", async rolls => {
   try {
     const message = rolls?.[0]?.parent;
     if ( !(message instanceof ChatMessage) ) return;
-    const riposteFor = message.getFlag(MODULE_ID, "riposteFor");
+    const riposteFor = readFlag(message, "riposteFor");
     if ( !riposteFor ) return;
     if ( hitTargets(message).length ) return;   // the hit's moment is the damage offer
     const reactor = message.getAssociatedActor?.();
-    const held = game.messages.get(riposteFor)?.getFlag(MODULE_ID, "riposte");
-    const r = held?.reactors?.find(x => x.uuid === message.getFlag(MODULE_ID, "riposteBy"));
+    const held = readFlag(game.messages.get(riposteFor), "riposte");
+    const r = held?.reactors?.find(x => x.uuid === readFlag(message, "riposteBy"));
     await ChatMessage.create({
       speaker: ChatMessage.getSpeaker({ actor: reactor }),
       content: bfCard({
@@ -332,10 +332,10 @@ async function showRipostePopup(message, flag, reactor) {
 
 listen("dnd5e.renderChatMessage", "riposte", (message, html) => {
   // --- Riposte: one row per reactor on the enemy's attack card ------------------------------
-  const r = message.getFlag(MODULE_ID, "riposte");
+  const r = readFlag(message, "riposte");
   if ( r?.reactors?.length ) {
     const row = document.createElement("div");
-    row.className = "battleflow-maneuver";
+    row.className = "bythebooks-maneuver";
     const pending = r.status === "pending";
     for ( const reactor of r.reactors ) {
       const line = document.createElement("div");
@@ -362,7 +362,7 @@ listen("dnd5e.renderChatMessage", "riposte", (message, html) => {
             void showRipostePopup(message, r, reactor);
           }
           row.appendChild(momentButton(`Answer — ${reactor.name}`, () => {
-            const live = message.getFlag(MODULE_ID, "riposte");
+            const live = readFlag(message, "riposte");
             const lr = live?.reactors?.find(x => x.uuid === reactor.uuid);
             if ( live && lr && !lr.answer ) void showRipostePopup(message, live, lr);
           }));
@@ -386,7 +386,7 @@ listen("dnd5e.renderChatMessage", "riposte", (message, html) => {
 
 // Every client closes answered popups; the timers disarm when nothing is pending.
 listen("updateChatMessage", "riposte", message => {
-  const r = message.getFlag(MODULE_ID, "riposte");
+  const r = readFlag(message, "riposte");
   if ( r ) {
     for ( const reactor of r.reactors ?? [] ) {
       if ( !reactor.answer ) continue;

@@ -1,5 +1,5 @@
 // CLAIM PROOF — did each file a suite CLAIMS to cover (tools/coverage-map.mjs) actually ACT there?
-// The harness counts every `battleflow.moment` per suite by `kind`; a file whose kind was published
+// The harness counts every `bythebooks.moment` per suite by `kind`; a file whose kind was published
 // in its claiming suite is proven, and the same ledger read backwards finds a missing claim.
 //   - PROVEN               a kind only this file writes was published.
 //   - PROVEN (shared kind) only kinds other files also write (or WORLD_WRITERS pins) were published.

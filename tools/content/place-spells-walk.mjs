@@ -1,8 +1,8 @@
-// Build the spells slice's walk scene (RULINGS *The spells slice — Tiers 1 and 2*, *Tier 3*) on its own scene, Battle Flow Walk.
-// CLEARS every token on the walk scene, then places BF Walk Cleric (friendly; every spell of the slice at
-// will, Cure Wounds beside them) with two targets 5 ft east of it: BF Walk Target (hostile — the
-// one Hold Person, Command and the rest land on) and BF Walk Ally (friendly — Heroism, Beacon of Hope
-// and Protection from Poison go on it). The targets are CLEAN copies of BF Test Victim's shape with
+// Build the spells slice's walk scene (RULINGS *The spells slice — Tiers 1 and 2*, *Tier 3*) on its own scene, By the Books Walk.
+// CLEARS every token on the walk scene, then places BTB Walk Cleric (friendly; every spell of the slice at
+// will, Cure Wounds beside them) with two targets 5 ft east of it: BTB Walk Target (hostile — the
+// one Hold Person, Command and the rest land on) and BTB Walk Ally (friendly — Heroism, Beacon of Hope
+// and Protection from Poison go on it). The targets are CLEAN copies of BTB Test Victim's shape with
 // plenty of Hit Points, linked tokens; the Target carries a Morningstar for Sanctuary's and Mirror
 // Image's walk (Tier 3); idempotent; asserts nothing.
 // ⚠ Disconnect the MCP bridge first.
@@ -13,7 +13,7 @@ const out = await f.evaluate(async () => {
   const log = [];
   // ⚠ The walk's OWN scene, built here, never a campaign's map (2026-10-07: these once cleared a campaign scene).
   // 4200 × 3500 at a 140 px grid: every SPOT below is in that grid's squares.
-  const WALK = 'Battle Flow Walk';
+  const WALK = 'By the Books Walk';
   let scene = game.scenes.getName(WALK);
   if (!scene) {
     const sceneFolder = game.folders.find(x => (x.name === 'Test Suite') && (x.type === 'Scene'))
@@ -23,8 +23,8 @@ const out = await f.evaluate(async () => {
       ownership: { default: 2 } });
     log.push(`created the ${WALK} scene`);
   }
-  const cleric = game.actors.getName('BF Test Cleric');
-  if (!cleric) return { error: 'BF Test Cleric is missing — run fixture-suite first' };
+  const cleric = game.actors.getName('BTB Test Cleric');
+  if (!cleric) return { error: 'BTB Test Cleric is missing — run fixture-suite first' };
   const folder = game.folders.find(x => (x.name === 'Test Suite') && (x.type === 'Actor'))
     ?? await Folder.create({ name: 'Test Suite', type: 'Actor', color: '#4b5563' });
 
@@ -48,9 +48,9 @@ const out = await f.evaluate(async () => {
   log.push(`cleared ${ids.length} token(s) from the walk scene`);
 
   // --- 2. the walk's actors, rebuilt fresh
-  const CASTER = 'BF Walk Cleric';
-  const TARGET = 'BF Walk Target';
-  const ALLY = 'BF Walk Ally';
+  const CASTER = 'BTB Walk Cleric';
+  const TARGET = 'BTB Walk Target';
+  const ALLY = 'BTB Walk Ally';
   const stale = game.actors.filter(a => [CASTER, TARGET, ALLY].includes(a.name)).map(a => a.id);
   if (stale.length) await Actor.deleteDocuments(stale);
   if (stale.length) log.push(`rebuilt: ${stale.length} earlier walk actor(s) deleted`);
@@ -70,7 +70,7 @@ const out = await f.evaluate(async () => {
     o.folder = folder.id;
     o.items = o.items.filter(i => (i.type === 'class') || (i.type === 'subclass') || (i.type === 'equipment') || (i.type === 'weapon'));
     o.effects = [];
-    if (o.flags) { delete o.flags['fvtt-mod-battleflow']; delete o.flags.battleflow; }
+    if (o.flags) { delete o.flags['fvtt-mod-bythebooks']; delete o.flags.bythebooks; }
     for (const name of SPELLS) {
       const it = await phb(name, 'spell');
       if (!it) continue;

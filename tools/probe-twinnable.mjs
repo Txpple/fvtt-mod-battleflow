@@ -13,8 +13,8 @@ const USER_LIST = ["Chain Lightning", "Charm Person", "Jump", "Longstrider", "Bl
   "Animal Friendship", "Bane", "Bless", "Command", "Heroism"];
 const f = await connectSuite({ tag: "probe-twinnable", watchdogMs: 300_000, requireElect: false, env: loadEnv() });
 const out = await f.evaluate(async () => {
-  const decide = await import("/modules/fvtt-mod-battleflow/scripts/decide/metamagic.js");
-  const reg = await import("/modules/fvtt-mod-battleflow/scripts/decide/registry.js");
+  const decide = await import("/modules/fvtt-mod-bythebooks/scripts/decide/metamagic.js");
+  const reg = await import("/modules/fvtt-mod-bythebooks/scripts/decide/registry.js");
   const rows = [];
   for (const pack of game.packs) {
     if (pack.documentName !== "Item") continue;

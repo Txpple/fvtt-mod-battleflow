@@ -1,5 +1,5 @@
 // Attack-chain smoke suite: hit → auto damage roll → auto apply → receipt → revert (real DOM
-// click) → immunity receipt → miss → silence. Fixtures live on the "Battle Flow Test Range"
+// click) → immunity receipt → miss → silence. Fixtures live on the "By the Books Test Range"
 // scene, viewed locally, never activated. Settings are restored at the end.
 // ⚠ The settings pin (§1), fixtures (§2) and restore (§6) always run; sections gate in Node.
 import { announcePlan, connectSuite, loadEnv, sectionPlan } from './harness.mjs';
@@ -8,7 +8,10 @@ import { announcePlan, connectSuite, loadEnv, sectionPlan } from './harness.mjs'
 export const COVERS = [
   'receipts.js',            // §4 / §4b / §4c — the revert row, clicked
   'polish.js',              // §5b — the card always posts, the no-target gate
-  'stats.js'                // §3b / §3c — the data-plane stamps, the death save's rollCtx
+  'stats.js',               // §3b / §3c — the data-plane stamps, the death save's rollCtx
+  // Nothing drives the rename's migration on purpose (a sandbox carries no legacy scope): it scans on
+  // every GM load and finds nothing, and this suite is the battery's first load — the nearest claim.
+  'migrate.js'
 ];
 
 const SECTIONS = {
@@ -42,7 +45,7 @@ const report = (name, ok, detail = '') => {
 let priorSettings = null;
 {
   const r = await f.evaluate(async () => {
-    const MOD = 'fvtt-mod-battleflow';
+    const MOD = 'fvtt-mod-bythebooks';
     const mod = game.modules.get(MOD);
     if (!mod?.active) return { ok: false, why: `module active=${mod?.active}` };
     // The table's current settings, restored at the end (not hardcoded defaults).
@@ -65,10 +68,10 @@ let priorSettings = null;
     await game.settings.set(MOD, 'effectRiders', false);
     await game.settings.set(MOD, 'masteryRiders', false);
     // Scrub any reaction the hold suite left: a stray Shield holds every attack.
-    for (const name of ['BF Test Victim', 'BF Test Attacker']) {
+    for (const name of ['BTB Test Victim', 'BTB Test Attacker']) {
       const a = game.actors.getName(name);
       for (const it of a?.items.filter(i => i.type === 'spell' && i.name === 'Shield') ?? []) await it.delete();
-      const tok = game.scenes.getName('Battle Flow Test Range')?.tokens.find(t => t.actorId === a?.id);
+      const tok = game.scenes.getName('By the Books Test Range')?.tokens.find(t => t.actorId === a?.id);
       const ta = tok?.actor;
       if (ta && ta !== a) {
         for (const it of ta.items.filter(i => i.type === 'spell' && i.name === 'Shield')) await it.delete();
@@ -102,10 +105,10 @@ const fx = await f.evaluate(async () => {
   const out = { log: [] };
   try {
     // Scene (idempotent by name; local view only — activation would move the players).
-    let scene = game.scenes.getName('Battle Flow Test Range');
+    let scene = game.scenes.getName('By the Books Test Range');
     if (!scene) {
       scene = await Scene.create({
-        name: 'Battle Flow Test Range', width: 2000, height: 2000,
+        name: 'By the Books Test Range', width: 2000, height: 2000,
         grid: { size: 100 }, padding: 0, backgroundColor: '#333333',
         tokenVision: false, fog: { exploration: false },
       });
@@ -113,7 +116,7 @@ const fx = await f.evaluate(async () => {
     }
 
     // Actors (idempotent by name; imported from the first monster pack carrying a goblin).
-    const wanted = { attacker: 'BF Test Attacker', victim: 'BF Test Victim' };
+    const wanted = { attacker: 'BTB Test Attacker', victim: 'BTB Test Victim' };
     const actors = {};
     for (const [role, name] of Object.entries(wanted)) {
       actors[role] = game.actors.getName(name) ?? null;
@@ -186,7 +189,7 @@ const fx = await f.evaluate(async () => {
 }, null);
 report('fixtures (scene, actors, tokens, canvas)', fx.ok, fx.ok ? `${fx.itemName}; ${fx.log.join('; ') || 'reused'}` : fx.why);
 if (!fx.ok) { process.exit(1); }
-// The player TEST account's name rides into §5c so BF Test PC Attacker can be granted to it.
+// The player TEST account's name rides into §5c so BTB Test PC Attacker can be granted to it.
 { const e = loadEnv(); fx.playerName = e.FOUNDRY_PLAYER_USER ?? null; }
 
 // ---- 3. the hit chain
@@ -232,13 +235,13 @@ if (want('3')) {
         damageMsg = game.messages.contents.slice(-10).find(m =>
           (m.type === 'damage')
           && (m._source.system?.origin === usageId)
-          && m.getFlag('fvtt-mod-battleflow', 'receipt'));
+          && m.getFlag('fvtt-mod-bythebooks', 'receipt'));
       }
       if (!damageMsg) {
         const tail = game.messages.contents.slice(msgCount).map(m => ({
           id: m.id, type: m.type,
           origin: m._source.system?.origin ?? null,
-          bf: !!m.getFlag('fvtt-mod-battleflow', 'receipt'),
+          bf: !!m.getFlag('fvtt-mod-bythebooks', 'receipt'),
         }));
         return { ok: false, fumble, why: fumble
           ? `THE FORCED HIT MISSED: natural 1 on both advantage dice vs flat AC 1 (a 1-in-400 `
@@ -248,7 +251,7 @@ if (want('3')) {
             + `tail=${JSON.stringify(tail)}` };
       }
 
-      const receipt = damageMsg.getFlag('fvtt-mod-battleflow', 'receipt');
+      const receipt = damageMsg.getFlag('fvtt-mod-bythebooks', 'receipt');
       const entry = receipt.targets.find(t => t.uuid === victim.uuid);
       const hp1 = victim.system._source.attributes.hp;
       const damageTotal = damageMsg.rolls.reduce((n, r) => n + r.total, 0);
@@ -307,13 +310,13 @@ if (want('3b')) {
           damageMsg = game.messages.contents.slice(-10).find(m =>
             (m.type === 'damage')
             && (m._source.system?.origin === usageId)
-            && m.getFlag('fvtt-mod-battleflow', 'receipt'));
+            && m.getFlag('fvtt-mod-bythebooks', 'receipt'));
         }
         if (!damageMsg) {
           return { ok: false, why: `no receipted damage message (fumble=${rolls[0].isFumble ?? false}`
             + ` — a 1-in-400 double fumble is a re-run, not a defect)` };
         }
-        const entry = damageMsg.getFlag('fvtt-mod-battleflow', 'receipt')
+        const entry = damageMsg.getFlag('fvtt-mod-bythebooks', 'receipt')
           .targets.find(t => t.uuid === canvas.tokens.get(victimToken).actor.uuid);
         const c = game.combat;
         return {
@@ -324,7 +327,7 @@ if (want('3b')) {
           parts: entry?.parts ?? null,
           taken: entry?.taken ?? null,
           // rollCtx rides the ATTACK message (async setFlag, landed by the damage poll above).
-          rollCtx: rolls[0]?.parent?.getFlag('fvtt-mod-battleflow', 'rollCtx') ?? null,
+          rollCtx: rolls[0]?.parent?.getFlag('fvtt-mod-bythebooks', 'rollCtx') ?? null,
           // An unlinked-token attack's speaker is the token's synthetic actor, never a name.
           expectedSource: canvas.tokens.get(attackerToken)?.actor?.uuid ?? null,
           expectedStamp: c?.started ? `${c.id}:${c.round}:${c.turn}` : null,
@@ -379,8 +382,8 @@ if (want('3b')) {
         for (let i = 0; i < 24 && !flag; i++) {
           await new Promise(r => setTimeout(r, 250));
           const m = game.messages.contents.findLast(x =>
-            x.getFlag('fvtt-mod-battleflow', 'combatRoster')?.combatId === combatId);
-          flag = m?.getFlag('fvtt-mod-battleflow', 'combatRoster') ?? null;
+            x.getFlag('fvtt-mod-bythebooks', 'combatRoster')?.combatId === combatId);
+          flag = m?.getFlag('fvtt-mod-bythebooks', 'combatRoster') ?? null;
           content = m?.content ?? '';
         }
         return { ok: !!flag, flag, content };
@@ -392,7 +395,7 @@ if (want('3b')) {
         && (roster.flag.endedRound == null),
       JSON.stringify(roster.flag ?? roster.why ?? null));
     report('3b the card NAMES the scene on its begin line, and no end line yet (user ask)',
-      roster.ok && roster.content.includes('Begins on Battle Flow Test Range')
+      roster.ok && roster.content.includes('Begins on By the Books Test Range')
         && !roster.content.includes('Ends on'),
       roster.ok ? 'begin line present, end absent' : (roster.why ?? 'no roster'));
 
@@ -418,9 +421,9 @@ if (want('3b')) {
         for (let i = 0; i < 24 && (closed == null); i++) {
           await new Promise(r => setTimeout(r, 250));
           const m = game.messages.contents.findLast(x =>
-            x.getFlag('fvtt-mod-battleflow', 'combatRoster')?.combatId === combatId);
+            x.getFlag('fvtt-mod-bythebooks', 'combatRoster')?.combatId === combatId);
           markerId = m?.id ?? null;
-          closed = m?.getFlag('fvtt-mod-battleflow', 'combatRoster')?.endedRound ?? null;
+          closed = m?.getFlag('fvtt-mod-bythebooks', 'combatRoster')?.endedRound ?? null;
           content = m?.content ?? '';
         }
         if (markerId) await game.messages.get(markerId)?.delete();
@@ -430,7 +433,7 @@ if (want('3b')) {
     report('3b combat fixture deleted + roster closed with the final round',
       gone.ok && (gone.closed != null), `endedRound=${gone.closed ?? 'never set'}`);
     report('3b the closed card NAMES the scene on its end line too (user ask)',
-      gone.ok && gone.content.includes('Ends on Battle Flow Test Range')
+      gone.ok && gone.content.includes('Ends on By the Books Test Range')
         && gone.content.includes(`round ${gone.closed}`),
       gone.ok ? 'end line present with round count' : (gone.why ?? ''));
   }
@@ -440,10 +443,10 @@ if (want('3b')) {
 // fixture at 0 HP rolls dnd5e's own `rollDeathSave`; out of combat is enough for the shape
 if (want('3c')) {
   const r = await f.evaluate(async () => {
-    const MOD = 'fvtt-mod-battleflow';
+    const MOD = 'fvtt-mod-bythebooks';
     try {
-      const pc = game.actors.getName('BF Test PC Attacker');
-      if (!pc) return { ok: false, why: 'BF Test PC Attacker is not in the world — run tools/fixture-suite.mjs' };
+      const pc = game.actors.getName('BTB Test PC Attacker');
+      if (!pc) return { ok: false, why: 'BTB Test PC Attacker is not in the world — run tools/fixture-suite.mjs' };
       if (!pc.system.attributes?.death) return { ok: false, why: `${pc.name} (${pc.type}) has no death block` };
       const prior = {
         hp: pc.system.attributes.hp.value, temp: pc.system.attributes.hp.temp ?? 0,
@@ -503,7 +506,7 @@ if (want('4')) {
   const r = await f.evaluate(async ({ damageMsgId, victimToken, expectedHp }) => {
     try {
       const button = document.querySelector(
-        `[data-message-id="${damageMsgId}"] .battleflow-receipt button`);
+        `[data-message-id="${damageMsgId}"] .bythebooks-receipt button`);
       if (!button) return { ok: false, why: 'receipt revert button not found in chat DOM' };
       // The applied card's tray must sit collapsed; report every rendered instance (each has its own).
       const trays = Array.from(document.querySelectorAll(
@@ -520,13 +523,13 @@ if (want('4')) {
       let reverted = null;
       for (let i = 0; i < 40 && !reverted; i++) {
         await new Promise(r => setTimeout(r, 250));
-        const flag = game.messages.get(damageMsgId)?.getFlag('fvtt-mod-battleflow', 'receipt');
+        const flag = game.messages.get(damageMsgId)?.getFlag('fvtt-mod-bythebooks', 'receipt');
         if (flag?.targets?.every(t => t.reverted)) reverted = flag;
       }
       if (!reverted) return { ok: false, why: 'reverted marker never set' };
       const hp = victim.system._source.attributes.hp;
       const buttonAfter = document.querySelector(
-        `[data-message-id="${damageMsgId}"] .battleflow-receipt button`);
+        `[data-message-id="${damageMsgId}"] .bythebooks-receipt button`);
       return {
         ok: true, hp: { value: hp.value, temp: hp.temp }, expectedHp,
         buttonGone: !buttonAfter, trayOpen, trays,
@@ -588,11 +591,11 @@ if (want('4b')) {
         damageMsg = game.messages.contents.find(m =>
           (m.type === 'damage')
           && (m._source.system?.origin === usageId)
-          && m.getFlag('fvtt-mod-battleflow', 'receipt'));
+          && m.getFlag('fvtt-mod-bythebooks', 'receipt'));
       }
       if (!damageMsg) return { ok: true, fumble, noDamage: true };
 
-      const entry = damageMsg.getFlag('fvtt-mod-battleflow', 'receipt')
+      const entry = damageMsg.getFlag('fvtt-mod-bythebooks', 'receipt')
         .targets.find(t => t.uuid === victim.uuid);
       const rolled = damageMsg.rolls.reduce((n, r) => n + r.total, 0);
       const hp1 = victim.system._source.attributes.hp.value;
@@ -602,7 +605,7 @@ if (want('4b')) {
       for (let i = 0; i < 20 && !rowText.includes('immune'); i++) {
         await new Promise(r => setTimeout(r, 250));
         rowText = document.querySelector(
-          `[data-message-id="${damageMsg.id}"] .battleflow-receipt`)?.textContent ?? '';
+          `[data-message-id="${damageMsg.id}"] .bythebooks-receipt`)?.textContent ?? '';
       }
       return { ok: true, fumble, rolled, entry, max, hp0, hp1, rowText: rowText.trim(), types: [...types] };
     } catch (err) {
@@ -673,7 +676,7 @@ if (want('4c')) {
         damageMsg = game.messages.contents.slice(-10).find(m =>
           (m.type === 'damage')
           && (m._source.system?.origin === usageId)
-          && m.getFlag('fvtt-mod-battleflow', 'receipt'));
+          && m.getFlag('fvtt-mod-bythebooks', 'receipt'));
       }
       if (!damageMsg) return { ok: false, why: 'no receipted damage message' };
 
@@ -685,18 +688,18 @@ if (want('4c')) {
       }
 
       const button = document.querySelector(
-        `[data-message-id="${damageMsg.id}"] .battleflow-receipt button`);
+        `[data-message-id="${damageMsg.id}"] .bythebooks-receipt button`);
       if (!button) return { ok: false, died, why: 'receipt revert button not found in chat DOM' };
       button.click();
 
       let reverted = null;
       for (let i = 0; i < 40 && !reverted; i++) {
         await new Promise(r => setTimeout(r, 250));
-        const flag = game.messages.get(damageMsg.id)?.getFlag('fvtt-mod-battleflow', 'receipt');
+        const flag = game.messages.get(damageMsg.id)?.getFlag('fvtt-mod-bythebooks', 'receipt');
         if (flag?.targets?.every(t => t.reverted)) reverted = flag;
       }
       const buttonAfter = document.querySelector(
-        `[data-message-id="${damageMsg.id}"] .battleflow-receipt button`);
+        `[data-message-id="${damageMsg.id}"] .bythebooks-receipt button`);
       return {
         ok: true, died, reverted: !!reverted,
         hp: victim.system._source.attributes.hp.value,
@@ -774,7 +777,7 @@ if (want('5')) {
 // no-target gate refuses an untargeted attack
 if (want('5b')) {
   const r = await f.evaluate(async ({ victimId, victimToken, attackerId, itemName }) => {
-    const MOD = 'fvtt-mod-battleflow';
+    const MOD = 'fvtt-mod-bythebooks';
     try {
       const out = {};
       const base = game.actors.get(victimId);
@@ -784,7 +787,7 @@ if (want('5b')) {
         .find(a => a.type === 'attack');
       const usageCards = () => game.messages.contents.filter(m =>
         (m.type === 'usage')
-        && m.speaker?.alias?.startsWith('BF Test'));
+        && m.speaker?.alias?.startsWith('BTB Test'));
 
       // (a) No suppress* setting is registered.
       out.suppressGone = ['suppressAttackCards', 'suppressWeaponCards', 'suppressSpellCards',
@@ -832,11 +835,11 @@ if (want('5c')) {
 
       // A character-type attacker with the NPC's own attack item: the sides differ only in actor.type.
       const npcAttacker = game.actors.get(attackerId);
-      let pcAttacker = game.actors.getName('BF Test PC Attacker');
+      let pcAttacker = game.actors.getName('BTB Test PC Attacker');
       if (!pcAttacker) {
         const weapon = npcAttacker.items.getName(itemName);
         pcAttacker = await Actor.create({
-          name: 'BF Test PC Attacker', type: 'character',
+          name: 'BTB Test PC Attacker', type: 'character',
           items: [weapon.toObject()],
         });
       }
@@ -916,24 +919,24 @@ if (want('5c')) {
 // Keeps its own settings snapshot: it pins playerRollDamage and damageTimer.
 if (want('5d')) {
   const pd = await f.evaluate(async () => {
-    const MOD = 'fvtt-mod-battleflow';
+    const MOD = 'fvtt-mod-bythebooks';
     const sleep = ms => new Promise(r => setTimeout(r, ms));
     const log = [];
 
-    const attacker = game.actors.getName('BF Test Attacker');
-    const victim = game.actors.getName('BF Test Victim');
-    if (!attacker || !victim) return { fatal: 'BF Test fixtures missing — run smoke-battleflow first' };
+    const attacker = game.actors.getName('BTB Test Attacker');
+    const victim = game.actors.getName('BTB Test Victim');
+    if (!attacker || !victim) return { fatal: 'BTB Test fixtures missing — run smoke-bythebooks first' };
 
-    const scene = game.scenes.getName('Battle Flow Test Range') ?? canvas.scene;
+    const scene = game.scenes.getName('By the Books Test Range') ?? canvas.scene;
     if (scene && (canvas.scene?.id !== scene.id)) { await scene.view(); await sleep(1200); }
 
     const vTokens = canvas.tokens.placeables.filter(t => t.actor?.id === victim.id);
-    if (!vTokens.length) return { fatal: 'BF Test Victim has no token — re-run smoke-battleflow' };
+    if (!vTokens.length) return { fatal: 'BTB Test Victim has no token — re-run smoke-bythebooks' };
 
     const activity = attacker.items.contents
       .flatMap(i => i.system.activities?.contents ?? [])
       .find(a => a.type === 'attack');
-    if (!activity) return { fatal: 'BF Test Attacker has no attack activity' };
+    if (!activity) return { fatal: 'BTB Test Attacker has no attack activity' };
 
     const prior = {
       autoDamage: game.settings.get(MOD, 'autoDamage'),
@@ -1009,11 +1012,11 @@ if (want('5d')) {
     // ⚠ A second target needs a DISTINCT ACTOR: descriptors key on the actor uuid, so two tokens
     // of one linked actor collapse to one row. Hidden, AC 1, deleted in teardown.
     const [extra] = await Actor.createDocuments([{
-      name: 'BF Probe Second Target', type: 'npc',
+      name: 'BTB Probe Second Target', type: 'npc',
       system: { attributes: { hp: { value: 30, max: 30 }, ac: { flat: 1, calc: 'flat' } } }
     }]);
     const [extraTokDoc] = await canvas.scene.createEmbeddedDocuments('Token', [{
-      name: 'BF Probe Second Target', actorId: extra.id, actorLink: true,
+      name: 'BTB Probe Second Target', actorId: extra.id, actorLink: true,
       x: canvas.grid.size * 3, y: canvas.grid.size * 3, hidden: true, disposition: -1
     }]);
     await sleep(400);
@@ -1045,7 +1048,7 @@ if (want('5d')) {
       /* 10 — the wait is a table moment: flag stamped, bar on the card too. */
       const offer = attackMsg?.getFlag(MOD, 'damageOffer');
       const cardBar = attackMsg ? document.querySelector(
-        `[data-message-id="${attackMsg.id}"] .battleflow-damage-offer [data-bf-deadline]`) : null;
+        `[data-message-id="${attackMsg.id}"] .bythebooks-damage-offer [data-bf-deadline]`) : null;
       results.push({ n: 10, name: '(w) pending offer — flag stamped, draining bar on the card',
         pass: (offer?.status === 'pending') && (offer?.window === 15)
               && ((offer?.deadline ?? 0) > Date.now()) && !!cardBar,
@@ -1128,7 +1131,7 @@ if (want('5d')) {
               + ((critBefore !== false) ? ' (started critical — assertion skipped, rerun)' : '') });
 
       if (critLever.realWorks) {
-        const mod = await import('/modules/fvtt-mod-battleflow/scripts/auto-damage.js');
+        const mod = await import('/modules/fvtt-mod-bythebooks/scripts/auto-damage.js');
         await mod.offerDamageRoll(activity, attackMsg);
         await sleep(900);
         const popups = popupEls();
@@ -1216,7 +1219,7 @@ if (want('5d')) {
 // damage is critical whatever the d20 said; from 10 feet it is not (a nat 20 there is a flake)
 if (want('5e')) {
   const r = await f.evaluate(async ({ victimId, victimToken, attackerToken, attackerId, itemName }) => {
-    const MOD = 'fvtt-mod-battleflow';
+    const MOD = 'fvtt-mod-bythebooks';
     const sleep = ms => new Promise(r => setTimeout(r, ms));
     const out = { log: [] };
     // ⚠ Wait for the walk, never sleep: a moving token's document x/y are INTERIM while it
@@ -1304,7 +1307,7 @@ if (want('5e')) {
 // ---- 6. restore the table's prior settings + test chat-log cleanup
 {
   const r = await f.evaluate(async prior => {
-    const MOD = 'fvtt-mod-battleflow';
+    const MOD = 'fvtt-mod-bythebooks';
     await game.settings.set(MOD, 'autoDamage', prior?.autoDamage ?? 'off');
     await game.settings.set(MOD, 'autoApply', prior?.autoApply ?? false);
     await game.settings.set(MOD, 'dramaticBeat', prior?.dramaticBeat ?? 0);
@@ -1312,7 +1315,7 @@ if (want('5e')) {
     await game.settings.set(MOD, 'reactionHold', prior?.reactionHold ?? false);
     await game.settings.set(MOD, 'effectRiders', prior?.effectRiders ?? false);
     await game.settings.set(MOD, 'masteryRiders', prior?.masteryRiders ?? false);
-    const testMessages = game.messages.filter(m => m.speaker?.alias?.startsWith('BF Test'));
+    const testMessages = game.messages.filter(m => m.speaker?.alias?.startsWith('BTB Test'));
     await ChatMessage.deleteDocuments(testMessages.map(m => m.id));
     return {
       autoDamage: game.settings.get(MOD, 'autoDamage'),

@@ -64,7 +64,7 @@ const result = await f.evaluate(async () => {
   return { rows, errors, packStats };
 }, null);
 
-const out = process.argv[2] || join(tmpdir(), 'battleflow-reactions-raw.json');
+const out = process.argv[2] || join(tmpdir(), 'bythebooks-reactions-raw.json');
 writeFileSync(out, JSON.stringify(result, null, 2));
 console.log('\n# pack coverage');
 for (const p of result.packStats) console.log(`  ${p.pack}: ${p.indexed} indexed, ${p.reactions} reaction-cost`);

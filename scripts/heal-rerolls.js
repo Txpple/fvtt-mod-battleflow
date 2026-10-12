@@ -1,9 +1,9 @@
 /**
- * Battle Flow — MACHINE (ARCHITECTURE.md §7): THE HEALING REROLLS (HEAL_REROLLS) — every healing 1
+ * By the Books — MACHINE (ARCHITECTURE.md §7): THE HEALING REROLLS (HEAL_REROLLS) — every healing 1
  * is rerolled automatically, never a choice (DESIGN R1). The roll is born `healReroll` DUE and the
  * heal applier waits, so healing lands ONCE; a pack's own `r1` is taken off. A second 1 stands.
  */
-import { MODULE_ID, TITLE, statContext, queueFlagWrite, drivesMomentFor, canAnswerFor } from "./core.js";
+import { MODULE_ID, readFlag, TITLE, statContext, queueFlagWrite, drivesMomentFor, canAnswerFor } from "./core.js";
 import { lower, featureNamed, resolveUuid, activityNamed, cardActivity } from "./lookup.js";
 import { healRerollEntries, listedNames } from "./decide/registry.js";
 import { rebuildRolls, withTargets } from "./shared.js";
@@ -139,7 +139,7 @@ async function selfHeals(message, rolls) {
 }
 
 listen("updateChatMessage", "heal-rerolls", message => {
-  const flag = message.getFlag(MODULE_ID, HEAL_FLAG);
+  const flag = readFlag(message, HEAL_FLAG);
   if ( (flag?.status === "due") && message.isAuthor ) void promote(message);
 });
 
@@ -148,7 +148,7 @@ const healTotal = rolls => (rolls ?? []).filter(r => (r?.options?.type ?? "heali
   .reduce((n, r) => n + (Number(r.total) || 0), 0);
 
 async function promote(message) {
-  const flag = message.getFlag(MODULE_ID, HEAL_FLAG);
+  const flag = readFlag(message, HEAL_FLAG);
   if ( (flag?.status !== "due") || offering.has(message.id) ) return;
   offering.add(message.id);
   try {
@@ -161,7 +161,7 @@ async function promote(message) {
       current.dice = dice;
       current.total = healTotal(message.rolls);
     });
-    if ( message.getFlag(MODULE_ID, HEAL_FLAG)?.status !== "pending" ) return;
+    if ( readFlag(message, HEAL_FLAG)?.status !== "pending" ) return;
     // The table sees the dice land before the 1s turn over.
     await dramaticVerdictPause(message);
     await reroll(message, dice.filter(d => d.one).map(d => d.key));
@@ -176,7 +176,7 @@ async function reroll(message, keys) {
   if ( resolving.has(message.id) ) return;
   resolving.add(message.id);
   try {
-    const flag = message.getFlag(MODULE_ID, HEAL_FLAG);
+    const flag = readFlag(message, HEAL_FLAG);
     if ( flag?.status !== "pending" ) return;
     const wanted = new Set(keys ?? []);
     const picks = (flag.dice ?? []).filter(d => d.one && wanted.has(d.key));
@@ -191,7 +191,7 @@ async function reroll(message, keys) {
       current.status = "answering";
       current.answeredAt = Date.now();
     });
-    if ( message.getFlag(MODULE_ID, HEAL_FLAG)?.status !== "answering" ) return;
+    if ( readFlag(message, HEAL_FLAG)?.status !== "answering" ) return;
     const data = (message.rolls ?? []).map(r => r.toJSON());
     const live = picks.filter(d => data[d.roll]?.terms?.[d.term]?.results?.[d.index]);
     // The dice are one roll, on their own card (the one roll-readers and Dice So Nice key on).
@@ -220,7 +220,7 @@ async function reroll(message, keys) {
     await complete(message);
   } catch(err) {
     console.error(`${TITLE} | The healing reroll failed — reroll the 1s by hand.`, err);
-    if ( message.getFlag(MODULE_ID, HEAL_FLAG)?.pending ) await complete(message).catch(() => {});
+    if ( readFlag(message, HEAL_FLAG)?.pending ) await complete(message).catch(() => {});
     else await queueFlagWrite(message, HEAL_FLAG, current => {
       if ( current.status !== "answering" ) return false;
       current.status = "pending";
@@ -235,7 +235,7 @@ async function reroll(message, keys) {
  * waits on, and applied healing moved by the difference. Idempotent by status.
  */
 async function complete(message) {
-  const flag = message.getFlag(MODULE_ID, HEAL_FLAG);
+  const flag = readFlag(message, HEAL_FLAG);
   if ( (flag?.status !== "answering") || !flag.pending ) return;
   const { rolls, picks, newTotal, delta } = flag.pending;
   const { pending: _done, ...rest } = flag;
@@ -255,7 +255,7 @@ registerResumable(HEAL_FLAG, {
     || (["due", "pending"].includes(flag?.status) && ((Date.now() - (message.timestamp ?? 0)) > RESUME_MS)),
   drives: flag => drivesMomentFor(flag?.actorUuid ?? null),
   drive: message => {
-    const flag = message.getFlag(MODULE_ID, HEAL_FLAG);
+    const flag = readFlag(message, HEAL_FLAG);
     if ( flag?.status === "due" ) return promote(message);
     if ( flag?.status === "pending" ) return reroll(message, (flag.dice ?? []).filter(d => d.one).map(d => d.key));
     return complete(message);
@@ -281,7 +281,7 @@ function cardLine(flag) {
 
 listen("dnd5e.renderChatMessage", "heal-rerolls", (message, html) => {
   try {
-    const flag = message.getFlag(MODULE_ID, HEAL_FLAG);
+    const flag = readFlag(message, HEAL_FLAG);
     if ( !flag || (flag.status === "none") ) return;
     const content = html.querySelector?.(SURFACES.messageContent) ?? html;
     if ( !content || content.querySelector(".bf-heal-reroll-line") ) return;
@@ -340,7 +340,7 @@ function alsoRowsFor(message) {
     const heal = feature ? activityNamed(feature, row.also) : null;
     if ( !heal ) continue;
     if ( row.while && !caster.effects.some(e => e.active && (lower(e.name) === lower(row.while))) ) continue;
-    if ( row.form && !caster.effects.some(e => e.active && (e.getFlag(MODULE_ID, "formChip")?.form === row.form)) ) continue;
+    if ( row.form && !caster.effects.some(e => e.active && (readFlag(e, "formChip")?.form === row.form)) ) continue;
     out.push({ key, row, caster, feature, heal });
   }
   return out;
@@ -395,7 +395,7 @@ async function showAlsoPopup(message, found, candidates) {
 
 listen("dnd5e.renderChatMessage", "heal-rerolls", (message, html) => {
   try {
-    const done = message.getFlag(MODULE_ID, ALSO_FLAG);
+    const done = readFlag(message, ALSO_FLAG);
     if ( done?.picked ) {
       const line = document.createElement("div");
       line.innerHTML = bfCard({ eyebrow: `${done.key} — ${done.also}`, tone: "good", title: `${done.also} — ${done.name} is healed too`, subtitle: "its own card" });

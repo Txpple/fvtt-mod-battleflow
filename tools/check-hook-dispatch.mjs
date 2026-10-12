@@ -166,7 +166,7 @@ if (argv.includes("--regen")) {
   const explicit = argv[argv.indexOf("--regen") + 1];
   const dir = (explicit && !explicit.startsWith("--"))
     ? explicit
-    : process.env.BF_DND5E_DIR
+    : process.env.BTB_DND5E_DIR || process.env.BF_DND5E_DIR
       || join(process.env.LOCALAPPDATA ?? "", "FoundryVTT", "Data", "systems", "dnd5e");
 
   let next;
@@ -175,7 +175,7 @@ if (argv.includes("--regen")) {
   } catch (err) {
     console.error(`FAIL could not read a dnd5e install at ${dir}`);
     console.error(`     ${err.message}`);
-    console.error("     Pass the directory explicitly, or set BF_DND5E_DIR.");
+    console.error("     Pass the directory explicitly, or set BTB_DND5E_DIR.");
     process.exit(1);
   }
 

@@ -1,9 +1,9 @@
 /**
- * Battle Flow — the hit menu (RULINGS *The hit menu*): on a hit, the options the sheet grants are
+ * By the Books — the hit menu (RULINGS *The hit menu*): on a hit, the options the sheet grants are
  * offered before the dice, grouped by the feature that pays; the die rides the roll, the pool is
  * spent, a save goes through the saves machine.
  */
-import { MODULE_ID, TITLE, canAnswerFor, canApplyTo, drivesMomentFor, queueFlagWrite, statContext, decisionWindow } from "./core.js";
+import { MODULE_ID, readFlag, TITLE, canAnswerFor, canApplyTo, drivesMomentFor, queueFlagWrite, statContext, decisionWindow } from "./core.js";
 import { ruleHTML } from "./rule-text.js";
 import { verdictsOn } from "./decide/demand.js";
 import { featureNamed, activityNamed, activityOfType, namesAnswering, profileEffects, resolveUuid, resolveDie, superiorityStandIn } from "./lookup.js";
@@ -62,7 +62,7 @@ function menuFor(attackMessage, activity) {
     // A group with no paying feature (a text-only parent) requires nothing.
     if ( group.feature && !featureNamed(attacker, group.feature) ) continue;
     // `requires.forgo` (Brutal Strike, B3): only a hit whose attack RECORDED the forgo opens the group.
-    if ( group.requires?.forgo && (attackMessage?.getFlag(MODULE_ID, REMINDER_FLAG)?.forgo !== group.requires.forgo) ) continue;
+    if ( group.requires?.forgo && (readFlag(attackMessage, REMINDER_FLAG)?.forgo !== group.requires.forgo) ) continue;
     const perOption = group.pool === "option";
     const free = group.pool === "free";
     for ( const [key, row] of Object.entries(HIT_OPTIONS) ) {
@@ -330,7 +330,7 @@ listen("dnd5e.preRollDamage", "hit-menu", (config, _dialog, message) => {
     const activity = config.subject;
     if ( activity?.type !== "attack" ) return;
     const attackMessage = attackMessageForDamage(config, message);
-    const record = attackMessage?.getFlag(MODULE_ID, "hitPick");
+    const record = readFlag(attackMessage, "hitPick");
     if ( !record || record.rolled ) return;
     const attacker = activity.actor;
     const roll = attackMessage.rolls?.[0];
@@ -411,7 +411,7 @@ const consequencesRun = new Set();
 
 listen("createChatMessage", "hit-menu", message => {
   if ( !message.isAuthor ) return;
-  const hm = message.getFlag(MODULE_ID, "hitManeuver");
+  const hm = readFlag(message, "hitManeuver");
   if ( !hm || hm.done || consequencesRun.has(message.id) ) return;
   consequencesRun.add(message.id);
   // The `hitManeuver` record landing IS the resolve; decide/moments.js publishes `maneuver` from it.
@@ -487,7 +487,7 @@ async function consequencesOf(damageMessage, hm, { attackMessage, attacker, hits
 /* --- the effect on the hit, on the elect (Distracting Strike) -------------------------------- */
 
 async function settleHitEffects(message) {
-  const record = message.getFlag(MODULE_ID, "hitManeuver");
+  const record = readFlag(message, "hitManeuver");
   const picks = picksOf(record).map((p, index) => ({ p, index })).filter(({ p }) => p.effects || p.press || p.also);
   if ( !picks.length || record.effectsApplied ) return;
   if ( !drivesMomentFor(record.sourceUuid ?? null) ) return;
@@ -560,8 +560,8 @@ async function pressOnHit(message, hm, hits, item, index = null) {
 const followups = new Set();
 
 async function settleHitFollowups(card) {
-  const hc = card.getFlag(MODULE_ID, "hitManeuverCard");
-  const saves = card.getFlag(MODULE_ID, "saves");
+  const hc = readFlag(card, "hitManeuverCard");
+  const saves = readFlag(card, "saves");
   const uuids = [...(hc?.effectUuid && hc.onFail ? [hc.effectUuid] : []), ...(hc?.pressUuids ?? [])];
   const verdicts = verdictsOn(saves);   // the answered targets, through the one reader
   if ( !uuids.length || !verdicts.length ) return;
@@ -638,7 +638,7 @@ registerRelay("sweepAnswer", {
 
 /** The attacker's pick — a creature's uuid, or "none" (the die is spent; nobody is swept). */
 async function chooseSweep(card, uuid) {
-  const flag = card.getFlag(MODULE_ID, "sweepCard");
+  const flag = readFlag(card, "sweepCard");
   if ( flag?.chosen || ((uuid !== "none") && !flag?.candidates?.some(c => c.uuid === uuid)) ) return;
   if ( card.canUserModify?.(game.user, "update") ) {
     await queueFlagWrite(card, "sweepCard", current => { if ( current.chosen ) return false; current.chosen = uuid; current.answeredAt = Date.now(); });
@@ -650,7 +650,7 @@ async function chooseSweep(card, uuid) {
 
 /** The pick as a POPUP (the moment spine): a button per creature within 5 feet, Nobody, the bar. */
 async function showSweepPopup(card) {
-  const sc = card.getFlag(MODULE_ID, "sweepCard");
+  const sc = readFlag(card, "sweepCard");
   if ( !sc || sc.chosen || !sc.candidates?.length ) return;
   const attacker = resolveUuid(sc.sourceUuid);
   const dialog = await openMomentPopup(card, "sweep", attacker, {
@@ -687,7 +687,7 @@ async function showSweepPopup(card) {
 /** The elect's clock on the pick: the only creature when there is one, nobody otherwise. */
 const sweepTimers = new Map();
 function armSweepTimer(card) {
-  const sc = card.getFlag(MODULE_ID, "sweepCard");
+  const sc = readFlag(card, "sweepCard");
   if ( !sc || sc.chosen || !sc.deadline || !drivesMomentFor(sc.sourceUuid ?? null) ) { disarmDeadline(sweepTimers, card.id); return; }
   armDeadline(sweepTimers, card.id, sc.deadline, async id => {
     try {
@@ -706,7 +706,7 @@ function armSweepTimer(card) {
 }
 
 async function settleSweep(card) {
-  const sc = card.getFlag(MODULE_ID, "sweepCard");
+  const sc = readFlag(card, "sweepCard");
   if ( !sc?.chosen || sc.resolved ) return;
   if ( !drivesMomentFor(sc.sourceUuid ?? null) ) return;
   try {
@@ -748,7 +748,7 @@ registerResumable("hitManeuver", {
 });
 registerResumable("hitManeuverCard", {
   pending: (flag, _message, cause) => (cause !== "create") && !!(flag.onFail || flag.pressUuids?.length),
-  drives: (flag, message) => drivesMomentFor(message.getFlag(MODULE_ID, "saves")?.sourceUuid ?? flag.sourceUuid ?? null),
+  drives: (flag, message) => drivesMomentFor(readFlag(message, "saves")?.sourceUuid ?? flag.sourceUuid ?? null),
   drive: settleHitFollowups
 });
 registerResumable("sweepCard", {
@@ -760,7 +760,7 @@ registerResumable("sweepCard", {
 /* --- the cards say it (R5) -------------------------------------------------------------------- */
 
 listen("dnd5e.renderChatMessage", "hit-menu", (message, html) => {
-  const record = message.getFlag(MODULE_ID, "hitManeuver");
+  const record = readFlag(message, "hitManeuver");
   const picks = picksOf(record);
   // A card per pick; the record's notes ride the last.
   picks.forEach((pick, i) => {
@@ -781,7 +781,7 @@ listen("dnd5e.renderChatMessage", "hit-menu", (message, html) => {
     });
     html.querySelector(SURFACES.messageContent)?.appendChild(line);
   });
-  const hc = message.getFlag(MODULE_ID, "hitManeuverCard");
+  const hc = readFlag(message, "hitManeuverCard");
   if ( hc ) {
     const line = document.createElement("div");
     line.innerHTML = bfCard({
@@ -791,7 +791,7 @@ listen("dnd5e.renderChatMessage", "hit-menu", (message, html) => {
     });
     html.querySelector(SURFACES.messageContent)?.appendChild(line);
   }
-  const sc = message.getFlag(MODULE_ID, "sweepCard");
+  const sc = readFlag(message, "sweepCard");
   if ( sc ) {
     const r = sc.resolved;
     const chosenName = sc.candidates?.find(c => c.uuid === sc.chosen)?.name ?? null;

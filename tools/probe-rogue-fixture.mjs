@@ -38,7 +38,7 @@ const out = await f.evaluate(async () => {
     items.push(...feats);
     if ( rapier ) items.push(rapier);
     for ( const i of items ) delete i._id;
-    actor = await Actor.create({ name: "BF Probe Rogue", type: "character", items,
+    actor = await Actor.create({ name: "BTB Probe Rogue", type: "character", items,
       system: { abilities: { dex: { value: 18 } } } });
     const rd = actor.getRollData();
     const scale = rd.scale ?? {};

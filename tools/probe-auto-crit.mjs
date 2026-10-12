@@ -1,4 +1,4 @@
-// Probe: the automatic crit's facts, live. Replays smoke-battleflow §5e's two swings at a Paralyzed
+// Probe: the automatic crit's facts, live. Replays smoke-bythebooks §5e's two swings at a Paralyzed
 // victim (within 5 feet, and from 10 feet) with the crit judge's INPUTS logged at
 // `dnd5e.preRollDamage` (auto-damage.js `critFor`): the attack, the hits, both tokens, the
 // distance in feet, the target's statuses, the verdict.
@@ -9,19 +9,19 @@ import { connectSuite, disposeSafely, loadEnv } from "./harness.mjs";
 const f = await connectSuite({ tag: "probe-auto-crit", watchdogMs: 180_000, env: loadEnv() });
 
 const out = await f.evaluate(async () => {
-  const MOD = "fvtt-mod-battleflow";
+  const MOD = "fvtt-mod-bythebooks";
   const sleep = ms => new Promise(r => setTimeout(r, ms));
   const log = [];
-  const { attackMessageForDamage } = await import("/modules/fvtt-mod-battleflow/scripts/auto-damage.js");
-  const { hitTargets } = await import("/modules/fvtt-mod-battleflow/scripts/shared.js");
-  const { tokenOfActor, tokenForUuid, nearestFeet } = await import("/modules/fvtt-mod-battleflow/scripts/geometry.js");
-  const { autoCritSources } = await import("/modules/fvtt-mod-battleflow/scripts/decide/reminders.js");
-  const { CONDITION_BENDS } = await import("/modules/fvtt-mod-battleflow/scripts/decide/registry.js");
+  const { attackMessageForDamage } = await import("/modules/fvtt-mod-bythebooks/scripts/auto-damage.js");
+  const { hitTargets } = await import("/modules/fvtt-mod-bythebooks/scripts/shared.js");
+  const { tokenOfActor, tokenForUuid, nearestFeet } = await import("/modules/fvtt-mod-bythebooks/scripts/geometry.js");
+  const { autoCritSources } = await import("/modules/fvtt-mod-bythebooks/scripts/decide/reminders.js");
+  const { CONDITION_BENDS } = await import("/modules/fvtt-mod-bythebooks/scripts/decide/registry.js");
 
-  const scene = game.scenes.getName("Battle Flow Test Range");
+  const scene = game.scenes.getName("By the Books Test Range");
   if ( canvas.scene?.id !== scene?.id ) await scene.view();
   await sleep(500);
-  const attacker = game.actors.getName("BF Test Attacker"), base = game.actors.getName("BF Test Victim");
+  const attacker = game.actors.getName("BTB Test Attacker"), base = game.actors.getName("BTB Test Victim");
   const aTok = canvas.tokens.placeables.find(t => t.document.actorId === attacker.id);
   const vTok = canvas.tokens.placeables.find(t => t.document.actorId === base.id);
   if ( !aTok || !vTok ) return { fatal: "fixture tokens missing" };
@@ -101,7 +101,7 @@ const out = await f.evaluate(async () => {
       for ( const e of victim.effects.filter(x => x.statuses?.has?.("dead")) ) await e.delete();
       await base.update({ "system.attributes.ac.override": null });
       for ( const [k, v] of Object.entries(prior.settings) ) await game.settings.set(MOD, k, v);
-      const mine = game.messages.filter(m => m.speaker?.alias?.startsWith("BF Test"));
+      const mine = game.messages.filter(m => m.speaker?.alias?.startsWith("BTB Test"));
       await ChatMessage.deleteDocuments(mine.map(m => m.id));
     } catch(err) { log.push(`cleanup: ${err.message}`); }
   }

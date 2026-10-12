@@ -9,7 +9,7 @@ beforeAll(async () => {
   events = await import("../scripts/events.js");
 });
 
-/** Collect what the publisher fires, so a test can assert the two names and the one payload. */
+/** Collect what the publisher fires, so a test can assert the names (both prefixes) and the one payload. */
 function watchHooks() {
   const seen = [];
   const previous = globalThis.Hooks.callAll;
@@ -27,7 +27,7 @@ function watchHooks() {
 const actor = {
   documentName: "Actor",
   uuid: "Actor.rogue",
-  name: "BF Test Rogue",
+  name: "BTB Test Rogue",
   items: new Map()
 };
 const item = { uuid: "Actor.rogue.Item.sneak", name: "Sneak Attack" };
@@ -35,7 +35,7 @@ const message = { id: "msgDamage" };
 const attackMessage = { id: "msgAttack" };
 
 describe("publishMoment — the contract", () => {
-  it("is version 2: the vocabulary and the kinds come from the registry, two hook shapes", () => {
+  it("is version 2: the vocabulary and the kinds come from the registry, two hook shapes under two prefixes", () => {
     expect(events.MOMENT_CONTRACT.version).toBe(2);
     expect([...events.MOMENT_CONTRACT.events]).toEqual([
       "maneuver",
@@ -58,11 +58,16 @@ describe("publishMoment — the contract", () => {
     ]);
     expect(events.MOMENT_CONTRACT.kinds).toContain("hitManeuver");
     expect(events.MOMENT_CONTRACT.kinds).toContain("receipt");
-    expect([...events.MOMENT_CONTRACT.hooks]).toEqual(["battleflow.moment", "battleflow.<event>"]);
+    expect([...events.MOMENT_CONTRACT.hooks]).toEqual([
+      "bythebooks.moment",
+      "bythebooks.<event>",
+      "battleflow.moment",
+      "battleflow.<event>"
+    ]);
     expect(Object.isFrozen(events.MOMENT_CONTRACT)).toBe(true);
   });
 
-  it("fires battleflow.moment and then battleflow.<event>, with ONE payload", () => {
+  it("fires bythebooks.moment and then bythebooks.<event>, each double-emitted under battleflow.* (3.0.0), with ONE payload", () => {
     const w = watchHooks();
     try {
       const payload = events.publishMoment("sneak", {
@@ -73,9 +78,13 @@ describe("publishMoment — the contract", () => {
         targets: [{ uuid: "Actor.goblin", name: "Goblin", hit: true }],
         details: { formula: "6d6", picks: ["trip"] }
       });
-      expect(w.seen.map(s => s.name)).toEqual(["battleflow.moment", "battleflow.sneak"]);
-      expect(w.seen[0].data).toBe(payload);
-      expect(w.seen[1].data).toBe(payload);
+      expect(w.seen.map(s => s.name)).toEqual([
+        "bythebooks.moment",
+        "battleflow.moment",
+        "bythebooks.sneak",
+        "battleflow.sneak"
+      ]);
+      for (const s of w.seen) expect(s.data).toBe(payload);
     } finally {
       w.restore();
     }
@@ -95,13 +104,13 @@ describe("publishMoment — the contract", () => {
         marker: "message"
       });
       expect(payload.event).toBe("sneak");
-      expect(payload.module).toBe("fvtt-mod-battleflow");
+      expect(payload.module).toBe("fvtt-mod-bythebooks");
       expect(payload.version).toBe(2);
       expect(payload.kind).toBe("sneakDamage");
       expect(payload.marker).toBe("message");
       expect(payload.momentId).toBe("msgDamage|sneakDamage|message");
       expect(payload.actorUuid).toBe("Actor.rogue");
-      expect(payload.actorName).toBe("BF Test Rogue");
+      expect(payload.actorName).toBe("BTB Test Rogue");
       expect(payload.itemUuid).toBe("Actor.rogue.Item.sneak");
       expect(payload.itemName).toBe("Sneak Attack");
       expect(payload.ability).toBe("Sneak Attack"); // defaults to the item's name
@@ -263,7 +272,7 @@ function fakeMessage(id, flags, { dnd5e = {}, actorUuid = null, authorId = "gm" 
   return {
     id,
     author: { id: authorId },
-    flags: { "fvtt-mod-battleflow": flags },
+    flags: { "fvtt-mod-bythebooks": flags },
     getFlag: (scope, key) => (scope === "dnd5e" ? dnd5e[key] : flags[key]) ?? null,
     getAssociatedActor: () => (actorUuid ? { uuid: actorUuid, name: null, items: [] } : null)
   };
@@ -296,10 +305,15 @@ describe("the gate — observeMessage", () => {
         ability: "Trip Attack",
         attackId: "a1"
       });
-      expect(w.seen.map(s => s.name)).toEqual(["battleflow.moment", "battleflow.maneuver"]);
+      expect(w.seen.map(s => s.name)).toEqual([
+        "bythebooks.moment",
+        "battleflow.moment",
+        "bythebooks.maneuver",
+        "battleflow.maneuver"
+      ]);
       // the same message observed again (an update marking `done`) publishes nothing more
       expect(events.observeMessage(msg, "gm")).toEqual([]);
-      expect(w.seen.length).toBe(2);
+      expect(w.seen.length).toBe(4);
     } finally {
       w.restore();
     }
@@ -336,6 +350,45 @@ describe("the gate — observeMessage", () => {
       expect(events.observeMessage(msg, null, false)).toEqual([]);
       expect(w.seen).toEqual([]);
       expect(events.observeMessage(msg, "gm")).toEqual([]); // already history
+    } finally {
+      w.restore();
+    }
+  });
+
+  it("remembers a 2.x card's resolves under the legacy scope on ready, so a write after the upgrade publishes only what is new", () => {
+    const w = watchHooks();
+    try {
+      const saves = {
+        sourceUuid: "Actor.c",
+        dc: 15,
+        abilities: ["dex"],
+        item: { name: "Fireball" },
+        targets: [
+          { uuid: "Actor.g1", name: "G1", done: true, outcome: "saved", total: 17 },
+          { uuid: "Actor.g2", name: "G2", done: false }
+        ]
+      };
+      // Posted under 2.x (formerly Battle Flow): only the old scope.
+      const msg = {
+        id: "old1",
+        author: { id: "gm" },
+        flags: { "fvtt-mod-battleflow": { saves } },
+        getFlag: () => null,
+        getAssociatedActor: () => null
+      };
+      expect(events.observeMessage(msg, null, false)).toEqual([]); // the ready sweep: remembered
+      // After the upgrade a queueFlagWrite lands the record under the new scope, G2 now resolved.
+      msg.flags["fvtt-mod-bythebooks"] = {
+        saves: {
+          ...saves,
+          targets: [
+            saves.targets[0],
+            { uuid: "Actor.g2", name: "G2", done: true, outcome: "failed", total: 3 }
+          ]
+        }
+      };
+      const out = events.observeMessage(msg, "gm");
+      expect(out.map(p => [p.event, p.marker])).toEqual([["save", "Actor.g2"]]);
     } finally {
       w.restore();
     }
@@ -379,7 +432,7 @@ describe("the gate — observeMessage", () => {
       out = events.observeMessage(msg, "gm");
       expect(out.map(p => [p.event, p.marker])).toEqual([["save", "Actor.g2"]]);
       expect(events.observeMessage(msg, "gm")).toEqual([]);
-      expect(w.seen.length).toBe(4);
+      expect(w.seen.length).toBe(8);
     } finally {
       w.restore();
     }

@@ -6,7 +6,7 @@
 //      membership, and can a module register a RegionBehavior type (CONFIG.RegionBehavior.dataModels)?
 //   4. APPLICATION — does dnd5e apply anything to a token inside, or is that the gap?
 //
-// Everything it adds or moves is undone in `finally`. Runs on the Battle Flow Test Range.
+// Everything it adds or moves is undone in `finally`. Runs on the By the Books Test Range.
 //
 //   node tools/probe-emanations.mjs
 import { connectSuite, disposeSafely, loadEnv } from "./harness.mjs";
@@ -85,9 +85,9 @@ const out = await f.evaluate(async () => {
   };
 
   /* --- 2/3/4: BEHAVIOUR ------------------------------------------------------------------- */
-  const scene = game.scenes.getName("Battle Flow Test Range");
-  const caster = game.actors.getName("BF Test Rogue") ?? game.actors.getName("BF Test PC Attacker");
-  const walker = game.actors.getName("BF Test Victim") ?? game.actors.getName("BF Test Ranger");
+  const scene = game.scenes.getName("By the Books Test Range");
+  const caster = game.actors.getName("BTB Test Rogue") ?? game.actors.getName("BTB Test PC Attacker");
+  const walker = game.actors.getName("BTB Test Victim") ?? game.actors.getName("BTB Test Ranger");
   report.live = { scene: scene?.name ?? null, caster: caster?.name ?? null, walker: walker?.name ?? null };
   if ( !scene || !caster || !walker ) { report.live.skipped = "fixtures missing"; return report; }
   if ( canvas.scene?.id !== scene.id ) { await scene.view(); await sleep(1500); }

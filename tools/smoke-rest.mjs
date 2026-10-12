@@ -1,9 +1,9 @@
-// Battle Flow rest smoke test: the rest grants. Resourceful's Heroic Inspiration on a Long Rest
+// By the Books rest smoke test: the rest grants. Resourceful's Heroic Inspiration on a Long Rest
 // (§1–2); Musician's popup after a rest listing allies within 30 ft, those already inspired greyed
 // (§4–6); Inspiring Leader, Chef's Bolstering Treats and Replenishing Meal (§8–11). Every rest-grant
 // row is always on: a section isolates its row by the Halfling holding only the feat under test.
-// Fixture: BF Test Halfling is lent the PHB feats for the run. The song's sections place TEMPORARY
-// linked tokens (the Halfling; BF Test Cleric 10 ft, Bard 15 ft and already inspired, Fighter 40 ft)
+// Fixture: BTB Test Halfling is lent the PHB feats for the run. The song's sections place TEMPORARY
+// linked tokens (the Halfling; BTB Test Cleric 10 ft, Bard 15 ft and already inspired, Fighter 40 ft)
 // in a strip found empty at run time.
 // Harness discipline: lent items, placed tokens and messages deleted; every
 // touched actor's HP, Hit Dice, temp HP, uses and inspiration restored. Sections: `--section 2`, `--list`.
@@ -32,7 +32,7 @@ const f = await connectSuite({ tag: 'rest', watchdogMs: 180_000 });
 announcePlan('rest', plan, pulled);
 
 const out = await f.evaluate(async ({ sections, titles }) => {
-  const MOD = 'fvtt-mod-battleflow';
+  const MOD = 'fvtt-mod-bythebooks';
   const results = [];
   const log = [];
   const skips = [];
@@ -49,8 +49,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   if (!modDoc?.active) return { fatal: `module active=${modDoc?.active}` };
   if (!game.settings.settings.has(`${MOD}.decisionTimer`)) return { fatal: 'decisionTimer not registered — OLD code (reload the box)' };
 
-  const actor = game.actors.getName('BF Test Halfling');
-  if (!actor || (actor.type !== 'character')) return { fatal: 'missing fixture: BF Test Halfling (a character) — run tools/fixture-suite.mjs' };
+  const actor = game.actors.getName('BTB Test Halfling');
+  if (!actor || (actor.type !== 'character')) return { fatal: 'missing fixture: BTB Test Halfling (a character) — run tools/fixture-suite.mjs' };
   const snapshot = actor.toObject();
   const lent = [];
   const placed = [];      // the song's temporary tokens
@@ -60,7 +60,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     if (restored) return;
     restored = true;
     try {
-      const scene = game.scenes.getName('Battle Flow Test Range');
+      const scene = game.scenes.getName('By the Books Test Range');
       const live = placed.filter(id => scene?.tokens.get(id));
       if (live.length) await scene.deleteEmbeddedDocuments('Token', live);
       for (const s of snapshots) {
@@ -145,12 +145,12 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         const [item] = await actor.createEmbeddedDocuments('Item', [musician.toObject()]);
         lent.push(item.id);
       }
-      const scene = game.scenes.getName('Battle Flow Test Range');
-      if (!scene) return { fatal: 'missing fixture: the Battle Flow Test Range scene — run tools/fixture-suite.mjs', results, log, skips };
+      const scene = game.scenes.getName('By the Books Test Range');
+      if (!scene) return { fatal: 'missing fixture: the By the Books Test Range scene — run tools/fixture-suite.mjs', results, log, skips };
       if (canvas.scene?.id !== scene.id) await scene.view();
       for (let i = 0; i < 40 && !canvas.ready; i++) await sleep(250);
       const g = scene.grid.size;
-      const allies = ['BF Test Cleric', 'BF Test Bard', 'BF Test Fighter'].map(n => game.actors.getName(n));
+      const allies = ['BTB Test Cleric', 'BTB Test Bard', 'BTB Test Fighter'].map(n => game.actors.getName(n));
       if (allies.some(a => !a || (a.type !== 'character'))) return { fatal: `missing fixture characters: ${allies.map(a => a?.name ?? '?').join(', ')}`, results, log, skips };
       const [cleric, bard, fighter] = allies;
       for (const a of allies) snapshots.push({ actor: a, inspiration: a.system.attributes.inspiration });
@@ -382,7 +382,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         // Every rest ask still pending (the Treats of that Long Rest, an earlier section's) goes, with its popup:
         // one popup per creature at a time, so a stale one would hold the meal's.
         for (const m of game.messages.contents.filter(m => m.getFlag(MOD, 'restSong')?.status === 'pending')) await m.delete();
-        for (const app of [...foundry.applications.instances.values()].filter(a => a.rendered && (a instanceof foundry.applications.api.DialogV2) && /— BF Test Halfling$/.test(a.title ?? ''))) await app.close();
+        for (const app of [...foundry.applications.instances.values()].filter(a => a.rendered && (a instanceof foundry.applications.api.DialogV2) && /— BTB Test Halfling$/.test(a.title ?? ''))) await app.close();
         await cleric.update({ 'system.attributes.hp.value': Math.max(1, cleric.system.attributes.hp.max - 20) });
         await bard.update({ 'system.attributes.hp.value': Math.max(1, bard.system.attributes.hp.max - 20) });
         // The Cleric rests first and spends Hit Dice (autoHD, no dialog); the Fighter rests at full HP and spends none.
@@ -406,7 +406,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           `formula=${flag?.formula} cap=${flag?.cap} ${(flag?.candidates ?? []).map(c => `${c.name}:${c.meal}${c.has ? ':greyed' : ''}`).join(', ')}`);
         // One popup per creature at a time: any other grant of this rest (Inspiring Leader) is answered first.
         for (let i = 0; i < 20 && !popupFor('Who gets an extra 1d8 Hit Points'); i++) {
-          const other = [...foundry.applications.instances.values()].find(a => a.rendered && (a instanceof foundry.applications.api.DialogV2) && /— BF Test Halfling$/.test(a.title ?? ''));
+          const other = [...foundry.applications.instances.values()].find(a => a.rendered && (a instanceof foundry.applications.api.DialogV2) && /— BTB Test Halfling$/.test(a.title ?? ''));
           other?.element?.querySelector('button[data-action="ok"]')?.click();
           await sleep(300);
         }

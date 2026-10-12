@@ -1,10 +1,10 @@
 /**
- * Battle Flow — the volley folds: a spell throwing N projectiles gets ONE caster popup to aim them
+ * By the Books — the volley folds: a spell throwing N projectiles gets ONE caster popup to aim them
  * all (the system rolls one follow-up). DARTS: one aggregated damage roll per target (one
  * application, one concentration check). RAYS: a real `rollAttack` each. Membership is
  * volley-registry.js alone. Everything runs on the CASTING client.
  */
-import { MODULE_ID, TITLE, queueFlagWrite, deadlineIsLive, statContext, decisionWindow } from "./core.js";
+import { MODULE_ID, readFlag, TITLE, queueFlagWrite, deadlineIsLive, statContext, decisionWindow } from "./core.js";
 import { volleyEntryFor, resolveVolleyCount } from "./volley-registry.js";
 import { castLevelOf, clampVolleyCount } from "./decide/eligible.js";
 import { popupKey, bfCard, esc, momentBarHTML, reminderDetailsHTML } from "./decide/present.js";
@@ -56,7 +56,7 @@ listen("dnd5e.postUseActivity", "volleys", (activity, usageConfig, results) => {
 
 async function stampVolley(activity, message, targets, spec) {
   try {
-    if ( message.getFlag(MODULE_ID, "volley") ) return; // never re-stamp
+    if ( readFlag(message, "volley") ) return; // never re-stamp
     // Replicate the consumed-flag write that suppressing subsequentActions skips (Activity#use).
     try {
       const consumed = activity.createConsumedFlag?.(activity.actor, message.system?.deltas);
@@ -132,7 +132,7 @@ function drawRayJudgements(element, caster, activity) {
 }
 
 async function openVolleyPopup(message) {
-  const v = message.getFlag(MODULE_ID, "volley");
+  const v = readFlag(message, "volley");
   if ( v?.status !== "pending" ) return;
   const key = popupKey(message.id, "volley");
   const open = livePopups.get(key);
@@ -237,7 +237,7 @@ async function openVolleyPopup(message) {
 
 /** Read the popup's inputs into an assignment; null/garbage falls back to the default. */
 function readAssignment(message, element) {
-  const v = message.getFlag(MODULE_ID, "volley");
+  const v = readFlag(message, "volley");
   if ( !v || !(element instanceof HTMLElement) ) return null;
   if ( v.kind === "damage" ) {
     const rows = [];
@@ -271,7 +271,7 @@ function readAssignment(message, element) {
 }
 
 async function fireVolley(message, assignment) {
-  const before = message.getFlag(MODULE_ID, "volley");
+  const before = readFlag(message, "volley");
   if ( before?.status !== "pending" ) return;
   const chosen = assignment ?? defaultAssignment(before);
   // The claim: button, X and buzzer all come through here, and only the first one drives.
@@ -288,7 +288,7 @@ async function fireVolley(message, assignment) {
   livePopups.get(popupKey(message.id, "volley"))?.close?.({ force: true });
 
   try {
-    const v = message.getFlag(MODULE_ID, "volley");
+    const v = readFlag(message, "volley");
     // Through the CARD: a scroll's last spell is gone from the sheet by now.
     const activity = cardActivity(message, v.activityUuid);
     if ( !activity ) {
@@ -331,8 +331,8 @@ async function driveDarts(message, activity, v) {
       // here or the applier waits forever (spell-hold.js releases at use time, before these rolls).
       const rollMsg = rolls?.[0]?.parent;
       if ( (rollMsg instanceof ChatMessage)
-        && !message.getFlag(MODULE_ID, "hold")
-        && rollMsg.getFlag(MODULE_ID, "spellHoldPending") ) {
+        && !readFlag(message, "hold")
+        && readFlag(rollMsg, "spellHoldPending") ) {
         await rollMsg.setFlag(MODULE_ID, "spellHoldPending", false);
       }
     });
@@ -388,7 +388,7 @@ listen("dnd5e.preRollDamage", "volleys", (config, _dialog, message) => {
 });
 
 listen("dnd5e.renderChatMessage", "volleys", (message, html) => {
-  const v = message.getFlag(MODULE_ID, "volley");
+  const v = readFlag(message, "volley");
   if ( !v ) return void renderVolleyAim(message, html);
   renderVolleyRow(message, v, html);
   // Author-side resume: re-arm and re-raise; overdue fires now. ⚠ This path fires DIRECTLY, so it
@@ -439,12 +439,12 @@ function renderVolleyRow(_message, v, html) {
 
 /** Every driven volley roll names its target on the card, off the roll's own snapshot. */
 function renderVolleyAim(message, html) {
-  if ( !message.getFlag(MODULE_ID, "volleyFor") ) return;
+  if ( !readFlag(message, "volleyFor") ) return;
   const target = targetsOf(message)[0];
   if ( !target?.name ) return;
   const content = html.querySelector?.(SURFACES.messageContent) ?? html;
   if ( !content || content.querySelector(".bf-volley-aim") ) return;
-  const ray = Number(message.getFlag(MODULE_ID, "volleyRay")) || 0;
+  const ray = Number(readFlag(message, "volleyRay")) || 0;
   const div = document.createElement("div");
   div.className = "bf-volley-aim";
   div.style.cssText = "display:flex;align-items:center;gap:0.4rem;margin:0.2rem 0;font-size:var(--font-size-12,12px);";

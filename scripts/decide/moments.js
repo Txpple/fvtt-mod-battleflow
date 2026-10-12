@@ -1,6 +1,6 @@
 // @ts-check
 /**
- * Battle Flow — DECISION layer (ARCHITECTURE.md §2): WHAT A RESOLVE IS, as data — THE GATE. A
+ * By the Books — DECISION layer (ARCHITECTURE.md §2): WHAT A RESOLVE IS, as data — THE GATE. A
  * moment resolves when a RECORD lands on a message. `MOMENT_RECORDS` lists each resolve under a
  * stable MARKER (events.js publishes each once); `STATE_KEYS` gives every other key its reason;
  * tools/check-moments.mjs fails the build on an unclassified key. ⚠ This file CLASSIFIES, never
@@ -25,10 +25,10 @@
  *   effect         an effect receipt landed on a target — or was reverted
  *   save           a demanded save's verdict landed (the saves machine, Topple, concentration)
  *   break          concentration was broken
- *   use            a feature's use taken through a Battle Flow window (Shield Master's bash)
+ *   use            a feature's use taken through a By the Books window (Shield Master's bash)
  *   cast           a cast the module drove (a bare damage spell's dice)
  *   volley         a volley's darts or rays were assigned and fired
- *   choice         a choice answered in a Battle Flow window that is none of the above
+ *   choice         a choice answered in a By the Books window that is none of the above
  *                  (an emanation's damage type, a cast's alternative effect, a save's option)
  *   metamagic      a Metamagic option resolved on the spell's card (the pick), or Empowered's reroll on the damage roll
  */

@@ -1,12 +1,12 @@
 /**
- * Battle Flow — MACHINE layer (ARCHITECTURE.md §2): THE ADVANTAGE BUYS — Advantage on your own D20
+ * By the Books — MACHINE layer (ARCHITECTURE.md §2): THE ADVANTAGE BUYS — Advantage on your own D20
  * Test bought with an item's use BEFORE the roll (ADVANTAGE_BUYS; RULINGS *Where the table bends
  * the rule*): a box per held row in the gate's section of dnd5e's dialog. The use is spent only
  * when the roll goes out ticked AND the net was pressed. Initiative with no dialog is
  * d20-folds.js's (`bfBuyShown`). Runs on the roller's client; sets no mode (R-A).
  * ⚠ HOOK ORDER: imported AFTER reminders.js, so this re-nets the gate's record with the buy included.
  */
-import { MODULE_ID, TITLE, statContext } from "./core.js";
+import { MODULE_ID, readFlag, TITLE, statContext } from "./core.js";
 import { itemsNamed } from "./lookup.js";
 import { reminderEntries } from "./decide/registry.js";
 import { DialogCarried, markDefaultButton } from "./ui.js";
@@ -30,7 +30,7 @@ function cunningStrikeThisTurn(actor) {
   for ( let i = log.length - 1, n = 0; (i >= 0) && (n < 60); i--, n++ ) {
     const m = log[i];
     if ( m.timestamp < since ) return false;
-    const sneak = m.getFlag(MODULE_ID, "sneak");
+    const sneak = readFlag(m, "sneak");
     if ( !sneak?.cunning?.length || (m.getAssociatedActor?.()?.uuid !== actor.uuid) ) continue;
     if ( sneak.cunning.some(k => (k === "trip") || (k === "withdraw")) ) return true;
   }

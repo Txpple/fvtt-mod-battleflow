@@ -26,8 +26,8 @@ import { SURFACES, SURFACE_SOURCES } from "../scripts/surfaces.js";
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const SCRIPTS = join(ROOT, "scripts");
 const ARTIFACT = join(ROOT, "tools", "dnd5e-surfaces.json");
-// The installed system: BF_DND5E_DIR, else the default Foundry data path (as check-hook-dispatch.mjs).
-const DEFAULT_SYSTEM_DIR = process.env.BF_DND5E_DIR
+// The installed system: BTB_DND5E_DIR (BF_DND5E_DIR before 3.0.0, still read), else the default Foundry data path (as check-hook-dispatch.mjs).
+const DEFAULT_SYSTEM_DIR = process.env.BTB_DND5E_DIR || process.env.BF_DND5E_DIR
   || join(process.env.LOCALAPPDATA ?? "", "FoundryVTT", "Data", "systems", "dnd5e");
 
 /**

@@ -19,8 +19,8 @@ const out = await f.evaluate(async () => {
   const byName = name => game.actors.getName(name);
 
   /* --- 1: the consumption remap */
-  const fighter = byName("BF Test Fighter");
-  if (!fighter) report.fighter = { error: "no actor named 'BF Test Fighter'" };
+  const fighter = byName("BTB Test Fighter");
+  if (!fighter) report.fighter = { error: "no actor named 'BTB Test Fighter'" };
   else {
     const tm = fighter.items.find(i => i.name === "Tactical Mind");
     const sw = fighter.items.find(i => i.name === "Second Wind");
@@ -44,7 +44,7 @@ const out = await f.evaluate(async () => {
   }
 
   /* --- 2: the heroic boolean */
-  const anyPC = byName("BF Test Fighter") ?? game.actors.find(a => a.type === "character");
+  const anyPC = byName("BTB Test Fighter") ?? game.actors.find(a => a.type === "character");
   report.heroic = {
     actor: anyPC?.name ?? null,
     path: "system.attributes.inspiration",
@@ -54,22 +54,22 @@ const out = await f.evaluate(async () => {
   };
 
   /* --- 3: the bard's scale value */
-  const bard = byName("BF Test Bard");
+  const bard = byName("BTB Test Bard");
   report.bardic = bard
     ? {
         actor: bard.name,
         scale: foundry.utils.getProperty(bard.getRollData(), "scale.bard.inspiration") ?? null,
         hasFeat: !!bard.items.find(i => i.name === "Bardic Inspiration")
       }
-    : { error: "no actor named 'BF Test Bard' yet" };
+    : { error: "no actor named 'BTB Test Bard' yet" };
 
   /* --- 4: what the module itself thinks it can spend */
-  const api = game.modules.get("fvtt-mod-battleflow")?.api;
+  const api = game.modules.get("fvtt-mod-bythebooks")?.api;
   report.module = {
-    active: !!game.modules.get("fvtt-mod-battleflow")?.active,
-    version: game.modules.get("fvtt-mod-battleflow")?.version ?? null,
+    active: !!game.modules.get("fvtt-mod-bythebooks")?.active,
+    version: game.modules.get("fvtt-mod-bythebooks")?.version ?? null,
     d20FoldEntries: api?.registries?.d20Folds?.() ?? null,
-    d20FoldAsk: game.settings.get("fvtt-mod-battleflow", "d20FoldAsk")
+    d20FoldAsk: game.settings.get("fvtt-mod-bythebooks", "d20FoldAsk")
   };
 
   return report;

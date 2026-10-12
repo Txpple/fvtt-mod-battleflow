@@ -2,7 +2,7 @@
 // asked after the hit shows. Protection: the second d20, the lower standing, and "Protected —
 // <guard>" read by the gate while the guard stays within 5 ft. Interception: 1d10 + PB off the
 // damage at the applier.
-// Fixtures: BF Test Attacker swings at BF Test Halfling (its Lucky a second party); BF Test Fighter
+// Fixtures: BTB Test Attacker swings at BTB Test Halfling (its Lucky a second party); BTB Test Fighter
 // beside it is lent the PHB's styles, a Shield and a Longsword. Everything written is restored.
 import { announcePlan, connectSuite, finish, sectionArg, sectionPlan } from './harness.mjs';
 
@@ -18,8 +18,8 @@ export const COVERS = [
 ];
 
 const SECTIONS = {
-  1: 'Protection turns the hit: the guard\'s own popup beside the Halfling\'s Lucky; Answer rolls the second d20, the lower stands, MISS; the card says "Protection (BF Test Fighter) bent the roll"; both popups close',
-  2: 'the standing half: "Protected — BF Test Fighter" on the Halfling; the next attack at it meets Disadvantage in the gate while the Fighter is within 5 ft, and not from 15 ft',
+  1: 'Protection turns the hit: the guard\'s own popup beside the Halfling\'s Lucky; Answer rolls the second d20, the lower stands, MISS; the card says "Protection (BTB Test Fighter) bent the roll"; both popups close',
+  2: 'the standing half: "Protected — BTB Test Fighter" on the Halfling; the next attack at it meets Disadvantage in the gate while the Fighter is within 5 ft, and not from 15 ft',
   3: 'P1 — a guard\'s pass waits for the others: the Fighter passes, the hold stays open for the Halfling\'s Lucky; the Halfling passes, the hit lands',
   4: 'the guard alone (Lucky spent): the Fighter passes, the hit lands; with no Shield held nobody is asked at all',
   5: 'Interception: the attack\'s damage waits; the Fighter\'s popup "intercept?"; Intercept rolls 1d10 + PB and the damage lands short by it, the receipt says so',
@@ -32,7 +32,7 @@ const f = await connectSuite({ tag: 'guards', watchdogMs: 600_000 });
 announcePlan('guards', plan, pulled);
 
 const out = await f.evaluate(async ({ sections, titles }) => {
-  const MOD = 'fvtt-mod-battleflow';
+  const MOD = 'fvtt-mod-bythebooks';
   const results = [];
   const log = [];
   const skips = [];
@@ -51,7 +51,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
 
   const modDoc = game.modules.get(MOD);
   if (!modDoc?.active) return { fatal: `module active=${modDoc?.active}` };
-  const { INTERRUPT_ROLLS } = await import('/modules/fvtt-mod-battleflow/scripts/decide/registry.js');
+  const { INTERRUPT_ROLLS } = await import('/modules/fvtt-mod-bythebooks/scripts/decide/registry.js');
   if (!INTERRUPT_ROLLS.Protection) return { fatal: 'Protection is not in the loaded code — OLD code (reload the box)' };
 
   const SETTING_KEYS = ['autoDamage', 'autoApply', 'playerRollDamage', 'damageTimer', 'dramaticBeat', 'requireTarget',
@@ -60,11 +60,11 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   const prior = Object.fromEntries(SETTING_KEYS.map(k => [k, game.settings.get(MOD, k)]));
   const set = (k, v) => game.settings.set(MOD, k, v);
 
-  const scene = game.scenes.getName('Battle Flow Test Range');
-  const attacker = game.actors.getName('BF Test Attacker');
-  const halfling = game.actors.getName('BF Test Halfling');
-  const fighter = game.actors.getName('BF Test Fighter');
-  if (!scene || !attacker || !halfling || !fighter) return { fatal: 'missing fixture: the range, BF Test Attacker, Halfling or Fighter — run tools/fixture-suite.mjs' };
+  const scene = game.scenes.getName('By the Books Test Range');
+  const attacker = game.actors.getName('BTB Test Attacker');
+  const halfling = game.actors.getName('BTB Test Halfling');
+  const fighter = game.actors.getName('BTB Test Fighter');
+  if (!scene || !attacker || !halfling || !fighter) return { fatal: 'missing fixture: the range, BTB Test Attacker, Halfling or Fighter — run tools/fixture-suite.mjs' };
   const lucky = () => halfling.items.find(i => (i.name === 'Lucky') && (Number(i.system?.uses?.max) > 0));
 
   const created = { tokens: [], items: [] };
@@ -113,7 +113,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       for (const [actorId, data] of Object.entries(priorActor)) await game.actors.get(actorId)?.update(data);
       game.user.targets.forEach(t => { t.setTarget(false, { releaseOthers: true }); });
       const mine = game.messages.filter(m => (m.timestamp >= suiteStart)
-        && (m.speaker?.alias?.startsWith?.('BF Test') || m.speaker?.alias === 'Battle Flow'
+        && (m.speaker?.alias?.startsWith?.('BTB Test') || m.speaker?.alias === 'By the Books'
           || Object.keys(m.flags?.[MOD] ?? {}).length));
       if (mine.length) await ChatMessage.deleteDocuments(mine.map(m => m.id));
     } catch (err) {
@@ -199,7 +199,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     const textOf = el => (el?.textContent ?? '').replace(/\s+/g, ' ').trim();
     const cardText = id => textOf(document.querySelector(`.message[data-message-id="${id}"]`));
     const weapon = attacker.items.find(i => (i.type === 'weapon') && i.system.activities?.some?.(a => a.type === 'attack'));
-    if (!weapon) return { fatal: 'BF Test Attacker has no weapon attack' };
+    if (!weapon) return { fatal: 'BTB Test Attacker has no weapon attack' };
     const act = () => attacker.items.get(weapon.id).system.activities.find(a => a.type === 'attack');
     faces([[10, 20]]);
     const probe = await act().rollAttack({}, { configure: false }, { create: false });
@@ -249,7 +249,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         (t?.answer === 'roll') && (t?.verdict === 'miss') && (t?.rescue === 'Protection') && (t?.guardedBy?.uuid === fighter.uuid),
         JSON.stringify({ answer: t?.answer, verdict: t?.verdict, rescue: t?.rescue, by: t?.guardedBy }));
       await sleep(800);
-      ok('1c. the attack card: "Protection (BF Test Fighter) bent the roll … MISS"', /Protection \(BF Test Fighter\) bent the roll.*MISS/.test(cardText(msg?.id)),
+      ok('1c. the attack card: "Protection (BTB Test Fighter) bent the roll … MISS"', /Protection \(BTB Test Fighter\) bent the roll.*MISS/.test(cardText(msg?.id)),
         cardText(msg?.id).slice(0, 220));
       ok('1d. both popups closed; no damage landed', !guardPopup() && !rescuePopup() && (hp() === 400), `guard=${!!guardPopup()} own=${!!rescuePopup()} hp=${hp()}`);
     }
@@ -257,10 +257,10 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     // ---- 2. the standing half
     if (want(2)) {
       const eff = await waitFor(() => halfling.effects.find(e => e.getFlag(MOD, 'protectedBy') === fighter.uuid), 6000);
-      ok('2a. "Protected — BF Test Fighter" on the Halfling', /Protected — BF Test Fighter/.test(eff?.name ?? ''), `effect=${eff?.name ?? null}`);
-      const { judgeRoll } = await import('/modules/fvtt-mod-battleflow/scripts/reminders.js');
+      ok('2a. "Protected — BTB Test Fighter" on the Halfling', /Protected — BTB Test Fighter/.test(eff?.name ?? ''), `effect=${eff?.name ?? null}`);
+      const { judgeRoll } = await import('/modules/fvtt-mod-bythebooks/scripts/reminders.js');
       const near = judgeRoll(attacker, { activity: act(), targets: [halflingToken] });
-      const src = (near?.sources ?? []).find(s => /Protected — BF Test Fighter/.test(s.label));
+      const src = (near?.sources ?? []).find(s => /Protected — BTB Test Fighter/.test(s.label));
       // ⚠ and ONLY that row: the spell's "Protected" (Protection from Evil and Good) must not stand for it
       ok('2b. the next attack at the Halfling: Disadvantage in the gate, the row named, the spell\'s "Protected" not matched',
         src?.bend === 'disadvantage' && (near?.net === 'disadvantage') && !(near?.sources ?? []).some(x => / — Protected$/.test(x.label)),

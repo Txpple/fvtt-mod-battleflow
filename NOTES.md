@@ -35,7 +35,7 @@ both discard the promise; a rejection becomes an unhandled rejection nobody logs
 did not happen. Anything fallible in a fire-and-forget handler needs its own try/catch with a
 `console.error`. **A suite that drives a button listens on
 `window.addEventListener("unhandledrejection", …)`** — the one channel a no-catch listener fails
-on (`smoke-battleflow` §4c).
+on (`smoke-bythebooks` §4c).
 
 **A message renders into several DOM trees** — chat log, the notifications pane, popouts. A
 "once per message" latch inside a render hook fires on a tree that gets replaced while the
@@ -324,7 +324,7 @@ spell native on that; the walk proves the roll.
 
 ## 2. dnd5e — the 6.x knowledge, with the pre-6.0 survivors marked
 
-> Battle Flow runs on dnd5e 6.x only since v2.0.0. **The 6.0 pass** (first below) is the seam
+> By the Books runs on dnd5e 6.x only since v2.0.0. **The 6.0 pass** (first below) is the seam
 > every card reader goes through: a roll card IS its data — `message.type` says what it is,
 > `message.system.*` the rest — and any `flags.dnd5e.*` on a message is 5.3.x history. The notes
 > after it are measured on 6.0. **Carried over from 5.3.x** holds the pre-6.0 measurements that
@@ -334,7 +334,7 @@ spell native on that; the walk proves the roll.
 
 ### The dnd5e 6.0 pass (2026-09-15 → 2026-09-16; ASSESSMENT.md retired into this note)
 
-dnd5e 6.0 stopped Battle Flow on 2026-09-15: the module could not be enabled (its pin was 5.3.99 —
+dnd5e 6.0 stopped By the Books on 2026-09-15: the module could not be enabled (its pin was 5.3.99 —
 Foundry drops the setting write silently when a system maximum is exceeded), and with the pin
 raised every guard that read a card's flags failed closed. The pass was five phases on the
 sandbox (Foundry 14.367 / dnd5e 6.0.1), each battery-green for what it touched, released as
@@ -397,7 +397,7 @@ object keyed by id.
 - **M** the card DOM (phase 4): the usage card's buttons are DATA (`system.buttons[]`, filtered in
   `dnd5e.preCreateUsageMessage`, Refund Resource kept); a save or check chained to a usage card is
   HIDDEN and drawn as a summary INSIDE the usage card (client setting `chatCardSummary`, default
-  on) — the rows Battle Flow stamps on such rolls draw through `ui.js cardRow` into
+  on) — the rows By the Books stamps on such rolls draw through `ui.js cardRow` into
   `.card-summary[data-message-id]`.
 - **N** a null AC is a MISS (the platform's `evaluatedTargets`, ruling 4); riders `deepClone` the
   shared roll data (the per-roll damage rules write into it); `ranged` is an attack mode; the PHB
@@ -423,15 +423,15 @@ Breaks land on the major, deprecations expire on the second minor (6.2), patches
 **§5 The rulings (the user, 2026-09-15).** (1) **The clock:** adopt the platform's — an empty
 clock takes the activity's duration (`Activity#getAppliedEffectChanges`), and the pseudo-expiries
 `sourceStart | sourceEnd | targetStart | targetEnd` are the turn-edge vocabulary (the rows are in
-[RULINGS.md](RULINGS.md) *Chips and clocks*); the once-per-turn chits stay Battle Flow's.
+[RULINGS.md](RULINGS.md) *Chips and clocks*); the once-per-turn chits stay By the Books'.
 (2) **Concentration:** VETO both native prompts, keep the machine — *the platform's prompt is a
-reminder, Battle Flow's machine is a resolution* (it asks on the right client with a draining
+reminder, By the Books' machine is a resolution* (it asks on the right client with a draining
 bar, rolls for a player who walks away, breaks and cascades on a failure, and ends concentration
 at 0 HP or incapacitated — nothing in the system does). Revisit only if a 6.x prompt gains a
-timer and a consequence. (3) **Emanations:** KEEP Battle Flow's; suppress the platform's
+timer and a consequence. (3) **Emanations:** KEEP By the Books'; suppress the platform's
 auto-behaviour on regions it adopts (`options.dnd5e.createActivityBehaviors: false` at the
 placement, a `preCreateRegionBehavior` veto on any `dnd5e.*` behaviour on an adopted region).
-Measured with Battle Flow OFF (`tools/probe-platform-emanations.mjs`): the PHB pack declares ZERO
+Measured with By the Books OFF (`tools/probe-platform-emanations.mjs`): the PHB pack declares ZERO
 activity behaviours on any aura spell; hand-authored, the platform does "effect while inside,
 gone on exit" for FRIENDLY only (no neutrals, no caster-reach exclusion, no turn events, no
 feature auras), and concentration did not clean it up. (4) **Null AC:** a target whose AC cannot
@@ -449,7 +449,7 @@ Good's "Protected" are two pack effects with one name: the effect table's row ga
 row with `item` stands only for an effect from that item when the sheet knows
 (`effectCarriesRow`, unit-tested). (3) A usage card said each save twice: the platform's summary
 row is the one line, carrying the verdict's tail (`verdictTail`, saves/views.js,
-`SURFACES.summaryRow`); Battle Flow's own line draws only where no row exists — summaries off, an
+`SURFACES.summaryRow`); By the Books' own line draws only where no row exists — summaries off, an
 automatic failure with no die, the target gone (smoke-saves §24e/f). (4, 5) The hover card and the
 marks panel — [RULINGS.md](RULINGS.md) *The effect view* (probe-effect-view §2c). (7) Every
 concentration area whose pack data puts the spell's minute on the activity stood after the cast;
@@ -808,7 +808,7 @@ module's own roll (damage-casts.js) or none (superiority-uses.js, the fold files
 is left alone (Rally rolls through it).
 
 **A utility activity with a roll formula does NOT roll it at the use** (2026-09-05, Tactical
-Assessment): `use()` spends the die and posts a card with a Roll button — which Battle Flow hides
+Assessment): `use()` spends the die and posts a card with a Roll button — which By the Books hides
 (`hideCardButtons`). The use is the ARMING now (d20-folds.js): the module rolls the formula, chips
 the number, folds it into the next check the scope names. Same class as the heal/damage dialog:
 dnd5e leaves a second click, and the module has hidden the thing to click.
@@ -1146,7 +1146,7 @@ as the number (verified: the printed AC does not move, and Shield counts).
 
 **A hold raised at the card's birth is enough — the card need not be held back** (2026-09-24, the
 chosen areas). FX Studio's gate asks `holdFor(<the cast's activity>)` before it plays ANYTHING keyed
-on the cast — the usage card and the placed area alike (its `readers/battleflow.js`) — so a hold
+on the cast — the usage card and the placed area alike (its `readers/bythebooks.js`) — so a hold
 raised in `preCreateChatMessage` makes both wait, and releasing it plays them. The metamagic ask's
 held card (2026-09-09) predates this and stays; the chosen area takes the lighter road (the card is
 born, its demand waits empty, the hold keeps the picture). ⚠ The hold is client-local, so the
@@ -1223,7 +1223,7 @@ arithmetic (`reactionStands`). When a window's start and its owner's turn can di
 arithmetic.
 
 **A combat left standing in the sandbox reds the battery for the wrong reason** (2026-09-03).
-`smoke-battleflow` §3b and `smoke-effects` §17b assert "out of combat" facts and go red under any
+`smoke-bythebooks` §3b and `smoke-effects` §17b assert "out of combat" facts and go red under any
 running Combat — the user's own encounter from a morning walk, that day. The battery does not end
 combats and must not; look at `game.combats` before diagnosing either red, and ask before deleting
 one.
@@ -1247,8 +1247,8 @@ legitimately rare case gets tuned until it passes, and a tuned-out check still *
 When the honest answer is "a human must look at this", print it and say so.
 
 **A driven roll stamps its module flags NESTED, never as dotted keys** (2026-09-24, the Slice A live
-run, 7eca747). A chat message given flags both as `flags: { battleflow: {...} }` and as
-`"flags.battleflow.x"` keeps only the nested object — the dotted keys are silently lost on create.
+run, 7eca747). A chat message given flags both as `flags: { bythebooks: {...} }` and as
+`"flags.bythebooks.x"` keeps only the nested object — the dotted keys are silently lost on create.
 Savage Attacker's `weaponRolls` stamp, written dotted, erased `attackFor` and `attackHoldPending`
 from every driven damage roll, and the older rider stamps (Sneak, clock riders, hit maneuvers,
 auto-crit) could do the same. Every stamp on a driven roll now goes in one nested object
@@ -1325,7 +1325,7 @@ put every platform finding on a public page.
 
 The sandbox is a local Foundry, often a copy of a live world, and suites MUTATE it. Every harness
 resolves its target in one place (`tools/target.mjs`): the MCP client's `local` preset (the world its .env
-names) unless `BF_HOST` names another preset deliberately, and it prints it.
+names) unless `BTB_HOST` names another preset deliberately, and it prints it.
 
 ⚠ **THE WORLD IS A BLANK SLATE (2026-10-07).** No suite reads anything the world brings: not a
 character, scene, item, macro or folder. `tools/fixture-suite.mjs` builds every fixture from the
@@ -1343,7 +1343,7 @@ are world users, so a world without them cannot run the suites; the fixtures gra
 that env name on every run.
 
 ⚠ **A friendly fixture must never stand where a suite plays** (2026-09-24, smoke-reminders §11e).
-BF Test Goliath first homed at y=1400, beside smoke-reminders' target: an ALLY within 5 feet, so
+BTB Test Goliath first homed at y=1400, beside smoke-reminders' target: an ALLY within 5 feet, so
 the gate judged Pack Tactics true and the suite read Advantage it never set up. Every suite places
 its tokens between x 800–1700 and y 900–1700; the Goliath and the Halfling now home in the range's
 empty top-left corner (300, 200 and 500, 200 — `tools/fixture-suite.mjs`). The map is a fact the
@@ -1354,12 +1354,12 @@ empty ground now and the section asserts it first.
 ⚠ **A KILLED battery poisons the next one** (2026-09-24, a battery killed inside smoke-hitmenu for
 a reboot). A kill skips the teardown, so the killed suite's LINKED tokens, the items it added and
 what it raised on a base actor (a 1000-HP victim, −30 save bonuses, an AC override) all stay — and
-every later suite that measured distance from the shared attacker (smoke-battleflow 5e's
-auto-crit; smoke-volleys §9–11, "within 5 feet of BF Test Fighter" on every ray), reused an "add if
+every later suite that measured distance from the shared attacker (smoke-bythebooks 5e's
+auto-crit; smoke-volleys §9–11, "within 5 feet of BTB Test Fighter" on every ray), reused an "add if
 missing" item (smoke-hitmenu 9c's stripped Goading Attack) or placed a fresh unlinked token from the
 base actor (smoke-saves 15) was judged from the residue. Two batteries red, no module change. Now:
 `fixture-suite` stamps its own tokens `fixtureHome` and puts the base goblins back to the statblock
-every run; `reset-fixture-state` sweeps every other LINKED `BF Test` token and runs FIRST in the
+every run; `reset-fixture-state` sweeps every other LINKED `BTB Test` token and runs FIRST in the
 battery (`coverage-map.mjs` ORDER); the suites that delete the shared UNLINKED tokens by actor
 sweep linked strays only (smoke-rescue had deleted the shared attacker and left a linked one); the
 maneuver suites add fresh copies every run; smoke-volleys asserts clear ground around its row.

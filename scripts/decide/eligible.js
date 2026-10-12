@@ -1,6 +1,6 @@
 // @ts-check
 /**
- * Battle Flow — DECISION layer (ARCHITECTURE.md §2): the eligibility predicates, from data alone;
+ * By the Books — DECISION layer (ARCHITECTURE.md §2): the eligibility predicates, from data alone;
  * what walks documents or awaits stays EDGE. ⚠ Depend downward only (no machine, spine or core.js).
  */
 

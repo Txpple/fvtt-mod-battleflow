@@ -1,9 +1,9 @@
 /**
- * Battle Flow — EDGE layer (ARCHITECTURE.md §2): containment, token distance in FEET and measured
+ * By the Books — EDGE layer (ARCHITECTURE.md §2): containment, token distance in FEET and measured
  * cover — the Foundry half; the arithmetic is decide/geometry.js and decide/cover.js.
  * ⚠ No hooks, no flags, no writes.
  */
-import { MODULE_ID, TITLE } from "./core.js";
+import { readFlag, TITLE } from "./core.js";
 import { measureCover } from "./decide/cover.js";
 import { lengthUnitKey, rectsOverlap, tokenSamplePoints } from "./decide/geometry.js";
 
@@ -84,7 +84,7 @@ export function feetOf(n, units) {
 
 /** Who put this Grappled on its bearer: the module's source stamp, else the origin's actor, or null. */
 export function grapplerOf(effect) {
-  const stamped = effect?.getFlag?.(MODULE_ID, "sourceUuid");
+  const stamped = readFlag(effect, "sourceUuid");
   if ( stamped ) return stamped;
   let origin = null;
   try { origin = effect?.origin ? fromUuidSync(effect.origin) : null; } catch { origin = null; }
@@ -181,7 +181,7 @@ export function measuredCoverBetween(attacker, target) {
   try {
     const a = attacker?.document, t = target?.document;
     if ( !a || !t || (a === t) || (a.parent !== t.parent) || !canvas?.grid ) return null;
-    if ( canvas.grid.isHexagonal || a.parent?.getFlag?.(MODULE_ID, "noCover") ) return null;
+    if ( canvas.grid.isHexagonal || readFlag(a.parent, "noCover") ) return null;
     const size = canvas.grid.size;
     const grid = canvas.grid.isGridless ? 0 : size;
     const creatures = [];

@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Battle Flow Wild Shape</title>
+<title>By the Books Wild Shape</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Signika:wght@400;600;700&display=swap">
 <style>
   /* the house prototype look — scenes along the top, a mock screen (canvas + chat log), the options and rulings down the side. Dark by choice. */
@@ -280,7 +280,7 @@
   }
 
   function offer(name, sub, situ, body, primary, enabled, width) {
-    return `<div class="offer" ${width ? `style="width:${width}px"` : ""}>${titleBar("Battle Flow · the form")}<div class="body">
+    return `<div class="offer" ${width ? `style="width:${width}px"` : ""}>${titleBar("By the Books · the form")}<div class="body">
       <div class="head"><div class="img"></div><div><h2>${name}</h2><div class="sub">${sub}</div></div></div>
       ${situ ? `<div class="situ">${situ}</div>` : ""}${body}
       <div class="btnrow"><button type="button" class="btn primary" id="go" ${enabled ? "" : "disabled"}>${primary}</button><button type="button" class="btn">Cancel</button><span class="hint">${enabled ? "the GM's client transforms you" : "pick a form"}</span></div>
@@ -293,7 +293,7 @@
     l2: {
       caption: () => O.known === "enforce" ? "Known Forms first and the rest locked: the rule's four, swapped one per long rest. The pool is filtered to what the row allows, so the Giant Bat never shows and the T-Rex is not an offer." : "Known Forms as pins at the top; the whole eligible pool stays open below. The rule's four are a favourite list, not a wall.",
       stage: () => tok(300, 330, "pc", "Tamsin") + offer("Wild Shape", RULE.l2.label + " · 2 uses · Bonus Action", null, `<div class="grp-l">Known forms, then the pool<small>${eligible(RULE.l2).length} eligible of 97 beasts in six books</small></div>${gallery(RULE.l2)}`, S.pick ? `Become a ${S.pick}` : "Become…", !!S.pick),
-      log: () => S.pick ? msg("Tamsin", "pending", "Battle Flow · transform", `Wild Shape · ${S.pick}`, `${Math.floor(2 / 2) || 1} hour · a use spent`, `<div><span class="chip wait">waiting for the GM's client</span> the preset wildshape · keeps mind, HP, class features · merges saves and skills</div>`) : msg("Tamsin", "neutral", "Battle Flow", "Wild Shape", "the card posts once a form is picked", "")
+      log: () => S.pick ? msg("Tamsin", "pending", "By the Books · transform", `Wild Shape · ${S.pick}`, `${Math.floor(2 / 2) || 1} hour · a use spent`, `<div><span class="chip wait">waiting for the GM's client</span> the preset wildshape · keeps mind, HP, class features · merges saves and skills</div>`) : msg("Tamsin", "neutral", "By the Books", "Wild Shape", "the card posts once a form is picked", "")
     },
     rest: {
       caption: () => "At the long rest the rest-grants machine offers the swap: one known form out, one eligible form in. The pins are a flag on the druid's Wild Shape item; nothing on the system side holds them today.",
@@ -301,18 +301,18 @@
         `<div class="grp-l">Swap out</div><div class="tools">${S.known.map(k => `<button type="button" class="opt" data-out="${k}" aria-pressed="${S.swapOut === k}">${k}</button>`).join("")}</div><div class="grp-l">Swap in<small>${eligible(RULE.l2).length} eligible</small></div>` +
         `<div class="cards">` + eligible(RULE.l2).filter(([n]) => !S.known.includes(n)).slice(0, 12).map(([n, cr, sz, sp, sum, b]) => { const [a1, a2] = ART[n.length % ART.length].split(","); return `<button type="button" class="card" data-in="${n}" aria-pressed="${S.swapIn === n}" style="--a1:${a1};--a2:${a2}"><span class="tag">${bookOf(b)}</span><span class="art"></span><b>${n}</b><small>CR ${crText(cr)} · ${sz} · ${sp} ft</small></button>`; }).join("") + `</div>`,
         "Swap", !!(S.swapOut && S.swapIn)),
-      log: () => msg("Tamsin", "good", "Battle Flow · rest", "Long rest", "Wild Shape uses restored · 2 of 2", S.swapOut && S.swapIn ? `<div>Known forms: ${S.swapOut} → <b>${S.swapIn}</b></div>` : "")
+      log: () => msg("Tamsin", "good", "By the Books · rest", "Long rest", "Wild Shape uses restored · 2 of 2", S.swapOut && S.swapIn ? `<div>Known forms: ${S.swapOut} → <b>${S.swapIn}</b></div>` : "")
     },
     moon: {
       caption: () => "Moon 9: the cap is CR 3 (floor of level over 3), Fly allowed from level 8. The speed filter answers the moment the table actually has: a river to cross. The Moon's AC floor and temp HP come from dnd5e's own preset, untouched.",
       stage: () => tok(300, 330, "pc", "Tamsin") + offer("Circle Forms", RULE.moon.label + " · AC 13 + Wis if higher · 27 temp HP", null, `<div class="grp-l">Known forms, then the pool<small>${eligible(RULE.moon).length} eligible</small></div>${gallery(RULE.moon)}`, S.pick ? `Become a ${S.pick}` : "Become…", !!S.pick),
-      log: () => S.pick ? msg("Tamsin", "pending", "Battle Flow · transform", `Circle Forms · ${S.pick}`, "4 hours · a Wild Shape use spent", `<div><span class="chip wait">waiting for the GM's client</span> preset wildshape · minimum AC 13 + Wis · temp HP 3 × level</div>`) : msg("Tamsin", "neutral", "Battle Flow", "Circle Forms", "the card posts once a form is picked", "")
+      log: () => S.pick ? msg("Tamsin", "pending", "By the Books · transform", `Circle Forms · ${S.pick}`, "4 hours · a Wild Shape use spent", `<div><span class="chip wait">waiting for the GM's client</span> preset wildshape · minimum AC 13 + Wis · temp HP 3 × level</div>`) : msg("Tamsin", "neutral", "By the Books", "Circle Forms", "the card posts once a form is picked", "")
     },
     poly: {
       caption: () => O.polyPick === "caster" ? "The save machine already exists. The caster picks the beast before the save, capped at the target's CR or level (the pack leaves the cap blank today, so the browser offers a T-Rex). On a fail the GM's client transforms the ogre; the temp HP are the beast's HP, from the polymorph preset." : "The caster casts and the save runs; the GM picks the beast from the card, capped the same way. The caster's intent is in chat, the pick is the adjudicator's.",
       stage: () => tok(300, 330, "pc", "Aster") + (S.saved ? tok(520, 200, "form", S.polyPick || "Frog") : tok(520, 200, "", "Ogre")) + (O.polyPick === "caster" && !S.saved ? offer("Polymorph", "a Beast of CR 2 or lower · Wisdom save DC 15 · Concentration, 1 hour", "Target: the Ogre · CR 2 · 59 HP · its HP and mind stay, its body goes",
         `<div class="grp-l">The form<small>${eligible(RULE.poly).length} eligible · the whole pool, no known forms</small></div>${gallery(RULE.poly, { pins: false, lock: false })}`, S.pick ? `Cast · ${S.pick}` : "Cast", !!S.pick, 600) : ""),
-      log: () => msg("Aster", "pending", "Battle Flow · demand", "Polymorph · Wisdom save DC 15", `Ogre${O.polyPick === "caster" && S.pick ? ` · into a ${S.pick}` : ""}`, S.saved
+      log: () => msg("Aster", "pending", "By the Books · demand", "Polymorph · Wisdom save DC 15", `Ogre${O.polyPick === "caster" && S.pick ? ` · into a ${S.pick}` : ""}`, S.saved
         ? `<div>Ogre · 7 <span class="verdict fail">failed</span></div><div><b>Transformed by the GM's client</b> into a ${S.polyPick} · ${P.find(p => p[0] === S.polyPick)?.[4].match(/\d+ HP/)?.[0] ?? "HP"} as temp HP · concentration 1 hour</div>`
         : `<div><span class="cardbtn" id="rollsave">Roll the save (GM)</span>${O.polyPick === "gm" ? ` <span class="cardbtn" id="gmpick">Pick the form (GM)</span>` : ""}</div>`)
     },
@@ -321,7 +321,7 @@
       stage: () => tok(300, 330, S.ended ? "pc" : "form", S.ended ? "Tamsin" : "Tamsin (Brown Bear)") + tok(420, 250, "", "Ogre") +
         `<div class="hp"><div>${S.ended ? "Tamsin" : "Brown Bear form"}</div><div class="trk"><div class="fill ${S.ended ? "low" : ""}" style="width:${S.ended ? 68 : 32}%"></div></div><b>${S.ended ? "15 / 22" : "7 / 22"}</b> HP${S.ended ? "" : ` · <button type="button" class="btn" id="hit" style="padding:2px 8px;font-size:11px">Ogre hits for 11</button>`}</div>` +
         `<div class="bar">${S.ended ? `<div class="fx temp">Reverted · excess 4 carried over <span class="clk">now</span></div>` : `<div class="fx">Wild Shape · Brown Bear <span class="clk">2 h 40 m</span><span class="act">Revert</span></div><div class="fx temp">Temp HP 9 (Moon) <span class="clk">with the form</span></div>`}</div>`,
-      log: () => S.ended ? msg("Ogre", "bad", "Greatclub", "hit · 11 bludgeoning", "Tamsin (Brown Bear) · 7 → 0", `<div><b>The form ends</b> · Tamsin reverts · 4 excess damage carries to her own HP · 19 → 15</div>`) : msg("Tamsin", "good", "Battle Flow · transform", "Wild Shape · Brown Bear", "2 h 40 m left · Revert is on the bar", "")
+      log: () => S.ended ? msg("Ogre", "bad", "Greatclub", "hit · 11 bludgeoning", "Tamsin (Brown Bear) · 7 → 0", `<div><b>The form ends</b> · Tamsin reverts · 4 excess damage carries to her own HP · 19 → 15</div>`) : msg("Tamsin", "good", "By the Books · transform", "Wild Shape · Brown Bear", "2 h 40 m left · Revert is on the bar", "")
     }
   };
 

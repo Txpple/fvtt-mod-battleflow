@@ -1,5 +1,5 @@
 /**
- * Battle Flow — CORE (ARCHITECTURE.md §7, a leaf beside core.js): THE SURFACES MAP — every anchor
+ * By the Books — CORE (ARCHITECTURE.md §7, a leaf beside core.js): THE SURFACES MAP — every anchor
  * read off the PLATFORM's markup, which is not API (NOTES §2 *the 6.0 pass*). Prefer data.
  * `tools/check-surfaces.mjs` fails the build on a platform selector elsewhere or an anchor missing
  * from dnd5e's templates. ⚠ Imports nothing; `core` anchors are listed, not checked.

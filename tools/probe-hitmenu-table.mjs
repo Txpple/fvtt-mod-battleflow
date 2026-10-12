@@ -17,7 +17,7 @@ if (observe) { f = new Foundry(foundryConfig(loadEnv())); await f.connect(); }
 else f = await connectSuite({ tag: "probe-hitmenu", watchdogMs: 120_000, requireElect: false, env: loadEnv() });
 setTimeout(() => process.exit(3), 120_000);
 const out = await f.evaluate(async ({ ids }) => {
-  const MOD = "fvtt-mod-battleflow";
+  const MOD = "fvtt-mod-bythebooks";
   const cards = ids.length ? ids.map(id => game.messages.get(id)).filter(Boolean)
     : game.messages.contents.filter(m => m.getFlag(MOD, "hitManeuverCard")).slice(-6);
   const report = [];

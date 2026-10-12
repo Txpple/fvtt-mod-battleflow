@@ -1,11 +1,11 @@
 /**
- * Battle Flow — MACHINE (ARCHITECTURE.md §7): THE HEAL ON HIT (HEAL_ON_HIT) — a spell whose landed damage
+ * By the Books — MACHINE (ARCHITECTURE.md §7): THE HEAL ON HIT (HEAL_ON_HIT) — a spell whose landed damage
  * heals its caster a share of it (Vampiric Touch; Lifedrinker's shape, SWEEP §3 item 4). The seam is
  * `dnd5e.applyDamage`: the dealing card's activity answers the row, the amount TAKEN of the row's type
  * pays the caster with a receipt on the same card, once per creature per card, no choice (R1).
  * Rulings: RULINGS *The spells slice — the held spells*.
  */
-import { MODULE_ID, TITLE, canApplyTo, whisperNoGM, queueFlagWrite } from "./core.js";
+import { MODULE_ID, readFlag, TITLE, canApplyTo, whisperNoGM, queueFlagWrite } from "./core.js";
 import { activityNamed, activityOfType, cardActivity, featureNamed, lower, wearsEffectNamed } from "./lookup.js";
 import { damagePartsOf, turnChitStands, writeTurnChit } from "./shared.js";
 import { nearestFeet, tokenOfActor } from "./geometry.js";
@@ -142,7 +142,7 @@ async function heal({ row, activity, caster, target, taken, origin }) {
         current.done.push(target.uuid);
         claimed = true;
       });
-    } else claimed = !(origin.getFlag(MODULE_ID, HEAL_ON_HIT_FLAG)?.done ?? []).includes(target.uuid);
+    } else claimed = !(readFlag(origin, HEAL_ON_HIT_FLAG)?.done ?? []).includes(target.uuid);
     if ( !claimed ) return;
     const verdict = healOnHitAmount(row, { taken, parts: damagePartsOf(origin.rolls ?? []) });
     if ( !verdict.heals ) return;
@@ -167,7 +167,7 @@ async function heal({ row, activity, caster, target, taken, origin }) {
 // The dealing card's own line: who paid the caster.
 listen("dnd5e.renderChatMessage", "heal-on-hit", (message, html) => {
   try {
-    const h = message.getFlag(MODULE_ID, HEAL_ON_HIT_FLAG);
+    const h = readFlag(message, HEAL_ON_HIT_FLAG);
     if ( !h?.done?.length ) return;
     const content = html.querySelector?.(SURFACES.messageContent) ?? html;
     if ( !content || content.querySelector(".bf-heal-on-hit-line") ) return;

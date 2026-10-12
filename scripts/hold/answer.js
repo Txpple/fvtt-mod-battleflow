@@ -1,9 +1,9 @@
 // @ts-check
 /**
- * Battle Flow — the reaction hold, part 5: THE ANSWER. `answerHold` and its relay fold, the cast
+ * By the Books — the reaction hold, part 5: THE ANSWER. `answerHold` and its relay fold, the cast
  * that IS the answer, and the popup's Cast button (natively, or Parry's die rolled in the open).
  */
-import { MODULE_ID, TITLE, queueFlagWrite, canAnswerFor, isContinuingClient } from "../core.js";
+import { MODULE_ID, readFlag, TITLE, queueFlagWrite, canAnswerFor, isContinuingClient } from "../core.js";
 import { isTextOnlyFeature } from "../decide/eligible.js";
 import { interruptEntries } from "../decide/registry.js";
 import { joinEffectReceipt } from "../decide/receipt.js";
@@ -56,7 +56,7 @@ export function recordAnswer(target, answer, by = null) {
  *   rescue?: string|null, by?: string|null}} [opts]
  */
 export async function answerHold(attackMessage, uuid, answer, { appliedEffects = [], reduceBy = null, poolSpend = null, bent = null, rescue = null, by = null } = {}) {
-  const hold = attackMessage.getFlag(MODULE_ID, "hold");
+  const hold = readFlag(attackMessage, "hold");
   if ( hold?.status !== "pending" ) return;
   // A throwaway copy asks whether this answer records at all; the owner's write repeats it under the lock.
   const target = foundry.utils.deepClone(hold.targets?.find(t => t.uuid === uuid) ?? null);
@@ -158,19 +158,19 @@ registerRelay("respondsTo", {
   // ⚠ A per-target write to a shared array: the guards repeat INSIDE the lock.
   fold: (flag, _response, message) => {
     if ( flag.status !== "pending" ) return false;
-    const target = flag.targets?.find(t => t.uuid === message.getFlag(MODULE_ID, "uuid"));
-    const recorded = recordAnswer(target, message.getFlag(MODULE_ID, "answer"), message.getFlag(MODULE_ID, "by") ?? null);
+    const target = flag.targets?.find(t => t.uuid === readFlag(message, "uuid"));
+    const recorded = recordAnswer(target, readFlag(message, "answer"), readFlag(message, "by") ?? null);
     if ( !recorded ) return false;
     if ( recorded === "partial" ) return;   // a guard's pass, recorded: the others are still asked
     target.answeredAt = Date.now();   // the crash-resume horizon
     target.answeredBy = message.author?.id ?? null;   // the gate publishes this moment on THAT user's client
-    const reduceBy = Number(message.getFlag(MODULE_ID, "reduceBy"));
+    const reduceBy = Number(readFlag(message, "reduceBy"));
     if ( reduceBy > 0 ) target.reduceBy = reduceBy;
-    const poolSpend = message.getFlag(MODULE_ID, "poolSpend");
+    const poolSpend = readFlag(message, "poolSpend");
     if ( poolSpend ) target.poolSpend = poolSpend;
-    const bent = message.getFlag(MODULE_ID, "bent");        // a `roll` answer
+    const bent = readFlag(message, "bent");        // a `roll` answer
     if ( bent ) target.bent = bent;
-    const rescue = message.getFlag(MODULE_ID, "rescue");
+    const rescue = readFlag(message, "rescue");
     if ( rescue ) target.rescue = rescue;
   }
 });
@@ -198,7 +198,7 @@ async function answerHoldsFor(activity, actor) {
   // check (+10 AC). The WHOLE log, never a tail: one round can emit dozens of messages.
   const answering = [];
   for ( const message of game.messages.contents ) {
-    const hold = message.getFlag(MODULE_ID, "hold");
+    const hold = readFlag(message, "hold");
     if ( !hold || (hold.status !== "pending") ) continue;
     const target = hold.targets.find(t => (t.uuid === actor.uuid) && !t.answer);
     if ( target ) answering.push({ message, uuid: target.uuid, reaction: target.reaction });
@@ -458,7 +458,7 @@ export async function muteAndPass(attackMessage, target, guard) {
 /** The sheet's answer for a `roll` row: ONE hold, the oldest asking (unlike Shield, "that roll" only). */
 async function bendFromTheSheet(actor, name) {
   for ( const message of game.messages.contents ) {
-    const hold = message.getFlag(MODULE_ID, "hold");
+    const hold = readFlag(message, "hold");
     if ( !hold || (hold.status !== "pending") ) continue;
     const target = hold.targets.find(t => (t.uuid === actor.uuid) && !t.answer
       && (t.rows ?? []).some(r => (lower(r.key) === lower(name)) && !r.off));

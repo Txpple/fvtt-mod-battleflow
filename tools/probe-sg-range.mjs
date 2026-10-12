@@ -1,4 +1,4 @@
-// Probe: Spirit Guardians' reach. With the BF Test Cleric's own Spirit Guardians and the hostile BF
+// Probe: Spirit Guardians' reach. With the BTB Test Cleric's own Spirit Guardians and the hostile BTB
 // Test Victim as the walker, prints (asserts nothing):
 //   • the template's distance and the Region's shape as placed;
 //   • for a grid of offsets from the caster: Region membership (`region.tokens`), centre inside the
@@ -13,7 +13,7 @@ const TAG = "probe-sg-range";
 const f = await connectSuite({ tag: TAG, watchdogMs: 300_000, env: loadEnv() });
 
 const out = await f.evaluate(async () => {
-  const MOD = "fvtt-mod-battleflow";
+  const MOD = "fvtt-mod-bythebooks";
   const sleep = ms => new Promise(r => setTimeout(r, ms));
   const waitFor = async (fn, ms = 8000) => { const end = Date.now() + ms; while ( Date.now() < end ) { const v = await fn(); if ( v ) return v; await sleep(200); } return null; };
   const report = { foundry: game.version, system: `${game.system.id} ${game.system.version}`, module: game.modules.get(MOD)?.version, log: [] };
@@ -25,10 +25,10 @@ const out = await f.evaluate(async () => {
   const prior = Object.fromEntries(SETTING_KEYS.map(k => [k, game.settings.get(MOD, k)]));
   const set = (k, v) => game.settings.set(MOD, k, v);
 
-  const scene = game.scenes.getName("Battle Flow Test Range");
-  const cleric = game.actors.getName("BF Test Cleric");
-  const victim = game.actors.getName("BF Test Victim");
-  if ( !scene || !cleric || !victim ) return { fatal: "missing fixture: the range, BF Test Cleric or BF Test Victim — run tools/fixture-suite.mjs" };
+  const scene = game.scenes.getName("By the Books Test Range");
+  const cleric = game.actors.getName("BTB Test Cleric");
+  const victim = game.actors.getName("BTB Test Victim");
+  if ( !scene || !cleric || !victim ) return { fatal: "missing fixture: the range, BTB Test Cleric or BTB Test Victim — run tools/fixture-suite.mjs" };
   const clrTok = scene.tokens.find(t => t.actorId === cleric.id), vicTok = scene.tokens.find(t => t.actorId === victim.id);
   if ( !clrTok || !vicTok ) return { fatal: "a fixture token is missing from the range — run tools/fixture-suite.mjs" };
   const priorActiveScene = game.scenes.active?.id ?? null;
@@ -56,7 +56,7 @@ const out = await f.evaluate(async () => {
 
     const sgItem = cleric.items.find(i => i.name === "Spirit Guardians");
     const sgAct = [...(sgItem?.system?.activities ?? [])].find(a => a.type === "save");
-    if ( !sgAct ) return { fatal: "BF Test Cleric has no Spirit Guardians save activity" };
+    if ( !sgAct ) return { fatal: "BTB Test Cleric has no Spirit Guardians save activity" };
     report.activity = { size: sgAct.target?.template?.size, type: sgAct.target?.template?.type, sizeSource: sgAct._source?.target?.template?.size ?? null, range: sgAct.range?.units, casterWidth: clrTok.width };
     try {
       await Promise.race([sgAct.use({ consume: { spellSlot: false, resources: false } }, { configure: false }, { create: true }),
@@ -74,7 +74,7 @@ const out = await f.evaluate(async () => {
 
     // The two answers that can disagree: Region membership (the platform's, async) and the module's
     // containment (`tokensInRegions`). `template` is null on a Region-only box.
-    const { tokensInRegions } = await import("/modules/fvtt-mod-battleflow/scripts/geometry.js");
+    const { tokensInRegions } = await import("/modules/fvtt-mod-bythebooks/scripts/geometry.js");
     report.gridTemplates = game.settings.get("core", "gridTemplates");
     report.drawnShape = template?.object?.shape?.constructor?.name ?? null;
     const drawnContains = p => { const s = template?.object?.shape; return s ? s.contains(p.x - template.x, p.y - template.y) : null; };
@@ -162,7 +162,7 @@ const out = await f.evaluate(async () => {
     try { for ( const [id, pos] of Object.entries(home) ) { const t = scene.tokens.get(id); if ( t ) await t.update(pos, mv()); } } catch { /* gone */ }
     await sleep(600);
     try { for ( const a of [victim, vicTok.actor, cleric].filter(Boolean) ) { const fx = a.effects.filter(e => e.getFlag(MOD, "emanation") || (e.getFlag(MOD, "mastery") === "rider" && /^Spirit Guardians/.test(e.name))).map(e => e.id).filter(id => a.effects.get(id)); if ( fx.length ) await a.deleteEmbeddedDocuments("ActiveEffect", fx).catch(() => {}); } } catch { /* gone */ }
-    try { const mine = game.messages.filter(m => (m.timestamp >= started) && (m.speaker?.alias?.startsWith?.("BF Test") || m.speaker?.alias === "Battle Flow" || Object.keys(m.flags?.[MOD] ?? {}).length)); if ( mine.length ) await ChatMessage.deleteDocuments(mine.map(m => m.id)); } catch { /* gone */ }
+    try { const mine = game.messages.filter(m => (m.timestamp >= started) && (m.speaker?.alias?.startsWith?.("BTB Test") || m.speaker?.alias === "By the Books" || Object.keys(m.flags?.[MOD] ?? {}).length)); if ( mine.length ) await ChatMessage.deleteDocuments(mine.map(m => m.id)); } catch { /* gone */ }
     try { for ( const [k, v] of Object.entries(prior) ) await set(k, v); } catch(err) { log(`restore settings: ${err?.message}`); }
     try { const back = priorActiveScene ? game.scenes.get(priorActiveScene) : null; if ( back && (game.scenes.active?.id !== back.id) ) { await back.activate(); await sleep(1000); } } catch { /* fine */ }
   }

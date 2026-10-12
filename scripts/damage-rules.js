@@ -1,10 +1,10 @@
 /**
- * Battle Flow — MACHINE (ARCHITECTURE.md §7): THE FIGHTING STYLES — feats turning on what the owner
+ * By the Books — MACHINE (ARCHITECTURE.md §7): THE FIGHTING STYLES — feats turning on what the owner
  * holds or wears, or how it attacks (RULINGS *The fighting styles*). THE FACE: one ActiveEffect per
  * listed style, live or disabled off the EQUIPPED boxes; an ungated pack effect is off while the face
  * carries the rule. THE ROLL: bonuses join the parts; a die floor is a `minN` on the built rolls.
  */
-import { MODULE_ID, TITLE, drivesMomentFor, canApplyTo, canAnswerFor, keepsMessage, statContext, queueFlagWrite, decisionWindow } from "./core.js";
+import { MODULE_ID, readFlag, TITLE, publish, drivesMomentFor, canApplyTo, canAnswerFor, keepsMessage, statContext, queueFlagWrite, decisionWindow } from "./core.js";
 import { lower, featureNamed, resolveUuid, wieldsAs } from "./lookup.js";
 import { answers, damageRuleEntries, identifierOf, listedNames } from "./decide/registry.js";
 import { DAMAGE_RULES } from "./decide/registry.js";
@@ -100,7 +100,7 @@ function desiredFace({ name, row, feature, types }, held) {
   };
 }
 
-const faceOf = effect => effect.getFlag?.(MODULE_ID, STYLE_FLAG) ?? null;
+const faceOf = effect => readFlag(effect, STYLE_FLAG) ?? null;
 const sameChanges = (a, b) => JSON.stringify((a ?? []).map(c => [c.key, Number(c.mode), String(c.value)]))
   === JSON.stringify((b ?? []).map(c => [c.key, Number(c.mode), String(c.value)]));
 
@@ -154,7 +154,7 @@ async function syncTakeovers(actor, rows) {
     const ours = running.some(name => answers(name, feature, ["feat"]));
     const writes = [];
     for ( const effect of packEffectsOf(feature) ) {
-      const taken = effect.getFlag(MODULE_ID, TAKEN_FLAG) === true;
+      const taken = readFlag(effect, TAKEN_FLAG) === true;
       if ( ours && (!taken || !effect.disabled) ) {
         writes.push({ _id: effect.id, disabled: true, [`flags.${MODULE_ID}.${TAKEN_FLAG}`]: true });
       } else if ( !ours && taken ) {
@@ -208,7 +208,7 @@ listen("dnd5e.preRollDamage", "damage-rules", (config, _dialog, message) => {
       kind: weapon.system?.type?.value ?? null, base: weapon.system?.type?.baseItem ?? null, properties: [...(weapon.system?.properties ?? [])],
       mode: config.attackMode ?? null, mod: Number(roll?.data?.mod ?? 0),
       // Pole Strike's swing is a BONUS ACTION, never "part of the Attack action" (Heavy Weapon Mastery)
-      ownTurn: ownTurnOf(attacker) && !attackMessageForDamage(config, message)?.getFlag?.(MODULE_ID, "poleStrike")
+      ownTurn: ownTurnOf(attacker) && !readFlag(attackMessageForDamage(config, message), "poleStrike")
     };
     const resolve = f => { try { return Roll.replaceFormulaData(String(f), roll?.data ?? {}); } catch { return String(f); } };
     const styles = [];
@@ -339,7 +339,7 @@ listen("dnd5e.postDamageRollConfiguration", "damage-rules", (rolls, config) => {
 // Count what the floor raised off the evaluated dice; a floor that raised nothing leaves no trace.
 listen("preCreateChatMessage", "damage-rules", doc => {
   try {
-    const flag = doc.getFlag?.(MODULE_ID, STYLE_FLAG);
+    const flag = readFlag(doc, STYLE_FLAG);
     if ( !flag?.styles?.length ) return;
     const rolls = (doc.rolls ?? []).map(r => (typeof r?.toJSON === "function") ? r.toJSON() : r);
     const styles = [];
@@ -476,12 +476,12 @@ listen("updateActor", "damage-rules", (actor, changes) => {
   try {
     // ⚠ The update carries only what CHANGED (a same-amount block sends `at` alone): read the actor's flag.
     if ( !changes?.flags?.[MODULE_ID]?.[BLOCK_FLAG] ) return;
-    const block = actor.getFlag?.(MODULE_ID, BLOCK_FLAG);
+    const block = readFlag(actor, BLOCK_FLAG);
     if ( !block?.amount || !block.at || ((Date.now() - block.at) > 10_000) ) return;
     const key = `${actor.uuid}|${block.at}`;
     if ( popped.has(key) ) return;
     popped.add(key);
-    Hooks.callAll("battleflow.armorBlock", { actorUuid: actor.uuid, ...block });
+    publish("armorBlock", { actorUuid: actor.uuid, ...block });
     for ( const token of actor.getActiveTokens?.(true) ?? [] ) driftChip(token, token, `−${block.amount}`);
   } catch(err) { console.warn(`${TITLE} | Heavy Armor Master's block could not draw.`, err); }
 });
@@ -525,7 +525,7 @@ function chipHTML(c) {
 
 listen("dnd5e.renderChatMessage", "damage-rules", (message, html) => {
   try {
-    const flag = message.getFlag(MODULE_ID, STYLE_FLAG);
+    const flag = readFlag(message, STYLE_FLAG);
     if ( !flag?.styles?.length ) return;
     const content = html.querySelector?.(SURFACES.messageContent) ?? html;
     if ( !content || content.querySelector(".bf-fighting-style-line") ) return;
@@ -561,7 +561,7 @@ const floated = new Set();
 const pickWordsOf = row => row?.pickLine ?? "your spells ignore Resistance to it, and its 1s count as 2";
 listen("createChatMessage", "damage-rules", message => {
   try {
-    const flag = message.getFlag(MODULE_ID, STYLE_FLAG);
+    const flag = readFlag(message, STYLE_FLAG);
     const changed = (flag?.styles ?? []).filter(e => e.gain > 0);
     if ( !changed.length || floated.has(message.id) ) return;
     floated.add(message.id);
@@ -569,7 +569,7 @@ listen("createChatMessage", "damage-rules", message => {
       || resolveUuid(flag.sourceUuid)?.getActiveTokens?.()?.[0] || null;
     changed.forEach((entry, i) => {
       const { chips } = chipsOf(entry, flag.dice ?? []);
-      Hooks.callAll("battleflow.styleDice", { messageId: message.id, key: entry.key, chips });
+      publish("styleDice", { messageId: message.id, key: entry.key, chips });
       setTimeout(() => riseDice(token, chips), i * 700);
     });
     // B4 — a `once: "turn"` row (Radiant Soul) marks the turn on the caster's own client: the rider chit.
@@ -643,11 +643,11 @@ async function stampGrapple(actor, feature, activity, candidates) {
 
 
 function armGrappleTimer(message) {
-  const flag = message?.getFlag(MODULE_ID, GRAPPLE_FLAG);
+  const flag = readFlag(message, GRAPPLE_FLAG);
   if ( (flag?.status !== "pending") || !flag.deadline || !keepsMessage(message) ) return;
   armDeadline(grappleTimers, message.id, flag.deadline, async () => {
     const live = game.messages.get(message.id);
-    const now = live?.getFlag(MODULE_ID, GRAPPLE_FLAG);
+    const now = readFlag(live, GRAPPLE_FLAG);
     if ( now?.status !== "pending" ) return;
     if ( now.clockDeals && now.pick ) await dealGrapple(live, now.pick, { timedOut: true });
     else await recordGrapple(live, { answer: "skip", pick: null, timedOut: true });
@@ -656,7 +656,7 @@ function armGrappleTimer(message) {
 
 /** Deal it: the feat's own damage activity used at the pick, on this client; then the answer recorded. */
 async function dealGrapple(message, pickUuid, { timedOut = false } = {}) {
-  const flag = message.getFlag(MODULE_ID, GRAPPLE_FLAG);
+  const flag = readFlag(message, GRAPPLE_FLAG);
   const actor = resolveUuid(flag?.actorUuid);
   const activity = actor?.items?.get(flag.itemId)?.system?.activities?.get(flag.activityId) ?? null;
   const pick = (flag?.candidates ?? []).find(c => c.uuid === pickUuid);
@@ -676,7 +676,7 @@ async function recordGrapple(message, { answer, pick, timedOut = false }) {
     return;
   }
   await ChatMessage.create({
-    speaker: ChatMessage.getSpeaker({ actor: resolveUuid(message.getFlag(MODULE_ID, GRAPPLE_FLAG)?.actorUuid) }),
+    speaker: ChatMessage.getSpeaker({ actor: resolveUuid(readFlag(message, GRAPPLE_FLAG)?.actorUuid) }),
     content: `<p>Unarmed Fighting — ${answer === "deal" ? "dealt" : "skipped"}</p>`, whisper: game.users.filter(u => u.isGM).map(u => u.id),
     flags: { [MODULE_ID]: { grappleDamageAnswer: { messageId: message.id, answer, pick } } }
   });
@@ -696,7 +696,7 @@ registerRelay("grappleDamageAnswer", {
 });
 
 async function showGrapplePopup(message) {
-  const flag = message.getFlag(MODULE_ID, GRAPPLE_FLAG);
+  const flag = readFlag(message, GRAPPLE_FLAG);
   if ( flag?.status !== "pending" ) return;
   const actor = resolveUuid(flag.actorUuid);
   const feature = actor?.items?.get(flag.itemId);
@@ -721,7 +721,7 @@ async function showGrapplePopup(message) {
 
 listen("dnd5e.renderChatMessage", "damage-rules", (message, html) => {
   try {
-    const flag = message.getFlag(MODULE_ID, GRAPPLE_FLAG);
+    const flag = readFlag(message, GRAPPLE_FLAG);
     if ( !flag ) return;
     const content = html.querySelector?.(SURFACES.messageContent) ?? html;
     if ( !content || content.querySelector(".bf-grapple-line") ) return;
@@ -748,7 +748,7 @@ listen("dnd5e.renderChatMessage", "damage-rules", (message, html) => {
 
 // An answer anywhere closes the popup everywhere (law 4); the clock stands down with it.
 listen("updateChatMessage", "damage-rules", message => {
-  const flag = message.getFlag(MODULE_ID, GRAPPLE_FLAG);
+  const flag = readFlag(message, GRAPPLE_FLAG);
   if ( !flag ) return;
   if ( flag.status === "pending" ) { armGrappleTimer(message); return; }
   disarmDeadline(grappleTimers, message.id);
@@ -826,7 +826,7 @@ listen("dnd5e.displayCard", "damage-rules", (item, card) => {
 
 /** The popup: a button per type still open, and Later. */
 async function askTypePick(message) {
-  const flag = message.getFlag(MODULE_ID, PICK_FLAG);
+  const flag = readFlag(message, PICK_FLAG);
   const row = DAMAGE_RULES[flag?.row];
   if ( !row || flag.chosen ) return;
   // live only: the owner whose sheet the feat is on answers
@@ -851,7 +851,7 @@ async function askTypePick(message) {
 
 async function chooseType(message, type) {
   try {
-    const flag = message.getFlag(MODULE_ID, PICK_FLAG);
+    const flag = readFlag(message, PICK_FLAG);
     if ( !flag || flag.chosen || !flag.left.includes(type) ) return;
     // live only: the copy on the sheet is what the answer renames — a gone copy has nothing to name
     const item = await fromUuid(flag.itemUuid ?? "");
@@ -865,7 +865,7 @@ async function chooseType(message, type) {
 
 // The card says it (R5): the choice while it waits — its button recalls the popup — and what was chosen.
 listen("dnd5e.renderChatMessage", "damage-rules", (message, html) => {
-  const f = message.getFlag(MODULE_ID, PICK_FLAG);
+  const f = readFlag(message, PICK_FLAG);
   const row = f ? DAMAGE_RULES[f.row] : null;
   if ( !row ) return;
   const line = document.createElement("div");
@@ -888,7 +888,7 @@ listen("updateItem", "damage-rules", (item, changes) => {
   try {
     if ( !("name" in changes) || !(item.parent instanceof Actor) ) return;
     for ( const message of game.messages.contents.slice(-50) ) {
-      const f = message.getFlag(MODULE_ID, PICK_FLAG);
+      const f = readFlag(message, PICK_FLAG);
       if ( !f || f.chosen || (f.itemUuid !== item.uuid) ) continue;
       const [type] = typesInNames([item.name], f.row, damageTypeKeys());
       if ( !type ) continue;
@@ -902,7 +902,7 @@ listen("updateItem", "damage-rules", (item, changes) => {
 
 // A made choice closes the popup everywhere (law 4).
 listen("updateChatMessage", "damage-rules", message => {
-  if ( !message.getFlag(MODULE_ID, PICK_FLAG)?.chosen ) return;
+  if ( !readFlag(message, PICK_FLAG)?.chosen ) return;
   const open = livePopups.get(popupKey(message.id, PICK_FLAG));
   if ( open ) { try { void open.close(); } catch { /* gone */ } }
 });

@@ -3,8 +3,8 @@
 // pure fold, the elect transforming with dnd5e's own preset and clocking the form, the ends (Revert from
 // the card, 0 Hit Points, the Temporary Hit Points gone), and the Long Rest's known-form swap.
 //
-// Fixtures: BF Test Druid (tools/fixture-suite.mjs; Druid 2 with the PHB's Wild Shape) is the shape-shifter;
-// BF Test Sorcerer is lent Polymorph and BF Test Dummy is its target. The transformed copies, the cards,
+// Fixtures: BTB Test Druid (tools/fixture-suite.mjs; Druid 2 with the PHB's Wild Shape) is the shape-shifter;
+// BTB Test Sorcerer is lent Polymorph and BTB Test Dummy is its target. The transformed copies, the cards,
 // the lent spell and the known-form flags are torn down. The popup is a canvas-free DialogV2, so the suite
 // answers the record through the module's api and the pure fold, never the popup.
 //
@@ -18,7 +18,7 @@ export const COVERS = [
 
 const SECTIONS = {
   1: 'THE RECORD: a Wild Shape use by the Druid posts its card with NO compendium browser opened and a `transform` flag `asked` carrying the band (CR ¼, no fliers), four slots and the known forms',
-  2: 'THE LANDING: the record answered with a known Wolf is landed by the elect — the Druid\'s token now a "BF Test Druid (Wolf)" actor flagged isPolymorphed, the wildshape preset\'s temp HP, a clocked "Wild Shape — Wolf" effect with the form flag, the card "is now a Wolf"',
+  2: 'THE LANDING: the record answered with a known Wolf is landed by the elect — the Druid\'s token now a "BTB Test Druid (Wolf)" actor flagged isPolymorphed, the wildshape preset\'s temp HP, a clocked "Wild Shape — Wolf" effect with the form flag, the card "is now a Wolf"',
   3: 'REVERT: the Revert ask reverts the Druid through dnd5e\'s own revertOriginalForm; the copy is gone, the record `ended` by choice, a form-end card posted',
   4: 'ZERO: the Wolf form at 0 Hit Points reverts on its own (the row\'s `zero`), the record ended "dropped to 0 Hit Points"',
   5: 'POLYMORPH: the Sorcerer\'s Polymorph transform activity used at the targeted Dummy records the Dummy (cap from its CR) and lands it as a Giant Frog with the beast\'s HP as temp HP; the temp HP taken to 0 ends the form',
@@ -33,7 +33,7 @@ const f = await connectSuite({ tag: 'transforms', watchdogMs: 300_000 });
 announcePlan('transforms', plan, pulled);
 
 const out = await f.evaluate(async ({ sections, titles }) => {
-  const MOD = 'fvtt-mod-battleflow';
+  const MOD = 'fvtt-mod-bythebooks';
   const results = [];
   const log = [];
   const skips = [];
@@ -55,23 +55,23 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   const api = modDoc.api?.transforms;
   if (!api?.askRevert) return { fatal: 'no transforms api — OLD code (reload the box)' };
 
-  const druid = game.actors.getName('BF Test Druid');
-  if (!druid) return { fatal: 'missing fixture: BF Test Druid — run tools/fixture-suite.mjs' };
+  const druid = game.actors.getName('BTB Test Druid');
+  if (!druid) return { fatal: 'missing fixture: BTB Test Druid — run tools/fixture-suite.mjs' };
   const wildShape = druid.items.find(i => (i.type === 'feat') && (i.name === 'Wild Shape'));
-  if (!wildShape) return { fatal: 'BF Test Druid has no Wild Shape — run tools/fixture-suite.mjs' };
+  if (!wildShape) return { fatal: 'BTB Test Druid has no Wild Shape — run tools/fixture-suite.mjs' };
   // ⚠ The range is VIEWED first (every other suite does): a fresh client's canvas is the world's
   // active scene, and in the battery that is not the range — this suite went FATAL at
   // "the Druid has no token on the scene" in the overnight battery of 2026-10-11 while green alone.
-  const range = game.scenes.getName('Battle Flow Test Range');
-  if (!range) return { fatal: 'missing fixture: scene Battle Flow Test Range — run tools/fixture-suite.mjs' };
+  const range = game.scenes.getName('By the Books Test Range');
+  if (!range) return { fatal: 'missing fixture: scene By the Books Test Range — run tools/fixture-suite.mjs' };
   if (canvas.scene?.id !== range.id) await range.view();
   for (let i = 0; i < 40 && !(canvas.ready && canvas.scene?.id === range.id); i++) await sleep(250);
   if (canvas.scene?.id !== range.id) return { fatal: 'the canvas never readied on the test range' };
   const druidToken = canvas.scene.tokens.find(t => t.actor?.id === druid.id) ?? null;
   if (!druidToken) return { fatal: 'the Druid has no token on the scene — run tools/fixture-suite.mjs' };
-  const sorcerer = game.actors.getName('BF Test Sorcerer');
-  const dummy = game.actors.getName('BF Test Dummy');
-  const dummyToken = canvas.scene.tokens.find(t => t.actor?.id === dummy?.id || t.name === 'BF Test Dummy') ?? null;
+  const sorcerer = game.actors.getName('BTB Test Sorcerer');
+  const dummy = game.actors.getName('BTB Test Dummy');
+  const dummyToken = canvas.scene.tokens.find(t => t.actor?.id === dummy?.id || t.name === 'BTB Test Dummy') ?? null;
   const lent = [];
   const madeMessages = [];
   const priorKnown = foundry.utils.deepClone(wildShape.getFlag(MOD, 'knownForms') ?? null);
@@ -80,7 +80,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
 
   /** Every transformed copy of a fixture the suite made, reverted so the tokens come home. */
   const revertAll = async () => {
-    for (const a of game.actors.filter(a => a.isPolymorphed && /^BF Test/.test(a.name))) { try { await a.revertOriginalForm({ renderSheet: false }); } catch { /* gone */ } }
+    for (const a of game.actors.filter(a => a.isPolymorphed && /^BTB Test/.test(a.name))) { try { await a.revertOriginalForm({ renderSheet: false }); } catch { /* gone */ } }
     for (const t of canvas.scene.tokens) { if (t.actor?.isToken && t.actor.isPolymorphed) { try { await t.actor.revertOriginalForm({ renderSheet: false }); } catch { /* gone */ } } }
   };
   const teardown = async () => {
@@ -98,7 +98,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   };
 
   const poolRow = async (name) => {
-    const { poolFromPacks } = await import('/modules/fvtt-mod-battleflow/scripts/gallery.js');
+    const { poolFromPacks } = await import('/modules/fvtt-mod-bythebooks/scripts/gallery.js');
     const rows = await poolFromPacks({ types: ['beast'] });
     return rows.find(r => r.name === name) ?? null;
   };
@@ -121,7 +121,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   };
   // The suite answers the record as the popup would, through the pure fold the module exports.
   const answer = async (message, pick, { learn = false } = {}) => {
-    const { pickedAnswer } = await import('/modules/fvtt-mod-battleflow/scripts/decide/transforms.js');
+    const { pickedAnswer } = await import('/modules/fvtt-mod-bythebooks/scripts/decide/transforms.js');
     const flag = message.getFlag(MOD, 'transform');
     const patch = pickedAnswer(flag, { pick, learn });
     if (!patch) throw new Error('the suite\'s answer was refused by pickedAnswer');
@@ -130,7 +130,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   };
   const copyOf = original => game.actors.find(a => a.isPolymorphed && (a.getFlag('dnd5e', 'originalActor') === original.id)) ?? null;
   const formEffectOn = actor => actor?.effects.find(e => !!e.getFlag(MOD, 'form')) ?? null;
-  const rowUnder = id => document.querySelector(`[data-message-id="${id}"] .battleflow-transform`);
+  const rowUnder = id => document.querySelector(`[data-message-id="${id}"] .bythebooks-transform`);
 
   try {
     const wolf = await poolRow('Wolf');
@@ -212,7 +212,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
 
     // ================================================== 5. Polymorph on a target
     if (want(5)) {
-      if (!sorcerer || !dummyToken) skips.push('§5 — no BF Test Sorcerer or BF Test Dummy token on this box');
+      if (!sorcerer || !dummyToken) skips.push('§5 — no BTB Test Sorcerer or BTB Test Dummy token on this box');
       else {
         const pack = game.packs.get('dnd-players-handbook.spells');
         const hit = pack ? (await pack.getIndex()).find(e => e.name === 'Polymorph') : null;

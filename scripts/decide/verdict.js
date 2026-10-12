@@ -1,6 +1,6 @@
 // @ts-check
 /**
- * Battle Flow — DECISION layer (ARCHITECTURE.md §2): who was hit, who saved, and what that costs.
+ * By the Books — DECISION layer (ARCHITECTURE.md §2): who was hit, who saved, and what that costs.
  * Plain objects in, plain values out; shared.js holds the shells that read messages and settings.
  * ⚠ Depend downward only: nothing here imports a machine, the spine, or core.js.
  */

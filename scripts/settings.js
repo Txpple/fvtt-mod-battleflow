@@ -1,5 +1,5 @@
 /**
- * Battle Flow — the twelve settings (ARCHITECTURE §8): nine world configs for the DM, three per-client
+ * By the Books — the twelve settings (ARCHITECTURE §8): nine world configs for the DM, three per-client
  * preferences. Everything else is the module itself and always on. Two of the nine own dnd5e's
  * Visibility menu, so a fresh world plays with the results on the table (issue #4).
  */
@@ -7,13 +7,14 @@ import { MODULE_ID, S, TITLE, isActiveGM, setting } from "./core.js";
 import { ROLL_RESULTS, bloodiedFor, visibilityWrites } from "./decide/visibility.js";
 import { KIND_SETS, interruptEntries, blockEntries, maneuverFoldEntries, d20FoldEntries,
   riderEntries, riderUpgradeEntries } from "./decide/registry.js";
-import { listen, listenOnce } from "./dispatch.js";
+import { listen, listenOnce, isPassive } from "./dispatch.js";
 
 /**
  * Put dnd5e's Visibility keys where the two settings say. The active GM only (players cannot write
  * world settings), and only a key that differs, so neither a load nor an onChange loops.
  */
 async function syncVisibility() {
+  if ( isPassive() ) return;   // the old package still runs and owns dnd5e's keys (scripts/dispatch.js)
   if ( !isActiveGM() ) return;
   const want = { ...ROLL_RESULTS[setting(S.rollResults)] ?? {}, ...bloodiedFor(setting(S.bloodiedAll)) };
   const have = {};

@@ -3,7 +3,7 @@
 // pop on the client that owns the decision, which no single-client suite can see.
 // A ledger covers every link (hooks, flag visibility, canAnswerFor, queue head, DialogV2 renders
 // and rejections, DOM dialogs) and prints in full; the assertions make an unread run count.
-// Fixture: a temporary no-damage, no-effect save spell on BF Test PC Attacker, cast at BF Test
+// Fixture: a temporary no-damage, no-effect save spell on BTB Test PC Attacker, cast at BTB Test
 // Victim; the card is deleted before the buzzer, so nothing rolls. Read-only enough to run beside
 // a live session (the mutating cross-client scenarios live in `smoke-twoclient.mjs`).
 import { connectSuite, disposeSafely, loadEnv } from './harness.mjs';
@@ -30,7 +30,7 @@ const report = (name, ok, detail = '') => {
 
 // Instrument the GM client BEFORE anything happens.
 await gm.evaluate(async () => {
-  const MOD = 'fvtt-mod-battleflow';
+  const MOD = 'fvtt-mod-bythebooks';
   const ledger = [];
   const note = (kind, data) => ledger.push({ t: Date.now(), kind, ...data });
   globalThis.__bfTopo = { ledger, note, hookIds: [] };
@@ -101,8 +101,8 @@ console.log('[topo] GM instrumented');
 
 // Fixture floor: the victim token must stand on the range (other suites' sweeps remove it).
 const fixture = await gm.evaluate(async () => {
-  const scene = game.scenes.getName('Battle Flow Test Range');
-  const victim = game.actors.getName('BF Test Victim');
+  const scene = game.scenes.getName('By the Books Test Range');
+  const victim = game.actors.getName('BTB Test Victim');
   if (!scene || !victim) return { fatal: 'scene or victim actor missing' };
   let tok = scene.tokens.find(t => t.actorId === victim.id);
   if (!tok) {
@@ -122,18 +122,18 @@ await player.connect();
 
 // The player builds a zero-consequence save spell and casts it at the victim: the stamp runs on the player client.
 const cast = await player.evaluate(async () => {
-  const scene = game.scenes.getName('Battle Flow Test Range');
-  const attacker = game.actors.getName('BF Test PC Attacker');
-  const victim = game.actors.getName('BF Test Victim');
+  const scene = game.scenes.getName('By the Books Test Range');
+  const attacker = game.actors.getName('BTB Test PC Attacker');
+  const victim = game.actors.getName('BTB Test Victim');
   if (!scene || !attacker || !victim) return { fatal: 'fixtures missing' };
   if (canvas.scene?.id !== scene.id) await scene.view();
   const tok = scene.tokens.find(t => t.actorId === victim.id);
-  if (!tok) return { fatal: 'no victim token (run smoke-battleflow first)' };
+  if (!tok) return { fatal: 'no victim token (run smoke-bythebooks first)' };
   await new Promise(r => { const i = setInterval(() => {
     if (canvas.ready && canvas.tokens.get(tok.id)) { clearInterval(i); r(); } }, 200); });
 
   const [spell] = await attacker.createEmbeddedDocuments('Item', [{
-    name: 'BF Topology Probe Save', type: 'spell',
+    name: 'BTB Topology Probe Save', type: 'spell',
     system: {
       level: 1, school: 'evo', method: 'innate', prepared: 1,
       activation: { type: 'action' }, duration: { units: 'inst' },
@@ -157,7 +157,7 @@ const cast = await player.evaluate(async () => {
   const usage = await activity.use({}, { configure: false }, {});
   const msg = usage?.message ?? null;
   await new Promise(r => setTimeout(r, 500));
-  const flag = msg ? game.messages.get(msg.id)?.getFlag('fvtt-mod-battleflow', 'saves') : null;
+  const flag = msg ? game.messages.get(msg.id)?.getFlag('fvtt-mod-bythebooks', 'saves') : null;
   return { spellId: spell.id, messageId: msg?.id ?? null,
     stamped: !!flag, status: flag?.status ?? null, user: game.user.name };
 }, null);
@@ -175,8 +175,8 @@ const playerSide = await player.evaluate(async ({ messageId }) => {
   return {
     user: game.user.name,
     domDialogs: dialogs,
-    sawFlag: !!msg?.getFlag('fvtt-mod-battleflow', 'saves'),
-    rowInDOM: !!document.querySelector(`[data-message-id="${messageId}"] .battleflow-saves`)
+    sawFlag: !!msg?.getFlag('fvtt-mod-bythebooks', 'saves'),
+    rowInDOM: !!document.querySelector(`[data-message-id="${messageId}"] .bythebooks-saves`)
   };
 }, { messageId: cast.messageId });
 
@@ -184,13 +184,13 @@ const result = await gm.evaluate(async ({ messageId }) => {
   const dialogs = Array.from(document.querySelectorAll('.application.dialog, dialog.application'))
     .map(d => d.querySelector('.window-title')?.textContent?.trim() ?? d.id);
   const msg = game.messages.get(messageId);
-  const row = document.querySelector(`[data-message-id="${messageId}"] .battleflow-saves`);
+  const row = document.querySelector(`[data-message-id="${messageId}"] .bythebooks-saves`);
   const bars = document.querySelectorAll(`[data-message-id="${messageId}"] [data-bf-deadline]`).length;
   return {
     ledger: globalThis.__bfTopo.ledger,
     domDialogs: dialogs,
     rowInDOM: !!row, barsInDOM: bars,
-    flagNow: msg?.getFlag('fvtt-mod-battleflow', 'saves') ?? null
+    flagNow: msg?.getFlag('fvtt-mod-bythebooks', 'saves') ?? null
   };
 }, { messageId: cast.messageId });
 
@@ -204,7 +204,7 @@ await gm.evaluate(async ({ messageId }) => {
 }, { messageId: cast.messageId });
 await player.evaluate(async ({ spellId }) => {
   game.user.targets.forEach(t => { t.setTarget(false, { releaseOthers: true }); });
-  const spell = game.actors.getName('BF Test PC Attacker')?.items.get(spellId);
+  const spell = game.actors.getName('BTB Test PC Attacker')?.items.get(spellId);
   if (spell) await spell.delete();
   return true;
 }, { spellId: cast.spellId });
@@ -215,7 +215,7 @@ const seenOnGM = ledger.filter(e => (e.id === cast.messageId) && e.flag);
 const decisionRow = seenOnGM.flatMap(e => e.targets ?? []).filter(t => t.name);
 const gmCanAnswer = decisionRow.some(t => t.canAnswer === true);
 // The ask is the system's own dialog ('Constitution Saving Throw'), so the match is the stem.
-const saveDialogOn = list => list.some(t => /sav|BF Topology/i.test(t ?? ''));
+const saveDialogOn = list => list.some(t => /sav|BTB Topology/i.test(t ?? ''));
 
 console.log('\n[topo] assertions');
 report('the PLAYER client stamped the demand — the stamp runs where the cast happened',

@@ -1,7 +1,7 @@
 // THE EFFECT VIEW, live: the bar above the hotbar for the controlled token, the hover card beside
 // a token, the held key (Foundry's highlightObjects) over every creature. A battery entry (it is
 // the only suite driving effect-view.js's hooks); `fixture-suite` seeds it.
-// Fixtures: the Battle Flow Test Range and BF Test Vanguard (fixture-suite) wearing an attuned Cloak
+// Fixtures: the By the Books Test Range and BTB Test Vanguard (fixture-suite) wearing an attuned Cloak
 // of Protection. Bless, Prone and an applied clockless effect are written for the run; its token is
 // placed if missing. Switches, effects, sheet numbers, token and active scene are all restored.
 //
@@ -29,7 +29,7 @@ const f = await connectSuite({ tag: TAG, watchdogMs: 180_000 });
 announcePlan(TAG, plan, pulled);
 
 const out = await f.evaluate(async ({ sections, titles }) => {
-  const MOD = "fvtt-mod-battleflow";
+  const MOD = "fvtt-mod-bythebooks";
   const results = [];
   const log = [];
   const skips = [];
@@ -46,12 +46,12 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   const mod = game.modules.get(MOD);
   if ( !mod?.active ) return { fatal: `module active=${mod?.active}` };
   if ( !game.settings.settings.has(`${MOD}.effectBar`) ) return { fatal: "effectBar not registered — OLD code (deploy --local, reload)" };
-  const scene = game.scenes.getName("Battle Flow Test Range");
-  const vanguard = game.actors.getName("BF Test Vanguard");
-  if ( !scene || !vanguard ) return { fatal: `missing fixture: ${!scene ? "the Battle Flow Test Range (run tools/fixture-suite.mjs)" : "BF Test Vanguard (run tools/fixture-suite.mjs)"}` };
+  const scene = game.scenes.getName("By the Books Test Range");
+  const vanguard = game.actors.getName("BTB Test Vanguard");
+  if ( !scene || !vanguard ) return { fatal: `missing fixture: ${!scene ? "the By the Books Test Range (run tools/fixture-suite.mjs)" : "BTB Test Vanguard (run tools/fixture-suite.mjs)"}` };
   // §1 and §6e read the Cloak of Protection fixture-suite gives the Vanguard: refuse up front if it is missing.
   const standing = [...vanguard.allApplicableEffects()].map(e => e.name);
-  if ( !standing.some(n => n.startsWith("Bonus AC")) ) return { fatal: "BF Test Vanguard lacks the Cloak's \"Bonus AC\" passive — run tools/fixture-suite.mjs" };
+  if ( !standing.some(n => n.startsWith("Bonus AC")) ) return { fatal: "BTB Test Vanguard lacks the Cloak's \"Bonus AC\" passive — run tools/fixture-suite.mjs" };
   log.push(`module ${mod.version}`);
 
   const priorActiveScene = game.scenes.active?.id ?? null;
@@ -143,7 +143,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       Hooks.callAll("highlightObjects", true);
       const overlay = await until(() => document.querySelectorAll(".bf-ev-card").length ? document.querySelectorAll(".bf-ev-card") : null, 3000);
       ok("3. the held key shows a card for every creature with effects (the Vanguard at least)",
-        !!overlay && [...overlay].some(c => c.querySelector("h4")?.textContent.includes("BF Test Vanguard")), `cards=${overlay?.length}`);
+        !!overlay && [...overlay].some(c => c.querySelector("h4")?.textContent.includes("BTB Test Vanguard")), `cards=${overlay?.length}`);
       Hooks.callAll("highlightObjects", false);
       await sleep(100);
       ok("3b. and clears on release", document.querySelectorAll(".bf-ev-card").length === 0, "");

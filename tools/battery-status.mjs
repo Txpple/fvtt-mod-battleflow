@@ -1,4 +1,4 @@
-// Battle Flow — the battery's progress bar: where the newest run stands, unix style, with the key stats.
+// By the Books — the battery's progress bar: where the newest run stands, unix style, with the key stats.
 //
 //   node tools/battery-status.mjs            the newest run under dist/battery
 //   node tools/battery-status.mjs <runDir>   a named run

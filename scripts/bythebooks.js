@@ -1,5 +1,5 @@
 /**
- * Battle Flow — the only esmodules entry: it imports every machine, and nothing else. The chat log
+ * By the Books — the only esmodules entry: it imports every machine, and nothing else. The chat log
  * is the state and the bus, no sockets, no patching (ARCHITECTURE.md §4; platform facts NOTES §2).
  *
  * Import order is EVALUATION order, nothing more: hooks run in dispatch.js's ORDER whatever this
@@ -9,6 +9,8 @@
  */
 
 import "./core.js";
+// migrate.js early: it sets the dispatcher's coexistence gate (passive while the old package runs).
+import "./migrate.js";
 import "./settings.js";
 import "./rule-text.js";
 import "./shared.js";

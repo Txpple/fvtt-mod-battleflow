@@ -1,9 +1,9 @@
 // @ts-check
 /**
- * Battle Flow — the reaction hold: THE BUZZER. Imported by the triggers and the continuation, so
+ * By the Books — the reaction hold: THE BUZZER. Imported by the triggers and the continuation, so
  * its `deleteChatMessage` registration comes first among the hold's.
  */
-import { MODULE_ID, isContinuingClient, queueFlagWrite } from "../core.js";
+import { readFlag, isContinuingClient, queueFlagWrite } from "../core.js";
 import { armDeadline, disarmDeadline } from "../ui.js";
 import { listen } from "../dispatch.js";
 
@@ -11,7 +11,7 @@ const armedTimers = new Map();
 
 /** One authoritative clock, on the continuing client; re-checked at fire so a last-instant answer wins. */
 export function armHoldTimer(message) {
-  const hold = message?.getFlag(MODULE_ID, "hold");
+  const hold = readFlag(message, "hold");
   if ( !hold?.deadline || (hold.status !== "pending") || !isContinuingClient(hold) ) return;
   armDeadline(armedTimers, message.id, hold.deadline, fireHoldTimer);
 }
@@ -23,7 +23,7 @@ export function disarmHoldTimer(messageId) {
 /** At the buzzer every unanswered target passes. */
 async function fireHoldTimer(messageId) {
   const message = game.messages.get(messageId);
-  const hold = message?.getFlag(MODULE_ID, "hold");
+  const hold = readFlag(message, "hold");
   if ( !hold || (hold.status !== "pending") || !isContinuingClient(hold) ) return;
   // Under the serializer, the guards repeated inside: an answer folded ahead of the buzzer wins.
   await queueFlagWrite(message, "hold", live => {

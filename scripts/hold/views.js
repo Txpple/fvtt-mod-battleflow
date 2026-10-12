@@ -1,9 +1,9 @@
 // @ts-check
 /**
- * Battle Flow — the reaction hold: THE VIEWS. The durable card row (with the reload resumes) and the
+ * By the Books — the reaction hold: THE VIEWS. The durable card row (with the reload resumes) and the
  * popups. The row renders below ui.js's damage-offer bar (dispatch.js ORDER).
  */
-import { MODULE_ID, TITLE, S, setting, canAnswerFor, isContinuingClient, activeCombatFor } from "../core.js";
+import { readFlag, TITLE, S, setting, canAnswerFor, isContinuingClient, activeCombatFor } from "../core.js";
 import { INTERRUPT_REDUCTIONS, INTERRUPT_ROLLS } from "../decide/registry.js";
 import { bfCard, popupKey, holdBarHTML, ruleLine, spendLine, spendPhrase, tickRowsHTML, esc } from "../decide/present.js";
 import { bentLines, d20ModeOf, dieMaxOf, futileGuardLine, guardRow, guardSign, liveRows, neutraliseOutcome, rescueTitle } from "../decide/rescue-hit.js";
@@ -42,12 +42,12 @@ function revealLine(reveal, target) {
 // `atZero` (Deflect Attacks' Redirect): on the DAMAGE card, the defender's own client — the reduction took it to 0.
 listen("dnd5e.renderChatMessage", "hold/views", (message, html) => {
   try {
-    const receipt = message.getFlag(MODULE_ID, "receipt");
+    const receipt = readFlag(message, "receipt");
     if ( !receipt?.targets?.length ) return;
     const attack = resolveAttackMessage(message);
-    const hold = attack?.getFlag(MODULE_ID, "hold");
+    const hold = readFlag(attack, "hold");
     if ( !hold?.targets?.length ) return;
-    const done = message.getFlag(MODULE_ID, "atZero") ?? {};
+    const done = readFlag(message, "atZero") ?? {};
     for ( const target of hold.targets ) {
       if ( (target.answer !== "cast") || !(Number(target.reduceBy) > 0) ) continue;
       const key = Object.keys(INTERRUPT_REDUCTIONS).find(k => k.toLowerCase() === String(target.reaction ?? "").toLowerCase());
@@ -72,11 +72,11 @@ listen("dnd5e.renderChatMessage", "hold/views", (message, html) => {
 
 // The hold's durable row on the attack card, above mastery's rows (dispatch.js ORDER).
 listen("dnd5e.renderChatMessage", "hold/views", (message, html) => {
-  const hold = message.getFlag(MODULE_ID, "hold");
+  const hold = readFlag(message, "hold");
   if ( !hold?.targets?.length ) return;
 
   const row = document.createElement("div");
-  row.className = "battleflow-hold";
+  row.className = "bythebooks-hold";
   row.style.margin = "0.4rem 0 0";
 
   for ( const target of hold.targets ) {
@@ -215,7 +215,7 @@ listen("dnd5e.renderChatMessage", "hold/views", (message, html) => {
       });
       controls.append(momentButton("Answer", () => {
         shownMoments.delete(popupKey(message.id, "hold"));
-        void showHoldPopup(message, message.getFlag(MODULE_ID, "hold"));
+        void showHoldPopup(message, readFlag(message, "hold"));
       }, { flex: "0 0 auto", margin: "0", padding: "0 0.4rem", fontSize: "inherit", lineHeight: "1.4" }));
       block.append(controls);
     });

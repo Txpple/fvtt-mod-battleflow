@@ -1,13 +1,13 @@
 // @ts-check
 /**
- * Battle Flow — MACHINE (ARCHITECTURE.md §7): THE BYSTANDER'S BEND on a SAVE or a CHECK (RULINGS *The full
+ * By the Books — MACHINE (ARCHITECTURE.md §7): THE BYSTANDER'S BEND on a SAVE or a CHECK (RULINGS *The full
  * release — the order*, Q2 option A). The attack side rides the hold (hold/); this file is the other two
  * D20 Tests. A DEMANDED save's verdict is WITHHELD while a bystander is asked (the d20 fold's seam,
  * `registerWithhold`), and its bent roll REPLACES the total in `SAVE_FOLDS`. A check has no DC, so its bend
  * is stated as arithmetic and the verdict stays the DM's (the raw-check shape). One flag on the ROLL
  * message, `bystanderRoll`; a bystander who does not own the roll answers through the relay.
  */
-import { MODULE_ID, TITLE, queueFlagWrite, canAnswerFor, keepsMessage, statContext, decisionWindow, activeCombatFor } from "./core.js";
+import { MODULE_ID, readFlag, TITLE, queueFlagWrite, canAnswerFor, keepsMessage, statContext, decisionWindow, activeCombatFor } from "./core.js";
 import { INTERRUPT_ROLLS, STORED_DICE } from "./decide/registry.js";
 import { bystanderMatters, dieMaxOf, dieOutcome, guardSign, neutraliseOutcome, rerollOutcome, signFor } from "./decide/rescue-hit.js";
 import { bfCard, esc, holdBarHTML, popupKey, tickRowsHTML } from "./decide/present.js";
@@ -55,7 +55,7 @@ function bystandersFor(roller, roll, testKind, dc, demand = {}) {
       if ( ((actor.system?.attributes?.hp?.value ?? 0) <= 0) || actor.statuses?.has?.("incapacitated") ) continue;
       const friendly = side === rollerSide;
       // B4 — the sign follows the side ("either", Bend Luck) or the stored omen's parity ("omen", Cosmic Omen).
-      const omenFace = (row.sign === "omen") ? (storedChipOf(actor, row.stored)?.getFlag(MODULE_ID, STORED_FLAG)?.faces?.[0] ?? null) : null;
+      const omenFace = (row.sign === "omen") ? (readFlag(storedChipOf(actor, row.stored), STORED_FLAG)?.faces?.[0] ?? null) : null;
       const sign = signFor(row, { friendly, face: omenFace }) ?? NaN;
       if ( !Number.isFinite(sign) ) continue;   // an omen with no face rolled yet
       if ( (row.bend === "die") && (friendly === (sign < 0)) ) continue;
@@ -78,7 +78,7 @@ function bystandersFor(roller, roll, testKind, dc, demand = {}) {
       if ( row.bend === "set" ) {
         const chip = storedChipOf(actor, row.stored);
         if ( !known || !chip || !storedFacesUsable(chip, STORED_DICE[row.stored]) || bystanderMuted(actor, key) ) continue;
-        const faces = facesThatTurn({ faces: chip.getFlag(MODULE_ID, STORED_FLAG)?.faces ?? [], kept: Number(facts.kept), total,
+        const faces = facesThatTurn({ faces: readFlag(chip, STORED_FLAG)?.faces ?? [], kept: Number(facts.kept), total,
           target: Number(dc), want: friendly ? "pass" : "fail" });
         if ( !faces.length ) continue;
         out.push({ uuid: actor.uuid, name: other.document?.name ?? actor.name, row: key, itemId: item.id, activityId: null,
@@ -155,12 +155,12 @@ const armTimer = message => armAskTimer(timers, message, KEY, live => queueFlagW
 registerWithhold(KEY, {
   offer: async (rollMessage, { by, card, uuid, total, dc }) => {
     try {
-      const existing = rollMessage.getFlag(MODULE_ID, KEY);
+      const existing = readFlag(rollMessage, KEY);
       if ( existing ) return existing.status === "pending";
       if ( !Number.isFinite(total) || !Number.isFinite(dc) ) return false;
       const roller = await fromUuid(uuid);
       if ( !(roller instanceof Actor) ) return false;
-      const demand = card.getFlag(MODULE_ID, "saves")?.demand ?? {};
+      const demand = readFlag(card, "saves")?.demand ?? {};
       // The save's own ability off the roll (dnd5e's roll flag), for a row's `abilities`; the demand's spell mark for `spells`.
       const ability = rollMessage.getFlag("dnd5e", "roll")?.ability ?? demand.ability ?? null;
       return await stampBystanders(rollMessage, roller, "save", { dc, demand: { statuses: demand.statuses ?? [], ability, spell: !!demand.spell },
@@ -179,7 +179,7 @@ for ( const hook of ["dnd5e.rollAbilityCheck", "dnd5e.rollSkill", "dnd5e.rollToo
       const roller = data?.subject;
       const message = rolls?.[0]?.parent;
       if ( !(roller instanceof Actor) || !(message instanceof ChatMessage) || !message.isAuthor ) return;
-      if ( message.getFlag(MODULE_ID, KEY) ) return;
+      if ( readFlag(message, KEY) ) return;
       await stampBystanders(message, roller, "check");
     } catch(err) {
       console.error(`${TITLE} | The bystander offer on a check failed.`, err);
@@ -235,7 +235,7 @@ async function sendAnswer(message, envelope, actor) {
  * @param {number|null} [face]  the stored face picked (Portent)
  */
 async function bystanderAnswer(message, guard, choice, face = null) {
-  const flag = message.getFlag(MODULE_ID, KEY);
+  const flag = readFlag(message, KEY);
   if ( flag?.status !== "pending" ) return;
   const actor = resolveUuid(guard.uuid);
   const base = { messageId: message.id, by: guard.uuid, itemId: guard.itemId, rescue: guard.row, rollerName: flag.rollerName };
@@ -272,7 +272,7 @@ async function bystanderAnswer(message, guard, choice, face = null) {
     if ( (picked.length !== 1) || !aim?.actor || (aim.actor.uuid === flag.rollerUuid) ) {
       ui.notifications.warn(`${TITLE}: ${guard.row} — target ONE other creature first, then Answer.`);
       // The popup closed with the click (DialogV2); the question is still open — ask it again.
-      setTimeout(() => { void showPopup(message, message.getFlag(MODULE_ID, KEY) ?? flag, guard); }, 300);
+      setTimeout(() => { void showPopup(message, readFlag(message, KEY) ?? flag, guard); }, 300);
       return;
     }
     if ( !activity ) {
@@ -334,7 +334,7 @@ async function bystanderAnswer(message, guard, choice, face = null) {
 
 const resuming = new Set();
 listen("updateChatMessage", "bystanders", message => {
-  const flag = message.getFlag(MODULE_ID, KEY);
+  const flag = readFlag(message, KEY);
   if ( !flag ) return;
   closeAnswered(message, flag);
   if ( (flag.status !== "resolved") || !flag.resume || flag.resumed || !keepsMessage(message) ) return;
@@ -454,10 +454,10 @@ function bentLine(flag) {
 }
 
 listen("dnd5e.renderChatMessage", "bystanders", cardRow((message, host) => {
-  const flag = message.getFlag(MODULE_ID, KEY);
+  const flag = readFlag(message, KEY);
   if ( !flag ) return;
   const line = document.createElement("div");
-  line.className = "battleflow-bystander-roll";
+  line.className = "bythebooks-bystander-roll";
   line.style.margin = "0.3rem 0 0";
   if ( flag.status === "pending" ) {
     const waiting = (flag.guards ?? []).filter(g => !g.passed).map(g => `${g.row} (${g.name})`).join(", ");

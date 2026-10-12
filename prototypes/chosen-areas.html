@@ -130,9 +130,9 @@
 
 <div class="wrap">
   <header class="top">
-    <div class="eyebrow">Battle Flow · prototype · ruled 2026-09-24: ask only when there's a choice · Careful greyed on these spells</div>
+    <div class="eyebrow">By the Books · prototype · ruled 2026-09-24: ask only when there's a choice · Careful greyed on these spells</div>
     <h1>Area spells that let the caster choose who they affect</h1>
-    <p>In play: Aster cast Slow, and Dorian, standing in the cube, was asked to save. Slow reads “up to six creatures of your choice”, but Battle Flow asks everyone in the area. Here the caster is asked instead. Pick a scene, click through it, rule on the right.</p>
+    <p>In play: Aster cast Slow, and Dorian, standing in the cube, was asked to save. Slow reads “up to six creatures of your choice”, but By the Books asks everyone in the area. Here the caster is asked instead. Pick a scene, click through it, rule on the right.</p>
   </header>
 
   <div class="scenes" id="scenes"></div>
@@ -206,7 +206,7 @@ function usage({ spell, slot, rows, pool, go }) {
   return `<div class="dlg"><div class="win-title"><i></i>${spell}: Usage</div><div class="body">
     <div class="fg"><span>Spell Slot</span><span class="val">${slot}</span></div>
     <div class="fg"><span>Template</span><span class="val">Place on cast ✓</span></div>
-    <fieldset><legend>Battle Flow — Metamagic</legend>
+    <fieldset><legend>By the Books — Metamagic</legend>
       <div class="pool"><span>${pool.who}</span><span><b>Sorcery Points: ${pool.points} of ${pool.max}</b></span></div>
       ${rows.join("")}
     </fieldset>
@@ -299,7 +299,7 @@ const STAGE = {
 
 /* ---------- the side ---------- */
 const SIDE = {
-  slow: `<ul><li>Slow says <em>“up to six creatures of your choice”</em>. Today Battle Flow asks everyone in the cube — that's why Dorian rolled at 9:58 pm.</li><li>Now Aster is asked who it affects: hostiles ticked, party and neutrals not, up to the spell's own number. When the clock runs out, the ticked choice stands.</li><li>Untick <em>Dorian stands in the cube</em> to see the recommended mode skip the popup when there's nothing to choose.</li></ul>`,
+  slow: `<ul><li>Slow says <em>“up to six creatures of your choice”</em>. Today By the Books asks everyone in the cube — that's why Dorian rolled at 9:58 pm.</li><li>Now Aster is asked who it affects: hostiles ticked, party and neutrals not, up to the spell's own number. When the clock runs out, the ticked choice stands.</li><li>Untick <em>Dorian stands in the cube</em> to see the recommended mode skip the popup when there's nothing to choose.</li></ul>`,
   sleep: `<ul><li>Sleep's text sets no number, so there's no cap.</li><li>The mule is neutral, so it isn't ticked by default. The default only ticks hostiles.</li></ul>`,
   hi: `<ul><li>A Sorcerer who knows Heightened. Today Heightened on an area spell asks its own question once the area lands.</li><li>On a spell that chooses, that becomes one popup: the tick chooses, the radio picks who saves at Disadvantage among the chosen.</li><li><b>Careful greys</b> with the reason <em>you choose its targets</em> (ruled): by the rules it does nothing on these spells, so no point is spent on it. Every other row stays as it is.</li></ul>`
 };

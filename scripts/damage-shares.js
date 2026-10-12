@@ -1,11 +1,11 @@
 /**
- * Battle Flow — MACHINE (ARCHITECTURE.md §7): THE DAMAGE SHARE (DAMAGE_SHARES) — a standing effect whose
+ * By the Books — MACHINE (ARCHITECTURE.md §7): THE DAMAGE SHARE (DAMAGE_SHARES) — a standing effect whose
  * caster takes what its bearer takes (Warding Bond). The seam is `dnd5e.applyDamage`, the rebukes': the
  * amount that LANDED on the bearer is applied to the caster with a receipt on the same card, no choice (R1);
  * beyond the bond's reach a card says so; the caster at 0 Hit Points ends it. Rulings: RULINGS *The spells
  * slice — the held spells*.
  */
-import { MODULE_ID, TITLE, canApplyTo, whisperNoGM, statContext } from "./core.js";
+import { MODULE_ID, readFlag, TITLE, canApplyTo, whisperNoGM, statContext } from "./core.js";
 import { effectSourceOf } from "./shared.js";
 import { DAMAGE_SHARES, answers, damageShareEntries, listedNames } from "./decide/registry.js";
 import { repeatRowFor, needsFloat } from "./decide/repeat-saves.js";
@@ -55,7 +55,7 @@ listen("dnd5e.applyDamage", "damage-shares", (actor, amount, options) => {
     if ( !(Number(amount) > 0) || !(actor instanceof Actor) ) return;
     const origin = options?.originatingMessage;
     // The caster's own share arrives from a card of this machine's: never shared on.
-    if ( (origin instanceof ChatMessage) && origin.getFlag(MODULE_ID, SHARE_FLAG) ) return;
+    if ( (origin instanceof ChatMessage) && readFlag(origin, SHARE_FLAG) ) return;
     if ( !listedNames(damageShareEntries()).size ) return;
     for ( const bond of bondsOn(actor) ) void share(bond, actor, Number(amount), origin instanceof ChatMessage ? origin : null);
   } catch(err) {
@@ -117,14 +117,14 @@ async function endBond(card, bearer, effect, why) {
       });
     }
   }
-  await card.setFlag(MODULE_ID, SHARE_FLAG, { ...card.getFlag(MODULE_ID, SHARE_FLAG), ended: why });
+  await card.setFlag(MODULE_ID, SHARE_FLAG, { ...readFlag(card, SHARE_FLAG), ended: why });
 }
 
 /* --- the card: the verdict's line ----------------------------------------------------------------- */
 
 listen("dnd5e.renderChatMessage", "damage-shares", (message, html) => {
   try {
-    const s = message.getFlag(MODULE_ID, SHARE_FLAG);
+    const s = readFlag(message, SHARE_FLAG);
     if ( !s?.ended ) return;
     const content = html.querySelector?.(SURFACES.messageContent) ?? html;
     if ( !content || content.querySelector(".bf-share-line") ) return;

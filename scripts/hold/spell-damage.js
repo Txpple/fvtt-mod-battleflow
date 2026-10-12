@@ -1,9 +1,9 @@
 // @ts-check
 /**
- * Battle Flow — the reaction hold: THE NO-ATTACK DAMAGE APPLIER and the `negate` veto at
+ * By the Books — the reaction hold: THE NO-ATTACK DAMAGE APPLIER and the `negate` veto at
  * `dnd5e.preApplyDamage` (which blocks wherever the tray's button is pressed).
  */
-import { MODULE_ID, TITLE, drivesMomentFor, canApplyTo, whisperNoGM } from "../core.js";
+import { MODULE_ID, readFlag, TITLE, drivesMomentFor, canApplyTo, whisperNoGM } from "../core.js";
 import { damagePartsOf } from "../shared.js";
 import { CARD, isCard, itemNameOf, originIdOf, targetsOf } from "../decide/card.js";
 import { registerResumable } from "../ui.js";
@@ -19,16 +19,16 @@ listen("dnd5e.preApplyDamage", "hold/spell-damage", (actor, _amount, _updates, o
   // ⚠ Damage only: healing takes applyDamage too.
   if ( !isCard(damageMessage, CARD.damage) ) return;
   const origin = damageMessage.getOriginatingMessage?.();
-  let hold = (origin && (origin !== damageMessage)) ? origin.getFlag(MODULE_ID, "hold") : null;
+  let hold = (origin && (origin !== damageMessage)) ? readFlag(origin, "hold") : null;
   // Fallback: an unbridged roll finds its hold by spell + actor, newest first, whole log.
-  if ( !hold && damageMessage.getFlag(MODULE_ID, "spellDamage") ) {
+  if ( !hold && readFlag(damageMessage, "spellDamage") ) {
     const name = itemNameOf(damageMessage)?.toLowerCase() ?? null;
     if ( name ) {
-      hold = game.messages.contents.filter(m => {
-        const h = m.getFlag(MODULE_ID, "hold");
+      hold = readFlag(game.messages.contents.filter(m => {
+        const h = readFlag(m, "hold");
         return (h?.trigger === "spell") && (h.spell?.toLowerCase() === name)
           && h.targets?.some(t => t.uuid === actor.uuid);
-      }).pop()?.getFlag(MODULE_ID, "hold") ?? null;
+      }).pop(), "hold") ?? null;
     }
   }
   if ( (hold?.trigger !== "spell") || (hold.status !== "resolved") ) return;
@@ -44,11 +44,11 @@ listen("dnd5e.preApplyDamage", "hold/spell-damage", (actor, _amount, _updates, o
 
 async function applySpellDamage(message) {
   try {
-    if ( message.getFlag(MODULE_ID, "spellDamage") !== true ) return;
-    if ( message.getFlag(MODULE_ID, "receipt") ) return;                   // applied already (resume)
-    const hold = message.getOriginatingMessage?.()?.getFlag?.(MODULE_ID, "hold");
+    if ( readFlag(message, "spellDamage") !== true ) return;
+    if ( readFlag(message, "receipt") ) return;                   // applied already (resume)
+    const hold = readFlag(message.getOriginatingMessage?.(), "hold");
     if ( hold && (hold.status === "pending") ) return;                     // bridged and still open
-    if ( message.getFlag(MODULE_ID, "spellHoldPending") === true ) {
+    if ( readFlag(message, "spellHoldPending") === true ) {
       // A RESOLVED hold applies per its verdicts; otherwise the release write re-triggers.
       if ( !hold || (hold.status === "pending") ) return;
     }
@@ -80,8 +80,8 @@ const spellDamageSubject = message => message?.getAssociatedActor?.()?.uuid ?? n
 // Three triggers: arrival, the claim settling (update), and render (reload resume).
 registerResumable("spellDamage", {
   pending: (_flag, message, cause) => (cause === "create")
-    || ((cause === "update") && (message.getFlag(MODULE_ID, "spellHoldPending") === false) && !message.getFlag(MODULE_ID, "receipt"))
-    || ((cause === "render") && (message.getFlag(MODULE_ID, "spellHoldPending") !== true) && !message.getFlag(MODULE_ID, "receipt")),
+    || ((cause === "update") && (readFlag(message, "spellHoldPending") === false) && !readFlag(message, "receipt"))
+    || ((cause === "render") && (readFlag(message, "spellHoldPending") !== true) && !readFlag(message, "receipt")),
   drives: (_flag, message) => drivesMomentFor(spellDamageSubject(message)),
   drive: applySpellDamage
 });
@@ -89,11 +89,11 @@ registerResumable("spellDamage", {
 listen("updateChatMessage", "hold/spell-damage", message => {
   if ( !drivesMomentFor(spellDamageSubject(message)) ) return;
   // A resolved spell hold releases every damage roll waiting on it.
-  const hold = message.getFlag(MODULE_ID, "hold");
+  const hold = readFlag(message, "hold");
   if ( (hold?.trigger === "spell") && (hold.status === "resolved") ) {
     for ( const dmg of game.messages.contents.filter(m =>
       (originIdOf(m) === message.id)
-      && (m.getFlag(MODULE_ID, "spellHoldPending") === true) ) ) {
+      && (readFlag(m, "spellHoldPending") === true) ) ) {
       void dmg.setFlag(MODULE_ID, "spellHoldPending", false);
     }
   }

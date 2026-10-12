@@ -40,7 +40,7 @@ for ( const actor of actors ) {
 }
 
 ui.notifications.info(
-  `Battle Flow: cleared ${cleared} temporary effect(s) across ${clearedOn} actor(s), `
+  `By the Books: cleared ${cleared} temporary effect(s) across ${clearedOn} actor(s), `
   + `long-rested ${rested} of ${actors.length} on ${canvas.scene.name}.`
   + (skipped ? ` ${skipped} skipped the rest (vehicle, or a module blocked it).` : "")
   + (failed.length ? ` ${failed.length} FAILED (${failed.join(", ")}) — see console.` : "")

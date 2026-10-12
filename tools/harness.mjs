@@ -97,7 +97,7 @@ export function sectionArg(plan, titles = {}, extra = null) {
  * A pid file held by a LIVE pid refuses the second run; a stale lock is taken over and reported.
  */
 function takeSuiteLock(tag) {
-  const lock = join(tmpdir(), `bf-suite-${process.env.BF_HOST || "local"}.lock`);
+  const lock = join(tmpdir(), `bf-suite-${process.env.BTB_HOST || process.env.BF_HOST || "local"}.lock`);
   let held = null;
   try { held = JSON.parse(readFileSync(lock, "utf8")); } catch { /* no lock, or unreadable */ }
   if (held?.pid) {
@@ -144,7 +144,7 @@ const installLedger = () => {
 };
 
 /**
- * The moment ledger: counts `battleflow.moment` by `kind` (and `event`) for tools/claim-proof.mjs.
+ * The moment ledger: counts `bythebooks.moment` by `kind` (and `event`) for tools/claim-proof.mjs.
  * A listener, not a wrapper. ⚠ It hears this client only (a moment publishes on the writing
  * client), so it under-reports, never over.
  */
@@ -152,7 +152,7 @@ const installMomentLedger = () => {
   if (globalThis.__bfMomentLedger) return "already";
   if (typeof Hooks?.on !== "function") return "no Hooks.on";
   const ledger = { total: 0, kinds: Object.create(null), events: Object.create(null), unkeyed: 0 };
-  Hooks.on("battleflow.moment", payload => {
+  Hooks.on("bythebooks.moment", payload => {
     try {
       ledger.total++;
       if (payload?.kind) ledger.kinds[payload.kind] = (ledger.kinds[payload.kind] ?? 0) + 1;
@@ -261,7 +261,7 @@ export async function disposeSafely(f, tag) {
 
 /** In the page: translate the retired settings' reads and writes (see connectSuite). */
 function retireSettings() {
-  const MOD = "fvtt-mod-battleflow";
+  const MOD = "fvtt-mod-bythebooks";
   if ( game.settings._bfRetired ) return "installed";
   const TIMERS = new Set(["holdTimer", "damageTimer", "saveTimer", "concTimer", "noticeTimer"]);
   const WAS = { autoDamage: "all", diceWait: 0, measuredCover: true, autoApply: true, requireTarget: true,
@@ -379,7 +379,7 @@ export async function connectSuite({ tag, watchdogMs, requireElect = true, allow
    * check-popup-routing's player) skips this and must pin its own if it rolls damage.
    */
   await f.evaluate(async () =>
-    game.settings.set("fvtt-mod-battleflow", "playerRollDamage", false), null);
+    game.settings.set("fvtt-mod-bythebooks", "playerRollDamage", false), null);
 
   /**
    * THE RETIRED SETTINGS: the module keeps ten settings, and the suites still write the rest. A
@@ -396,8 +396,8 @@ export async function connectSuite({ tag, watchdogMs, requireElect = true, allow
    */
   const coverScenes = await f.evaluate(async () => {
     // One batched write each way: a teardown cut off by the dispose ceiling once left the late scenes flagged.
-    const flagged = game.scenes.filter(s => !s.getFlag("fvtt-mod-battleflow", "noCover")).map(s => s.id);
-    if ( flagged.length ) await Scene.updateDocuments(flagged.map(_id => ({ _id, "flags.fvtt-mod-battleflow.noCover": true })));
+    const flagged = game.scenes.filter(s => !s.getFlag("fvtt-mod-bythebooks", "noCover")).map(s => s.id);
+    if ( flagged.length ) await Scene.updateDocuments(flagged.map(_id => ({ _id, "flags.fvtt-mod-bythebooks.noCover": true })));
     return flagged;
   }, null).catch(() => []);
 
@@ -416,7 +416,7 @@ export async function connectSuite({ tag, watchdogMs, requireElect = true, allow
     hungUp = true;
     stage = "teardown";
     if ( coverScenes.length ) {
-      const clear = f.evaluate(async ids => Scene.updateDocuments(ids.filter(id => game.scenes.has(id)).map(_id => ({ _id, "flags.fvtt-mod-battleflow.-=noCover": null }))), coverScenes)
+      const clear = f.evaluate(async ids => Scene.updateDocuments(ids.filter(id => game.scenes.has(id)).map(_id => ({ _id, "flags.fvtt-mod-bythebooks.-=noCover": null }))), coverScenes)
         .catch(e => console.warn(`[${tag}] the scenes' noCover flags not cleared (${e.message}) — run verify-settings --fix`));
       const { settled } = await withCeiling(clear, TEARDOWN_STEP_CEILING_MS);
       if (!settled) console.warn(`[${tag}] the noCover clear did not finish in ${TEARDOWN_STEP_CEILING_MS / 1000}s — run verify-settings --fix`);

@@ -1,6 +1,6 @@
 // @ts-check
 /**
- * Battle Flow — DECISION layer (ARCHITECTURE.md §2): the presentation formatters, strings in,
+ * By the Books — DECISION layer (ARCHITECTURE.md §2): the presentation formatters, strings in,
  * strings out. Imports nothing above it (no machine, spine, or core.js).
  * ⚠ Inline styles on purpose: a `styles` entry in module.json costs a Foundry process restart.
  * ⚠ `momentBarHTML` reads the wall clock (the tests fake it).
@@ -560,7 +560,7 @@ export const RESCUE_SOURCES = [
 export function rescueSourceFor(flagKey) {
   const sources = RESCUE_SOURCES.filter(s => s.flag === flagKey);
   if ( !sources.length ) {
-    console.warn(`Battle Flow | No rescue source is declared for "${flagKey}" — its rows will `
+    console.warn(`By the Books | No rescue source is declared for "${flagKey}" — its rows will `
       + "never render. Add it to RESCUE_SOURCES or fix the key.");
   }
   return sources;

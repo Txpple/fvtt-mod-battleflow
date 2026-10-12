@@ -1,4 +1,4 @@
-// Scrub the fixtures' residue: the AC override and the per-ability save bonus, on every BF Test
+// Scrub the fixtures' residue: the AC override and the per-ability save bonus, on every BTB Test (and 2.x "BF Test")
 // actor. Suites force outcomes at `ac.override` and `abilities.<x>.save.roll.bonus`; an older
 // restore that cleared the pre-6.0 keys left these standing. Idempotent: run it whenever a suite
 // reports an AC or a save that cannot be.
@@ -19,7 +19,7 @@ try {
       "Battle Magic", "Trance of Order", "Controlled Chaos", "Searing Vengeance", "Relentless Rage", "Undying Sentinel", "Rage of the Gods",
       "Power of the Wilds", "Lunar Form", "Bestial Fury", "Create Thrall", "Superior Hunter's Prey", "Stalker's Flurry", "Versatile Trickster",
       "Bastion of Law", "Projected Ward", "Arcane Ward", "Circle of the Sea"]);   // never a CLASS: the fixtures own theirs (the Paladin lost its class once, 2026-10-01)
-    for ( const actor of game.actors.filter(a => /^BF Test/i.test(a.name)) ) {
+    for ( const actor of game.actors.filter(a => /^(BTB|BF) Test/i.test(a.name)) ) {
       const src = actor.system._source;
       const update = {};
       const found = [];
@@ -35,7 +35,7 @@ try {
         rows.push(`${actor.name}: ${found.join(", ")}${check ? "" : " — cleared"}`);
       }
       // A killed run's ward pools (Bastion of Law's "Warded by Law (N)") absorb every later hit: gone.
-      const pools = actor.effects.filter(e => e.getFlag("fvtt-mod-battleflow", "wardPool"));
+      const pools = actor.effects.filter(e => e.getFlag("fvtt-mod-bythebooks", "wardPool") || e.flags?.["fvtt-mod-battleflow"]?.wardPool);   // the second: a 2.x pool
       // An ORPHANED effect: not transferred, its origin a document that no longer exists (a lent spell's Mage Armor landed
       // on the caster and the spell unlent; a lent feature's effect). Thirty-one Mage Armors stood on the Sorcerer (2026-10-01).
       const orphans = actor.effects.filter(e => !e.transfer && !pools.includes(e) && e.origin && !(e.statuses?.size)
@@ -61,7 +61,7 @@ try {
     }
     // An unlinked fixture token's synthetic actor at 0 HP is a corpse every save demand skips: heal it.
     for ( const scene of game.scenes ) {
-      for ( const tok of scene.tokens.filter(t => t.actor && !t.actorLink && /^BF Test/i.test(game.actors.get(t.actorId)?.name ?? "")) ) {
+      for ( const tok of scene.tokens.filter(t => t.actor && !t.actorLink && /^(BTB|BF) Test/i.test(game.actors.get(t.actorId)?.name ?? "")) ) {
         const hp = tok.actor.system.attributes?.hp;
         if ( !(hp?.max > 0) || (hp.value > 0) ) continue;
         if ( !check ) await tok.actor.update({ "system.attributes.hp.value": hp.max });
@@ -70,7 +70,7 @@ try {
     }
     return rows;
   }, check);
-  console.log(out.length ? out.join("\n") : "clean — no residue on any BF Test actor");
+  console.log(out.length ? out.join("\n") : "clean — no residue on any BTB Test actor");
 } finally {
   await disposeSafely(f, "scrub-fixture-residue");
 }

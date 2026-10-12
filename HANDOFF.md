@@ -1,5 +1,7 @@
 # HANDOFF.md — RETIRED 2026-10-02 (the three splat books built; v2.14.0 = Ravenloft, released)
 
+3.0.0 (2026-10-11) is the rename to By the Books (issue #6), not the pre-walk 3.0 this file expected.
+
 > **What this is:** the pick-up point for a session that starts cold. It is retired when what it hands over is done.
 > Nothing is handed over. **Wait for the user's go.** A ruling in chat is not a go. **Rapid dev mode is OVER** (the user, 2026-10-02): walks are back on the table.
 > **No deploy to a live world is owed with a release**; one goes out only on the maintainer's word.

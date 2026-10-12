@@ -1,6 +1,6 @@
 // @ts-check
 /**
- * Battle Flow — DECISION layer (ARCHITECTURE.md §2): the drain (registry.js DRAINS) — how much of what
+ * By the Books — DECISION layer (ARCHITECTURE.md §2): the drain (registry.js DRAINS) — how much of what
  * landed lowers the target's maximum, the die a score row reads off its text, the effect the module
  * writes, and the card's words. No `game`.
  */

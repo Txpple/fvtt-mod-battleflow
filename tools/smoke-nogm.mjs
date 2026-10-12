@@ -18,7 +18,7 @@ import { announcePlan, disposeSafely, loadEnv, report, sectionPlan } from './har
 import { playerConfig, foundryConfig } from './target.mjs';
 import { Foundry } from 'fvtt-mcp-dnd5e/client';
 
-const MOD = 'fvtt-mod-battleflow';
+const MOD = 'fvtt-mod-bythebooks';
 // The machines this suite drives (tools/coverage-map.mjs parses this). ⚠ NEVER import a suite:
 // it connects on evaluation.
 export const COVERS = [
@@ -80,8 +80,8 @@ try {
       activeGM: game.users.activeGM?.name ?? null,
       moduleActive: !!mod?.active,
       hasFlowSetting: game.settings.settings.has(`${modId}.decisionTimer`),
-      pc: game.actors.getName('BF Test PC Attacker')?.id ?? null,
-      victim: game.actors.getName('BF Test Victim')?.id ?? null
+      pc: game.actors.getName('BTB Test PC Attacker')?.id ?? null,
+      victim: game.actors.getName('BTB Test Victim')?.id ?? null
     };
   }, MOD);
   console.log(`[nogm] connected as "${pre.me}" (isGM=${pre.isGM}); activeGM=${pre.activeGM ?? 'none'}`);
@@ -106,8 +106,8 @@ try {
   // item to their own actor and roll their own attack, never touch the monster.
   const hit = await player.evaluate(async modId => {
     const log = [];
-    const pc = game.actors.getName('BF Test PC Attacker');
-    const victim = game.actors.getName('BF Test Victim');
+    const pc = game.actors.getName('BTB Test PC Attacker');
+    const victim = game.actors.getName('BTB Test Victim');
     const sleep = ms => new Promise(r => setTimeout(r, ms));
     const until = async (fn, ms = 12_000) => {
       const t0 = Date.now();
@@ -148,14 +148,14 @@ try {
     }
 
     // ⚠ The player cannot pin the monster's AC, so the attack rolls with advantage and retries.
-    const scene = game.scenes.getName('Battle Flow Test Range');
+    const scene = game.scenes.getName('By the Books Test Range');
     // ⚠ NAME THE MISSING FIXTURE instead of crashing inside page.evaluate: the scene is invisible
     // without OBSERVER, and other suites sweep the victim token off the range.
     if (!scene) return { error: 'the test scene is not visible to this player — run tools/fixture-suite.mjs (it grants OBSERVER)' };
     if (canvas.scene?.id !== scene.id) await scene.view();
     await until(() => canvas.ready, 20_000);
     const tokenDoc = scene.tokens.find(t => t.actorId === victim.id);
-    if (!tokenDoc) return { error: 'no BF Test Victim token on the range — a previous suite swept it; run tools/fixture-suite.mjs (a player cannot place one)' };
+    if (!tokenDoc) return { error: 'no BTB Test Victim token on the range — a previous suite swept it; run tools/fixture-suite.mjs (a player cannot place one)' };
     const token = await until(() => canvas.tokens.get(tokenDoc.id), 10_000);
     if (!token) return { error: 'the victim token never reached the canvas' };
     token.setTarget(true, { releaseOthers: true });
@@ -180,7 +180,7 @@ try {
     }
     if (!hitLanded) return { error: 'could not land a hit in 8 attempts', madeWeapon };
 
-    // ⚠ ANSWER THE OFFER, never roll past it. Battle Flow opens the player's damage offer on the hit,
+    // ⚠ ANSWER THE OFFER, never roll past it. By the Books opens the player's damage offer on the hit,
     // and its buzzer rolls the damage when nobody presses Roll (dismissal is not a veto). A programmatic
     // rollDamage beside an open offer leaves that buzzer armed: on Foundry 14.369 the run reached
     // §rejoin before it fired, and the GM, by then connected, paid the buzzer's second roll — a Sap
@@ -278,7 +278,7 @@ try {
         while (Date.now() - t0 < ms) { const v = fn(); if (v) return v; await sleep(200); }
         return fn();
       };
-      const pc = game.actors.getName('BF Test PC Attacker');
+      const pc = game.actors.getName('BTB Test PC Attacker');
       if (!pc) return { error: 'no PC fixture' };
       // ⚠ This page has no retired-key shim (no connectSuite): read only the ten real settings.
       // "Roll automatically" rolls the check at once, so the ask is pending only under "prompt".
@@ -287,14 +287,14 @@ try {
         // A real concentration effect on the PC's own sheet — a write the player owns.
         const spell = pc.items.find(i => i.type === 'spell') ?? null;
         await pc.createEmbeddedDocuments('ActiveEffect', [{
-          name: 'BF NoGM Concentration', img: 'icons/svg/daze.svg',
+          name: 'BTB NoGM Concentration', img: 'icons/svg/daze.svg',
           origin: spell?.uuid ?? pc.uuid,
           duration: { seconds: 600 },
           statuses: ['concentrating'],
-          flags: { dnd5e: { item: { name: 'BF NoGM Focus' } } }
+          flags: { dnd5e: { item: { name: 'BTB NoGM Focus' } } }
         }]);
         await sleep(400);
-        const eff = pc.effects.find(e => e.name === 'BF NoGM Concentration');
+        const eff = pc.effects.find(e => e.name === 'BTB NoGM Concentration');
         if (!eff) return { error: 'could not seed a concentration effect' };
         const concentrating = (pc.concentration?.effects?.size ?? 0) > 0;
 
@@ -313,7 +313,7 @@ try {
           saveRolls
         };
       } finally {
-        const strays = pc.effects.filter(e => e.name === 'BF NoGM Concentration');
+        const strays = pc.effects.filter(e => e.name === 'BTB NoGM Concentration');
         if (strays.length) await pc.deleteEmbeddedDocuments('ActiveEffect', strays.map(e => e.id));
         await pc.update({ 'system.attributes.hp.value': pc.system.attributes.hp.max });
       }
@@ -345,8 +345,8 @@ try {
     const planter = new Foundry(foundryConfig(env));
     await planter.connect();
     const planted = await planter.evaluate(async ({ modId, weaponUuid }) => {
-      const victim = game.actors.getName('BF Test Victim');
-      const scene = game.scenes.getName('Battle Flow Test Range');
+      const victim = game.actors.getName('BTB Test Victim');
+      const scene = game.scenes.getName('By the Books Test Range');
       const tok = scene?.tokens.find(t => t.actorId === victim?.id);
       const actor = tok?.actor;
       if (!actor) return { error: 'no victim token on the range' };
@@ -384,7 +384,7 @@ try {
         const weapon = await fromUuid(weaponUuid);
         const activity = weapon?.system?.activities?.find(a => a.type === 'attack');
         if (!activity) return { error: 'the weapon has no attack activity' };
-        // The gate lives INSIDE the system's roll dialog: one carrying Battle Flow's section is the gate.
+        // The gate lives INSIDE the system's roll dialog: one carrying By the Books' section is the gate.
         // ⚠ Read ALL roll dialogs: §conc can leave a Saving Throw dialog standing on this client. The
         // attack's is told by its class, the gate by our section.
         const rollDialogs = () => [...foundry.applications.instances.values()]
@@ -492,7 +492,7 @@ try {
         while (Date.now() - t0 < ms) { const v = fn(); if (v) return v; await sleep(200); }
         return fn();
       };
-      const pc = game.actors.getName('BF Test PC Attacker');
+      const pc = game.actors.getName('BTB Test PC Attacker');
       if (!pc) return { error: 'no PC fixture' };
       const EFF = 'bfnogmfavor00000';
       const before = new Set(game.messages.contents.map(m => m.id));
@@ -500,7 +500,7 @@ try {
       try {
         // A self-aimed utility spell with one effect, on the player's PC: both writes are the player's.
         [item] = await pc.createEmbeddedDocuments('Item', [{
-          name: 'BF NoGM Favor', type: 'spell',
+          name: 'BTB NoGM Favor', type: 'spell',
           system: {
             level: 1, school: 'evo', properties: ['vocal'],
             target: { affects: { type: 'self', count: '', choice: false } },
@@ -517,9 +517,9 @@ try {
             }
           },
           effects: [{
-            _id: EFF, name: 'BF NoGM Favored', transfer: false, disabled: false,
+            _id: EFF, name: 'BTB NoGM Favored', transfer: false, disabled: false,
             img: 'icons/svg/sun.svg', duration: { seconds: 60 },
-            description: '<p>+1d4 melee damage (BF no-GM fixture).</p>',
+            description: '<p>+1d4 melee damage (BTB no-GM fixture).</p>',
             changes: [{ key: 'system.rolls.damage.mwak.bonus', mode: 2, value: '1d4' }]
           }]
         }]);
@@ -533,7 +533,7 @@ try {
           .find(m => m.getFlag(modId, 'castApply')) ?? null, 12_000);
         const done = await until(() => (card?.getFlag(modId, 'effectReceipt')?.castDone ? card : null), 12_000);
         await sleep(300);
-        const chip = pc.effects.find(e => e.name === 'BF NoGM Favored') ?? null;
+        const chip = pc.effects.find(e => e.name === 'BTB NoGM Favored') ?? null;
         const whispers = game.messages.contents.filter(m => !before.has(m.id)
           && (m.whisper ?? []).includes(game.user.id) && /no gm is connected/i.test(m.content ?? ''))
           .map(m => (m.content ?? '').replace(/<[^>]+>/g, '').trim());
@@ -551,7 +551,7 @@ try {
       } catch (err) {
         return { error: String(err?.message ?? err) };
       } finally {
-        const strays = pc.effects.filter(e => e.name === 'BF NoGM Favored');
+        const strays = pc.effects.filter(e => e.name === 'BTB NoGM Favored');
         if (strays.length) await pc.deleteEmbeddedDocuments('ActiveEffect', strays.map(e => e.id)).catch(() => {});
         if (item && pc.items.get(item.id)) await pc.deleteEmbeddedDocuments('Item', [item.id]).catch(() => {});
         const mine = game.messages.contents.filter(m => !before.has(m.id)
@@ -616,8 +616,8 @@ try {
       const notices = game.messages.contents
         .filter(m => !before.has(m.id) && (m.getFlag(modId, 'masteryNotice')?.key === 'sap')).length;
       // A GM re-running the payout would also land the Sapped chip late.
-      const victim = game.actors.getName('BF Test Victim');
-      const scene = game.scenes.getName('Battle Flow Test Range');
+      const victim = game.actors.getName('BTB Test Victim');
+      const scene = game.scenes.getName('By the Books Test Range');
       const tok = scene?.tokens.find(t => t.actorId === victim?.id);
       const chips = (tok?.actor?.effects ?? [])
         .filter(e => e.getFlag(modId, 'mastery') === 'sap').length;
@@ -653,7 +653,7 @@ try {
   // ----------------------------------------------------------------------------- teardown
   // ⚠ Player-side only: nothing was created on the monster side. Take back the granted weapon.
   await player.evaluate(async ({ modId, madeWeapon, ids }) => {
-    const pc = game.actors.getName('BF Test PC Attacker');
+    const pc = game.actors.getName('BTB Test PC Attacker');
     if (madeWeapon && pc?.items.get(madeWeapon)) {
       await pc.deleteEmbeddedDocuments('Item', [madeWeapon]);
     }

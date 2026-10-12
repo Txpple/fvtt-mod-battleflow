@@ -11,18 +11,19 @@ browser (`fvtt-mcp-dnd5e/client` — a `file:../fvtt-mcp-dnd5e` dependency: `npm
 | Variable | What |
 | --- | --- |
 | `LOCAL_FOUNDRY_DATA`, `LOCAL_WORLD_ID`, `LOCAL_SERVER_URL`, `LOCAL_ADMIN_KEY` | the local Foundry and the world it runs — any world; the suites assume nothing in it |
-| `FOUNDRY_SUITE_USER` / `BF_SUITE_USER` (+ password) | the GM user every suite joins as |
+| `BF_SUITE_USER` / `BF_SUITE_PASSWORD` (or `BTB_SUITE_USER` / `BTB_SUITE_PASSWORD`; `FOUNDRY_SUITE_*` wins over both) | the GM user every suite joins as. The MCP client reads the `BF_` names; `tools/target.mjs` maps `BTB_SUITE_*` onto them, so either works |
+| `BTB_HOST` (alias `BF_HOST`) · `BTB_DND5E_DIR` (alias `BF_DND5E_DIR`) | the preset a suite targets (the local sandbox by default) · the installed dnd5e system `check-hook-dispatch` and `check-surfaces` read (else the default Foundry data path) |
 | `FOUNDRY_USER` (+ password) | the MCP bridge's GM user (the preflight names it when it blocks) |
 | `FOUNDRY_PLAYER_USER` (+ password) | a player-role user: the two-client suites and the player-owned fixtures |
 
-The three users must exist in the world. Everything else a suite needs, `fixture-suite.mjs` builds from the compendia.
+Every `BF_*` name above still works, so an `.env` written before 3.0.0 needs no edit. The three users must exist in the world. Everything else a suite needs, `fixture-suite.mjs` builds from the compendia.
 
 ```bash
 node tools/battery.mjs                     # build the fixtures, every suite in order (each captured to a file), tear down
 node tools/battery.mjs --keep              # ...and leave the fixtures in the world
 node tools/battery.mjs --changed --list    # what this change needs re-run, and why — then drop --list
 node tools/fixture-suite.mjs               # once, before any suite run by hand
-node tools/smoke-saves.mjs                 # one suite, against the local sandbox (BF_HOST picks another preset)
+node tools/smoke-saves.mjs                 # one suite, against the local sandbox (BTB_HOST picks another preset)
 node tools/smoke-saves.mjs --list          # its sections, without connecting
 node tools/smoke-saves.mjs --section 8     # just §8 (plus anything §8 depends on)
 node tools/job.mjs -e "return game.actors.size"   # a one-off look at the world through the harness, no script file
@@ -77,7 +78,7 @@ messages. Disconnect the MCP bridge first, and verify settings after — **`batt
 ordering, the capture and the settings check for you**, which is why it is the front door.
 
 `reset-fixture-state` runs before any suite (it sweeps a killed run's linked strays before anything
-measures a distance — NOTES §5 *A KILLED battery poisons the next one*), `smoke-battleflow` is the
+measures a distance — NOTES §5 *A KILLED battery poisons the next one*), `smoke-bythebooks` is the
 first suite (it places the shared victim token), `smoke-hold` immediately after
 it, and `smoke-nogm` last (it must find no active GM, and the seed above it re-places the token it
 needs). `ORDER` in `coverage-map.mjs` holds the whole order and `battery.mjs --list` prints it;
@@ -87,14 +88,14 @@ quote that, never a copy of it here.
 
 ⚠ **The three suites of 2026-09-05** — `smoke-shields` (the damage shields: the Cleric warded with Fire Shield / Armor of Agathys, the Ranger with the Cleric's Death Armor, the goblin striking them; §8 is the cast-time CHOICE — Fire Shield cast through the cast slice, the warm-or-chill popup clicked on this page, one shield landing), `smoke-heatmetal` (the damage casts: Heat Metal on the Cleric at the goblin), `smoke-superiority` (the rest of the Battle Master's maneuvers on the built fighter, the Ranger as the willing ally; §9 is Commander's Strike as a NOTICE plus a chip on the Ranger whose own attack carries the die — no driven attack since 2026-09-05; §11 is Tactical Assessment and Ambush ARMED from the sheet, the die folding into the next scoped check with no ask) — each gives its spells or maneuvers to the fixture for the run and removes them after; none needs a fixture step of its own beyond `fixture-suite`.
 
-⚠ **`smoke-hitmenu` drives the built fighter fixture** — `BF Test Fighter` (a PHB-built Fighter 5; `fixture-d20-folds` makes it a Battle Master with Combat Superiority and its Longsword), with the eight on-hit maneuvers added from the 2024 PHB pack for the run and removed after; the second goblin (`BF Test Attacker`) stands one square from the victim as the sweep's second creature.
+⚠ **`smoke-hitmenu` drives the built fighter fixture** — `BTB Test Fighter` (a PHB-built Fighter 5; `fixture-d20-folds` makes it a Battle Master with Combat Superiority and its Longsword), with the eight on-hit maneuvers added from the 2024 PHB pack for the run and removed after; the second goblin (`BTB Test Attacker`) stands one square from the victim as the sweep's second creature.
 
-⚠ **`smoke-sneak` and `smoke-clock` drive the BUILT fixtures** — `BF Test Rogue` (Rogue 14 /
-Thief, the whole Cunning Strike option set, Assassinate) and `BF Test Ranger` (Ranger 5 / Gloom
+⚠ **`smoke-sneak` and `smoke-clock` drive the BUILT fixtures** — `BTB Test Rogue` (Rogue 14 /
+Thief, the whole Cunning Strike option set, Assassinate) and `BTB Test Ranger` (Ranger 5 / Gloom
 Stalker) — created from the 2024 PHB pack by `fixture-suite.mjs`, with class items at a level so
 the scale values resolve (measured: `tools/probe-rogue-fixture.mjs`). They give the victim a
 400-HP pool for the run (why: NOTES §2 *The save machine REFUSES a dead target*). `smoke-saves` §19 is the save gate; its driver finds the system's dialog through the app
-registry and Battle Flow's own fieldset, never by a class or by text — the dialog's target block
+registry and By the Books' own fieldset, never by a class or by text — the dialog's target block
 names the user's targets, which is not the creature that is asking.
 
 ⚠ **`smoke-twoclient` is the one that needs a SECOND client**, and it is where the properties no
@@ -105,7 +106,7 @@ DOM). It connects the player itself; just do not be logged in as the player test
 
 ⚠ **`smoke-nogm` is the one that connects NO GM AT ALL** (v1.27.0), and it is the only suite that
 can see the flow elect. Before v1.27.0 `isActiveGM()` was the sole gate on the payout chain, so a
-GM disconnect stopped Battle Flow dead with no chip, no card, no popup and **no error** — a failure
+GM disconnect stopped By the Books dead with no chip, no card, no popup and **no error** — a failure
 the whole suite tree was structurally blind to, because the tree always had a GM. It drives a real
 Sap hit from the PLAYER's client and asserts the split: the reminder still posts, the monster is
 never written to, the driver is whispered what did not land, and a GM rejoining mid-flight re-pays
@@ -136,6 +137,10 @@ the buzzer's second roll landed after the GM rejoined, looking exactly like a re
 ⚠ **One at a time is enforced, not remembered.** Suites take a pid lockfile in `harness.mjs`: a
 second one refuses and names the first; a stale lock (the holder died) is taken over and reported.
 Why the sole-GM preflight cannot do this: NOTES §5.
+
+⚠ **The preflight checks the package too** (3.0.0): every asserting suite refuses unless By the
+Books is active and Battle Flow is not, and names which. `job.mjs --read-only`, the fixture
+builders and the probes are exempt and work in either state.
 
 ⚠ **A slow run and a hung run must not look the same** (2026-10-10, issue #12: a harness script
 outlived its 400 s watchdog by an hour, and another printed nothing for five minutes). The harness
@@ -174,7 +179,7 @@ run the probe and compare its row with these.
 | `--changed main` | the same for a branch: everything since it left `main` (`main...HEAD`) plus the working tree |
 | `--files scripts/emanations.js …` | the same selector on a list by hand — for checking what a change would run without making it |
 | `--from smoke-saves` | resume after a failure, still in order — and pulls what the resumed rows need from above the cut |
-| `smoke-hold smoke-battleflow` | a subset — still run in the canonical order; a suite's `needs` are pulled and named (`smoke-hold` alone runs `smoke-battleflow` first) |
+| `smoke-hold smoke-bythebooks` | a subset — still run in the canonical order; a suite's `needs` are pulled and named (`smoke-hold` alone runs `smoke-bythebooks` first) |
 | `--section 4 smoke-hold` | one suite's sections; only that suite receives `--section`, a pulled need runs whole |
 | `--snapshot` | take a world snapshot first, roll it back after (the cure for the crash-launder hazard) |
 | `--list` | the order, the needs and the notes, without running anything. With `--changed` / `--files` / names: **the plan**, each row with why it runs (the file that claimed it, the suite that needed it, or the reason for the full battery), and each changed file that runs nothing with why |
@@ -196,7 +201,7 @@ red. Offline, no Foundry, safe to run mid-battery.
 
 **`needs`** is a field on an ORDER row: the rows that suite cannot run without, each resolved to
 the **nearest row of that name above it** — which is how the three `fixture-suite` seeds each serve
-the suites below them. `smoke-hold` needs `smoke-battleflow` (adjacent in ORDER, so nothing can
+the suites below them. `smoke-hold` needs `smoke-bythebooks` (adjacent in ORDER, so nothing can
 run between them), `smoke-d20-folds` its `fixture-d20-folds`, `smoke-effects` the
 `reset-fixture-state` sweep, `smoke-metamagic` / `smoke-emanations` / `probe-effect-view` /
 `smoke-nogm` a `fixture-suite`. It replaced the old "ask for both" refusal: the battery runs the
@@ -218,7 +223,7 @@ it full. `check-coverage-map.mjs` checks the map **both ways** in `npm run verif
 claim cannot outlive its file and a machine cannot go unclaimed.
 
 Failures print in full to the console **as well as** landing in the file — the `| tail` that
-twice lost `smoke-battleflow`'s "2 FAILURE(S)" evidence cannot happen through this door.
+twice lost `smoke-bythebooks`'s "2 FAILURE(S)" evidence cannot happen through this door.
 
 ⚠ **The battery also ends with HOOK COVERAGE** (`hook-coverage.mjs`, above), and it clears
 `dist/hook-ledger/` first so a previous run's ledger can never be counted as this one's. **Read
@@ -267,17 +272,17 @@ ships, never from what the party owns (DESIGN N1). Re-run after adding content.
 | Tool | Job |
 | --- | --- |
 | `target.mjs` | **which instance a suite talks to** — one decision, one place. Every harness resolves through it and prints the target it chose. |
-| `verify-settings.mjs` | diffs the world's Battle Flow settings against a reference it does not hold: `--against <snapshot>` (the battery records the world's own values before it runs, `--snapshot <file>`), else the registered defaults plus a git-ignored `tools/settings.local.json`. `--fix` restores drift. Run after every battery. |
+| `verify-settings.mjs` | diffs the world's By the Books settings against a reference it does not hold: `--against <snapshot>` (the battery records the world's own values before it runs, `--snapshot <file>`), else the registered defaults plus a git-ignored `tools/settings.local.json`. `--fix` restores drift. Run after every battery. |
 | `fixture-suite.mjs` | **builds every fixture from the COMPENDIA** (2026-10-07: no campaign character, scene or item is read — NOTES §5 *The world is a blank slate*). The battery runs it FIRST and a failed build stops the run; run it by hand before a single suite. The test range scene, the two goblins and the bare monster and dummy NPCs (imported by shape or created bare), the player-owned PC attacker, and the `BUILT` PCs from the PHB (a class item at a level resolves its scale values): the Shielder and the player-owned Mage (Sorcerer 6, a real Shield), the d20-fold Fighter (Fighter 5 at Strength 14 — the +5 band `smoke-d20-folds` states) and Bard (Bard 8 — the 1d8 inspiration die), the Vanguard (Paladin 6, an attuned Cloak of Protection, Shield Master, the longsword mastery), and the Paladin, Cleric, Rogue, Ranger, Sorcerer, Goliath and Halfling. All under `Test Suite` folders, idempotent, ownership and abilities re-seeded every run. Every token it places carries the `fixtureHome` stamp `reset-fixture-state` spares, and the base goblins go back to their statblock every run (2026-09-24). Pair with `fixture-d20-folds.mjs`, which runs second. |
-| `teardown-fixtures.mjs` | **removes every fixture** — the `Test Suite` folders and what is in them, any `BF …` / `Battle Flow …` actor or scene, and any combat they stand in. The battery runs it LAST unless `--keep`, so the sandbox is left as it was found; `--list` says what would go. |
-| `reset-fixture-state.mjs` | shared fixtures back to a known state (conditions off, pools full), and **every LINKED `BF Test` token on the range without the `fixtureHome` stamp swept** — a killed suite's leftovers (2026-09-24). The battery's first row; run it by hand after any killed run outside the battery. |
-| `scrub-fixture-residue.mjs` | clears what a suite's 5.x restore no longer clears at dnd5e 6.0 — the AC `override` and the per-ability `save.roll.bonus` — on every BF Test actor (`--check` reports only). Run it whenever a suite reports an AC or a save that cannot be (the dnd5e 6.0 pass, 2026-09-16). |
+| `teardown-fixtures.mjs` | **removes every fixture** — the `Test Suite` folders and what is in them, any `BTB …` / `By the Books …` actor or scene (the range is "By the Books Test Range", the walks' scene "By the Books Walk"), the `BF …` / `Battle Flow …` residue a 2.x run left, and any combat they stand in. The battery runs it LAST unless `--keep`, so the sandbox is left as it was found; `--list` says what would go. |
+| `reset-fixture-state.mjs` | shared fixtures back to a known state (conditions off, pools full), and **every LINKED `BTB Test` token on the range without the `fixtureHome` stamp swept** — a killed suite's leftovers (2026-09-24). The battery's first row; run it by hand after any killed run outside the battery. |
+| `scrub-fixture-residue.mjs` | clears what a suite's 5.x restore no longer clears at dnd5e 6.0 — the AC `override` and the per-ability `save.roll.bonus` — on every BTB Test actor (`--check` reports only). Run it whenever a suite reports an AC or a save that cannot be (the dnd5e 6.0 pass, 2026-09-16). |
 | `reload-clients.mjs` | refresh every other connected client after a hot-deploy. |
 | `build-release.mjs` | the release zip: the gate, then the archive, then the archive read back. CI runs it on a pushed tag and publishes; run by hand it is the dry run. **Never use `Compress-Archive`** (why: NOTES §5 *Release*). |
 | `world-snapshot.mjs` | `take` / `restore` / `status` / `drop` — roll the sandbox's databases back after a battery. The copy is 24 MB and takes 0.05s; the ~75s cost is the world bounce either side. **Local only.** |
 | `harness.mjs` | the twenty lines every suite used to copy — env, watchdog, connect, preflight, the section plan, one reporter, the **suite lock**, and the **hook ledger** it arms at connect and writes at teardown. Not a suite; nothing runs it directly. |
 | `hook-coverage.mjs` | ⚠ **the only measurement in the tree that is about BEHAVIOUR** (ARCHITECTURE §10 D11): which of the module's hook registrations actually FIRED during the run (it prints the count; 83 when it was built, 172 by 2026-09-05), unioned from the per-suite ledgers in `dist/hook-ledger/`. **It reports; it never fails.** A never-fired line is a coverage gap, a dead handler or a rare hook — only a person can tell which, and v1.23.0 would have printed four dead ones beside a green battery. |
-| `claim-proof.mjs` | **the runtime half of the coverage map** (2026-09-23), printed as `hook-coverage`'s second section. The harness also counts every `battleflow.moment` by record `kind` into the same ledger file (`moments`); this reads it against each suite's `COVERS`: a claimed file is PROVEN (a kind only it writes was published there), PROVEN (shared kind), **UNPROVEN** (it writes kinds, none published — a stale claim), UNPROVABLE-BY-MOMENTS (it writes no kind — derived from the gate's tables, not listed) or NOT MEASURED (no moment half in the ledger). It also names a file that acted in a suite that does NOT claim it. The tag → suite join is read off each script's `connectSuite({ tag })`. Same contract: **reports, never fails.** ⚠ It hears the tester's page only — a second client's resolves are not counted. |
+| `claim-proof.mjs` | **the runtime half of the coverage map** (2026-09-23), printed as `hook-coverage`'s second section. The harness also counts every `bythebooks.moment` by record `kind` into the same ledger file (`moments`); this reads it against each suite's `COVERS`: a claimed file is PROVEN (a kind only it writes was published there), PROVEN (shared kind), **UNPROVEN** (it writes kinds, none published — a stale claim), UNPROVABLE-BY-MOMENTS (it writes no kind — derived from the gate's tables, not listed) or NOT MEASURED (no moment half in the ledger). It also names a file that acted in a suite that does NOT claim it. The tag → suite join is read off each script's `connectSuite({ tag })`. Same contract: **reports, never fails.** ⚠ It hears the tester's page only — a second client's resolves are not counted. |
 | `moment-writers.mjs` | the gate's flag-write scan and its `WORLD_WRITERS` pins, moved out of `check-moments.mjs` so the claim proof reads the SAME answer to "which file writes which record" (2026-09-23). |
 | `battery.mjs` | the whole battery in one command, in the order that works, captured to files — or, with `--changed`, only what the change selects. |
 | `coverage-map.mjs` | **the order and the claims** (2026-09-23): `ORDER` (the battery's rows, their notes and `needs`), `loadCoverageMap()` (every suite's `COVERS`, parsed from its text — suites run on import), `isSpine` / `tierOf` (the tier map's answer), `suitesFor` / `planFor` (the change selector). Not a suite. |
@@ -326,15 +331,15 @@ only on the maintainer's word.
    The workflow run by hand (`gh workflow run release.yml`) is the dry run on CI: the zip kept as
    an artifact, nothing published.
 6. **The deploy** (run in the sibling MCP repo, `fvtt-mcp-dnd5e/scripts/deploy-house-module.mjs`):
-   `FOUNDRY_HOST=<the live host's preset> node <that script> fvtt-mod-battleflow --check` first. ⚠ An
+   `FOUNDRY_HOST=<the live host's preset> node <that script> fvtt-mod-bythebooks --check` first. ⚠ An
    all-identical hash is a half-awake box: wake it through the bridge (`get-world-info`), re-check,
    and never deploy on that reading. Then the same command without `--check`. WebDAV never prunes —
    a file removed from the tree is deleted on the box by hand, or the zip shipped instead. `--local`
-   deploys to the sandbox.
+   deploys to the sandbox. ⚠ 3.0.0 is a new package id: a world's first install of `fvtt-mod-bythebooks` goes through Foundry's installer (`register-module.mjs --id fvtt-mod-bythebooks --manifest <the manifest URL>`, same repo), never a deploy over the old folder.
 7. **After.** Scripts are live on the next world reload; `module.json` (the version) on the next
    Foundry **process restart**, which is the user's. Refresh the other connected clients
    (`reload-clients.mjs`, or ask the table), wait a few minutes before any suite (the front cache),
-   and re-run `verify-settings` against the world (`BF_HOST=<the live host preset> node tools/verify-settings.mjs`). Say plainly what is live, what needs an F5 and
+   and re-run `verify-settings` against the world (`BTB_HOST=<the live host preset> node tools/verify-settings.mjs`). Say plainly what is live, what needs an F5 and
    what needs the restart.
 
 ## content/

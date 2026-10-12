@@ -54,7 +54,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     skips.push(`section ${n}: ${titles[n] ?? ""} — not in this run`);
     return false;
   };
-  const MODULE_ID = "fvtt-mod-battleflow";
+  const MODULE_ID = "fvtt-mod-bythebooks";
   const sleep = ms => new Promise(r => setTimeout(r, ms));
   // ⚠ Wait for what the next assertion reads, never a flat sleep.
   const until = async (fn, ms = 10_000) => {
@@ -64,8 +64,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   };
 
   try {
-    const fighter = game.actors.getName("BF Test Fighter");
-    const bard = game.actors.getName("BF Test Bard");
+    const fighter = game.actors.getName("BTB Test Fighter");
+    const bard = game.actors.getName("BTB Test Bard");
     if (!fighter || !bard) {
       fatal = "fixtures missing — run tools/fixture-d20-folds.mjs first";
       return { fatal, results, log, skips };
@@ -102,7 +102,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       ok("bardic marker is an effect, not an item", !!eff && !fighter.items.find(i => i.name === "Inspired"),
         `effect=${!!eff}`);
       const originItem = eff?.origin ? await fromUuid(eff.origin) : null;
-      ok("the effect leads back to the granting bard", originItem?.actor?.name === "BF Test Bard",
+      ok("the effect leads back to the granting bard", originItem?.actor?.name === "BTB Test Bard",
         `origin=${eff?.origin} → ${originItem?.actor?.name}`);
 
       // ⚠ Cross-actor trap: against the bard the token is a real die; against the recipient it is 0.

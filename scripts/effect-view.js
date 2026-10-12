@@ -1,11 +1,11 @@
 /**
- * Battle Flow — MACHINE (ARCHITECTURE.md §7): THE EFFECT VIEW — a creature's buffs and debuffs on demand
+ * By the Books — MACHINE (ARCHITECTURE.md §7): THE EFFECT VIEW — a creature's buffs and debuffs on demand
  * (RULINGS *The effect view*), every row read off the sheet at draw time. Three surfaces, one renderer:
  * the hover card (`hoverToken`), the held key (Alt → `highlightObjects`), and the bar above the hotbar —
  * the ONE interactive surface, whose chip folds offer Remove, Disable or Clear to an owner.
  * ⚠ It writes nothing of its own: a fold's click goes through the platform's own permission.
  */
-import { MODULE_ID, S, setting } from "./core.js";
+import { MODULE_ID, readFlag, S, setting } from "./core.js";
 import { CHIP_FLAG } from "./decide/chips.js";
 import { allRows, everyRow, marksHeldBy, panelGroups, rowAction } from "./decide/effect-view.js";
 import { EMANATIONS, RANGE_FEATS, answers, tableIndex } from "./decide/registry.js";
@@ -61,8 +61,8 @@ function ownAuraOf(effect) {
 
 /** A fighting style's FACE (damage-rules.js) reads as a worn passive — the panel, never the bar; the
  * pack effect it took over is not shown at all. */
-const styleOf = effect => effect.getFlag?.(MODULE_ID, "fightingStyle") ?? null;
-const takenOver = effect => effect.getFlag?.(MODULE_ID, "fightingStyleTakenOver") === true;
+const styleOf = effect => readFlag(effect, "fightingStyle") ?? null;
+const takenOver = effect => readFlag(effect, "fightingStyleTakenOver") === true;
 
 /** The Fighting Style feat an item effect rides (Blind Fighting's senses), by dnd5e's own subtype. */
 const styleFeatOf = effect => {
@@ -84,7 +84,7 @@ function factOf(effect) {
     aura: ownAuraOf(effect),
     onItem: effect.parent instanceof Item,
     statuses: [...(effect.statuses ?? [])],
-    chipKey: effect.getFlag?.(MODULE_ID, CHIP_FLAG) ?? null,
+    chipKey: readFlag(effect, CHIP_FLAG) ?? null,
     clock: clockLabel(effect),
     origin: typeof effect.origin === "string" ? effect.origin : null,
     changes: (effect.changes ?? []).map(c => ({ key: c.key, mode: c.mode, value: c.value })),

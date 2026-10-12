@@ -2,8 +2,8 @@
 // automatic (RULINGS, the drop-to-1 row); the GM's side (RULINGS *The GM's side — the five shapes*):
 // Undead Fortitude's save held at 1 while the dice roll, and Death Throes at the corpse.
 //
-// Fixtures: BF Test Halfling (tools/fixture-suite.mjs) is lent the PHB's Relentless Endurance and
-// wears a "Protection from Death" effect for §1; BF Test Monster is lent the Monster Manual's Undead
+// Fixtures: BTB Test Halfling (tools/fixture-suite.mjs) is lent the PHB's Relentless Endurance and
+// wears a "Protection from Death" effect for §1; BTB Test Monster is lent the Monster Manual's Undead
 // Fortitude (§6–§8) and Death Throes (§9). Damage goes through the system's Actor#applyDamage —
 // the road the card's buttons and the module's applier both take. Everything is put back.
 //
@@ -33,7 +33,7 @@ const f = await connectSuite({ tag: 'drop', watchdogMs: 240_000 });
 announcePlan('drop', plan, pulled);
 
 const out = await f.evaluate(async ({ sections, titles }) => {
-  const MOD = 'fvtt-mod-battleflow';
+  const MOD = 'fvtt-mod-bythebooks';
   const results = [];
   const log = [];
   const skips = [];
@@ -55,10 +55,10 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   const set = (k, v) => game.settings.set(MOD, k, v);
   const def = k => game.settings.settings.get(`${MOD}.${k}`)?.default;
 
-  const actor = game.actors.getName('BF Test Halfling');
-  if (!actor || (actor.type !== 'character')) return { fatal: 'missing fixture: BF Test Halfling (a character) — run tools/fixture-suite.mjs' };
+  const actor = game.actors.getName('BTB Test Halfling');
+  if (!actor || (actor.type !== 'character')) return { fatal: 'missing fixture: BTB Test Halfling (a character) — run tools/fixture-suite.mjs' };
   const priorHp = foundry.utils.deepClone(actor.system._source.attributes.hp);
-  const monster = game.actors.getName('BF Test Monster');
+  const monster = game.actors.getName('BTB Test Monster');
   const priorMonster = monster ? { hp: foundry.utils.deepClone(monster.system._source.attributes.hp), con: monster.system._source.abilities?.con?.save?.roll?.bonus ?? '' } : null;
   const lent = [];
   const lentMonster = [];
@@ -79,7 +79,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       if (fx.length) await actor.deleteEmbeddedDocuments('ActiveEffect', fx);
       await actor.update({ 'system.attributes.hp': priorHp });
       if (placedTokens.length) {
-        const range = game.scenes.getName('Battle Flow Test Range');
+        const range = game.scenes.getName('By the Books Test Range');
         const live = placedTokens.filter(id => range?.tokens.get(id));
         if (live.length) await range.deleteEmbeddedDocuments('Token', live);
       }
@@ -189,9 +189,9 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       ok('5a. no use left: no ask, the 0 lands at once', (hpNow() === 0) && !cardAfter(t0), `hp=${hpNow()} card=${!!cardAfter(t0)}`);
     }
 
-    // ================================================== THE GM'S SIDE — BF Test Monster
+    // ================================================== THE GM'S SIDE — BTB Test Monster
     const wantsMonster = [6, 7, 8, 9].some(n => !sections || sections.includes(String(n)));
-    if (wantsMonster && !monster) return { fatal: 'missing fixture: BF Test Monster — run tools/fixture-suite.mjs', results, log, skips };
+    if (wantsMonster && !monster) return { fatal: 'missing fixture: BTB Test Monster — run tools/fixture-suite.mjs', results, log, skips };
     const lendTrait = async name => {
       const pack = game.packs.get('dnd-monster-manual.features');
       if (!pack) throw new Error('the Monster Manual features pack is not on this box');
@@ -208,7 +208,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     /** A damage card the seam can read: one DamageRoll of `type`, a Critical Hit when asked. */
     const damageCard = async (type, { crit = false } = {}) => {
       const roll = await new CONFIG.Dice.DamageRoll('30', {}, { type, isCritical: crit }).evaluate();
-      return ChatMessage.create({ speaker: ChatMessage.getSpeaker({ actor: monster }), rolls: [roll], flavor: `BF test damage — ${type}${crit ? ' (critical)' : ''}` });
+      return ChatMessage.create({ speaker: ChatMessage.getSpeaker({ actor: monster }), rolls: [roll], flavor: `BTB test damage — ${type}${crit ? ' (critical)' : ''}` });
     };
     const mHit = async (n, type = 'slashing', { card = true, crit = false } = {}) => {
       const msg = card ? await damageCard(type, { crit }) : null;
@@ -294,11 +294,11 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const throes = await lendTrait('Death Throes');
       const act = throes.system.activities.find(a => a.type === 'save');
       log.push(`Death Throes on the sheet: DC ${act?.save?.dc?.value} ${[...(act?.save?.ability ?? [])].join('/')} · template ${act?.target?.template?.type} ${act?.target?.template?.size} ${act?.target?.template?.units} · parts ${act?.damage?.parts?.length}`);
-      const scene = game.scenes.getName('Battle Flow Test Range');
+      const scene = game.scenes.getName('By the Books Test Range');
       if (canvas.scene?.id !== scene?.id) await scene?.view();
       for (let i = 0; i < 40 && !canvas.ready; i++) await sleep(250);
       const corpseToken = canvas.tokens.placeables.find(t => t.actor?.uuid === monster.uuid);
-      const victim = game.actors.getName('BF Test Victim');
+      const victim = game.actors.getName('BTB Test Victim');
       // The Victim's own token, placed 10 ft from the corpse for the section (the fixture line moves under walks).
       const g = scene.grid.size;
       const [victimDoc] = corpseToken ? await scene.createEmbeddedDocuments('Token', [foundry.utils.mergeObject(victim.prototypeToken.toObject(),

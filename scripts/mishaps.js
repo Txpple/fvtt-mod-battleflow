@@ -1,5 +1,5 @@
 /**
- * Battle Flow — MACHINE (ARCHITECTURE.md §7): THE MISHAPS (MISHAPS — Ravenloft's dark gifts: Warping Flesh, Intrusive
+ * By the Books — MACHINE (ARCHITECTURE.md §7): THE MISHAPS (MISHAPS — Ravenloft's dark gifts: Warping Flesh, Intrusive
  * Echoes, Voices from Beyond, Ominous Will, Symbiotic Agenda, Incessant Watchers). "Immediately after you make a D20 Test
  * and roll a 1 on the d20", the bearer makes the feature's own save. Read on the roller's client as the roll lands — an
  * attack roll, a saving throw or an ability check whose kept d20 shows a 1 — the row's save activity is used

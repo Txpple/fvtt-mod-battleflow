@@ -5,13 +5,13 @@ import { connectSuite, disposeSafely, loadEnv } from "./harness.mjs";
 const env = loadEnv();
 const f = await connectSuite({ tag: "probe-steady", watchdogMs: 120_000, requireElect: false, env });
 const out = await f.evaluate(async () => {
-  const MOD = "fvtt-mod-battleflow";
+  const MOD = "fvtt-mod-bythebooks";
   const sleep = ms => new Promise(r => setTimeout(r, ms));
   const errors = [];
   const oe = console.error, ow = console.warn;
   console.error = (...a) => { errors.push("E " + a.map(x => (x instanceof Error) ? `${x.message}\n${x.stack}` : String(x)).join(" ").slice(0, 800)); oe(...a); };
   console.warn = (...a) => { errors.push("W " + a.map(String).join(" ").slice(0, 300)); ow(...a); };
-  const rogue = game.actors.getName("BF Test Rogue");
+  const rogue = game.actors.getName("BTB Test Rogue");
   const steady = rogue.items.find(i => i.name === "Steady Aim");
   const act = steady ? [...steady.system.activities][0] : null;
   const priorList = game.settings.get(MOD, "effectList");

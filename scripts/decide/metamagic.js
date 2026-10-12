@@ -1,6 +1,6 @@
 // @ts-check
 /**
- * Battle Flow — DECISION: metamagic (RULINGS *Metamagic*): which options fit THIS spell, which the
+ * By the Books — DECISION: metamagic (RULINGS *Metamagic*): which options fit THIS spell, which the
  * points pay for, whether a pick is legal, what the card says. Pure (ARCHITECTURE.md §2).
  */
 

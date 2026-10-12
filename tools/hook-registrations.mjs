@@ -1,6 +1,6 @@
 // THE MODULE'S HOOK REGISTRATIONS, IN DISPATCH ORDER — no Foundry, no world.
 //
-// Loads `scripts/battleflow.js` in Node behind stubbed globals, then reads the dispatcher's own
+// Loads `scripts/bythebooks.js` in Node behind stubbed globals, then reads the dispatcher's own
 // registry (scripts/dispatch.js `registrations()`): every `listen` / `listenOnce`, per hook, in the
 // order the handlers run. Read by `check-hook-order.mjs` (the order table), `check-hook-dispatch.mjs`
 // (is the name ever dispatched) and `hook-coverage.mjs` (which registrations a battery exercised).
@@ -16,7 +16,7 @@ import { dirname, join } from "node:path";
  */
 export async function loadRegistrations() {
   const here = dirname(fileURLToPath(import.meta.url));
-  const entry = pathToFileURL(join(here, "..", "scripts", "battleflow.js")).href;
+  const entry = pathToFileURL(join(here, "..", "scripts", "bythebooks.js")).href;
   const dispatcher = pathToFileURL(join(here, "..", "scripts", "dispatch.js")).href;
 
   // Eval-time surface only: anything needing more than these stubs at import time is itself a bug.

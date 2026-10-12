@@ -1,6 +1,6 @@
 // @ts-check
 /**
- * Battle Flow — DECISION layer (ARCHITECTURE.md §2): THE DICE CHANGERS' pure half, one popup per
+ * By the Books — DECISION layer (ARCHITECTURE.md §2): THE DICE CHANGERS' pure half, one popup per
  * damage roll (RULINGS *The dice changers — one popup*). Kinds `pick` (chosen dice rerolled), `set`
  * (all again, higher stands), `one` (one die again). ⚠ They run pick, set, one: `one` chooses its
  * die off the faces standing after the set.

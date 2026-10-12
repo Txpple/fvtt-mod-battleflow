@@ -1,4 +1,4 @@
-// Battle Flow smoke test: saving throws end to end in the live world (demand stamp, forced
+// By the Books smoke test: saving throws end to end in the live world (demand stamp, forced
 // verdicts via ±30 bonuses, effects, half-on-save in both arrival orders, the dialog, the buzzer,
 // legendary resistance, areas and their sweeps, the save gate, the save facets).
 // Harness discipline: settings restored, this run's messages deleted, fixtures long-rested,
@@ -64,7 +64,7 @@ const f = await connectSuite({ tag: 'saves', watchdogMs: 900_000 });
 announcePlan('saves', plan, pulled);
 
 const out = await f.evaluate(async ({ sections, titles }) => {
-  const MOD = 'fvtt-mod-battleflow';
+  const MOD = 'fvtt-mod-bythebooks';
   const results = [];
   const log = [];
   const skips = [];
@@ -78,7 +78,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   const sleep = ms => new Promise(r => setTimeout(r, ms));
   // Every moment payload published during the run, so a section can assert its resolve was heard.
   const moments = [];
-  const momentHookId = Hooks.on('battleflow.moment', p => moments.push(p));
+  const momentHookId = Hooks.on('bythebooks.moment', p => moments.push(p));
   const momentsOf = (event, since = 0) => moments.filter(p => (p.event === event) && (p.at >= since));
   const plain = p => { try { return JSON.stringify(p) === JSON.stringify(JSON.parse(JSON.stringify(p))); } catch { return false; } };
   const suiteStart = Date.now();
@@ -95,25 +95,25 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   const prior = Object.fromEntries(SETTING_KEYS.map(k => [k, game.settings.get(MOD, k)]));
   const set = (k, v) => game.settings.set(MOD, k, v);
 
-  const scene = game.scenes.getName('Battle Flow Test Range');
-  const victim = game.actors.getName('BF Test Victim');
-  const shielder = game.actors.getName('BF Test Shielder');
-  const npc = game.actors.getName('BF Test Attacker');
-  if (!scene || !victim || !npc || !shielder) return { fatal: 'missing fixture: scene or BF Test actors' };
+  const scene = game.scenes.getName('By the Books Test Range');
+  const victim = game.actors.getName('BTB Test Victim');
+  const shielder = game.actors.getName('BTB Test Shielder');
+  const npc = game.actors.getName('BTB Test Attacker');
+  if (!scene || !victim || !npc || !shielder) return { fatal: 'missing fixture: scene or BTB Test actors' };
 
-  const CHIP_NAMES = ['BF Poisoned', 'BF Splashed', 'BF Vial Poisoned'];
+  const CHIP_NAMES = ['BTB Poisoned', 'BTB Splashed', 'BTB Vial Poisoned'];
   const created = { items: [], tokens: [], templates: [] };   // templates: the REGION ids this suite placed (dnd5e 6.0 areas are Regions)
   // An area as dnd5e's TemplatePlacement writes it: a Region (radius in PIXELS), the activity on `flags.dnd5e.activity`.
   const px = scene.grid.size / scene.grid.distance;
   const circleArea = (x, y, ft, flags = {}) => scene.createEmbeddedDocuments('Region', [{
-    name: 'BF test area', shapes: [{ type: 'circle', x, y, radius: ft * px }], flags
+    name: 'BTB test area', shapes: [{ type: 'circle', x, y, radius: ft * px }], flags
   }]);
   const areaFor = activityUuid => ({ dnd5e: { activity: activityUuid } });
   const priorActor = {};
   let shimScene = null; // §12's own 140px scene — deleted whole in teardown
   let restored = false;
   const clearChips = async () => {
-    for (const a of [victim, shielder, game.actors.getName('BF Test Rogue')].filter(Boolean)) {
+    for (const a of [victim, shielder, game.actors.getName('BTB Test Rogue')].filter(Boolean)) {
       const strays = a.effects.filter(e => CHIP_NAMES.includes(e.name));
       if (strays.length) await a.deleteEmbeddedDocuments('ActiveEffect', strays.map(e => e.id));
     }
@@ -146,7 +146,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       }
       game.user.targets.forEach(t => { t.setTarget(false, { releaseOthers: true }); });
       const mine = game.messages.filter(m => (m.timestamp >= suiteStart)
-        && (m.speaker?.alias?.startsWith?.('BF Test') || m.speaker?.alias === 'Battle Flow'
+        && (m.speaker?.alias?.startsWith?.('BTB Test') || m.speaker?.alias === 'By the Books'
           || Object.keys(m.flags?.[MOD] ?? {}).length));
       if (mine.length) await ChatMessage.deleteDocuments(mine.map(m => m.id));
     } catch (err) {
@@ -171,7 +171,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     if (canvas.scene?.id !== scene.id) await scene.view();
     // ⚠ Sweep stale victim/shielder tokens first: getSpeaker resolves through the actor's OLDEST
     // token on the scene, and a stale unlinked one gives §4's sheet roll a uuid the fold cannot match.
-    const pcActor = game.actors.getName('BF Test PC Attacker'); // §11's player-owned fixture
+    const pcActor = game.actors.getName('BTB Test PC Attacker'); // §11's player-owned fixture
     const stale = scene.tokens.filter(t =>
       [victim.id, shielder.id, ...(pcActor ? [pcActor.id] : [])].includes(t.actorId)).map(t => t.id);
     if (stale.length) await scene.deleteEmbeddedDocuments('Token', stale);
@@ -218,7 +218,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     const EFF_FAIL = 'bfsavefail000000';
     const EFF_ALWAYS = 'bfsavealways0000';
     const [poisonItem] = await npc.createEmbeddedDocuments('Item', [{
-      name: 'BF Test Poison Burst', type: 'spell',
+      name: 'BTB Test Poison Burst', type: 'spell',
       system: {
         level: 1, school: 'evo', properties: ['vocal'],
         duration: { units: 'inst' },   // §8's spent-template rule reads this off the stamp
@@ -291,12 +291,12 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         }
       },
       effects: [
-        { _id: EFF_FAIL, name: 'BF Poisoned', transfer: false, disabled: false,
+        { _id: EFF_FAIL, name: 'BTB Poisoned', transfer: false, disabled: false,
           img: 'icons/svg/poison.svg', duration: { seconds: 60 },
-          description: '<p>Poisoned (BF test fixture — fail only).</p>' },
-        { _id: EFF_ALWAYS, name: 'BF Splashed', transfer: false, disabled: false,
+          description: '<p>Poisoned (BTB test fixture — fail only).</p>' },
+        { _id: EFF_ALWAYS, name: 'BTB Splashed', transfer: false, disabled: false,
           img: 'icons/svg/acid.svg', duration: { seconds: 60 },
-          description: '<p>Splashed (BF test fixture — applies even on save).</p>' }
+          description: '<p>Splashed (BTB test fixture — applies even on save).</p>' }
       ]
     }]);
     created.items.push({ actorId: npc.id, id: poisonItem.id });
@@ -385,8 +385,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           && (flag.dc === 15) && (flag.abilities?.join() === 'con')
           && (flag.damageOnSave === 'half') && (flag.hasDamage === true)
           && (flag.targets?.length === 2)
-          && (flag.effectNames?.fail?.join() === 'BF Poisoned')
-          && (flag.effectNames?.always?.join() === 'BF Splashed'),
+          && (flag.effectNames?.fail?.join() === 'BTB Poisoned')
+          && (flag.effectNames?.always?.join() === 'BTB Splashed'),
         `card=${usageCards(fresh(before)).length} dc=${flag?.dc} abilities=${flag?.abilities?.join()} `
           + `onSave=${flag?.damageOnSave} targets=${flag?.targets?.length}`);
 
@@ -398,7 +398,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       // Each verdict landing publishes `save` through the gate: marker = the target's uuid.
       const sv = momentsOf('save').filter(p => p.messageId === card1.id);
       const svV = sv.find(p => p.actorUuid === victim.uuid), svS = sv.find(p => p.actorUuid === shielder.uuid);
-      ok('1z. the verdicts were PUBLISHED through the gate: battleflow.moment "save" (kind saves) once per target — the victim failed, the shielder saved, the DC and the caster on each; plain and frozen',
+      ok('1z. the verdicts were PUBLISHED through the gate: bythebooks.moment "save" (kind saves) once per target — the victim failed, the shielder saved, the DC and the caster on each; plain and frozen',
         (sv.length === 2) && !!svV && !!svS && (svV.kind === 'saves') && (svV.marker === victim.uuid) && (svV.details?.outcome === 'failed') && (svS.details?.outcome === 'saved')
           && (svV.details?.dc === 15) && (svV.details?.casterUuid === flag?.sourceUuid) && (svV.ability === flag?.item?.name) && Object.isFrozen(svV) && plain(svV) && plain(svS),
         `saves=${JSON.stringify(sv.map(p => ({ actor: p.actorUuid, marker: p.marker, outcome: p.details?.outcome, ability: p.ability })))}`);
@@ -415,8 +415,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const evR = receipt?.targets?.find(t => t.uuid === victim.uuid);
       const esR = receipt?.targets?.find(t => t.uuid === shielder.uuid);
       ok('1d. a failure takes BOTH effects, a success only the onSave one',
-        !!chipOn(victim, 'BF Poisoned') && !!chipOn(victim, 'BF Splashed')
-          && !chipOn(shielder, 'BF Poisoned') && !!chipOn(shielder, 'BF Splashed')
+        !!chipOn(victim, 'BTB Poisoned') && !!chipOn(victim, 'BTB Splashed')
+          && !chipOn(shielder, 'BTB Poisoned') && !!chipOn(shielder, 'BTB Splashed')
           && (evR?.effects?.length === 2) && (esR?.effects?.length === 1),
         `victim chips=[${CHIP_NAMES.map(n => !!chipOn(victim, n)).join()}] `
           + `shielder chips=[${CHIP_NAMES.map(n => !!chipOn(shielder, n)).join()}] `
@@ -470,7 +470,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const popup = await until(() => savePopups()[0], 6000);
       const buttons = popup ? [...popup.querySelectorAll('footer button, .form-footer button, nav.dialog-buttons button')] : [];
       const labels = buttons.map(b => b.textContent.trim());
-      // The ask is the system's Saving Throw dialog plus Battle Flow's demand fieldset.
+      // The ask is the system's Saving Throw dialog plus By the Books' demand fieldset.
       ok('3b. the demand opens the SYSTEM dialog: its own Adv/Normal/Dis, its situational bonus, its roll mode — and our demand fieldset',
         (labels.join('/') === 'Advantage/Normal/Disadvantage')
           && !!popup?.querySelector('input[name="roll.0.situational"]')
@@ -478,7 +478,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           && !!popup?.querySelector('[data-bf-save-demand]'),
         `buttons=[${labels.join('|')}] input=${!!popup?.querySelector('input[name="roll.0.situational"]')} demand=${!!popup?.querySelector('[data-bf-save-demand]')}`);
       // The demand stores the TOKEN's name (the fixture's prototype token is "Hobgoblin").
-      const rollerName = card.getFlag(MOD, 'saves')?.targets?.[0]?.name ?? 'BF Test Victim';
+      const rollerName = card.getFlag(MOD, 'saves')?.targets?.[0]?.name ?? 'BTB Test Victim';
       ok('3b2. the demand fieldset leads with WHO is rolling — the creature owns the title',
         ((popup?.querySelector('[data-bf-save-demand]')?.textContent ?? '').includes(rollerName)),
         `demand="${popup?.querySelector('[data-bf-save-demand]')?.textContent?.replace(/\s+/g, ' ').trim().slice(0, 120)}" expected="${rollerName}"`);
@@ -499,7 +499,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       ok('3d. the waiting damage applies once the verdict pass completes — at half, chips first',
         (applied?.taken === 5) && (applied?.multiplier === 0.5)
           && (victim.system.attributes.hp.value === vMax - 5)
-          && !chipOn(victim, 'BF Poisoned') && !!chipOn(victim, 'BF Splashed'),
+          && !chipOn(victim, 'BTB Poisoned') && !!chipOn(victim, 'BTB Splashed'),
         `taken=${applied?.taken} mult=${applied?.multiplier} hp=${victim.system.attributes.hp.value}/${vMax} `
           + `chips=[${CHIP_NAMES.map(n => !!chipOn(victim, n)).join()}]`);
 
@@ -532,7 +532,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       // Wait for the whole consequence pass: its two creates are sequential.
       await until(() => entryOf(card, victim)?.applied);
       ok('4b. the failure\'s consequences ran off the sheet roll (both chips landed)',
-        !!chipOn(victim, 'BF Poisoned') && !!chipOn(victim, 'BF Splashed'),
+        !!chipOn(victim, 'BTB Poisoned') && !!chipOn(victim, 'BTB Splashed'),
         `chips=[${CHIP_NAMES.map(n => !!chipOn(victim, n)).join()}]`);
       await until(() => savePopups().length === 0, 5000);
       ok('4c. the popup closed when the sheet answered', savePopups().length === 0,
@@ -585,11 +585,11 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         (m.type === 'damage')
         && m.getFlag(MOD, 'receipt')?.targets?.some(t => t.uuid === victim.uuid)));
       ok('6-pre. the failure landed in full first (10 damage, both chips)',
-        (victim.system.attributes.hp.value === vMax - 10) && !!chipOn(victim, 'BF Poisoned'),
-        `hp=${victim.system.attributes.hp.value}/${vMax} poisoned=${!!chipOn(victim, 'BF Poisoned')}`);
+        (victim.system.attributes.hp.value === vMax - 10) && !!chipOn(victim, 'BTB Poisoned'),
+        `hp=${victim.system.attributes.hp.value}/${vMax} poisoned=${!!chipOn(victim, 'BTB Poisoned')}`);
 
       if (typeof victim.system.resistSave !== 'function') {
-        skips.push('6a-c: BF Test Victim is not NPC-typed — resistSave unavailable');
+        skips.push('6a-c: BTB Test Victim is not NPC-typed — resistSave unavailable');
       } else {
         const rollMsg = game.messages.get(entryOf(card, victim).rollMessageId);
         await victim.system.resistSave(rollMsg);
@@ -602,12 +602,12 @@ const out = await f.evaluate(async ({ sections, titles }) => {
 
         const effReceipt = await until(() => {
           const r = card.getFlag(MOD, 'effectReceipt')?.targets?.find(t => t.uuid === victim.uuid);
-          return r?.effects?.find(e => (e.name === 'BF Poisoned') && e.reverted) ? r : null;
+          return r?.effects?.find(e => (e.name === 'BTB Poisoned') && e.reverted) ? r : null;
         });
         ok('6b. the fail-only effect unwinds; the onSave effect survives',
-          !chipOn(victim, 'BF Poisoned') && !!chipOn(victim, 'BF Splashed')
-            && !!effReceipt?.effects?.find(e => (e.name === 'BF Poisoned') && e.reverted)
-            && !!effReceipt?.effects?.find(e => (e.name === 'BF Splashed') && !e.reverted),
+          !chipOn(victim, 'BTB Poisoned') && !!chipOn(victim, 'BTB Splashed')
+            && !!effReceipt?.effects?.find(e => (e.name === 'BTB Poisoned') && e.reverted)
+            && !!effReceipt?.effects?.find(e => (e.name === 'BTB Splashed') && !e.reverted),
           `chips=[${CHIP_NAMES.map(n => !!chipOn(victim, n)).join()}]`);
 
         const rV = await until(() => {
@@ -749,7 +749,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       created.templates.push(tpl8d.id);
       const msg8d = await ChatMessage.create({
         speaker: ChatMessage.getSpeaker({ actor: npc }),
-        content: '<p>BF 8d stamp-path fixture</p>',
+        content: '<p>BTB 8d stamp-path fixture</p>',
         flags: { dnd5e: {
           targets: [{ uuid: shielder.uuid, name: shielder.name, img: null, ac: null }],
           activity: { id: saveActivity().id, uuid: saveActivity().uuid, type: 'save' }
@@ -778,7 +778,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       created.templates.push(tpl8e.id);
       const msg8e = await ChatMessage.create({
         speaker: ChatMessage.getSpeaker({ actor: npc }),
-        content: '<p>BF 8e empty-instant fixture</p>',
+        content: '<p>BTB 8e empty-instant fixture</p>',
         flags: { dnd5e: {
           targets: [],
           activity: { id: tmplActivity().id, uuid: tmplActivity().uuid, type: 'save' }
@@ -806,7 +806,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       // 8f: a monster's breath is a `feat` with no system.duration; the stamp falls back to the
       // ACTIVITY's duration (`inst`), so an empty breath is swept like 8e.
       const [breath] = await npc.createEmbeddedDocuments('Item', [{
-        name: 'BF Test Breath', type: 'feat',
+        name: 'BTB Test Breath', type: 'feat',
         system: {
           activities: {
             bfbreathact00000: {
@@ -827,7 +827,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         // ⚠ The cone must stand on EMPTY ground, clear of every fixture's home tile; 8f-pre checks it
         // before anything fires so a new fixture home fails loudly here.
         const [tpl8f] = await scene.createEmbeddedDocuments('Region', [{
-          name: 'BF test cone', shapes: [{ type: 'cone', x: 200, y: 600, radius: 20 * px, angle: 53.13, rotation: 0 }],
+          name: 'BTB test cone', shapes: [{ type: 'cone', x: 200, y: 600, radius: 20 * px, angle: 53.13, rotation: 0 }],
           flags: areaFor(breathAct().uuid)
         }]);
         created.templates.push(tpl8f.id);
@@ -836,7 +836,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           `inside=${occ8f.map(t => t.name).join(', ') || 'none'}`);
         const msg8f = await ChatMessage.create({
           speaker: ChatMessage.getSpeaker({ actor: npc }),
-          content: '<p>BF 8f feature-breath fixture</p>',
+          content: '<p>BTB 8f feature-breath fixture</p>',
           flags: { dnd5e: {
             targets: [],
             activity: { id: breathAct().id, uuid: breathAct().uuid, type: 'save' }
@@ -885,7 +885,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           created.templates.push(tpl.id);
           const msg = await ChatMessage.create({
             speaker: ChatMessage.getSpeaker({ actor: npc }),
-            content: `<p>BF 8g ${label} fixture</p>`,
+            content: `<p>BTB 8g ${label} fixture</p>`,
             flags: { dnd5e: { targets: [], activity: { id: miasmaAct().id, uuid: miasmaAct().uuid, type: 'save' } } }
           });
           Hooks.callAll('dnd5e.postUseActivity', miasmaAct(), {}, { message: msg, templates: [[tpl]] });
@@ -902,7 +902,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           !!listed.stamped && (listed.stamped.status === 'done') && (listed.stamped.durationUnits === 'turn') && !listed.still,
           `status=${listed.stamped?.status} durationUnits=${listed.stamped?.durationUnits} still=${listed.still}`);
         // Not a table row: the same cast under a name (and identifier) the Spent Areas table lacks.
-        await npc.items.get(miasma.id).update({ name: 'BF Unlisted Area', 'system.identifier': 'bf-unlisted-area' });
+        await npc.items.get(miasma.id).update({ name: 'BTB Unlisted Area', 'system.identifier': 'bf-unlisted-area' });
         const struck = await castEmpty('unlisted');
         ok('8g. NOT a Spent Areas row, the same cast waits and the area stands — the GM\'s bucket',
           !!struck.stamped && (struck.stamped.status === 'pending') && struck.stamped.awaitingTemplate && struck.still,
@@ -1012,7 +1012,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         `platform=[${platform10.join()}] data=[${data10.join()}] drawn=[${drawn10.join()}]`);
       const waitLine10 = await until(() => {
         const t = document.querySelector(`[data-message-id="${card10.id}"]`)
-          ?.querySelector('.battleflow-saves')?.textContent ?? '';
+          ?.querySelector('.bythebooks-saves')?.textContent ?? '';
         return t.includes("waiting for the template's area") ? t : null;
       }, 4000);
       ok('10c. the waiting card says so', !!waitLine10, `line="${(waitLine10 ?? '').trim()}"`);
@@ -1027,7 +1027,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       };
       // The toolbar creates a Region flagged `flags.core.MeasuredTemplate`, a cube as a rectangle, 200px around the victim.
       const [tpl10] = await scene.createEmbeddedDocuments('Region', [{
-        name: 'BF toolbar rect', shapes: [{ type: 'rectangle', x: victimToken.center.x - 100, y: victimToken.center.y - 100, width: 200, height: 200, rotation: 0 }],
+        name: 'BTB toolbar rect', shapes: [{ type: 'rectangle', x: victimToken.center.x - 100, y: victimToken.center.y - 100, width: 200, height: 200, rotation: 0 }],
         flags: { core: { MeasuredTemplate: true } }
       }]);
       created.templates.push(tpl10.id);
@@ -1131,7 +1131,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
 
         const rowText11 = await until(() => {
           const t = document.querySelector(`[data-message-id="${card11.id}"]`)
-            ?.querySelector('.battleflow-saves')?.textContent ?? '';
+            ?.querySelector('.bythebooks-saves')?.textContent ?? '';
           return t.includes('waiting on') ? t : null;
         }, 3000);
         ok('11b. the card row names the ROLLER again — "owner offline" described the removed quiet',
@@ -1161,13 +1161,13 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     let tpl12Id = null;
     const actUuid12 = tmplActivity().uuid;
     // The shim scene's cube (§12 places it, §13 re-places it, §14 borrows it).
-    const cube12 = () => ({ name: 'BF shim cube', shapes: [{ type: 'rectangle', x: 1400, y: 1400, width: 280, height: 280, rotation: 0 }], flags: { dnd5e: { activity: actUuid12 } } });
+    const cube12 = () => ({ name: 'BTB shim cube', shapes: [{ type: 'rectangle', x: 1400, y: 1400, width: 280, height: 280, rotation: 0 }], flags: { dnd5e: { activity: actUuid12 } } });
     if (want(12)) {
       await clearChips();
       await saveBonus(victim, '-30');
       await healFull(victim);
       shimScene = await Scene.create({
-        name: 'BF Shim Range', width: 2800, height: 2100, tokenVision: false,
+        name: 'BTB Shim Range', width: 2800, height: 2100, tokenVision: false,
         grid: { type: 1, size: 140, distance: 5, units: 'ft' }
       });
       const proto = a => foundry.utils.mergeObject(a.prototypeToken.toObject(),
@@ -1235,7 +1235,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
 
       // 13c: the fossil wall. The stub is DONE with no `templated`: it exists only to be newer.
       const stub13 = await ChatMessage.create({
-        content: 'BF test — newer same-activity stub (section 13c)',
+        content: 'BTB test — newer same-activity stub (section 13c)',
         flags: { [MOD]: { saves: { status: 'done', activityUuid: actUuid12, targets: [] } } }
       });
       const [stale13c] = await shimScene.createEmbeddedDocuments('Region', [cube12()]);
@@ -1268,7 +1268,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     // names; while concentration holds it must never sweep.
     if (want(14)) {
       const [concItem] = await npc.createEmbeddedDocuments('Item', [{
-        name: 'BF Test Clinging Web', type: 'spell',
+        name: 'BTB Test Clinging Web', type: 'spell',
         system: {
           level: 1, school: 'con', properties: ['vocal', 'concentration'],
           duration: { units: 'minute', value: '1' },
@@ -1473,7 +1473,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         await pcActor.update({ 'system.attributes.hp.value':
           priorActor[pcActor.id]['system.attributes.hp.value'] });
       } else {
-        skips.push('16c — no BF Test PC Attacker fixture; run smoke-battleflow first');
+        skips.push('16c — no BTB Test PC Attacker fixture; run smoke-bythebooks first');
       }
       await healFull(victim);
       await healFull(shielder);
@@ -1485,7 +1485,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     if (want(17)) {
       const EFF_BASH = 'bfbashprone00000';
       const [bashItem] = await npc.createEmbeddedDocuments('Item', [{
-        name: 'BF Test Bash', type: 'feat',
+        name: 'BTB Test Bash', type: 'feat',
         system: {
           type: { value: 'feat' },
           activities: {
@@ -1502,9 +1502,9 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           }
         },
         effects: [
-          { _id: EFF_BASH, name: 'BF Bashed Prone', transfer: false, disabled: false,
+          { _id: EFF_BASH, name: 'BTB Bashed Prone', transfer: false, disabled: false,
             img: 'icons/svg/falling.svg', statuses: ['prone'],
-            description: '<p>Knocked Prone (BF bash fixture).</p>' }
+            description: '<p>Knocked Prone (BTB bash fixture).</p>' }
         ]
       }]);
       created.items.push({ actorId: npc.id, id: bashItem.id });
@@ -1528,7 +1528,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       ok('17a. a FEAT save activity with a bound status effect presses Prone on the failure, receipted',
         !!done17a && victim.statuses?.has?.('prone')
           && !!receipt17a?.targets?.some(t => (t.uuid === victim.uuid)
-            && t.effects.some(e => e.name === 'BF Bashed Prone')),
+            && t.effects.some(e => e.name === 'BTB Bashed Prone')),
         `prone=${victim.statuses?.has?.('prone')} receipt=${!!receipt17a}`);
 
       // 17b: the pass leaves the target standing.
@@ -1571,7 +1571,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         }
         await sleep(150);
       };
-      const entryName = card => card.getFlag(MOD, 'saves')?.targets?.[0]?.name ?? 'BF Test Victim';
+      const entryName = card => card.getFlag(MOD, 'saves')?.targets?.[0]?.name ?? 'BTB Test Victim';
       const dialogFor = name => until(() => savePopups().find(p => demandText(p).includes(name)), 12000);
       const sectionText = dlg => (dlg?.querySelector('[data-bf-reminder]')?.textContent ?? '').replace(/\s+/g, ' ').trim();
       const defaultOf = dlg => dlg?.querySelector('button[autofocus]')?.dataset?.action ?? null;
@@ -1641,9 +1641,9 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         `entry=${JSON.stringify(entryE)} saveRolls=${saveRollsIn(beforeE).length}`);
       await until(() => entryOf(cardE, victim)?.applied, 12000);
       ok('19g. the consequences follow the automatic failure exactly as a rolled one: both chips, full damage owed',
-        !!chipOn(victim, 'BF Poisoned') && !!chipOn(victim, 'BF Splashed') && (entryOf(cardE, victim)?.applied === true),
+        !!chipOn(victim, 'BTB Poisoned') && !!chipOn(victim, 'BTB Splashed') && (entryOf(cardE, victim)?.applied === true),
         `chips=[${CHIP_NAMES.map(n => !!chipOn(victim, n)).join()}]`);
-      const cardTextE = () => (ui.chat.element?.querySelector(`.message[data-message-id="${cardE.id}"] .battleflow-saves`)?.textContent ?? '').replace(/\s+/g, ' ');
+      const cardTextE = () => (ui.chat.element?.querySelector(`.message[data-message-id="${cardE.id}"] .bythebooks-saves`)?.textContent ?? '').replace(/\s+/g, ' ');
       const lineE = await until(() => /cannot succeed/.test(cardTextE()) ? cardTextE() : null, 6000);
       ok('19h. the card\'s own line prints the condition where the total would be (no die rolled, so no summary row to carry it)',
         !!lineE && /Paralyzed/.test(lineE) && !/null/.test(lineE), (lineE ?? cardTextE()).slice(0, 160));
@@ -1749,8 +1749,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
 
     // ============================================== 21. Evasion
     if (want(21)) {
-      const rogue = game.actors.getName('BF Test Rogue');
-      if (!rogue?.items.some(i => i.name === 'Evasion')) { skips.push('§21: BF Test Rogue with Evasion missing — run fixture-suite'); }
+      const rogue = game.actors.getName('BTB Test Rogue');
+      if (!rogue?.items.some(i => i.name === 'Evasion')) { skips.push('§21: BTB Test Rogue with Evasion missing — run fixture-suite'); }
       else {
         const rogueToken = await mkToken(rogue, 800);
         priorActor[rogue.id] = { 'system.attributes.hp.value': rogue.system._source.attributes.hp.value,
@@ -1766,7 +1766,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           const use = await dexActivity().use({}, { configure: false }, {});
           const card = use?.message instanceof ChatMessage ? use.message : null;
           if (card) await until(() => card.getFlag(MOD, 'saves'));
-          const dlg = await until(() => savePopups().find(p => demandText(p).includes(card?.getFlag(MOD, 'saves')?.targets?.[0]?.name ?? 'BF Test Rogue')), 6000);
+          const dlg = await until(() => savePopups().find(p => demandText(p).includes(card?.getFlag(MOD, 'saves')?.targets?.[0]?.name ?? 'BTB Test Rogue')), 6000);
           dlg?.querySelector('button[data-action="normal"]')?.click();
           await until(() => entryOf(card, rogue)?.applied, 15000);
           const dmg = await until(() => damageFor(card)?.getFlag(MOD, 'receipt')?.targets?.find(x => x.uuid === rogue.uuid) ? damageFor(card) : null, 10000);
@@ -1809,9 +1809,9 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       // Diagnostic only: the Reminder Sources list as the world holds it (its `effect` kind is the switch).
       const kindsOn = (() => { try { return String(game.settings.get(MOD, 'reminderList') ?? ''); } catch { return '(unreadable)'; } })();
       const [trinket] = await victim.createEmbeddedDocuments('Item', [{
-        name: 'BF Test Amulet', type: 'equipment',
+        name: 'BTB Test Amulet', type: 'equipment',
         system: { equipped: true, type: { value: 'trinket' } },
-        effects: [{ name: 'BF Test Amulet', transfer: true, disabled: false,
+        effects: [{ name: 'BTB Test Amulet', transfer: true, disabled: false,
           changes: [{ key: 'system.abilities.dex.save.roll.mode', mode: 2, value: '1' }] }]
       }]);
       try {
@@ -1821,7 +1821,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         const dlgA = await until(() => { const d = sheetDialog(); return d?.querySelector('[data-bf-reminder]') ? d : null; }, 6000);
         const textA = sectionText(dlgA);
         ok('22a. a Dexterity save opens at the platform\'s Advantage AND the section names the trinket as the one Advantage box, the default on Advantage',
-          !!dlgA && /BF Test Amulet/.test(textA) && /1 Modifier/.test(textA) && /Advantage/.test(textA)
+          !!dlgA && /BTB Test Amulet/.test(textA) && /1 Modifier/.test(textA) && /Advantage/.test(textA)
             && /Dexterity saving throws to roll with Advantage/.test(textA) && (defaultOf(dlgA) === 'advantage'),
           `dialog=${!!dlgA} reminderList="${kindsOn}" default=${defaultOf(dlgA)} formula="${formulaOf(dlgA)}" text="${textA.slice(0, 220)}"`);
         await closeVia(dlgA, 'normal');
@@ -1844,7 +1844,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         const dlgC = await until(() => { const d = sheetDialog(); return d?.querySelector('[data-bf-reminder]') ? d : null; }, 6000);
         const textC = sectionText(dlgC);
         ok('22c. Restrained beside the trinket: two boxes, one Advantage and one Disadvantage, netting Normal — the default on Normal',
-          !!dlgC && /2 Modifiers/.test(textC) && /Restrained/.test(textC) && /BF Test Amulet/.test(textC) && (defaultOf(dlgC) === 'normal'),
+          !!dlgC && /2 Modifiers/.test(textC) && /Restrained/.test(textC) && /BTB Test Amulet/.test(textC) && (defaultOf(dlgC) === 'normal'),
           `default=${defaultOf(dlgC)} text="${textC.slice(0, 260)}"`);
         await closeVia(dlgC, 'normal');
       } finally {
@@ -2064,7 +2064,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
 
     // ============================================== 24. the chained roll's summary
     // dnd5e draws a save rolled against a usage card as a SUMMARY inside it (chatCardSummary) and
-    // hides the roll's card: Battle Flow's rows must draw in the summary (ui.js cardRow), and a
+    // hides the roll's card: By the Books' rows must draw in the summary (ui.js cardRow), and a
     // flag write on the roll must re-render it (the platform re-renders on a system change only).
     if (want(24)) {
       const priorSummary = game.settings.get('dnd5e', 'chatCardSummary');
@@ -2124,13 +2124,13 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           const t = text(summaryEl());
           return /Reminded — net Disadvantage/.test(t) && !/against the net/.test(t) ? t : null;
         }, 6000);
-        ok('24c. a flag write on the summarized roll re-renders its summary — Battle Flow nudges the origin (the platform re-renders it on a system change only)',
+        ok('24c. a flag write on the summarized roll re-renders its summary — By the Books nudges the origin (the platform re-renders it on a system change only)',
           !!refreshed, `text="${(refreshed ?? text(summaryEl())).slice(0, 200)}"`);
 
         // The summary row carries "vs DC … — saved/failed"; no second line.
         const tail24 = await until(() => summaryEl()?.querySelector('.bf-verdict') ?? null, 6000);
-        const bfLines24 = () => [...(log24?.querySelectorAll(`.message[data-message-id="${card24.id}"] .battleflow-saves div`) ?? [])].map(d => text(d));
-        ok('24e. the verdict is written into the platform\'s summary row — "vs DC … — saved/failed" beside the total — and Battle Flow draws no second line for that target (user ruling 2026-09-18)',
+        const bfLines24 = () => [...(log24?.querySelectorAll(`.message[data-message-id="${card24.id}"] .bythebooks-saves div`) ?? [])].map(d => text(d));
+        ok('24e. the verdict is written into the platform\'s summary row — "vs DC … — saved/failed" beside the total — and By the Books draws no second line for that target (user ruling 2026-09-18)',
           !!tail24 && /^vs DC \d+ — (saved|failed)/.test(text(tail24)) && !bfLines24().some(l => /vs DC/.test(l)),
           `tail="${text(tail24)}" lines=${JSON.stringify(bfLines24())}`);
 
@@ -2156,7 +2156,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         ok('24d. with summaries OFF a fresh roll\'s own card is shown and draws the row itself, and its usage card renders no summary',
           !!shown && !summaryD,
           `roll=${!!rollD} shown=${!!shown} hidden=${liD()?.hidden} summary=${!!summaryD}`);
-        const lineD = cardD ? await until(() => { const ls = [...(log24?.querySelectorAll(`.message[data-message-id="${cardD.id}"] .battleflow-saves div`) ?? [])].map(d => text(d)); return ls.some(l => /vs DC/.test(l)) ? ls : null; }, 6000) : null;
+        const lineD = cardD ? await until(() => { const ls = [...(log24?.querySelectorAll(`.message[data-message-id="${cardD.id}"] .bythebooks-saves div`) ?? [])].map(d => text(d)); return ls.some(l => /vs DC/.test(l)) ? ls : null; }, 6000) : null;
         ok('24f. with summaries OFF there is no summary row to carry the verdict, so the card\'s own line says it (the 2026-09-18 ruling\'s other half)', !!lineD, JSON.stringify(lineD));
         if (cardD) await until(() => entryOf(cardD, victim)?.applied, 12000);
       } catch (err) {
@@ -2174,7 +2174,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     if (want(25)) {
       const VIAL_EFF = 'bfvialeffect0000';
       const [vial] = await npc.createEmbeddedDocuments('Item', [{
-        name: 'BF Test Vial', type: 'consumable',
+        name: 'BTB Test Vial', type: 'consumable',
         system: {
           type: { value: 'poison' }, quantity: 1,
           uses: { max: '1', spent: 0, autoDestroy: true, recovery: [] },
@@ -2190,9 +2190,9 @@ const out = await f.evaluate(async ({ sections, titles }) => {
             }
           }
         },
-        effects: [{ _id: VIAL_EFF, name: 'BF Vial Poisoned', transfer: false, disabled: false,
+        effects: [{ _id: VIAL_EFF, name: 'BTB Vial Poisoned', transfer: false, disabled: false,
           img: 'icons/svg/poison.svg', duration: { seconds: 60 },
-          description: '<p>Poisoned by a vial (BF test fixture — fail only).</p>' }]
+          description: '<p>Poisoned by a vial (BTB test fixture — fail only).</p>' }]
       }]);
       created.items.push({ actorId: npc.id, id: vial.id });
       try {
@@ -2209,7 +2209,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         const popup = card25 ? await until(() => savePopups()[0], 8000) : null;
         popup?.querySelector('button[data-action="normal"]')?.click();
         if (card25) await until(() => entryOf(card25, victim)?.applied, 12000);
-        const chip = await until(() => chipOn(victim, 'BF Vial Poisoned'), 6000);
+        const chip = await until(() => chipOn(victim, 'BTB Vial Poisoned'), 6000);
         const entry = card25 ? entryOf(card25, victim) : null;
         ok('25a. the vial\'s last use DELETES it before the card, yet the demand stands, the save fails, and the vial\'s effect lands off the card\'s snapshot',
           gone && !!stamped && (entry?.outcome === 'failed') && !!chip,
@@ -2273,8 +2273,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           `outcome=${entry?.outcome} madeBy=${entry?.madeBy} uses=${victim.items.get(feat.id)?.system?.uses?.value} row=${!!row}`);
         const dmgTaken = await until(() => (victim.system.attributes.hp.value === vMax - 5) ? true : null, 10000);
         ok('27c. the success\'s consequences: half damage, the fail-only effect never lands, the onSave one does',
-          !!dmgTaken && !chipOn(victim, 'BF Poisoned') && !!chipOn(victim, 'BF Splashed'),
-          `hp=${victim.system.attributes.hp.value}/${vMax} poisoned=${!!chipOn(victim, 'BF Poisoned')} splashed=${!!chipOn(victim, 'BF Splashed')}`);
+          !!dmgTaken && !chipOn(victim, 'BTB Poisoned') && !!chipOn(victim, 'BTB Splashed'),
+          `hp=${victim.system.attributes.hp.value}/${vMax} poisoned=${!!chipOn(victim, 'BTB Poisoned')} splashed=${!!chipOn(victim, 'BTB Splashed')}`);
         const settled = roll?.getFlag(MOD, 'd20fold');
         ok('27d. the fold settles as a spend with the verdict, no die, no reroll',
           (settled?.status === 'resolved') && (settled?.spends?.[0]?.kind === 'succeed') && (settled?.spends?.[0]?.verdict === 'saved')
@@ -2492,7 +2492,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         dlgA?.querySelector('button[autofocus]')?.click();
         await settle(cardA);
         await dropTraits();
-        await clearChips();   // 31a's failure may have landed BF Poisoned; 31c asserts on a clean sheet
+        await clearChips();   // 31a's failure may have landed BTB Poisoned; 31c asserts on a clean sheet
 
         // 31b/c: Greater Magic Resistance — the save cannot fail: the fourth button, the default.
         await lendTrait('Greater Magic Resistance');
@@ -2508,8 +2508,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         await settle(cardB);
         ok('31c. Succeeds: the verdict is SAVED with no die — cannot fail (Greater Magic Resistance) — the fail-only effect never lands',
           (entryB?.outcome === 'saved') && (entryB?.autoSucceeded === true) && (entryB?.autoSucceededBy === 'Greater Magic Resistance') && (entryB?.total === null)
-            && !chipOn(victim, 'BF Poisoned'),
-          `entry=${JSON.stringify(entryB)} poisoned=${!!chipOn(victim, 'BF Poisoned')}`);
+            && !chipOn(victim, 'BTB Poisoned'),
+          `entry=${JSON.stringify(entryB)} poisoned=${!!chipOn(victim, 'BTB Poisoned')}`);
         await dropTraits();
 
         // 31d/e: Avoidance on a CONSTITUTION save (Evasion's shape, any ability): none on a success, half on a failure.
@@ -2620,8 +2620,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         const dlgB = await dialogFor(cardB);
         const textB = sectionText(dlgB);
         const snapB = cardB?.getFlag(MOD, 'saves')?.demand?.source ?? null;
-        ok('32b. the caster Invisible with Magical Ambush: "BF Test Attacker — Magical Ambush — against a spell, BF Test Attacker Invisible as it cast", Net Disadvantage; the demand carries the caster\'s snapshot',
-          !!dlgB && /Magical Ambush — against a spell, BF Test Attacker Invisible as it cast/.test(textB) && /Net Disadvantage/.test(textB)
+        ok('32b. the caster Invisible with Magical Ambush: "BTB Test Attacker — Magical Ambush — against a spell, BTB Test Attacker Invisible as it cast", Net Disadvantage; the demand carries the caster\'s snapshot',
+          !!dlgB && /Magical Ambush — against a spell, BTB Test Attacker Invisible as it cast/.test(textB) && /Net Disadvantage/.test(textB)
             && (snapB?.uuid === npc.uuid) && (snapB?.statuses ?? []).includes('invisible') && (snapB?.features ?? []).includes('Magical Ambush'),
           `text="${textB.slice(0, 220)}" source=${JSON.stringify(snapB)}`);
         await settle(cardB, dlgB);
@@ -2639,8 +2639,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         const cardD = await castAt(dexActivity());
         const dlgD = await dialogFor(cardD);
         const textD = sectionText(dlgD);
-        ok('32d. Struck (its source the caster) against the caster\'s spell: "Struck — against BF Test Attacker\'s spell", Net Disadvantage',
-          !!dlgD && /Struck — against BF Test Attacker's spell/.test(textD) && /Net Disadvantage/.test(textD), `text="${textD.slice(0, 220)}"`);
+        ok('32d. Struck (its source the caster) against the caster\'s spell: "Struck — against BTB Test Attacker\'s spell", Net Disadvantage',
+          !!dlgD && /Struck — against BTB Test Attacker's spell/.test(textD) && /Net Disadvantage/.test(textD), `text="${textD.slice(0, 220)}"`);
         await roll(cardD, dlgD);
         const struckGone = await until(() => !victim.effects.get(struck.id), 6000);
         ok('32e. the save SPENT Struck: the effect is gone from the Victim', struckGone === true, `gone=${!victim.effects.get(struck.id)}`);
@@ -2689,8 +2689,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         const cardH = await castAt(cmdAct());
         const dlgH = await dialogFor(cardH);
         const textH = sectionText(dlgH);
-        ok('32h. Mantle of Majesty — a Command at a creature Charmed by the bard: "BF Test Attacker — Mantle of Majesty: this save cannot succeed — Command, BF Test Victim Charmed by BF Test Attacker", the Fails button the default',
-          !!dlgH && /Mantle of Majesty: this save cannot succeed — Command, BF Test Victim Charmed by BF Test Attacker/.test(textH)
+        ok('32h. Mantle of Majesty — a Command at a creature Charmed by the bard: "BTB Test Attacker — Mantle of Majesty: this save cannot succeed — Command, BTB Test Victim Charmed by BTB Test Attacker", the Fails button the default',
+          !!dlgH && /Mantle of Majesty: this save cannot succeed — Command, BTB Test Victim Charmed by BTB Test Attacker/.test(textH)
             && !!dlgH.querySelector('[data-bf-fails]') && (defaultOf(dlgH) === 'bf-fails'),
           `text="${textH.slice(0, 260)}" fails=${!!dlgH?.querySelector('[data-bf-fails]')} default=${defaultOf(dlgH)}`);
         dlgH?.querySelector('[data-bf-fails]')?.click();
@@ -2728,9 +2728,9 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   } catch (err) {
     return { fatal: `${err?.message || err}\n${err?.stack ?? ''}`, results, log, skips };
   } finally {
-    Hooks.off('battleflow.moment', momentHookId);
+    Hooks.off('bythebooks.moment', momentHookId);
     await teardown();
-    for (const a of [victim, shielder, npc, game.actors.getName('BF Test PC Attacker')]
+    for (const a of [victim, shielder, npc, game.actors.getName('BTB Test PC Attacker')]
       .filter(Boolean)) {
       try { await a.longRest?.({ dialog: false, chat: false }); } catch { /* fine */ }
     }
@@ -2749,13 +2749,13 @@ const out = await f.evaluate(async ({ sections, titles }) => {
  */
 if (!out.fatal && (!plan || plan.includes('18'))) {
   const sd = await f.evaluate(async () => {
-    const MOD = 'fvtt-mod-battleflow';
+    const MOD = 'fvtt-mod-bythebooks';
     const sleep = ms => new Promise(r => setTimeout(r, ms));
     const log = [];
     const results = [];
     const ok = (n, name, pass, detail) => results.push({ n, name, pass: !!pass, detail });
 
-    const scene = game.scenes.getName('Battle Flow Test Range') ?? canvas.scene;
+    const scene = game.scenes.getName('By the Books Test Range') ?? canvas.scene;
     if (scene && (canvas.scene?.id !== scene.id)) { await scene.view(); await sleep(1200); }
     if (!canvas.scene) return { fatal: 'no active scene' };
 
@@ -2783,18 +2783,18 @@ if (!out.fatal && (!plan || plan.includes('18'))) {
     // re-render with autoApply on would sweep onto whichever target they named.
     // ⚠⚠ Bind by NAME: `Actor.createDocuments` does not return documents in the passed order.
     const made = await Actor.createDocuments([
-      mkNpc('BF Probe Caster', 40), mkNpc('BF Probe Target A', 60), mkNpc('BF Probe Target B', 60),
-      mkNpc('BF Probe Target C', 60), mkNpc('BF Probe Target D', 60),
-      mkNpc('BF Probe Target E', 60), mkNpc('BF Probe Target F', 60)
+      mkNpc('BTB Probe Caster', 40), mkNpc('BTB Probe Target A', 60), mkNpc('BTB Probe Target B', 60),
+      mkNpc('BTB Probe Target C', 60), mkNpc('BTB Probe Target D', 60),
+      mkNpc('BTB Probe Target E', 60), mkNpc('BTB Probe Target F', 60)
     ]);
     const byName = n => made.find(a => a.name === n);
-    const caster = byName('BF Probe Caster');
-    const tgtA = byName('BF Probe Target A');
-    const tgtB = byName('BF Probe Target B');
-    const tgtC = byName('BF Probe Target C');
-    const tgtD = byName('BF Probe Target D');
-    const tgtE = byName('BF Probe Target E');
-    const tgtF = byName('BF Probe Target F');
+    const caster = byName('BTB Probe Caster');
+    const tgtA = byName('BTB Probe Target A');
+    const tgtB = byName('BTB Probe Target B');
+    const tgtC = byName('BTB Probe Target C');
+    const tgtD = byName('BTB Probe Target D');
+    const tgtE = byName('BTB Probe Target E');
+    const tgtF = byName('BTB Probe Target F');
     if ([caster, tgtA, tgtB, tgtC, tgtD, tgtE, tgtF].some(a => !a)) {
       return { fatal: `fixture actors did not all create: ${made.map(a => a.name).join(' | ')}` };
     }
@@ -2822,7 +2822,7 @@ if (!out.fatal && (!plan || plan.includes('18'))) {
     const base = { activation: { type: 'action', override: false },
       consumption: { targets: [], spellSlot: false }, effects: [] };
     const [spell] = await caster.createEmbeddedDocuments('Item', [{
-      name: 'BF Probe Save Spell', type: 'spell',
+      name: 'BTB Probe Save Spell', type: 'spell',
       system: {
         level: 1, school: 'evo', properties: ['vocal'], duration: { units: 'inst' },
         target: { affects: { type: 'creature', count: '2', choice: false } },

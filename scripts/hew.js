@@ -1,8 +1,8 @@
 /**
- * Battle Flow — MACHINE (ARCHITECTURE.md §7): the `hew` fold — a bonus swing's reminder card and
+ * By the Books — MACHINE (ARCHITECTURE.md §7): the `hew` fold — a bonus swing's reminder card and
  * popup (Great Weapon Master's Hew; Polearm Master's Pole Strike, which is also offered and driven).
  */
-import { MODULE_ID, TITLE, isActiveGM, canAnswerFor, combatStamp, decisionWindow } from "./core.js";
+import { MODULE_ID, readFlag, TITLE, isActiveGM, canAnswerFor, combatStamp, decisionWindow } from "./core.js";
 import { cardActivity, resolveUuid, foldEntryFor, lower } from "./lookup.js";
 import { attackMessageForDamage } from "./auto-damage.js";
 import { creaturesWithin, tokenForUuid } from "./geometry.js";
@@ -73,7 +73,7 @@ async function showHewPopup(message, notice) {
 }
 
 listen("dnd5e.renderChatMessage", "hew", (message, html) => {
-  const notice = message.getFlag(MODULE_ID, "hewNotice");
+  const notice = readFlag(message, "hewNotice");
   if ( !notice ) return;
   if ( !notice.deadline || (notice.deadline <= Date.now()) ) return;
   if ( momentAcknowledged(message, "hewNotice") ) return;   // the ACK ends the presentation
@@ -126,7 +126,7 @@ async function hewChainContext(damageMessage) {
 async function maybeHewCritReminder(damageMessage) {
   try {
     if ( !isActiveGM() ) return;
-    if ( damageMessage.getFlag(MODULE_ID, "hewNoticed") ) return;
+    if ( readFlag(damageMessage, "hewNoticed") ) return;
     const ctx = await hewChainContext(damageMessage);
     if ( !ctx ) return;
     if ( !(ctx.attackMessage.rolls?.[0]?.isCritical ?? false) ) return;
@@ -147,8 +147,8 @@ listen("createChatMessage", "hew", message => {
 async function maybeHewKillReminder(damageMessage) {
   try {
     if ( !isActiveGM() ) return;
-    if ( damageMessage.getFlag(MODULE_ID, "hewNoticed") ) return;   // the crit already said it
-    const receipt = damageMessage.getFlag(MODULE_ID, "receipt");
+    if ( readFlag(damageMessage, "hewNoticed") ) return;   // the crit already said it
+    const receipt = readFlag(damageMessage, "receipt");
     if ( !receipt?.targets?.length ) return;
     const ctx = await hewChainContext(damageMessage);
     if ( !ctx ) return;
@@ -168,11 +168,11 @@ async function maybeHewKillReminder(damageMessage) {
 
 listen("updateChatMessage", "hew", message => {
   // The kill trigger rides receipt writes, through the check queue.
-  if ( message.getFlag(MODULE_ID, "receipt") && isActiveGM() ) {
+  if ( readFlag(message, "receipt") && isActiveGM() ) {
     void queueHewCheck(message, () => maybeHewKillReminder(message));
   }
   // A durably-acknowledged notice closes its popup wherever it lives.
-  if ( message.getFlag(MODULE_ID, "hewNotice")?.acknowledged ) {
+  if ( readFlag(message, "hewNotice")?.acknowledged ) {
     const dialog = livePopups.get(popupKey(message.id, "hew"));
     if ( dialog ) void dialog.close();
   }
@@ -212,7 +212,7 @@ function attackSwingFor(attackMessage) {
     const found = foldEntryFor(attacker, "hew", [entry]);
     if ( !found ) continue;
     // An `option` row: the feature's kept option (asked on the damage offer — clock-riders.js) must be this one.
-    if ( row.option && (lower(found.item.getFlag(MODULE_ID, "option") ?? "") !== lower(row.option)) ) continue;
+    if ( row.option && (lower(readFlag(found.item, "option") ?? "") !== lower(row.option)) ) continue;
     const uses = swingUsesOf(row, found.item);
     if ( uses && !(uses.left > 0) ) continue;               // none left: nothing to remind
     const near = row.near ? secondTargetNear(attackMessage, attacker, row.near) : null;
@@ -239,7 +239,7 @@ function swingTurnOpen(attacker, row) {
   if ( combat.combatant?.actor?.uuid !== attacker.uuid ) return false;          // an Opportunity Attack: not the Attack action
   const stamp = combatStamp();
   return !game.messages.contents.slice(-60).some(m => {
-    const n = m.getFlag(MODULE_ID, "hewNotice");
+    const n = readFlag(m, "hewNotice");
     return n && (n.attackerUuid === attacker.uuid) && (n.label === row.label) && (n.stamp === stamp);
   });
 }
@@ -248,8 +248,8 @@ const swingPosted = new Set();
 async function maybeSwingReminder(attackMessage) {
   try {
     if ( !isActiveGM() || swingPosted.has(attackMessage.id) ) return;
-    if ( attackMessage.getFlag(MODULE_ID, "swingNoticed") ) return;
-    if ( attackMessage.getFlag(MODULE_ID, "poleStrike") ) return;   // the swing itself never offers another
+    if ( readFlag(attackMessage, "swingNoticed") ) return;
+    if ( readFlag(attackMessage, "poleStrike") ) return;   // the swing itself never offers another
     const ctx = attackSwingFor(attackMessage);
     if ( !ctx || !swingTurnOpen(ctx.attacker, ctx.row) ) return;
     swingPosted.add(attackMessage.id);
@@ -308,7 +308,7 @@ listen("createChatMessage", "hew", message => {
 
 const swinging = new Set();
 async function answerSwingOffer(message, use) {
-  const notice = message.getFlag(MODULE_ID, "hewNotice");
+  const notice = readFlag(message, "hewNotice");
   if ( !notice?.offer || momentAcknowledged(message, "hewNotice") || swinging.has(message.id) ) return;
   swinging.add(message.id);
   try {
@@ -338,7 +338,7 @@ listen("dnd5e.preRollDamage", "hew", (config, _dialog, message) => {
     const activity = config?.subject;
     if ( activity?.type !== "attack" ) return;
     const attackMessage = attackMessageForDamage(config, message);
-    if ( !attackMessage?.getFlag(MODULE_ID, "poleStrike") ) return;
+    if ( !readFlag(attackMessage, "poleStrike") ) return;
     const roll = config.rolls?.[0];
     const parts = Array.isArray(roll?.parts) ? roll.parts : null;
     const i = parts ? parts.findIndex(p => DIE.test(String(p))) : -1;
@@ -355,7 +355,7 @@ listen("dnd5e.preRollDamage", "hew", (config, _dialog, message) => {
 });
 
 listen("dnd5e.renderChatMessage", "hew", (message, html) => {
-  const f = message.getFlag(MODULE_ID, "poleStrikeDie");
+  const f = readFlag(message, "poleStrikeDie");
   if ( !f ) return;
   const content = html.querySelector?.(SURFACES.messageContent) ?? html;
   if ( !content || content.querySelector(".bf-pole-strike-line") ) return;
@@ -382,7 +382,7 @@ listen("dnd5e.preCreateUsageMessage", "hew", (_activity, messageConfig) => {
 // …and its attack and damage cards: their header reads the LIVE item, so the label is drawn at render.
 listen("dnd5e.renderChatMessage", "hew", (message, html) => {
   try {
-    if ( !message.getFlag(MODULE_ID, "poleStrike") && !message.getFlag(MODULE_ID, "poleStrikeDie") ) return;
+    if ( !readFlag(message, "poleStrike") && !readFlag(message, "poleStrikeDie") ) return;
     const title = html.querySelector?.(SURFACES.cardHeaderTitle);
     if ( title && !/— Pole Strike$/.test(title.textContent ?? "") ) title.textContent = `${title.textContent} — Pole Strike`;
   } catch(err) {

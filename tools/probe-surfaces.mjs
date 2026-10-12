@@ -28,7 +28,7 @@ const out = await f.evaluate(async () => {
       .map(k => [k, (after[k] ?? 0) - (before[k] ?? 0)])
   );
 
-  const MOD = "fvtt-mod-battleflow";
+  const MOD = "fvtt-mod-bythebooks";
   report.module = {
     active: !!game.modules.get(MOD)?.active,
     version: game.modules.get(MOD)?.version ?? null,
@@ -39,7 +39,7 @@ const out = await f.evaluate(async () => {
   /* --- 1: the measured-template CRUD hooks ---------------------------------------------- */
   // Does `createMeasuredTemplate` dispatch at all, and if not, what name DOES the create fire under?
   // ⚠ The test range only (fixture-suite), never the world's own active scene.
-  const scene = game.scenes.getName("Battle Flow Test Range");
+  const scene = game.scenes.getName("By the Books Test Range");
   report.templates = { scene: scene?.name ?? null };
   if (scene) {
     let tpl = null;
@@ -128,7 +128,7 @@ const out = await f.evaluate(async () => {
     const casters = game.actors.filter(a => a.type === "character"
       && a.items.some(i => i.type === "spell" && (i.system.level ?? 0) > 0));
     report.usage.casters = casters.map(a => a.name);
-    // ⚠ "BF Test Bard" carries slots but no levelled spell item: take the first candidate that can
+    // ⚠ "BTB Test Bard" carries slots but no levelled spell item: take the first candidate that can
     // actually open a dialog.
     const pick = casters.map(a => ({
       actor: a,
@@ -159,7 +159,7 @@ const out = await f.evaluate(async () => {
         report.usage.openApps = apps.map(a => a?.constructor?.name).filter(Boolean);
         const del = dialog?.element instanceof HTMLElement ? dialog.element : dialog?.element?.[0];
         // polish.js's paint is the observable half.
-        report.usage.targetBlockPainted = del ? !!del.querySelector(".battleflow-target-block") : null;
+        report.usage.targetBlockPainted = del ? !!del.querySelector(".bythebooks-target-block") : null;
         report.usage.dialogHtmlHead = del ? (del.innerHTML ?? "").slice(0, 300) : null;
         try { await dialog?.close?.(); } catch { /* it may already be gone */ }
       }

@@ -66,7 +66,7 @@ describe("holdFor — the answer another module reads", () => {
    *
    * ⚠ WHAT MAKES IT DANGEROUS RATHER THAN MERELY CONFUSING IS THAT THE SAFE DEFAULT FLIPS (the FX
    * Studio session's framing, 2026-09-09, and the sharpest statement of it either repo has). For a
-   * RETURN, null must mean *carry on* — that is exactly what keeps a table with no Battle Flow
+   * RETURN, null must mean *carry on* — that is exactly what keeps a table with no By the Books
    * installed unaffected. For a RESOLUTION, null means *stop*. So the one value that guarantees no
    * harm in the first position guarantees a LOST PICTURE in the second, and a self-bound settling
    * null is precisely the case that crosses them — which is the bug that shipped for an hour.
@@ -125,7 +125,12 @@ describe("the refcount — decision 1, and the one a modal sequence needs", () =
     holds.raiseHold(uuid, { reason: "window-1" });
     holds.raiseHold(uuid, { reason: "window-2" });
     restore();
-    expect(seen.filter(h => h.name === "battleflow.holdOpened")).toHaveLength(1);
+    expect(seen.filter(h => h.name === "bythebooks.holdOpened")).toHaveLength(1);
+    // 3.0.0 double-emits under the old prefix, after the new one (core.js `publish`).
+    expect(seen.map(h => h.name).filter(name => name.endsWith(".holdOpened"))).toEqual([
+      "bythebooks.holdOpened",
+      "battleflow.holdOpened"
+    ]);
     holds.releaseHold(uuid, null);
   });
 });

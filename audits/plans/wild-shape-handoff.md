@@ -1,9 +1,9 @@
 # Handoff — Wild Shape and polymorph (issue #2), for a fresh session
 
 Written 2026-10-10 at the end of the mastery-record session (issue #3). Open the Claude Code session in
-`fvtt-mod-battleflow`. Read, in order: this file, `audits/plans/summons-handoff.md` (the relay and the gallery
+`fvtt-mod-bythebooks`. Read, in order: this file, `audits/plans/summons-handoff.md` (the relay and the gallery
 this issue reuses, and the gate lessons — not repeated here), the issue
-(`gh issue view 2 --repo Txpple/fvtt-mod-battleflow --json body -q .body`), `prototypes/wild-shape-picker.html` (the
+(`gh issue view 2 --repo Txpple/fvtt-mod-bythebooks --json body -q .body`), `prototypes/wild-shape-picker.html` (the
 ruled picker) and `prototypes/wild-shape.html` (the five scenes around it), and
 RULINGS.md *Weapon Mastery — the record* (the long-rest swap machine the known-form swap reuses).
 

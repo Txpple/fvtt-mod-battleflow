@@ -1,6 +1,6 @@
 // @ts-check
 /**
- * Battle Flow — DECISION (ARCHITECTURE.md §2): area and token geometry over document-SHAPED objects,
+ * By the Books — DECISION (ARCHITECTURE.md §2): area and token geometry over document-SHAPED objects,
  * no Foundry; an area is a REGION. The edge is ../geometry.js. ⚠ Depend downward only.
  */
 

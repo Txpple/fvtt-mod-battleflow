@@ -11,7 +11,7 @@ const TAG = "probe-changed-dice";
 const f = await connectSuite({ tag: TAG, watchdogMs: 120_000, env: loadEnv() });
 
 const out = await f.evaluate(async () => {
-  const MOD = "fvtt-mod-battleflow";
+  const MOD = "fvtt-mod-bythebooks";
   const { changedDice } = await import(`/modules/${MOD}/scripts/decide/dice-chips.js`);
   const D20Roll = CONFIG.Dice.D20Roll;
   const report = { module: game.modules.get(MOD)?.version, system: game.system.version, cases: [] };

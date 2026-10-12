@@ -13,9 +13,9 @@ const f = await connectSuite({ tag: "probe-metamagic", watchdogMs: 300_000, requ
 const out = await f.evaluate(async () => {
   const OPTIONS = ["Careful Spell", "Distant Spell", "Empowered Spell", "Extended Spell", "Heightened Spell",
     "Quickened Spell", "Seeking Spell", "Subtle Spell", "Transmuted Spell", "Twinned Spell"];
-  const actor = game.actors.getName("BF Test Sorcerer");
-  if (!actor) return { ok: false, why: "BF Test Sorcerer is not on the world — run tools/fixture-suite.mjs first" };
-  const shared = await import("/modules/fvtt-mod-battleflow/scripts/shared.js");
+  const actor = game.actors.getName("BTB Test Sorcerer");
+  if (!actor) return { ok: false, why: "BTB Test Sorcerer is not on the world — run tools/fixture-suite.mjs first" };
+  const shared = await import("/modules/fvtt-mod-bythebooks/scripts/shared.js");
   const pool = actor.items.find(i => i.name === "Font of Magic");
   const rows = [];
   for (const name of OPTIONS) {

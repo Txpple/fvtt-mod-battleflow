@@ -1,5 +1,5 @@
 /**
- * Battle Flow — DECISION (ARCHITECTURE.md §2): THE DAMAGE RULES' arithmetic — what is held, a
+ * By the Books — DECISION (ARCHITECTURE.md §2): THE DAMAGE RULES' arithmetic — what is held, a
  * face's state, whether a roll fits, what a floor raised, a flat bonus's scope. Rows: registry.js
  * DAMAGE_RULES (the fighting styles, the damage feats, the spell-damage bonuses); RULINGS *The
  * fighting styles*, *The PHB classes — B4*.

@@ -1,8 +1,8 @@
 /**
- * Battle Flow — effect riders (a hit applies the attack activity's own effects, per target) and
+ * By the Books — effect riders (a hit applies the attack activity's own effects, per target) and
  * the one shared effect applier, mirroring the native tray's `_prepareEffectData`.
  */
-import { MODULE_ID, TITLE, isActiveGM, queueFlagWrite, statContext } from "./core.js";
+import { MODULE_ID, readFlag, TITLE, isActiveGM, queueFlagWrite, statContext } from "./core.js";
 import { cardActivity, lower, profileEffects, resolveUuid } from "./lookup.js";
 import { CLOCK_RIDERS } from "./decide/registry.js";
 import { effectRecord, joinEffectReceipt, revertableEffect } from "./decide/receipt.js";
@@ -20,7 +20,7 @@ export function messageActivity(message) {
 export async function applyEffectRiders(damageMessage, attackMessage, hits) {
   try {
     // ⚠ Guarded by a RIDER-OWNED marker: the mastery applier writes into the same flag.
-    if ( damageMessage.getFlag(MODULE_ID, "effectReceipt")?.ridersDone ) return;
+    if ( readFlag(damageMessage, "effectReceipt")?.ridersDone ) return;
     const activity = messageActivity(attackMessage);
     let effects = (await activity?.getApplicableEffects?.()) ?? [];
     // A `random` clock rider on this very item (Chaos Blade) lands ONE of its numbered effects by the die: the
@@ -160,7 +160,7 @@ export async function applyEffectsTo(targets, effects,
 export async function applyEffectsWithReceipt(receiptMessage, effects, targets,
   { concentration = null, scaling = 0, spellLevel, marker, source = null, message = null, activity = null, clock = null } = {}) {
   const entries = await applyEffectsTo(targets, effects, {
-    extend: receiptMessage?.getFlag?.(MODULE_ID, METAMAGIC_FLAG)?.key === "extended",
+    extend: readFlag(receiptMessage, METAMAGIC_FLAG)?.key === "extended",
     concentration, scaling, spellLevel, source, clock, message: message ?? receiptMessage, activity });
   if ( !entries.length && !marker ) return;
   // ⚠ Read AFTER the await, through the queued write: concurrent passes would drop each other's entries.
@@ -174,7 +174,7 @@ export async function applyEffectsWithReceipt(receiptMessage, effects, targets,
 
 /** Remove one applied rider effect and mark its receipt entry; tolerates the effect already gone. */
 export async function revertEffect(message, targetUuid, effectId) {
-  if ( !revertableEffect(message.getFlag(MODULE_ID, "effectReceipt"), targetUuid, effectId) ) return;
+  if ( !revertableEffect(readFlag(message, "effectReceipt"), targetUuid, effectId) ) return;
   const actor = await fromUuid(targetUuid);
   if ( actor instanceof Actor ) await actor.effects.get(effectId)?.delete();
   // The mark, through the serializer (ARCHITECTURE §4 law 2), the guard repeated inside the lock.
@@ -191,10 +191,10 @@ listen("createActiveEffect", "effect-riders", effect => {
   if ( !isActiveGM() ) return;
   const actor = effect.parent;
   if ( !(actor instanceof Actor) ) return;
-  const fingerprinted = e => !!(e.getFlag(MODULE_ID, "applied") || e.getFlag(MODULE_ID, CHIP_FLAG));
+  const fingerprinted = e => !!(readFlag(e, "applied") || readFlag(e, CHIP_FLAG));
   if ( !fingerprinted(effect) ) return;
   // A deliberate STACK (use-chips.js) is not a twin.
-  if ( effect.getFlag(MODULE_ID, "stacks") ) return;
+  if ( readFlag(effect, "stacks") ) return;
   const born = e => e._stats?.createdTime ?? 0;
   const elder = actor.effects.some(e => {
     if ( (e.id === effect.id) || !fingerprinted(e) ) return false;

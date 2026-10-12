@@ -1,8 +1,8 @@
 /**
- * Battle Flow — MACHINE (ARCHITECTURE.md §7): Commander's Strike, the `command` fold — the
+ * By the Books — MACHINE (ARCHITECTURE.md §7): Commander's Strike, the `command` fold — the
  * fighter's die on an ally's Reaction attack.
  */
-import { MODULE_ID, TITLE, isActiveGM, queueFlagWrite, canAnswerFor, statContext, decisionWindow } from "./core.js";
+import { MODULE_ID, readFlag, TITLE, isActiveGM, queueFlagWrite, canAnswerFor, statContext, decisionWindow } from "./core.js";
 import { ruleHTML } from "./rule-text.js";
 import { resolveDie, foldEntryFor, maneuverDieFormula } from "./lookup.js";
 import { maneuverFoldEntries } from "./decide/registry.js";
@@ -34,7 +34,7 @@ listen("dnd5e.postUseActivity", "command", (activity, _usageConfig, results) => 
     const found = foldEntryFor(activity.actor, "command", maneuverFoldEntries());
     if ( !found || (found.item.id !== activity.item?.id) ) return;
     const message = (results?.message instanceof ChatMessage) ? results.message : null;
-    if ( !message || message.getFlag(MODULE_ID, "command") ) return;
+    if ( !message || readFlag(message, "command") ) return;
     void stampCommand(activity, activity.actor, message, found);
   } catch(err) {
     console.error(`${TITLE} | Commander's Strike failed at the use — direct the strike by hand.`, err);
@@ -58,20 +58,20 @@ async function stampCommand(activity, fighter, message, found) {
 
 /** THE CHIP, by the GM (the fighter may not own the ally): until the fighter's turn ends, spent by the ally's next damage. */
 async function ensureCommandChip(message) {
-  const flag = message.getFlag(MODULE_ID, "command");
+  const flag = readFlag(message, "command");
   if ( !flag || (flag.status !== "directed") || flag.chipId || !flag.ally?.uuid ) return;
   const ally = await fromUuid(flag.ally.uuid).catch(() => null);
   if ( !(ally instanceof Actor) ) return;
-  const standing = ally.effects.find(e => (e.getFlag(MODULE_ID, CHIP_FLAG) === "use") && (e.getFlag(MODULE_ID, "useKey") === "command") && (e.getFlag(MODULE_ID, "cardId") === message.id));
+  const standing = ally.effects.find(e => (readFlag(e, CHIP_FLAG) === "use") && (readFlag(e, "useKey") === "command") && (readFlag(e, "cardId") === message.id));
   let chip = standing ?? null;
   if ( !chip ) {
-    const stale = ally.effects.filter(e => (e.getFlag(MODULE_ID, CHIP_FLAG) === "use") && (e.getFlag(MODULE_ID, "useKey") === "command"));
+    const stale = ally.effects.filter(e => (readFlag(e, CHIP_FLAG) === "use") && (readFlag(e, "useKey") === "command"));
     if ( stale.length ) await ally.deleteEmbeddedDocuments("ActiveEffect", stale.map(e => e.id)).catch(() => {});
     const fighter = flag.attackerUuid ? await fromUuid(flag.attackerUuid).catch(() => null) : null;
     const clock = chipClock("steadyAim", placeOf(fighter ?? ally));
     chip = await ActiveEffect.implementation.create({
       name: flag.itemName, img: flag.itemImg ?? "icons/svg/aura.svg",
-      description: `${await ruleHTML(RULE_TEXT.command)}<p>Written by Battle Flow when ${esc(flag.attackerName)} used ${esc(flag.itemName)}: ${esc(ally.name)} may use a Reaction to make one attack with a weapon or an Unarmed Strike; ${flag.dieFormula ?? "the Superiority Die"} rides the damage of the next hit.</p>`,
+      description: `${await ruleHTML(RULE_TEXT.command)}<p>Written by By the Books when ${esc(flag.attackerName)} used ${esc(flag.itemName)}: ${esc(ally.name)} may use a Reaction to make one attack with a weapon or an Unarmed Strike; ${flag.dieFormula ?? "the Superiority Die"} rides the damage of the next hit.</p>`,
       origin: flag.itemUuid ?? null, disabled: false, transfer: false,
       ...(clock ? chipData(clock) : {}),
       flags: { [MODULE_ID]: { [CHIP_FLAG]: "use", useKey: "command", die: flag.dieFormula ?? null, sourceUuid: flag.attackerUuid, sourceName: flag.attackerName, cardId: message.id } }
@@ -80,11 +80,11 @@ async function ensureCommandChip(message) {
   if ( chip ) await queueFlagWrite(message, "command", current => { if ( current.chipId ) return false; current.chipId = chip.id; });
 }
 
-listen("createChatMessage", "command", message => { if ( isActiveGM() && message.getFlag(MODULE_ID, "command") ) void ensureCommandChip(message); });
+listen("createChatMessage", "command", message => { if ( isActiveGM() && readFlag(message, "command") ) void ensureCommandChip(message); });
 
 /** THE NOTICE: the ally's owner is told, OK-only, auto-closed at the deadline (the Hew notice's shape). */
 async function showCommandNotice(message) {
-  const flag = message.getFlag(MODULE_ID, "command");
+  const flag = readFlag(message, "command");
   if ( !flag || (flag.status !== "directed") ) return;
   const ally = flag.ally?.uuid ? fromUuidSync(flag.ally.uuid) : null;
   await openMomentPopup(message, "command", ally, {
@@ -105,9 +105,9 @@ listen("dnd5e.preRollDamage", "command", (config, _dialog, message) => {
     if ( activity?.type !== "attack" ) return;
     const actor = activity.item?.actor;
     if ( !actor ) return;
-    const chip = actor.effects.find(e => (e.getFlag(MODULE_ID, CHIP_FLAG) === "use") && (e.getFlag(MODULE_ID, "useKey") === "command"));
+    const chip = actor.effects.find(e => (readFlag(e, CHIP_FLAG) === "use") && (readFlag(e, "useKey") === "command"));
     if ( !chip ) return;
-    const formula = chip.getFlag(MODULE_ID, "die");
+    const formula = readFlag(chip, "die");
     const type = [...(activity.item?.system?.damage?.base?.types ?? [])][0] ?? "";
     if ( formula ) {
       const base = (config.rolls ?? []).find(r => r.base === true);
@@ -116,8 +116,8 @@ listen("dnd5e.preRollDamage", "command", (config, _dialog, message) => {
       else config.rolls.push({ data: foundry.utils.deepClone(config.rolls[0]?.data ?? {}), parts: [formula], options: { type, types: type ? [type] : [] } });
     }
     foundry.utils.setProperty(message, `data.flags.${MODULE_ID}.commandRide`, {
-      ...statContext(actor.uuid), cardId: chip.getFlag(MODULE_ID, "cardId") ?? null, formula: formula ?? null, type,
-      by: actor.name, directedBy: chip.getFlag(MODULE_ID, "sourceName") ?? null, weapon: activity.item?.name ?? null
+      ...statContext(actor.uuid), cardId: readFlag(chip, "cardId") ?? null, formula: formula ?? null, type,
+      by: actor.name, directedBy: readFlag(chip, "sourceName") ?? null, weapon: activity.item?.name ?? null
     });
     void chip.delete().catch(() => {});
     void spendReaction(actor, { origin: chip.origin ?? null, what: "Commander's Strike" });
@@ -128,7 +128,7 @@ listen("dnd5e.preRollDamage", "command", (config, _dialog, message) => {
 
 // The fighter's card records the strike — the elect folds it from the ally's damage message.
 listen("createChatMessage", "command", message => {
-  const ride = message.getFlag(MODULE_ID, "commandRide");
+  const ride = readFlag(message, "commandRide");
   if ( !ride?.cardId || !isActiveGM() ) return;
   const card = game.messages.get(ride.cardId);
   if ( !card ) return;
@@ -139,7 +139,7 @@ listen("createChatMessage", "command", message => {
 });
 
 listen("dnd5e.renderChatMessage", "command", (message, html) => {
-  const ride = message.getFlag(MODULE_ID, "commandRide");
+  const ride = readFlag(message, "commandRide");
   if ( ride ) {
     const line = document.createElement("div");
     line.innerHTML = bfCard({ eyebrow: "Maneuver — Commander's Strike", tone: "good",
@@ -148,7 +148,7 @@ listen("dnd5e.renderChatMessage", "command", (message, html) => {
       lines: [ruleLine(RULE_TEXT.command)] });
     html.querySelector(SURFACES.messageContent)?.appendChild(line);
   }
-  const flag = message.getFlag(MODULE_ID, "command");
+  const flag = readFlag(message, "command");
   if ( !flag ) return;
   const directed = flag.status === "directed";
   const live = directed && (!flag.deadline || (flag.deadline > Date.now())) && !momentAcknowledged(message, "command");

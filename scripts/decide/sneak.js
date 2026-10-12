@@ -1,6 +1,6 @@
 // @ts-check
 /**
- * Battle Flow — DECISION: Sneak Attack, and what Cunning Strike does to its dice (ARCHITECTURE.md
+ * By the Books — DECISION: Sneak Attack, and what Cunning Strike does to its dice (ARCHITECTURE.md
  * §2). Costs come off the dice BEFORE the roll, a crit doubles what is left. The arithmetic and the
  * reading, never the choice.
  */

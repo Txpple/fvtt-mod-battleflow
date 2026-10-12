@@ -1,9 +1,9 @@
 /**
- * Battle Flow — MACHINE, part of scripts/saves/ (ARCHITECTURE.md §7): the ASK — dnd5e's save
+ * By the Books — MACHINE, part of scripts/saves/ (ARCHITECTURE.md §7): the ASK — dnd5e's save
  * dialog wearing the demand's fieldset, the straight roll, and the buzzer. index.js is the
  * directory's only public face.
  */
-import { MODULE_ID, TITLE, queueFlagWrite } from "../core.js";
+import { MODULE_ID, readFlag, TITLE, queueFlagWrite } from "../core.js";
 import { namesAnswering, resolveUuid } from "../lookup.js";
 import { rollConfigFor } from "../shared.js";
 import { popupKey, bfCard, holdBarHTML } from "../decide/present.js";
@@ -31,12 +31,12 @@ function saveAnswerData(card, uuid, timedOut) {
 }
 
 function saveStillOwed(card, uuid) {
-  const flag = card.getFlag(MODULE_ID, "saves");
+  const flag = readFlag(card, "saves");
   const entry = flag?.targets?.find(t => t.uuid === uuid);
   if ( !entry || entry.done || (flag.status !== "pending") ) return null;
   // ⚠ A landed answer wins though the entry reads pending; whole-log by flag, never a tail.
-  if ( game.messages.some(m => (m.getFlag(MODULE_ID, "respondsTo") === card.id)
-    && (m.getFlag(MODULE_ID, "saveFor") === uuid)) ) return null;
+  if ( game.messages.some(m => (readFlag(m, "respondsTo") === card.id)
+    && (readFlag(m, "saveFor") === uuid)) ) return null;
   return { flag, entry };
 }
 
@@ -100,7 +100,7 @@ export async function openSaveDialog(card, uuid) {
 function drawSaveDemand(app, element, demand) {
   const card = game.messages.get(demand.cardId);
   if ( !card ) return;
-  const flag = card.getFlag(MODULE_ID, "saves");
+  const flag = readFlag(card, "saves");
   const entry = flag?.targets?.find(t => t.uuid === demand.uuid);
   // ⚠ Withdrawn before this first render: close here, the answered-popup sweep already ran.
   if ( !entry || entry.done || (flag.status !== "pending") ) { void app.close(); return; }
@@ -184,7 +184,7 @@ async function rollWithoutAsking(card, flag, actor, uuid, { timedOut = false } =
 
 /** Players Roll Their Own Saves, off: the owed save rolls at once on the roller's client, no popup. */
 export async function rollSaveItself(card, uuid) {
-  const flag = card.getFlag(MODULE_ID, "saves");
+  const flag = readFlag(card, "saves");
   if ( !flag || (flag.status !== "pending") ) return;
   const actor = await fromUuid(uuid).catch(() => null);
   if ( !(actor instanceof Actor) ) return;
@@ -192,14 +192,14 @@ export async function rollSaveItself(card, uuid) {
 }
 
 async function fireSaveTimer(card) {
-  const flag = card.getFlag(MODULE_ID, "saves");
+  const flag = readFlag(card, "saves");
   if ( !flag || (flag.status !== "pending") ) return;
   const goneNames = [];
   for ( const entry of flag.targets ) {
     if ( entry.done ) continue;
     // An unfolded answer beats the clock, not races it.
-    const landed = game.messages.find(m => (m.getFlag(MODULE_ID, "respondsTo") === card.id)
-      && (m.getFlag(MODULE_ID, "saveFor") === entry.uuid));
+    const landed = game.messages.find(m => (readFlag(m, "respondsTo") === card.id)
+      && (readFlag(m, "saveFor") === entry.uuid));
     if ( landed ) { void foldSaveAnswer(card, entry.uuid, landed); continue; }
     // A target that no longer exists is voided, or the demand sits pending forever.
     const actor = await fromUuid(entry.uuid).catch(() => null);

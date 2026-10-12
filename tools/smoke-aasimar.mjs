@@ -1,8 +1,8 @@
 // Aasimar smoke suite (RULINGS *The Aasimar walk*): Celestial Revelation's self areas centred on
 // the token, Inner Radiance's light and pulse, Necrotic Shroud asking no ally, the Revelation's
 // extra damage on a hit and on a spell, and the Light spell's emission on a token target.
-// Fixtures (tools/fixture-suite.mjs): BF Test Halfling (PB 2) lent the PHB's items; BF Test Victim
-// (hostile) and BF Test Ranger (friendly) beside it. Everything written is restored or deleted.
+// Fixtures (tools/fixture-suite.mjs): BTB Test Halfling (PB 2) lent the PHB's items; BTB Test Victim
+// (hostile) and BTB Test Ranger (friendly) beside it. Everything written is restored or deleted.
 import { announcePlan, connectSuite, finish, sectionArg, sectionPlan } from './harness.mjs';
 
 // The coverage map (tools/coverage-map.mjs) parses this; ⚠ never import a suite (it connects on evaluation).
@@ -29,7 +29,7 @@ const f = await connectSuite({ tag: 'aasimar', watchdogMs: 600_000 });
 announcePlan('aasimar', plan, pulled);
 
 const out = await f.evaluate(async ({ sections, titles }) => {
-  const MOD = 'fvtt-mod-battleflow';
+  const MOD = 'fvtt-mod-bythebooks';
   const results = [];
   const log = [];
   const skips = [];
@@ -53,11 +53,11 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   const set = (k, v) => game.settings.set(MOD, k, v);
   const def = k => game.settings.settings.get(`${MOD}.${k}`)?.default;
 
-  const scene = game.scenes.getName('Battle Flow Test Range');
-  const victim = game.actors.getName('BF Test Victim');
-  const aas = game.actors.getName('BF Test Halfling');
-  const ally = game.actors.getName('BF Test Ranger');
-  if (!scene || !victim || !aas || !ally) return { fatal: 'missing fixture: scene, BF Test Victim, BF Test Halfling or BF Test Ranger — run tools/fixture-suite.mjs' };
+  const scene = game.scenes.getName('By the Books Test Range');
+  const victim = game.actors.getName('BTB Test Victim');
+  const aas = game.actors.getName('BTB Test Halfling');
+  const ally = game.actors.getName('BTB Test Ranger');
+  if (!scene || !victim || !aas || !ally) return { fatal: 'missing fixture: scene, BTB Test Victim, BTB Test Halfling or BTB Test Ranger — run tools/fixture-suite.mjs' };
 
   const created = { tokens: [], items: [] };
   const priorActor = {};
@@ -102,7 +102,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       for (const [actorId, data] of Object.entries(priorActor)) await game.actors.get(actorId)?.update(data);
       game.user.targets.forEach(t => { t.setTarget(false, { releaseOthers: true }); });
       const mine = game.messages.filter(m => (m.timestamp >= suiteStart)
-        && (m.speaker?.alias?.startsWith?.('BF Test') || m.speaker?.alias === 'Battle Flow' || Object.keys(m.flags?.[MOD] ?? {}).length));
+        && (m.speaker?.alias?.startsWith?.('BTB Test') || m.speaker?.alias === 'By the Books' || Object.keys(m.flags?.[MOD] ?? {}).length));
       if (mine.length) await ChatMessage.deleteDocuments(mine.map(m => m.id));
     } catch (err) {
       log.push(`TEARDOWN ERROR: ${err?.message}`);

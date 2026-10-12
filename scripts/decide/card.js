@@ -1,6 +1,6 @@
 // @ts-check
 /**
- * Battle Flow — DECISION (ARCHITECTURE.md §2): THE CARD SEAM over dnd5e's typed card data (NOTES §2
+ * By the Books — DECISION (ARCHITECTURE.md §2): THE CARD SEAM over dnd5e's typed card data (NOTES §2
  * *the 6.0 pass*): kind, targets, origin. ⚠ Reads `type` and `system.*` only; PURE, takes a message
  * or a roll's pre-create DATA. ⚠ THE TARGET KEY IS THE ACTOR: the platform lists one row per TOKEN;
  * `targetsOf` folds two tokens of one linked actor to ONE row.

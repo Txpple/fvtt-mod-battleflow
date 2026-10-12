@@ -1,6 +1,6 @@
 // @ts-check
 /**
- * Battle Flow — DECISION (ARCHITECTURE.md §2): a cast whose effects are ALTERNATIVES (Fire Shield's
+ * By the Books — DECISION (ARCHITECTURE.md §2): a cast whose effects are ALTERNATIVES (Fire Shield's
  * Warm OR Chill); only the caster's pick lands (RULINGS *Effect choices*).
  */
 

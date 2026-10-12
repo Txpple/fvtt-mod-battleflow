@@ -2,7 +2,7 @@
 // the "not mastered" line on an attack card and its Master it, the long-rest swap landed on the
 // sheet's own list, and the party view's door in the group sheet's header controls.
 //
-// Fixtures: BF Test Fighter (tools/fixture-suite.mjs; Fighter 5, so the PHB's rows allow 4) is lent
+// Fixtures: BTB Test Fighter (tools/fixture-suite.mjs; Fighter 5, so the PHB's rows allow 4) is lent
 // the PHB's Longsword, Longbow, Dagger and Greatsword, the Weapon Master feat, Tactical Master and the
 // Fighter's own Weapon Mastery feature as the sections need them and, for the
 // party-membership gates, the player test user's ownership. Its stored mastery list is put back.
@@ -32,7 +32,7 @@ const f = await connectSuite({ tag: 'mastery-record', watchdogMs: 240_000 });
 announcePlan('mastery-record', plan, pulled);
 
 const out = await f.evaluate(async ({ sections, titles }) => {
-  const MOD = 'fvtt-mod-battleflow';
+  const MOD = 'fvtt-mod-bythebooks';
   const LIST = 'system.traits.weaponProf.mastery.value';
   const results = [];
   const log = [];
@@ -55,8 +55,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   const api = modDoc.api?.masteryRecord;
   if (!api?.fillActors) return { fatal: 'no masteryRecord api — OLD code (reload the box)' };
 
-  const fighter = game.actors.getName('BF Test Fighter');
-  if (!fighter || (fighter.type !== 'character')) return { fatal: 'missing fixture: BF Test Fighter (a character) — run tools/fixture-suite.mjs' };
+  const fighter = game.actors.getName('BTB Test Fighter');
+  if (!fighter || (fighter.type !== 'character')) return { fatal: 'missing fixture: BTB Test Fighter (a character) — run tools/fixture-suite.mjs' };
   const priorList = [...(fighter.system._source.traits?.weaponProf?.mastery?.value ?? [])];
   const priorOwnership = foundry.utils.deepClone(fighter._source.ownership ?? { default: 0 });
   // ⚠ The fixture is built from the pack without the class's proficiency advancement, so its weapons read
@@ -101,7 +101,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     await fighter.update({ ownership: { default: 0, [playerUser.id]: 3 } }, { diff: false, recursive: false });
     return true;
   };
-  const rowUnder = id => document.querySelector(`[data-message-id="${id}"] .battleflow-mastery-record`);
+  const rowUnder = id => document.querySelector(`[data-message-id="${id}"] .bythebooks-mastery-record`);
   // ⚠ Only the dialogs: the chat sidebar is an application too, and its cards carry the same words.
   const dialogs = () => [...foundry.applications.instances.values()].filter(a => a instanceof foundry.applications.api.DialogV2);
 
@@ -148,7 +148,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         const rolls = await activity.rollAttack({}, { configure: false }, {});
         const msg = rolls?.[0]?.parent ?? null;
         const row = await waitFor(() => msg ? rowUnder(msg.id) : null, 8000);
-        ok('2a. the attack card carries the line: "Dagger: Nick — not mastered by BF Test Fighter", 2 of 4 open — pick at your next Long Rest', !!row && /not mastered by BF Test Fighter/.test(row.textContent) && /2 of 4 open — pick at your next Long Rest/.test(row.textContent), `row=${row?.textContent?.trim().slice(0, 160)}`);
+        ok('2a. the attack card carries the line: "Dagger: Nick — not mastered by BTB Test Fighter", 2 of 4 open — pick at your next Long Rest', !!row && /not mastered by BTB Test Fighter/.test(row.textContent) && /2 of 4 open — pick at your next Long Rest/.test(row.textContent), `row=${row?.textContent?.trim().slice(0, 160)}`);
         ok('2b. no button: a pick is the Long Rest\'s (RAW), and the list is untouched', ![...(row?.querySelectorAll('button') ?? [])].length && (JSON.stringify(listNow()) === JSON.stringify(['longsword', 'longbow'])), `buttons=${[...(row?.querySelectorAll('button') ?? [])].map(b => b.textContent).join('|')} list=${listNow().join(',')}`);
         await setList(['rapier', 'shortbow', 'longsword', 'longbow']);
         const rolls2 = await activity.rollAttack({}, { configure: false }, {});
@@ -229,7 +229,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const primary = game.actors.party ?? null;
       const seated = !!primary && !(primary.system?.members ?? []).some(m => (m.actor?.id ?? m.actor) === fighter.id);
       if (seated) await primary.system.addMember(fighter);
-      const group = await Actor.create({ name: 'BF Test Party (mastery)', type: 'group' });
+      const group = await Actor.create({ name: 'BTB Test Party (mastery)', type: 'group' });
       made.push(group);
       const sheet = await group.sheet.render({ force: true });
       await waitFor(() => sheet.rendered, 6000);
@@ -240,7 +240,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const view = await api.openPartyView();
       await waitFor(() => view.rendered, 6000);
       const text = view.element?.textContent ?? '';
-      ok('4b. the view lists the Fighter against its allowance: 4, longsword chosen, 3 open', /BF Test Fighter/.test(text) && /3 open/.test(text), `text=${text.replace(/\s+/g, ' ').slice(0, 240)}`);
+      ok('4b. the view lists the Fighter against its allowance: 4, longsword chosen, 3 open', /BTB Test Fighter/.test(text) && /3 open/.test(text), `text=${text.replace(/\s+/g, ' ').slice(0, 240)}`);
       try { await view.close(); } catch { /* gone */ }
       if (seated) await primary.system.removeMember(fighter.id);
       await setList([]);

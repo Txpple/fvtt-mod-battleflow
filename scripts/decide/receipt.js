@@ -1,6 +1,6 @@
 // @ts-check
 /**
- * Battle Flow — DECISION layer (ARCHITECTURE.md §2): receipt arithmetic (prior → delta → taken →
+ * By the Books — DECISION layer (ARCHITECTURE.md §2): receipt arithmetic (prior → delta → taken →
  * reason), the merge discipline both receipt flags share, and the revert inverse.
  * ⚠ Moves hit points — unit-test changes. Depends downward only; CONFIG labels are handed in.
  */

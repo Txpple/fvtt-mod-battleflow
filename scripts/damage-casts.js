@@ -1,9 +1,9 @@
 /**
- * Battle Flow — Damage casts: a bare damage activity rolls its dice at the use, and a listed row
+ * By the Books — Damage casts: a bare damage activity rolls its dice at the use, and a listed row
  * demands the save its text names after the damage lands (RULINGS *Damage casts*). EDGE layer
  * (ARCHITECTURE.md §7).
  */
-import { MODULE_ID, TITLE, S, setting, statContext } from "./core.js";
+import { MODULE_ID, readFlag, TITLE, S, setting, statContext } from "./core.js";
 import { lower, activityNamed, namesAnswering } from "./lookup.js";
 import { damageSaveEntries, emanationEntries, listedNames } from "./decide/registry.js";
 import { withTargets } from "./shared.js";
@@ -59,7 +59,7 @@ listen("dnd5e.postUseActivity", "damage-casts", (activity, _usageConfig, results
     if ( !message ) return;                                          // used with create: false — no card, no bus
     const targets = targetsOf(message).map(t => ({ uuid: t.uuid, name: t.name, img: t.img ?? null }));
     if ( !drives(activity, targets.length) ) return;                 // nothing aimed — the humans have it
-    if ( message.getFlag(MODULE_ID, "damageCast") ) return;          // never re-drive
+    if ( readFlag(message, "damageCast") ) return;          // never re-drive
     // The consumed-flag write the suppressed follow-up skips — the volley machine's two lines.
     try {
       const consumed = activity.createConsumedFlag?.(activity.actor, message.system?.deltas);
@@ -97,7 +97,7 @@ async function driveDamageCast(activity, message, targets) {
 /* --- the cards say it (R5) -------------------------------------------------------------------- */
 
 listen("dnd5e.renderChatMessage", "damage-casts", (message, html) => {
-  const dc = message.getFlag(MODULE_ID, "damageSaveCard");
+  const dc = readFlag(message, "damageSaveCard");
   if ( !dc ) return;
   const line = document.createElement("div");
   line.innerHTML = bfCard({

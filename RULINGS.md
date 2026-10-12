@@ -541,7 +541,7 @@ Sleep, Conjure Barrage, Conjure Volley, Word of Radiance, Destructive Wave, Weir
 
 **The ask is its own machine since 2026-09-24** (user: "better to pay this debt now than later"):
 `scripts/area-ask.js`, a service both metamagic and the saves machine route the question through
-— the popup, the clock, the answer, the demand filled from it, `battleflow.areaAskAnswered`
+— the popup, the clock, the answer, the demand filled from it, `bythebooks.areaAskAnswered`
 published — with its arithmetic in `decide/area-ask.js` (the defaults, the words, the outcome).
 A customer raises the ask by writing its flag (`newAsk`, `raiseAsk`) and may register an
 ANSWER PART for what its answer writes (metamagic's record, its held card). The flag key stays
@@ -690,7 +690,7 @@ Celestial Revelation cases in `tests/decide-clock.test.js` / `tests/decide-emana
   asks the Aasimar's friends beside it.
 - **Necrotic Shroud's Frightened lasts until the end of the Aasimar's next turn** — a PACK defect
   (60 seconds), fixed in **Errata 5e E-002** (the sister module; user, then of its predecessor:
-  *"put the fix in the vendor fixes sister repo"*), never here: the copy's clock becomes the system's `sourceEnd`. Battle Flow depends on it
+  *"put the fix in the vendor fixes sister repo"*), never here: the copy's clock becomes the system's `sourceEnd`. By the Books depends on it
   (the register's Dependents).
 - **Inner Radiance pulses** (user: *"inner radiance needs to pulse - you can probably shape it like
   spirit guardians in part"*). An `EMANATIONS` feature row with three new fields: `while` (it
@@ -728,7 +728,7 @@ Celestial Revelation cases in `tests/decide-clock.test.js` / `tests/decide-emana
 ## The species walk, continued (2026-09-25)
 
 **Every PHB species walked and passed on the sandbox, one at a time** (the user's order, each
-opening with its *Trait | What you should see* table; the roster was the `BF Species` actors,
+opening with its *Trait | What you should see* table; the roster was the `BTB Species` actors,
 level-5 characters built through dnd5e advancement). The findings, each ruled in the walk and built
 on the user's word. The full battery proved them on 2026-09-26.
 
@@ -776,7 +776,7 @@ on the user's word. The full battery proved them on 2026-09-26.
 
 ## The origin feats (2026-09-25, off `prototypes/origin-feats.html`)
 
-**The five PHB origin feats with a table moment, walked on the `BF Feats` roster** (level-5
+**The five PHB origin feats with a table moment, walked on the `BTB Feats` roster** (level-5
 characters built through advancement, the feat the background's own). Tough, Magic Initiate,
 Crafter and Skilled are native or out of combat. Proved by the full battery, 2026-09-26.
 
@@ -942,14 +942,14 @@ feat whose shape the module already has (*"inspiring leader, its just like music
 as well, same shape again"*, *"skulker, some shapes like fs: blind"*, *"keep slasher"*).
 
 - **Out: the epic boons**, all of them (*"scope out epic boons"*).
-- **Out, nothing for Battle Flow to do (19):** Ability Score Improvement, Actor, Athlete,
+- **Out, nothing for By the Books to do (19):** Ability Score Improvement, Actor, Athlete,
   Durable (the pack's effect gives Advantage on death saves; Speedy Recovery is its own
   activity), Dual Wielder, Heavily Armored, Keen Mind, Lightly Armored, Martial Weapon Training,
   Medium Armor Master, Moderately Armored, Observant, Resilient, Ritual Caster, Shadow-Touched,
   Skill Expert, Speedy, Telekinetic, Telepathic.
 - **In, to build (13)** — the precedent row named per feat before a table is chosen (SWEEP §1):
 
-| Feat | What Battle Flow owes | The shape it looks like |
+| Feat | What By the Books owes | The shape it looks like |
 | --- | --- | --- |
 | Chef | Replenishing Meal's extra 1d8 on the allies' Hit Dice during a Short Rest; Bolstering Treats after a Long Rest (the pack's own heal activities) | Musician's rest grant; the meal lands DURING the rest, the others after |
 | Crossbow Expert | no Disadvantage for a ranged attack within 5 feet | a range-row canceller (SWEEP §3 item 6) |
@@ -1433,7 +1433,7 @@ Flesh to Stone, the three Dominates, Otto's. Out on purpose: Eyebite's Asleep (e
 save — the table's). ⚠ Contagion's pack lands all six Infected effects on a failure (the data; the
 disease is the caster's pick — fix at the data, never a carve-out).
 
-**The walk — Tier 1** (`tools/content/place-spells-walk.mjs` puts BF Walk Cleric with the slice's spells
+**The walk — Tier 1** (`tools/content/place-spells-walk.mjs` puts BTB Walk Cleric with the slice's spells
 and two targets on the walk scene):
 
 | Spell | What you should see |
@@ -1516,19 +1516,19 @@ The duplicates ride the hold: an entry the machine answers itself when nothing e
 the Blinded condition, Blindsight or Truesight rolls nothing — read off its sheet — and one line says why.
 The last duplicate destroyed ends the spell (the card says so).
 
-**The walk — Tier 3** (`tools/content/place-spells-walk.mjs`: BF Walk Cleric carries Moonbeam, Cloud of
-Daggers, Cloudkill, Insect Plague, Flaming Sphere, Sanctuary, Mirror Image and Sacred Flame; BF Walk Target
+**The walk — Tier 3** (`tools/content/place-spells-walk.mjs`: BTB Walk Cleric carries Moonbeam, Cloud of
+Daggers, Cloudkill, Insect Plague, Flaming Sphere, Sanctuary, Mirror Image and Sacred Flame; BTB Walk Target
 carries a Morningstar):
 
 | Spell | What you should see |
 | --- | --- |
-| **Moonbeam** placed beside the Target, then the Target walks in | an "Emanation" card: "Moonbeam — BF Walk Target entered BF Walk Cleric's Moonbeam", a Constitution save, the 2d10 rolled; ending its turn inside asks again on a new turn, and a second entry in the same turn says "already saved this turn" |
+| **Moonbeam** placed beside the Target, then the Target walks in | an "Emanation" card: "Moonbeam — BTB Walk Target entered BTB Walk Cleric's Moonbeam", a Constitution save, the 2d10 rolled; ending its turn inside asks again on a new turn, and a second entry in the same turn says "already saved this turn" |
 | **Moonbeam** dragged onto the standing Ally | the same card for the Ally (reach `all`) |
 | **Cloud of Daggers** placed, the Target walks in | a card with the 4d4 rolled and a receipt — no save; the Hit Points move |
 | **Flaming Sphere** cast (the sphere summoned beside the Target), the Target's turn ends within 5 ft | the sphere's own ring: "Flaming Sphere — … ended its turn inside", a Dexterity save, the 2d6 |
 | **Sanctuary** on the Ally, then the Target attacks the Ally | no attack roll: "Sanctuary — a save before the attack" on the Target's side, the Wisdom save; a failure: "turned aside" floats off the Ally and the card says to choose a new target; a success: the attack dialog opens and the attack rolls |
 | **Sanctuary** on the Ally, then Sacred Flame at the Ally | the same gate before the cast; a Fireball at the Ally is not gated |
-| the warded Ally attacks | "Sanctuary ended — BF Walk Ally made an attack roll", the Warded effect gone, "−(Warded)" floating |
+| the warded Ally attacks | "Sanctuary ended — BTB Walk Ally made an attack roll", the Warded effect gone, "−(Warded)" floating |
 | **Mirror Image** on the Cleric, then the Target hits it | the dice rise off the Cleric (3d6, the redirecting face gold); a duplicate destroyed ("−(Duplicate C)" floats), "A duplicate takes the hit — duplicates: 2 of 3 left", no damage; low dice: "The hit gets through" and the damage lands |
 | the last duplicate | "The last duplicate takes the hit — Mirror Image ended" |
 
@@ -1553,18 +1553,18 @@ exist, and one NATIVE.
 | **Forcecage** | `EMANATIONS` `area` + `alert on "moveOut"` | two utility activities (the 20-ft cage, the 10-ft box), both cubes; the region stands where placed with the concentration. **The exit ban** is a notice card as a creature inside MOVES OUT — `moveOut` joins the alert vocabulary — the move never paused; the teleport-out save, the bars' cover and the box's blocking are the table's |
 | **Counterspell** | NATIVE (the saves machine) | the pack's Counterspell is ONE save activity: Constitution, the caster's DC, one creature at 60 feet, a Reaction. The caster targets the creature whose spell they mean to counter and uses it; the saves machine demands the save of that target as it does for any targeted save. Nothing watches for the cast — *Bent by choice*, the user's ruling — and whether the spell was being cast, and what fails, is the table's |
 
-**The walk — Tier 4** (`tools/content/place-spells-walk.mjs`: BF Walk Cleric carries the eight; BF Walk Target
-and BF Walk Ally stand 5 ft east of it; the Target is a Fiend for the circle):
+**The walk — Tier 4** (`tools/content/place-spells-walk.mjs`: BTB Walk Cleric carries the eight; BTB Walk Target
+and BTB Walk Ally stand 5 ft east of it; the Target is a Fiend for the circle):
 
 | Spell | What you should see |
 | --- | --- |
-| **Warding Bond** on the Ally, then damage the Ally from any card (an attack, a save's damage, the tray) | a card "Warding Bond — BF Walk Cleric takes N with BF Walk Ally", the Cleric's Hit Points down by the same N with a receipt; the Ally 65 ft away: "takes nothing: … beyond the bond's 60 feet"; the Cleric dropped to 0 by a share: "Warding Bond ended — the caster dropped to 0 Hit Points", Bonded gone |
-| **Vampiric Touch** at the Target (a hit) | the damage lands, then a card "Vampiric Touch — BF Walk Cleric regains N Hit Points from BF Walk Target", N half of what landed, receipted; a miss pays nothing; the damage card's own line says the caster was paid |
+| **Warding Bond** on the Ally, then damage the Ally from any card (an attack, a save's damage, the tray) | a card "Warding Bond — BTB Walk Cleric takes N with BTB Walk Ally", the Cleric's Hit Points down by the same N with a receipt; the Ally 65 ft away: "takes nothing: … beyond the bond's 60 feet"; the Cleric dropped to 0 by a share: "Warding Bond ended — the caster dropped to 0 Hit Points", Bonded gone |
+| **Vampiric Touch** at the Target (a hit) | the damage lands, then a card "Vampiric Touch — BTB Walk Cleric regains N Hit Points from BTB Walk Target", N half of what landed, receipted; a miss pays nothing; the damage card's own line says the caster was paid |
 | **Prismatic Spray** placed over both | the cast's card asks nothing; a summary card "Prismatic Spray — 2 creatures in the cone" with the d8s; per creature one card per ray: "the red ray strikes …" with a Dexterity save and 12d6 FIRE (the type of the ray), or "the indigo ray strikes …" with a Constitution save — a failure lands Petrifying (Indigo) (Restrained) and the line says so; the Target's turn ends: "Prismatic Spray — repeats the save" against the Indigo save, "1 of 3 failures"; an 8 on the d8: two rays on that creature; the cone region gone |
 | **Wall of Fire** cast, the wall placed between the Cleric and the Target | the cast's save for whoever stood in the wall; the region widened 10 ft on the Target's side; the cast's card: "Which side of the wall burns? — the east side ✓ / the west side" (compass names off the wall's angle); flip it: the band moves; the Target ending its turn within 10 ft of the hot side: an "Emanation" save card with 5d8 fire; the Ally beside the cold side: nothing. The ring: "outside the ring ✓ / inside the ring" |
-| **Spike Growth** placed, the Target walks 15 ft through it | when the move lands: "Spike Growth — BF Walk Target moved 15 feet through it: N piercing damage", 6d4 rolled on the card, a receipt; a 4-ft nudge inside pays nothing; a second move pays again |
-| **Magic Circle** placed on the Ally (the Cleric beside it) | no save asked at the cast; the cast's card lists Celestial / Elemental / Fey / Fiend / Undead all ticked — untick Fey; the Target (a Fiend) walking in: "Magic Circle — BF Walk Target enters BF Walk Cleric's Magic Circle … cannot willingly enter"; the Target attacking the Ally inside: the gate's section lists "Magic Circle — a fiend attacking into the circle", Net Disadvantage; the Target attacking the Cleric outside: nothing; the Ally (a Humanoid) walking in: nothing |
-| **Forcecage** placed over the Target | the Target walking out: "Forcecage — BF Walk Target leaves BF Walk Cleric's Forcecage — the walls hold it …"; walking in: nothing |
+| **Spike Growth** placed, the Target walks 15 ft through it | when the move lands: "Spike Growth — BTB Walk Target moved 15 feet through it: N piercing damage", 6d4 rolled on the card, a receipt; a 4-ft nudge inside pays nothing; a second move pays again |
+| **Magic Circle** placed on the Ally (the Cleric beside it) | no save asked at the cast; the cast's card lists Celestial / Elemental / Fey / Fiend / Undead all ticked — untick Fey; the Target (a Fiend) walking in: "Magic Circle — BTB Walk Target enters BTB Walk Cleric's Magic Circle … cannot willingly enter"; the Target attacking the Ally inside: the gate's section lists "Magic Circle — a fiend attacking into the circle", Net Disadvantage; the Target attacking the Cleric outside: nothing; the Ally (a Humanoid) walking in: nothing |
+| **Forcecage** placed over the Target | the Target walking out: "Forcecage — BTB Walk Target leaves BTB Walk Cleric's Forcecage — the walls hold it …"; walking in: nothing |
 | **Counterspell** — target the Target, use Counterspell | the ordinary saves demand of the Target: Constitution, the Cleric's DC; the verdict on the card; nothing else |
 
 ## The DMG register (2026-09-28, night; HANDOFF.md)
@@ -2187,7 +2187,7 @@ could borrow an earlier cast's Transmuted type.
 | Disciple of Life, Cure Wounds at level 2 | the healing roll "2d8 + 3 + 4"; the card's line "Disciple of Life — +4 healing"; the healing lands with it; a potion adds nothing |
 | Potent Cantrip, Sacred Flame saved | the verdict "saved — half damage (Potent Cantrip)", the damage halved and applied |
 | Potent Cantrip, Fire Bolt misses | the damage rolls anyway; the receipt "missed — Potent Cantrip, half damage"; with Heroic Inspiration, nothing rolls until the rescue window is passed |
-| Psychic Spells, an Eldritch Blast cast | the casting window's group "Battle Flow — Psychic Spells": the row "Psychic Spells · free"; ticked, the beams deal Psychic, the card says "Psychic Spells — the damage is psychic" |
+| Psychic Spells, an Eldritch Blast cast | the casting window's group "By the Books — Psychic Spells": the row "Psychic Spells · free"; ticked, the beams deal Psychic, the card says "Psychic Spells — the damage is psychic" |
 
 ## The PHB classes — A5 (2026-09-29, Session 0 stage A5)
 
@@ -2306,7 +2306,7 @@ NO new kind; BUILT and PROVEN (`smoke-classes` §41).** Calls — **each the use
 5. **The faces live on a chip on the wizard** ("Portent — 17 · 3", an effect the effect view lists), written at the
    Long Rest (the rest card: "Portent — 17 and 3 kept"), renamed as a face is spent, deleted when none is left; the
    pack's description text is not written. Once per turn is a stamp on the chip.
-6. **Its own roll, before the roll** (the rule's order): the roll dialog carries "Battle Flow — before the roll" with a
+6. **Its own roll, before the roll** (the rule's order): the roll dialog carries "By the Books — before the roll" with a
    tick per face; ticked, the d20 term ROLLS that face (its own result, so the crit, the fumble and every reader
    agree; the formula stays "1d20 + 5"), the face is spent, the card says "Portent — the d20 is the 17". A roll with no
    dialog (a demanded save that rolls itself) is the bystander road below, on its own roll.
@@ -2325,7 +2325,7 @@ NO new kind; BUILT and PROVEN (`smoke-classes` §41).** Calls — **each the use
 | Trait | What you should see |
 | --- | --- |
 | Portent after a Long Rest | the rest card "Portent — 17 and 3 kept"; the effect view's "Portent — 17 · 3" |
-| Portent on the wizard's own save (the dialog) | "Battle Flow — before the roll": "Portent — use the 17" / "use the 3"; ticked, the d20 is the 17, "Portent — the d20 is the 17", the chip "Portent — 3" |
+| Portent on the wizard's own save (the dialog) | "By the Books — before the roll": "Portent — use the 17" / "use the 3"; ticked, the d20 is the 17, "Portent — the d20 is the 17", the chip "Portent — 3" |
 | Portent on an ally's failed demanded save | the popup "Portent — replace the 1 with the 18" (only the faces that save it); Answer: SAVED |
 | Portent on a Bugbear's critical hit at an ally | the popup "Portent — replace the 20 with the 2"; Answer: "Portent (name) — 20 → 2 …, MISS" |
 | a Bugbear's ordinary hit | no Portent popup |
@@ -3033,7 +3033,7 @@ reaction, generated, never edited. 680 rows: 433 NATIVE · 55 MODULE · 60 WAITS
 **The commission** (HANDOFF.md, the user's word: *"finish what's applicable in MM … autonomously"*): the
 register's WAITS rows whose shape sits on a machine that exists ([audits/monsters-register.md](audits/monsters-register.md),
 the drawing's *The rows the scan gave no family*) are built, in rapid mode — proved by `tools/smoke-monsters.mjs`
-(BF Test Monster lent each trait by name), not walked. Every row names its precedent. What the pack data
+(BTB Test Monster lent each trait by name), not walked. Every row names its precedent. What the pack data
 changed on the way is recorded below (*Re-read against the pack*).
 
 | Stage | Shape | Rows | Lands on | What was built |
@@ -3081,7 +3081,7 @@ Magic, Counterspell, Psionic Defense, Tongue Twister, and Haunted Zone), Redirec
 interrupt), Burst of Ingenuity and Portent (another creature's roll bent by a reaction — Cutting Words' and
 Bend Luck's kind), Eye Rays (a random ray per target with its own save and damage — a kind of its own).
 
-**The suite:** `tools/smoke-monsters.mjs`, fifteen sections, BF Test Monster lent each trait by name and the
+**The suite:** `tools/smoke-monsters.mjs`, fifteen sections, BTB Test Monster lent each trait by name and the
 Victim's own token beside it (`COVERS` the eleven machines touched). ⚠ The pinned d20 (a 5) makes a d8 a 2 —
 the sections assert the drop equals the total, never a face; the range is shared (a stray token inside a
 ring is not the Victim); another session's bridge blocks the preflight — retry.
@@ -3191,7 +3191,7 @@ nothing to the concentration effect (measured live 2026-10-10: a flagged token o
 
 1. **The system places nothing.** `dnd5e.preUseActivity` on a summon activity with a profile the cast may use sets
    `usageConfig.create.summons = false` (the precedent is `token-lights.js`). dnd5e's Allow Summoning setting and the player's
-   Create Token / Create Actor permissions become irrelevant to a Battle Flow table.
+   Create Token / Create Actor permissions become irrelevant to a By the Books table.
 2. **One popup, off the card** (toggle A). The caster's client stamps the `summon` record (`asked`) on its own cast card at
    `dnd5e.postUseActivity` — the profiles the level allows, each with the creature's art, AC, HP, speeds, attacks and traits read
    off the compendium; the spell's own choice when a `SUMMON_CHOICES` row names one; the concentration effect; the scene — and the
@@ -3336,7 +3336,7 @@ The calls:
 **Bends, in the register above:** the Polymorph save untied from the transform; Animal Shapes one form per use; the
 GM's override after the landing.
 
-**The walk to run** (the sandbox; a Druid 2 built by `fixture-suite` as "BF Test Druid"): use Wild Shape with four
+**The walk to run** (the sandbox; a Druid 2 built by `fixture-suite` as "BTB Test Druid"): use Wild Shape with four
 known forms → the popup with the four rows and the locked line; Become the Wolf → the token is the Wolf, the bar
 shows "Wild Shape — Wolf · 1 h" with Revert on its fold, the card "Tamsin is now a Wolf"; Revert on the card → the
 form-end card; use again with three known → the pool open, the pick learned, the card saying so; the Wolf to 0 HP →
