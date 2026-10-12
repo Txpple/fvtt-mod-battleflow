@@ -19,7 +19,7 @@ export const COVERS = [
 
 const SECTIONS = {
   1: 'THE SEAM: each of the five items and the two 2014 names, used from the sheet\'s path (item.use), opens the toggle and posts no card; no quantity moves',
-  2: 'LIGHT AND OUT: the Torch\'s Light lands one effect lighting the token 20/40 with a card; Put out deletes it and the token\'s own light is back',
+  2: 'LIGHT AND OUT: the Torch\'s Light lands one effect lighting the token 20/40, orange and flickering, with a card; Put out deletes it and the token\'s own light is back',
   3: 'THE HOOD: the Hooded Lantern lit hood up (30/60), lowered (0/5) and raised (30/60) on ONE effect',
   4: 'THE BULLSEYE: its light carries the 53.13° cone',
   5: 'ONE LIGHT: lighting the Candle puts out the lit Torch, and the card says so',
@@ -161,6 +161,10 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         `effect=${fx?.name} light=${JSON.stringify(lightNow())} duration=${JSON.stringify(fx?._source?.duration ?? null)}`);
       ok('§2 the effect has no clock and names the item', !!fx && (fx._source.duration?.value == null) && !Number.isFinite(fx.duration?.seconds ?? Infinity) && (fx.origin === torch.uuid) && (fx.name === 'Torch (lit)'),
         `name=${fx?.name} origin=${fx?.origin} item=${torch.uuid} duration=${JSON.stringify(fx?.duration ?? null)}`);
+      const shone = canvas.scene.tokens.get(tokenDoc.id)?.light;
+      const look = { color: shone?.color ? String(shone.color) : null, attenuation: shone?.attenuation, animation: shone?.animation?.type, intensity: shone?.animation?.intensity };
+      ok('§2 the torch shines orange and flickers, soft at the edge (GEAR_LOOKS.torch)',
+        (look.color === '#ff8a33') && (look.animation === 'flame') && (look.intensity === 5) && (look.attenuation >= 0.8), JSON.stringify(look));
       const card = await waitFor(() => newMessages(since).find(m => /lights the Torch/.test(cardText(m))), 5000);
       ok('§2 the card says it and carries the effect receipt', /lights the Torch: 20 ft Bright, 20 ft more Dim/.test(cardText(card))
         && (card?.getFlag(MOD, 'effectReceipt')?.targets?.[0]?.effects?.[0]?.id === fx?.id), cardText(card).slice(0, 160));

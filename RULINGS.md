@@ -163,6 +163,19 @@ tracked). `scripts/gear-lights.js`, the table `GEAR_LIGHTS` beside `TOKEN_LIGHTS
 An item answers by its identifier or its name, so a world copy or a homebrew item of the same name
 counts; a magic lantern (Lantern of Revealing) does not.
 
+**The flame's look** (the user, 2026-10-12): each light carries its colour and flicker on the same
+effect (`GEAR_LOOKS`), soft at its edge (attenuation 0.8 or more), alpha and luminosity low so the tint
+does not wash the map. Put out, the token's own light comes back whole.
+
+| Look | Items | Colour | Flicker |
+| --- | --- | --- | --- |
+| torch | Torch | orange `#ff8a33` | `flame`, speed 4, intensity 5 |
+| candle | Candle | a soft warm white `#fff0d6`, the faintest tint | `flame`, speed 3, intensity 3 |
+| lamp | Lamp, both lanterns (oil behind glass), the hood down too | between them, `#ffc46e` | `flame`, speed 1, intensity 1 — barely moving |
+
+The hard ring at a light's edge is the scene's darkness, not the light: a scene with a dim global
+light under its darkness shows none (the MCP's scene-builder skill).
+
 ## The effect view (2026-09-15; the aura row 2026-09-15; the panel 2026-09-18)
 
 **Buffs and debuffs, visible on demand, never actions.** A creature carries more effects than

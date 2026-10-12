@@ -26,10 +26,13 @@ export function lightRowKey(table, { itemName, activityName }, listed) {
 }
 
 /**
- * The changes that carry a row's light. Foundry's `dim` is the OUTER radius; `angle` is written only
- * for a row that has one, so a row without it leaves the token's own cone.
- * @param {{ bright: number, dim: number, angle?: number }} row
- * @returns {Array<{ key: string, type: string, value: number, phase: string }>}
+ * The changes that carry a row's light. Foundry's `dim` is the OUTER radius; `angle` and the `look`
+ * (colour, alpha, luminosity, attenuation, animation) are written only for a row that has them, so a
+ * row without them leaves the token's own.
+ * @typedef {{ color?: string, alpha?: number, luminosity?: number, attenuation?: number,
+ *   animation?: { type: string, speed?: number, intensity?: number } }} LightLook  a light's colour and flicker
+ * @param {{ bright: number, dim: number, angle?: number, look?: LightLook }} row
+ * @returns {Array<{ key: string, type: string, value: number|string, phase: string }>}
  */
 export function lightChanges(row) {
   const bright = Math.max(0, Number(row?.bright) || 0);
@@ -42,6 +45,17 @@ export function lightChanges(row) {
   ];
   const angle = Number(row?.angle);
   if ( (angle > 0) && (angle < 360) ) out.push({ key: "token.light.angle", type: "override", value: angle, phase: "initial" });
+  const look = row?.look;
+  if ( look ) {
+    const put = (key, value) => { if ( (value !== undefined) && (value !== null) ) out.push({ key: `token.light.${key}`, type: "override", value, phase: "initial" }); };
+    put("color", look.color);
+    for ( const k of ["alpha", "luminosity", "attenuation"] ) put(k, Number.isFinite(look[k]) ? look[k] : null);
+    if ( look.animation?.type ) {
+      put("animation.type", look.animation.type);
+      put("animation.speed", Number.isFinite(look.animation.speed) ? look.animation.speed : null);
+      put("animation.intensity", Number.isFinite(look.animation.intensity) ? look.animation.intensity : null);
+    }
+  }
   return out;
 }
 
@@ -72,13 +86,13 @@ export function gearLightRow(table, { name, identifier }, listed, identifierOf) 
 
 /**
  * The light one state of a gear row sheds: the lit state is the row's own, a second state its entry.
- * @param {{ bright: number, dim: number, angle?: number, states?: Record<string, {bright: number, dim: number}> }} row
+ * @param {{ bright: number, dim: number, angle?: number, look?: LightLook, states?: Record<string, {bright: number, dim: number}> }} row
  * @param {string} state
- * @returns {{ bright: number, dim: number, angle?: number }|null}
+ * @returns {{ bright: number, dim: number, angle?: number, look?: LightLook }|null}
  */
 export function gearLightOf(row, state) {
   if ( !row ) return null;
-  const base = { bright: row.bright, dim: row.dim, ...(row.angle ? { angle: row.angle } : {}) };
+  const base = { bright: row.bright, dim: row.dim, ...(row.angle ? { angle: row.angle } : {}), ...(row.look ? { look: row.look } : {}) };
   if ( state === GEAR_LIT ) return base;
   const s = row.states?.[state];
   return s ? { ...base, bright: s.bright, dim: s.dim } : null;

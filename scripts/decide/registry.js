@@ -1950,6 +1950,22 @@ export const TOKEN_LIGHTS = Object.freeze({
 
 
 /**
+ * How a gear light looks on the token: a token light's own fields, written beside its radii.
+ * `attenuation` near 1 fades the light to nothing at its edge; `alpha` and `luminosity` stay low so the
+ * tint does not wash the map; `flame` is the flicker that reads on a token ("torch" barely shows).
+ * ⚠ The hard ring at a light's edge is the scene's darkness, not the light: a dim global light gives
+ * the darkness a floor (the MCP's scene-builder skill, its soft-light recipe).
+ */
+export const GEAR_LOOKS = Object.freeze({
+  torch: Object.freeze({ color: "#ff8a33", alpha: 0.45, luminosity: 0.45, attenuation: 0.8,
+    animation: Object.freeze({ type: "flame", speed: 4, intensity: 5 }) }),
+  candle: Object.freeze({ color: "#fff0d6", alpha: 0.25, luminosity: 0.35, attenuation: 0.85,
+    animation: Object.freeze({ type: "flame", speed: 3, intensity: 3 }) }),
+  lamp: Object.freeze({ color: "#ffc46e", alpha: 0.35, luminosity: 0.4, attenuation: 0.8,
+    animation: Object.freeze({ type: "flame", speed: 1, intensity: 1 }) })
+});
+
+/**
  * GEAR THAT SHEDS LIGHT (gear-lights.js): using the item opens a light toggle instead of its activity,
  * and the light rides an effect on the item's owner, as TOKEN_LIGHTS' does. Nothing is consumed and
  * nothing expires by the clock; a Long Rest puts it out (RULINGS *Gear lights*).
@@ -1959,23 +1975,24 @@ export const TOKEN_LIGHTS = Object.freeze({
  *   label     the lit state's name on the popup, when the row has a second state
  *   states    the second states by key: `{ bright, dim, label, switchTo }` — `switchTo` the button that moves
  *             into it; the lit state's own `switchTo` moves back
+ *   look      the flame's colour and flicker (GEAR_LOOKS), the same in every state
  */
 export const GEAR_LIGHTS = Object.freeze({
-  "Candle": Object.freeze({ item: Object.freeze([]), bright: 5, dim: 10,
+  "Candle": Object.freeze({ item: Object.freeze([]), bright: 5, dim: 10, look: GEAR_LOOKS.candle,
     rule: Object.freeze({ item: "Candle", uuid: "Compendium.dnd-players-handbook.equipment.Item.phbagCandle00000" }),
     from: "PHB adventuring gear (1 hour)" }),
-  "Torch": Object.freeze({ item: Object.freeze([]), bright: 20, dim: 40,
+  "Torch": Object.freeze({ item: Object.freeze([]), bright: 20, dim: 40, look: GEAR_LOOKS.torch,
     rule: Object.freeze({ item: "Torch", uuid: "Compendium.dnd-players-handbook.equipment.Item.phbagTorch000000" }),
     from: "PHB adventuring gear (1 hour)" }),
-  "Lamp": Object.freeze({ item: Object.freeze([]), bright: 15, dim: 45,
+  "Lamp": Object.freeze({ item: Object.freeze([]), bright: 15, dim: 45, look: GEAR_LOOKS.lamp,
     rule: Object.freeze({ item: "Lamp", uuid: "Compendium.dnd-players-handbook.equipment.Item.phbagLamp0000000" }),
     from: "PHB adventuring gear (6 hours on a flask of Oil)" }),
-  "Lantern, Hooded": Object.freeze({ item: Object.freeze(["Hooded Lantern"]), bright: 30, dim: 60,
+  "Lantern, Hooded": Object.freeze({ item: Object.freeze(["Hooded Lantern"]), bright: 30, dim: 60, look: GEAR_LOOKS.lamp,
     label: "hood up", switchTo: "Raise the hood",
     states: Object.freeze({ hoodDown: Object.freeze({ bright: 0, dim: 5, label: "hood down", switchTo: "Lower the hood" }) }),
     rule: Object.freeze({ item: "Lantern, Hooded", uuid: "Compendium.dnd-players-handbook.equipment.Item.phbagLanternHood" }),
     from: "PHB adventuring gear (6 hours on a flask of Oil)" }),
-  "Lantern, Bullseye": Object.freeze({ item: Object.freeze(["Bullseye Lantern"]), bright: 60, dim: 120, angle: 53.13,
+  "Lantern, Bullseye": Object.freeze({ item: Object.freeze(["Bullseye Lantern"]), bright: 60, dim: 120, angle: 53.13, look: GEAR_LOOKS.lamp,
     rule: Object.freeze({ item: "Lantern, Bullseye", uuid: "Compendium.dnd-players-handbook.equipment.Item.phbagLanternBull" }),
     from: "PHB adventuring gear (6 hours on a flask of Oil)" })
 });

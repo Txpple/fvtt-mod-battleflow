@@ -17,11 +17,14 @@ const all = () => new Set(Object.keys(reg.GEAR_LIGHTS).map(k => k.toLowerCase())
 const rowFor = item => tl.gearLightRow(reg.GEAR_LIGHTS, item, all(), reg.identifierOf);
 const values = changes =>
   Object.fromEntries(changes.map(c => [c.key.replace("token.light.", ""), c.value]));
+const RADII = ["bright", "dim", "angle"];
+const radii = changes =>
+  values(changes.filter(c => RADII.includes(c.key.replace("token.light.", ""))));
 
 describe("GEAR_LIGHTS — the rule text's numbers", () => {
   it("every row's light, dim the OUTER radius", () => {
     const shed = Object.fromEntries(
-      Object.entries(reg.GEAR_LIGHTS).map(([k, r]) => [k, values(tl.lightChanges(r))])
+      Object.entries(reg.GEAR_LIGHTS).map(([k, r]) => [k, radii(tl.lightChanges(r))])
     );
     expect(shed).toEqual({
       Candle: { bright: 5, dim: 10 },
@@ -33,7 +36,7 @@ describe("GEAR_LIGHTS — the rule text's numbers", () => {
   });
   it("the hood down is Dim 5 ft and nothing Bright", () => {
     const row = reg.GEAR_LIGHTS["Lantern, Hooded"];
-    expect(values(tl.lightChanges(tl.gearLightOf(row, "hoodDown")))).toEqual({ bright: 0, dim: 5 });
+    expect(radii(tl.lightChanges(tl.gearLightOf(row, "hoodDown")))).toEqual({ bright: 0, dim: 5 });
   });
   it("a row without an angle writes no angle", () => {
     for (const key of ["Candle", "Torch", "Lamp", "Lantern, Hooded"]) {
@@ -49,6 +52,51 @@ describe("GEAR_LIGHTS — the rule text's numbers", () => {
     for (const c of tl.lightChanges(reg.GEAR_LIGHTS["Lantern, Bullseye"])) {
       expect(c).toMatchObject({ type: "override", phase: "initial" });
     }
+  });
+});
+
+describe("GEAR_LOOKS — the flame's colour and flicker", () => {
+  const look = key => {
+    const v = values(tl.lightChanges(reg.GEAR_LIGHTS[key]));
+    return {
+      color: v.color,
+      alpha: v.alpha,
+      attenuation: v.attenuation,
+      type: v["animation.type"],
+      speed: v["animation.speed"],
+      intensity: v["animation.intensity"]
+    };
+  };
+  it("the torch is orange and flickers hard", () => {
+    expect(look("Torch")).toMatchObject({
+      color: "#ff8a33",
+      type: "flame",
+      speed: 4,
+      intensity: 5
+    });
+  });
+  it("the candle is a soft warm white and flickers gently", () => {
+    expect(look("Candle")).toMatchObject({ color: "#fff0d6", type: "flame", intensity: 3 });
+    expect(look("Candle").alpha).toBeLessThan(look("Torch").alpha);
+  });
+  it("the lamp sits between them with the faintest flicker, and the lanterns burn as lamps", () => {
+    expect(look("Lamp")).toMatchObject({ color: "#ffc46e", type: "flame", speed: 1, intensity: 1 });
+    expect(look("Lantern, Hooded")).toEqual(look("Lamp"));
+    expect(look("Lantern, Bullseye")).toEqual(look("Lamp"));
+  });
+  it("every look fades soft at its edge", () => {
+    for (const key of Object.keys(reg.GEAR_LIGHTS))
+      expect(look(key).attenuation).toBeGreaterThanOrEqual(0.8);
+  });
+  it("the hood down keeps the lamp's look", () => {
+    const row = reg.GEAR_LIGHTS["Lantern, Hooded"];
+    expect(values(tl.lightChanges(tl.gearLightOf(row, "hoodDown"))).color).toBe("#ffc46e");
+  });
+  it("a row without a look writes only its radii (Token Lights unchanged)", () => {
+    expect(tl.lightChanges(reg.TOKEN_LIGHTS.Light).map(c => c.key)).toEqual([
+      "token.light.bright",
+      "token.light.dim"
+    ]);
   });
 });
 

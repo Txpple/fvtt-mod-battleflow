@@ -132,7 +132,8 @@ https://github.com/Txpple/fvtt-mod-bythebooks/releases/latest/download/module.js
   Aasimar's Inner Radiance, Corona of Light, Holy Nimbus, Sacred Weapon. Torches and lanterns are a
   switch: using a Candle, Torch, Lamp or Lantern, from the sheet or the hotbar, opens a small popup
   with **Light** and **Put out** (the Hooded Lantern also raises and lowers its hood), and the
-  light shines from your token at the book's radius. One at a time: lighting a second puts the
+  light shines from your token at the book's radius, coloured for its flame: an orange, flickering
+  torch, a soft white candle, a warm lamp or lantern that barely moves, each fading out at its edge. One at a time: lighting a second puts the
   first out. To put one out, use the item again, or delete its effect, or press ✕ Revert on its
   card. Nothing burns down and nothing is used up (rule of cool); a Long Rest puts them out.
 - **Concentration is kept honest.** A failed check ends the spell. Incapacitated drops it.
