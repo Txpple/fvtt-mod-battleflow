@@ -294,6 +294,74 @@ export function replacedSummons(records, current, singles) {
     .map(r => r.id);
 }
 
+/* --- the menu before the cast (RULINGS *Summons*, the second sandbox pass) ----------------------- */
+
+/**
+ * The sizes an activity offers, smallest first, by the system's own size order; a size the order does
+ * not know keeps its place after the known ones.
+ * @param {string[]|null|undefined} sizes
+ * @param {string[]} order   the size keys, smallest first (`Object.keys(CONFIG.DND5E.actorSizes)`)
+ * @returns {string[]}
+ */
+export function sizesInOrder(sizes, order) {
+  const rank = s => { const i = (order ?? []).indexOf(s); return (i < 0) ? Number.MAX_SAFE_INTEGER : i; };
+  return [...(sizes ?? [])].map((s, i) => ({ s, i })).sort((a, b) => (rank(a.s) - rank(b.s)) || (a.i - b.i)).map(x => x.s);
+}
+
+/**
+ * How a leveled spell may be cast, for the menu's "Cast with": every slot the caster holds with one left
+ * at or above the spell's level (a pact slot by its own level), lowest first, then the ritual when the
+ * spell is one (no slot spent). Empty for a cantrip or a spell that spends no slot. The first option is
+ * the one picked by default.
+ * @param {Array<{ key: string, level: number, value: number, max: number, type?: string|null, label?: string }>} slots
+ * @param {{ level: number, ritual?: boolean, spendsSlot: boolean, allowed?: (slot: { type?: string|null }) => boolean }} spell
+ * @returns {Array<{ value: string, label: string, level: number, ritual: boolean }>}
+ */
+export function castOptions(slots, { level, ritual = false, spendsSlot, allowed = () => true }) {
+  if ( !spendsSlot || !(Number(level) > 0) ) return [];
+  const min = Number(level);
+  const out = (slots ?? [])
+    .filter(s => (Number(s.max) > 0) && (Number(s.value) > 0) && (Number(s.level) >= min) && !!s.type && allowed(s))
+    .sort((a, b) => (Number(a.level) - Number(b.level)) || String(a.key).localeCompare(String(b.key)))
+    .map(s => ({ value: s.key, label: `${s.label || `Level ${s.level}`} (${s.value} left)`, level: Number(s.level), ritual: false }));
+  if ( ritual ) out.push({ value: "ritual", label: "As a ritual (no slot)", level: min, ritual: true });
+  return out;
+}
+
+/**
+ * The effect a summon without Concentration lands on its caster for as long as it stands: its removal
+ * dismisses the summon (RULINGS *Summons*: a Concentration summon needs none, Concentration
+ * ends it). The spell's name, and the creature's when the spell makes more than one kind.
+ * @param {{ itemName: string, creatureName?: string|null }} facts
+ */
+export function summonEffectName({ itemName, creatureName = null }) {
+  const item = String(itemName ?? "").trim();
+  const creature = String(creatureName ?? "").trim();
+  if ( !creature || creature.toLowerCase().includes(item.toLowerCase()) || item.toLowerCase().includes(creature.toLowerCase()) ) return item;
+  return `${item}: ${creature}`;
+}
+
+/**
+ * A token's light from a row's radii and look: the token document's `light` fields. `dim` is the OUTER
+ * radius; a look's missing field leaves the token's own.
+ * @param {{ bright: number, dim: number, look?: { color?: string, alpha?: number, luminosity?: number, attenuation?: number,
+ *   animation?: { type: string, speed?: number, intensity?: number } } }} row
+ * @returns {Record<string, unknown>}
+ */
+export function tokenLight(row) {
+  const bright = Math.max(0, Number(row?.bright) || 0);
+  const dim = Math.max(bright, Number(row?.dim) || 0);
+  /** @type {Record<string, unknown>} */
+  const out = { bright, dim };
+  const look = row?.look;
+  if ( look?.color ) out.color = look.color;
+  for ( const k of /** @type {const} */ (["alpha", "luminosity", "attenuation"]) ) if ( Number.isFinite(look?.[k]) ) out[k] = look?.[k];
+  if ( look?.animation?.type ) out.animation = { type: look.animation.type,
+    ...(Number.isFinite(look.animation.speed) ? { speed: look.animation.speed } : {}),
+    ...(Number.isFinite(look.animation.intensity) ? { intensity: look.animation.intensity } : {}) };
+  return out;
+}
+
 /* --- companions: a summon that stays (COMPANIONS) ------------------------------------------------ */
 
 /**

@@ -31,7 +31,7 @@ export async function openManagedPopup(key, message, dialog) {
     livePopups.delete(key);
     popupSlots.delete(key);
     if ( !popupSlots.size ) cascadeAnchor = null;
-    if ( message ) void Promise.resolve(ui.chat?.updateMessage?.(message)).catch(() => { /* row refreshes next render */ });
+    if ( message?.documentName === "ChatMessage" ) void Promise.resolve(ui.chat?.updateMessage?.(message)).catch(() => { /* row refreshes next render */ });
     return close(...args);
   };
   // ARCHITECTURE.md §5 law 7: z-order is rank, then causal order.
@@ -55,8 +55,8 @@ export async function openManagedPopup(key, message, dialog) {
       }
     }
     scheduleBarSync(dialog.element);
-    // The row redraws to defer to the popup.
-    if ( message ) void Promise.resolve(ui.chat?.updateMessage?.(message)).catch(() => { /* row refreshes next render */ });
+    // The row redraws to defer to the popup (a popup before any card has no row).
+    if ( message?.documentName === "ChatMessage" ) void Promise.resolve(ui.chat?.updateMessage?.(message)).catch(() => { /* row refreshes next render */ });
   } catch(err) {
     livePopups.delete(key);
     popupSlots.delete(key);

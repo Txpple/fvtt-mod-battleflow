@@ -1905,6 +1905,22 @@ export const EFFECT_CHOICES = Object.freeze({
 
 
 /**
+ * How a spell's light looks on the token: a token light's own fields, as GEAR_LOOKS' are. Light is a
+ * steady glow, coloured as the caster likes (warm white unless the table recolours it); Continual Flame
+ * "looks like a regular flame"; a Dancing Light is a torch-size light; the Flaming Sphere a ball of fire,
+ * whose `flame` core is wanted (its token has no art for the core to cover).
+ */
+export const SPELL_LOOKS = Object.freeze({
+  light: Object.freeze({ color: "#fff1d6", alpha: 0.3, luminosity: 0.45, attenuation: 0.8 }),
+  continualFlame: Object.freeze({ color: "#ff9a3c", alpha: 0.4, luminosity: 0.45, attenuation: 0.8,
+    animation: Object.freeze({ type: "torch", speed: 3, intensity: 4 }) }),
+  dancingLight: Object.freeze({ color: "#ffcf7a", alpha: 0.35, luminosity: 0.4, attenuation: 0.85,
+    animation: Object.freeze({ type: "torch", speed: 3, intensity: 3 }) }),
+  flamingSphere: Object.freeze({ color: "#ff7a1a", alpha: 0.5, luminosity: 0.5, attenuation: 0.75,
+    animation: Object.freeze({ type: "flame", speed: 4, intensity: 6 }) })
+});
+
+/**
  * A use whose text SHEDS LIGHT, carried as a `token.light` change on an effect (Foundry applies `token.*`
  * changes to the bearer's tokens), so the light follows the effect's clock and no token is written.
  * ⚠ A Foundry light's `dim` is the OUTER radius: dim = bright + "an additional".
@@ -1919,10 +1935,15 @@ export const TOKEN_LIGHTS = Object.freeze({
   "Inner Radiance": Object.freeze({ item: "Celestial Revelation", activity: "Inner Radiance", on: "self", effect: "Searing Radiance", bright: 10, dim: 20,
     rule: Object.freeze({ item: "Celestial Revelation", uuid: "Compendium.dnd-players-handbook.origins.Item.phbsptCelestialR", benefit: "Inner Radiance" }),
     from: "Aasimar — Celestial Revelation (character level 3)" }),
-  "Light": Object.freeze({ activity: null, on: "targets", effect: null, recast: "ends", bright: 20, dim: 40,
+  "Light": Object.freeze({ activity: null, on: "targets", effect: null, recast: "ends", bright: 20, dim: 40, look: SPELL_LOOKS.light,
     caveat: "on a creature's token (user, 2026-09-25: any targeted token) — the rule's object is the table's to name",
     rule: Object.freeze({ item: "Light", uuid: "Compendium.dnd-players-handbook.spells.Item.phbsplLight00000" }),
     from: "PHB cantrip (1 hour)" }),
+  // Continual Flame on a token (SUMMON_LIGHTS: "On a token"): until dispelled, so no recast ends it.
+  "Continual Flame": Object.freeze({ activity: null, on: "targets", effect: null, bright: 20, dim: 40, look: SPELL_LOOKS.continualFlame,
+    caveat: "on a creature's token, as Light's — the rule's object is the table's to name",
+    rule: Object.freeze({ item: "Continual Flame", uuid: "Compendium.dnd-players-handbook.spells.Item.phbsplContinualF" }),
+    from: "PHB, level 2 (until dispelled)" }),
   // D1 — the uses whose OWN effect marks the form on the bearer (`on: "self"`): the EMANATIONS rows stand while it does.
   // Corona of Light: Bright Light 60 ft, Dim 30 more.
   "Corona of Light": Object.freeze({ item: "Corona of Light", activity: "Emit Aura of Sunlight", on: "self", effect: "Corona of Light", bright: 60, dim: 90,
@@ -4125,7 +4146,53 @@ export const SUMMON_SINGLES = Object.freeze({
   "Find Familiar": Object.freeze({
     says: "You can't have more than one familiar at a time. If you cast this spell while you have a familiar, you instead cause it to adopt a new eligible form.",
     rule: Object.freeze({ item: "Find Familiar", uuid: "Compendium.dnd-players-handbook.spells.Item.phbsplFindFamili" })
+  }),
+  "Mage Hand": Object.freeze({
+    says: "The hand vanishes if it is ever more than 30 feet away from you or if you cast this spell again.",
+    rule: Object.freeze({ item: "Mage Hand", uuid: "Compendium.dnd-players-handbook.spells.Item.phbsplMageHand00" })
+  }),
+  "Minor Illusion": Object.freeze({
+    says: "The illusion ends if you cast this spell again.",
+    rule: Object.freeze({ item: "Minor Illusion", uuid: "Compendium.dnd-players-handbook.spells.Item.phbsplMinorIllus" })
+  }),
+  "Light": Object.freeze({
+    says: "The spell ends if you cast it again.",
+    rule: Object.freeze({ item: "Light", uuid: "Compendium.dnd-players-handbook.spells.Item.phbsplLight00000" })
   })
+});
+
+/**
+ * SUMMON LIGHTS (summons.js): a spell that lights what the caster touches, which dnd5e ships as a summon
+ * of a "Light" object. The cast asks where the light goes: ON A TOKEN (the targeted creature's token, the
+ * TOKEN_LIGHTS row of the same name) or ON AN OBJECT (a token placed for the thing touched, `object` its
+ * name and art, carrying `light`). `look` the light's colour and flicker (SPELL_LOOKS).
+ */
+export const SUMMON_LIGHTS = Object.freeze({
+  "Light": Object.freeze({
+    object: Object.freeze({ name: "Glowing Stone", img: "icons/commodities/stone/geode-raw-white.webp" }),
+    bright: 20, dim: 40, look: SPELL_LOOKS.light,
+    rule: Object.freeze({ item: "Light", uuid: "Compendium.dnd-players-handbook.spells.Item.phbsplLight00000" })
+  }),
+  "Continual Flame": Object.freeze({
+    object: Object.freeze({ name: "Everburning Stone", img: "icons/commodities/stone/ore-chunk-copper-orange.webp" }),
+    bright: 20, dim: 40, look: SPELL_LOOKS.continualFlame,
+    rule: Object.freeze({ item: "Continual Flame", uuid: "Compendium.dnd-players-handbook.spells.Item.phbsplContinualF" })
+  })
+});
+
+/**
+ * SUMMON LOOKS (summons.js): how a summoned creature's token is drawn, by the creature's name, folded into
+ * dnd5e's own changes as it lands. `light` the token's light (radii in feet, `dim` the OUTER radius, and a
+ * SPELL_LOOKS look), where the pack ships one the spell's text does not say; `alpha` the token's opacity;
+ * `spell` the spell that summons it, when the creature's name is no pack item's.
+ */
+export const SUMMON_LOOKS = Object.freeze({
+  "Dancing Light (Tiny)": Object.freeze({ spell: "Dancing Lights", light: Object.freeze({ bright: 0, dim: 10, look: SPELL_LOOKS.dancingLight }) }),
+  "Dancing Light (Medium)": Object.freeze({ spell: "Dancing Lights", light: Object.freeze({ bright: 0, dim: 10, look: SPELL_LOOKS.dancingLight }) }),
+  // "The sphere sheds Bright Light in a 20-foot radius and Dim Light for an additional 20 feet" (the pack ships 0.25 ft).
+  "Flaming Sphere": Object.freeze({ light: Object.freeze({ bright: 20, dim: 40, look: SPELL_LOOKS.flamingSphere }) }),
+  // An invisible servant: drawn half seen, so the table can find and move it (RULINGS *Summons*).
+  "Unseen Servant": Object.freeze({ alpha: 0.5 })
 });
 
 /**

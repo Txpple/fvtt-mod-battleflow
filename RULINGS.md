@@ -3398,6 +3398,52 @@ nothing to the concentration effect (measured live 2026-10-10: a flagged token o
    pocket's snapshot follow the token. `ART_SPELLS` names the spells the window covers; the Summon spells and Wild
    Shape's forms join as rows.
 
+**The second sandbox pass (2026-10-12, the user on the Summons Mage, every summon spell of the PHB, Battle
+Familiar).** Ruled in chat; built the same evening, sandbox only, no battery (the user: "we are still in test
+mode"):
+
+16. **Straight to the module's menu, every summon** (supersedes call 2's "the card posts a beat before the
+   popup"). dnd5e's activity picker is skipped for an item with a summon activity (`renderActivityChoiceDialog`,
+   gear-lights' way): Dancing Lights' Move Lights, Minor Illusion's and Silent Image's Study, Flaming Sphere's
+   ram save stay on the sheet and on the placed creature's own sheet. The use opens the menu INSTEAD of the
+   cast (`dnd5e.preUseActivity` returns false), and Place picks the spaces and THEN casts, with no usage
+   dialog: a cancelled menu or a cancelled placement spends nothing. The record is stamped `placed` at birth
+   off the menu's answer. A card still `asked` (a cast from before, or a profile the cast level dropped)
+   keeps "Place the creature".
+17. **The slot is the menu's.** A leveled spell's menu reads "Cast with": every slot with one left at or above
+   its level, lowest first and picked by default, then "As a ritual (no slot)" for a ritual (`castOptions`);
+   one option asks nothing; none left refuses the cast with a warning. A cantrip asks none.
+18. **Ask before ending Concentration** (the user: "casting this will break concentration on xxx / proceed yes
+   no"). The menu asks it first (`askConcentrationEnd`, shared.js), since dnd5e asks it only in the dialog the
+   menu skips. Any other spell cast past the dialog (`configure: false`) that would end the caster's
+   Concentration on ANOTHER spell asks the same on the caster's client and casts again on yes
+   (concentration.js; `concentrationAsked` marks an answered use). The same spell's re-use passes.
+19. **A summon without Concentration stands on an effect of its caster's** (the user's rule: "if a summon
+   doesn't require concentration, add the effect, which is removable; if it requires concentration, no need,
+   we work with the concentration mechanic"). Mage Hand, Minor Illusion, Unseen Servant, Tenser's Floating
+   Disk, Battle Familiar, a light's object: an effect named for the spell ("Minor Illusion: Illusory Object"
+   when the creature says more, `summonEffectName`), the spell's duration, no change; removing it dismisses
+   the summon (the elect, `deleteActiveEffect`). Find Familiar keeps its companion effect (call 12); Dancing
+   Lights, Silent Image, Flaming Sphere end with Concentration (call 5).
+20. **The float is the effect's, over its bearer** (supersedes call 12's "+(Owl)" over the familiar). Arrive and
+   leave float "+(Familiar: Raven (Fey))" / "−(…)" over the CASTER's token, Foundry's own float for an effect
+   (which a marker effect with no change never draws). The FX still plays where the creature is.
+21. **Light and Continual Flame light what is touched** (supersedes TOKEN_LIGHTS' "summon off when a token is
+   targeted"). The PHB ships both as a summon of a "Light" object. The menu asks where the light goes
+   (`SUMMON_LIGHTS`): **On a token** (the targeted token, pre-picked when one is; token-lights.js lands it as
+   before; refused until a token is targeted) or **On an object** (a token placed for the thing touched:
+   "Glowing Stone" for Light, "Everburning Stone" for Continual Flame, Large or smaller, the size asked).
+   Light ends when cast again either way (SUMMON_SINGLES, and token-lights' `recast` for the token).
+22. **Sizes read smallest first** (`sizesInOrder`): the pack ships Light's as Small, Medium, Large, Tiny.
+23. **Recast ends it**: Mage Hand, Minor Illusion and Light join SUMMON_SINGLES (their own text).
+24. **Summon Art covers more spells**: Mage Hand, Dancing Lights, Unseen Servant, Light, Continual Flame. The
+   table's token now turns the dynamic ring off (`artChanges`): the books' tokens wear a ring whose subject art
+   drew over `texture.src`, so a familiar landed in the book's art with the table's set (the Raven).
+25. **How the lights look** (`SPELL_LOOKS`, `SUMMON_LOOKS`): Light a steady warm white with a soft edge;
+   Continual Flame a flame's flicker; a Dancing Light a torch-size flicker, 10 ft Dim; the Flaming Sphere 20 ft
+   Bright and 20 more Dim as its text says (the pack ships 0.25 ft) with a fire core. The Unseen Servant lands
+   at half opacity.
+
 ## Wild Shape and the polymorph spells (2026-10-11, issue #2)
 
 **Wild Shape, Circle Forms and the polymorph spells, as one machine (`transforms.js` + `decide/transforms.js`, the

@@ -6,7 +6,7 @@
  */
 import { MODULE_ID, readFlag, TITLE, S, setting, rollerUserFor, leadsWindow, canAnswerFor, drivesMomentFor, canApplyTo, whisperNoGM, statContext, decisionWindow, savesRollThemselves } from "./core.js";
 import { cardItem, featureNamed, lower, resolveUuid, wieldedNamed } from "./lookup.js";
-import { rollConfigFor } from "./shared.js";
+import { askConcentrationEnd, concentrationEnding, CONCENTRATION_ASKED, rollConfigFor } from "./shared.js";
 import { concentrationExemptEntries, damageRuleEntries, listedNames } from "./decide/registry.js";
 import { CONCENTRATION_EXEMPTS, DAMAGE_RULES } from "./decide/registry.js";
 import { ruleLine } from "./decide/present.js";
@@ -639,3 +639,27 @@ listen("preCreateChatMessage", "concentration", doc => {
   return false;
 });
 
+/* --- a cast that ends Concentration asks first (RULINGS *Summons*) ---------------------------------- */
+
+// Any other cast that skips dnd5e's usage dialog (`configure: false`) and would end the caster's
+// Concentration on ANOTHER spell asks first, on the caster's client; yes uses it again, the end named.
+// A use already asked (CONCENTRATION_ASKED), or beginning none, passes; the same spell's own re-use
+// (an automation using it again) ends nothing new and passes.
+// ⚠ dnd5e fills `concentration.end` itself before this hook, so a set `end` says nothing about the caller.
+listen("dnd5e.preUseActivity", "concentration", (activity, usageConfig, dialogConfig, messageConfig) => {
+  try {
+    if ( (dialogConfig?.configure !== false) || !activity?.actor?.isOwner || (activity.item?.type !== "spell") ) return;
+    if ( usageConfig?.[MODULE_ID]?.[CONCENTRATION_ASKED] || (usageConfig?.concentration?.begin === false) ) return;
+    const ending = concentrationEnding(activity);
+    if ( !ending || ending.same ) return;
+    const live = activity.actor.items.get(activity.item.id)?.system?.activities?.get(activity.id) ?? null;
+    if ( !live ) return;
+    void (async () => {
+      const { go, end } = await askConcentrationEnd(activity);
+      if ( !go ) return;
+      await live.use({ ...usageConfig, concentration: { ...(usageConfig?.concentration ?? {}), begin: true, end },
+        [MODULE_ID]: { ...(usageConfig?.[MODULE_ID] ?? {}), [CONCENTRATION_ASKED]: true } }, dialogConfig, messageConfig);
+    })().catch(err => console.error(`${TITLE} | The cast could not go on after the Concentration question — cast it again.`, err));
+    return false;
+  } catch(err) { console.warn(`${TITLE} | Could not check the cast against Concentration — it is cast as usual.`, err); }
+});

@@ -560,3 +560,73 @@ describe("companions — the familiar that stays", () => {
     ).toBe(true);
   });
 });
+
+describe("the menu before the cast — the sizes, the slot, the standing effect, the light", () => {
+  const ORDER = ["tiny", "sm", "med", "lg", "huge", "grg"];
+  it("sizes read smallest first, whatever order the pack ships (the Light object: sm, med, lg, tiny)", () => {
+    expect(s.sizesInOrder(["sm", "med", "lg", "tiny"], ORDER)).toEqual(["tiny", "sm", "med", "lg"]);
+    expect(s.sizesInOrder(["huge", "odd", "tiny"], ORDER)).toEqual(["tiny", "huge", "odd"]);
+    expect(s.sizesInOrder(null, ORDER)).toEqual([]);
+  });
+  const slots = [
+    { key: "spell1", level: 1, value: 0, max: 4, type: "spell", label: "1st Level" },
+    { key: "spell2", level: 2, value: 3, max: 3, type: "spell", label: "2nd Level" },
+    { key: "spell3", level: 3, value: 2, max: 2, type: "spell", label: "3rd Level" },
+    { key: "pact", level: 2, value: 1, max: 2, type: "pact", label: "Pact Slot" },
+    { key: "spell9", level: 9, value: 0, max: 0, type: "spell", label: "9th Level" }
+  ];
+  it("a leveled spell offers every slot with one left at or above its level, lowest first, then the ritual", () => {
+    const opts = s.castOptions(slots, { level: 1, ritual: true, spendsSlot: true });
+    expect(opts.map(o => o.value)).toEqual(["pact", "spell2", "spell3", "ritual"]);
+    expect(opts.at(-1)).toMatchObject({ ritual: true, level: 1 });
+    expect(opts[1].label).toBe("2nd Level (3 left)");
+  });
+  it("a cantrip or a use that spends no slot offers nothing; the caster's rule can bar a slot type", () => {
+    expect(s.castOptions(slots, { level: 0, spendsSlot: true })).toEqual([]);
+    expect(s.castOptions(slots, { level: 2, spendsSlot: false })).toEqual([]);
+    expect(
+      s
+        .castOptions(slots, { level: 2, spendsSlot: true, allowed: x => x.type !== "pact" })
+        .map(o => o.value)
+    ).toEqual(["spell2", "spell3"]);
+  });
+  it("the standing effect is the spell's name, the creature's added when it says more", () => {
+    expect(s.summonEffectName({ itemName: "Mage Hand", creatureName: "Mage Hand" })).toBe(
+      "Mage Hand"
+    );
+    expect(s.summonEffectName({ itemName: "Unseen Servant" })).toBe("Unseen Servant");
+    expect(
+      s.summonEffectName({ itemName: "Minor Illusion", creatureName: "Illusory Object" })
+    ).toBe("Minor Illusion: Illusory Object");
+    expect(s.summonEffectName({ itemName: "Light", creatureName: "Glowing Stone" })).toBe(
+      "Light: Glowing Stone"
+    );
+  });
+  it("a token light from a row: the outer dim radius, the look's fields where it has them", () => {
+    expect(s.tokenLight({ bright: 20, dim: 40, look: reg.SPELL_LOOKS.continualFlame })).toEqual({
+      bright: 20,
+      dim: 40,
+      color: "#ff9a3c",
+      alpha: 0.4,
+      luminosity: 0.45,
+      attenuation: 0.8,
+      animation: { type: "torch", speed: 3, intensity: 4 }
+    });
+    expect(s.tokenLight({ bright: 10, dim: 5 })).toEqual({ bright: 10, dim: 10 });
+  });
+  it("the light spells ask where the light goes; the summoned lights shed what the text says", () => {
+    expect(Object.keys(reg.SUMMON_LIGHTS)).toEqual(["Light", "Continual Flame"]);
+    expect(reg.SUMMON_LOOKS["Flaming Sphere"].light).toMatchObject({ bright: 20, dim: 40 });
+    expect(reg.SUMMON_LOOKS["Unseen Servant"].alpha).toBe(0.5);
+  });
+  it("Mage Hand, Minor Illusion and Light end when cast again (SUMMON_SINGLES)", () => {
+    const singles = new Set(Object.keys(reg.SUMMON_SINGLES).map(k => k.toLowerCase()));
+    const records = [
+      { id: "a", flag: { applied: true, sourceUuid: "Actor.m", itemName: "Mage Hand" } }
+    ];
+    expect(
+      s.replacedSummons(records, { id: "b", sourceUuid: "Actor.m", itemName: "Mage Hand" }, singles)
+    ).toEqual(["a"]);
+    expect(singles.has("minor illusion") && singles.has("light")).toBe(true);
+  });
+});

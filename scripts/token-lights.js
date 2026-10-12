@@ -41,11 +41,17 @@ listen("dnd5e.preUseActivity", "token-lights", (activity, usageConfig) => {
   } catch(err) { console.warn(`${TITLE} | Could not switch off the summon for a token light.`, err); }
 });
 
-listen("dnd5e.postUseActivity", "token-lights", (activity, _usageConfig, results) => {
+listen("dnd5e.postUseActivity", "token-lights", (activity, usageConfig, results) => {
   try {
     const row = rowFor(activity);
     const actor = activity?.actor;
     if ( !row || !actor?.isOwner ) return;
+    // The summon menu put the light on an OBJECT (SUMMON_LIGHTS): summons.js places it; no token is lit,
+    // and a recast that ends the caster's earlier light ends the one on a token too.
+    if ( usageConfig?.[MODULE_ID]?.lightOn === "object" ) {
+      if ( row.recast === "ends" ) void putOutStanding(row.key, actor.uuid);
+      return;
+    }
     const message = (results?.message instanceof ChatMessage) ? results.message : null;
     const tok = actor.token ?? activity.getUsageToken?.() ?? actor.getActiveTokens?.(true, true)?.[0] ?? null;
     const snapshot = message ? targetsOf(message) : [];
@@ -74,6 +80,13 @@ function standingLights(key, sourceUuid) {
     }
   }
   return out;
+}
+
+/** The caster's standing light of a row put out where this client may write (a recast on an object). */
+async function putOutStanding(key, sourceUuid) {
+  for ( const e of standingLights(key, sourceUuid) ) {
+    if ( canApplyTo(e.parent) ) await e.delete().catch(err => console.warn(`${TITLE} | Could not put the earlier light out — delete it by hand.`, err));
+  }
 }
 
 /** The effect data this row lands on one creature: the pack's own effect or the module's, the light added. */

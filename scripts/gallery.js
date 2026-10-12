@@ -188,7 +188,7 @@ const poolRow = r => ({ value: r.uuid, label: r.name, img: r.img ?? null, summar
  *   { head?, pool, field, multi?, max?, locked? }  a searchable pool (poolFromPacks rows); `locked` a line: folded, unpickable
  *   `max` (multi only) caps the ticks: a number, or `picks => number` read again on every change; a tick
  *   past it unticks the field's earlier ones, so the newest pick always stands
- *   { head, pills, field }                    pills: { value, label }; nothing pre-picked
+ *   { head, pills, field }                    pills: { value, label, checked? }; nothing pre-picked unless a pill says so
  *   { note }                                  a quiet line
  *   { rule }                                  the book's rule line
  */
@@ -196,7 +196,7 @@ function sectionHTML(sec) {
   if ( sec.note ) return `<div style="opacity:0.75;font-size:var(--font-size-11,11px);margin:0.2rem 0;">${esc(sec.note)}</div>`;
   if ( sec.rule ) return ruleLine(sec.rule);
   if ( sec.pills ) return `${headHTML(sec.head)}<div style="display:flex;flex-wrap:wrap;gap:0.3rem;margin:0.3rem 0;">${sec.pills.map(o =>
-    `<label style="display:inline-flex;align-items:center;gap:0.3rem;padding:0.15rem 0.5rem;border:1px solid var(--color-border-dark,#0006);border-radius:12px;cursor:pointer;"><input type="radio" name="${esc(sec.field)}" value="${esc(o.value)}" style="margin:0;">${esc(o.label)}</label>`).join("")}</div>`;
+    `<label style="display:inline-flex;align-items:center;gap:0.3rem;padding:0.15rem 0.5rem;border:1px solid var(--color-border-dark,#0006);border-radius:12px;cursor:pointer;"><input type="radio" name="${esc(sec.field)}" value="${esc(o.value)}" ${o.checked ? "checked" : ""} style="margin:0;">${esc(o.label)}</label>`).join("")}</div>`;
   if ( sec.pool ) {
     const rows = sec.pool.map(r => rowHTML(poolRow({ ...r, locked: r.locked || !!sec.locked }), { field: sec.field, multi: sec.multi }));
     const list = `<input type="search" name="bf-gallery-search" placeholder="Search by name" style="width:100%;margin:0.3rem 0;">
@@ -253,7 +253,8 @@ function wirePicker(root, sections) {
  * THE PICKER. Opens the one popup off a card (`openMomentPopup`, the one answer gate) from a
  * description, and hands each button's `submit` the answer read back. A button with `checks` refuses
  * the click while a `needs` field is unpicked: the popup stays open with the picks made.
- * @param {ChatMessage} message
+ * @param {ChatMessage|{ id: string }} message   the card, or `{ id }` for a popup before any card exists (a
+ *   summon's menu, which comes before its cast)
  * @param {string} key            the popup's key on the card (one live popup a key)
  * @param {Actor|null} subject    whose answer it is (null with `gate: false`)
  * @param {object} spec
@@ -265,13 +266,15 @@ function wirePicker(root, sections) {
  * @param {{ eyebrow: string, tone?: string, title: string, subtitle?: string }} spec.card
  * @param {Array<object>} spec.sections   see `sectionHTML`
  * @param {Array<{ field: string, why: string }>} [spec.needs]   in the order the popup reads
+ * @param {(picks: { one: (field: string) => string|null, all: (field: string) => string[], form: HTMLFormElement|null }) => string|null} [spec.validate]
+ *   a last word on a `checks` click, after the needs: why the answer cannot stand yet (the popup stays open), or null
  * @param {Array<{ action: string, label: string, default?: boolean, checks?: boolean, submit?: (picks: { one: (field: string) => string|null, all: (field: string) => string[], form: HTMLFormElement|null }) => void }>} spec.buttons
  */
-export async function openPicker(message, key, subject, { title, icon = "fa-solid fa-paw", width = 500, gate = true, by = null, card, sections, needs = [], buttons }) {
+export async function openPicker(message, key, subject, { title, icon = "fa-solid fa-paw", width = 500, gate = true, by = null, card, sections, needs = [], validate = null, buttons }) {
   if ( by && !answersHere(by, subject) ) return null;
   const missing = form => {
     const picks = readPicks(form);
-    return needs.find(n => !picks.one(n.field))?.why ?? null;
+    return needs.find(n => !picks.one(n.field))?.why ?? validate?.(picks) ?? null;
   };
   const dialog = await openMomentPopup(message, key, subject, {
     title, icon, width, gate: by ? false : gate,

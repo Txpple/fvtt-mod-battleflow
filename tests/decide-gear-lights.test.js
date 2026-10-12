@@ -95,11 +95,21 @@ describe("GEAR_LOOKS — the flame's colour and flicker", () => {
     const row = reg.GEAR_LIGHTS["Lantern, Hooded"];
     expect(values(tl.lightChanges(tl.gearLightOf(row, "hoodDown"))).color).toBe("#ffc46e");
   });
-  it("a row without a look writes only its radii (Token Lights unchanged)", () => {
-    expect(tl.lightChanges(reg.TOKEN_LIGHTS.Light).map(c => c.key)).toEqual([
+  it("a row without a look writes only its radii (Inner Radiance unchanged)", () => {
+    expect(tl.lightChanges(reg.TOKEN_LIGHTS["Inner Radiance"]).map(c => c.key)).toEqual([
       "token.light.bright",
       "token.light.dim"
     ]);
+  });
+  it("the light spells wear their SPELL_LOOKS: Light steady, Continual Flame a flame's flicker", () => {
+    const light = tl.lightChanges(reg.TOKEN_LIGHTS.Light).map(c => c.key);
+    expect(light).toContain("token.light.attenuation");
+    expect(light).not.toContain("token.light.animation.type");
+    expect(
+      tl
+        .lightChanges(reg.TOKEN_LIGHTS["Continual Flame"])
+        .find(c => c.key === "token.light.animation.type")?.value
+    ).toBe("torch");
   });
 });
 

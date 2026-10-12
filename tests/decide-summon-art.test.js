@@ -40,7 +40,7 @@ describe("artFor", () => {
 describe("artChanges", () => {
   it("puts the token on the texture and the portrait on the actor's image", () => {
     expect(artChanges({ token: "t.webp", portrait: "p.webp" })).toEqual({
-      tokenUpdates: { texture: { src: "t.webp" } },
+      tokenUpdates: { texture: { src: "t.webp" }, ring: { enabled: false } },
       actorUpdates: { img: "p.webp" }
     });
   });

@@ -12,7 +12,12 @@
  * One row per spell; the Summon spells and Wild Shape's forms join as rows.
  */
 export const ART_SPELLS = Object.freeze([
-  Object.freeze({ name: "Find Familiar", uuid: "Compendium.dnd-players-handbook.spells.Item.phbsplFindFamili" })
+  Object.freeze({ name: "Find Familiar", uuid: "Compendium.dnd-players-handbook.spells.Item.phbsplFindFamili" }),
+  Object.freeze({ name: "Mage Hand", uuid: "Compendium.dnd-players-handbook.spells.Item.phbsplMageHand00" }),
+  Object.freeze({ name: "Dancing Lights", uuid: "Compendium.dnd-players-handbook.spells.Item.phbsplDancingLig" }),
+  Object.freeze({ name: "Unseen Servant", uuid: "Compendium.dnd-players-handbook.spells.Item.phbsplUnseenServ" }),
+  Object.freeze({ name: "Light", uuid: "Compendium.dnd-players-handbook.spells.Item.phbsplLight00000" }),
+  Object.freeze({ name: "Continual Flame", uuid: "Compendium.dnd-players-handbook.spells.Item.phbsplContinualF" })
 ]);
 
 /** The file types a folder match reads as art. */
@@ -41,14 +46,16 @@ export function artFor(table, spell, creature) {
 }
 
 /**
- * The changes a summon's landing folds into dnd5e's own (`getChanges`): the token's texture, and the
- * portrait as the actor's image (the token's delta, or the actor itself when linked). Empty when the
- * table sets nothing; the compendium's art stands.
+ * The changes a summon's landing folds into dnd5e's own (`getChanges`): the token's texture with the
+ * dynamic ring off, and the portrait as the actor's image (the token's delta, or the actor itself when
+ * linked). Empty when the table sets nothing; the compendium's art stands.
+ * ⚠ The books' tokens wear a dynamic ring, which draws the ring's own subject art over `texture.src`:
+ * with the ring left on, the table's token never showed (the sandbox, a Raven).
  * @param {{ token: string|null, portrait: string|null }} art
- * @returns {{ tokenUpdates: { texture?: { src: string } }, actorUpdates: { img?: string } }}
+ * @returns {{ tokenUpdates: { texture?: { src: string }, ring?: { enabled: boolean } }, actorUpdates: { img?: string } }}
  */
 export function artChanges({ token, portrait }) {
-  return { tokenUpdates: token ? { texture: { src: token } } : {}, actorUpdates: portrait ? { img: portrait } : {} };
+  return { tokenUpdates: token ? { texture: { src: token }, ring: { enabled: false } } : {}, actorUpdates: portrait ? { img: portrait } : {} };
 }
 
 /**

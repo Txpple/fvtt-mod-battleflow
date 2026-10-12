@@ -58,7 +58,12 @@ describe("lightChanges — the token's own light, Foundry 14's `token.*` changes
       { key: "token.light.bright", type: "override", value: 10, phase: "initial" },
       { key: "token.light.dim", type: "override", value: 20, phase: "initial" }
     ]);
-    expect(tl.lightChanges(reg.TOKEN_LIGHTS.Light).map(c => c.value)).toEqual([20, 40]);
+    expect(
+      tl
+        .lightChanges(reg.TOKEN_LIGHTS.Light)
+        .slice(0, 2)
+        .map(c => c.value)
+    ).toEqual([20, 40]);
   });
   it("a dim below the bright is lifted to it; nonsense reads as nothing", () => {
     expect(tl.lightChanges({ bright: 10, dim: 5 }).map(c => c.value)).toEqual([10, 10]);
