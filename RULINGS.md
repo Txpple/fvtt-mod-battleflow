@@ -169,9 +169,12 @@ does not wash the map. Put out, the token's own light comes back whole.
 
 | Look | Items | Colour | Flicker |
 | --- | --- | --- | --- |
-| torch | Torch | orange `#ff8a33` | `flame`, speed 4, intensity 5 |
-| candle | Candle | a soft warm white `#fff0d6`, the faintest tint | `flame`, speed 3, intensity 3 |
-| lamp | Lamp, both lanterns (oil behind glass), the hood down too | between them, `#ffc46e` | `flame`, speed 1, intensity 1 — barely moving |
+| torch | Torch | orange `#ff8a33` | `torch`, speed 5, intensity 7 |
+| candle | Candle | a soft warm white `#fff0d6`, the faintest tint | `torch`, speed 4, intensity 4 |
+| lamp | Lamp, both lanterns (oil behind glass), the hood down too | between them, `#ffc46e` | `torch`, speed 2, intensity 1 — barely moving |
+
+The flicker is the `torch` animation, never `flame`: `flame` draws a hot white core at the light's
+source, and on a token that covers its art (the user, 2026-10-12).
 
 The hard ring at a light's edge is the scene's darkness, not the light: a scene with a dim global
 light under its darkness shows none (the MCP's scene-builder skill).

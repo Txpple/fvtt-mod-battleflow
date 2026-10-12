@@ -1952,17 +1952,18 @@ export const TOKEN_LIGHTS = Object.freeze({
 /**
  * How a gear light looks on the token: a token light's own fields, written beside its radii.
  * `attenuation` near 1 fades the light to nothing at its edge; `alpha` and `luminosity` stay low so the
- * tint does not wash the map; `flame` is the flicker that reads on a token ("torch" barely shows).
+ * tint does not wash the map. The flicker is `torch`: the whole light's brightness moves, with no core;
+ * ⚠ `flame` draws a hot white core at the source, which on a token covers its art.
  * ⚠ The hard ring at a light's edge is the scene's darkness, not the light: a dim global light gives
  * the darkness a floor (the MCP's scene-builder skill, its soft-light recipe).
  */
 export const GEAR_LOOKS = Object.freeze({
   torch: Object.freeze({ color: "#ff8a33", alpha: 0.45, luminosity: 0.45, attenuation: 0.8,
-    animation: Object.freeze({ type: "flame", speed: 4, intensity: 5 }) }),
+    animation: Object.freeze({ type: "torch", speed: 5, intensity: 7 }) }),
   candle: Object.freeze({ color: "#fff0d6", alpha: 0.25, luminosity: 0.35, attenuation: 0.85,
-    animation: Object.freeze({ type: "flame", speed: 3, intensity: 3 }) }),
+    animation: Object.freeze({ type: "torch", speed: 4, intensity: 4 }) }),
   lamp: Object.freeze({ color: "#ffc46e", alpha: 0.35, luminosity: 0.4, attenuation: 0.8,
-    animation: Object.freeze({ type: "flame", speed: 1, intensity: 1 }) })
+    animation: Object.freeze({ type: "torch", speed: 2, intensity: 1 }) })
 });
 
 /**

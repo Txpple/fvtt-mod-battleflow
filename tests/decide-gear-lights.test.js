@@ -70,19 +70,22 @@ describe("GEAR_LOOKS — the flame's colour and flicker", () => {
   it("the torch is orange and flickers hard", () => {
     expect(look("Torch")).toMatchObject({
       color: "#ff8a33",
-      type: "flame",
-      speed: 4,
-      intensity: 5
+      type: "torch",
+      speed: 5,
+      intensity: 7
     });
   });
   it("the candle is a soft warm white and flickers gently", () => {
-    expect(look("Candle")).toMatchObject({ color: "#fff0d6", type: "flame", intensity: 3 });
+    expect(look("Candle")).toMatchObject({ color: "#fff0d6", type: "torch", intensity: 4 });
     expect(look("Candle").alpha).toBeLessThan(look("Torch").alpha);
   });
   it("the lamp sits between them with the faintest flicker, and the lanterns burn as lamps", () => {
-    expect(look("Lamp")).toMatchObject({ color: "#ffc46e", type: "flame", speed: 1, intensity: 1 });
+    expect(look("Lamp")).toMatchObject({ color: "#ffc46e", type: "torch", speed: 2, intensity: 1 });
     expect(look("Lantern, Hooded")).toEqual(look("Lamp"));
     expect(look("Lantern, Bullseye")).toEqual(look("Lamp"));
+  });
+  it("no look draws a core over the token's art: never the flame animation", () => {
+    for (const key of Object.keys(reg.GEAR_LIGHTS)) expect(look(key).type).toBe("torch");
   });
   it("every look fades soft at its edge", () => {
     for (const key of Object.keys(reg.GEAR_LIGHTS))

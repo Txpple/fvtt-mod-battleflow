@@ -164,7 +164,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const shone = canvas.scene.tokens.get(tokenDoc.id)?.light;
       const look = { color: shone?.color ? String(shone.color) : null, attenuation: shone?.attenuation, animation: shone?.animation?.type, intensity: shone?.animation?.intensity };
       ok('§2 the torch shines orange and flickers, soft at the edge (GEAR_LOOKS.torch)',
-        (look.color === '#ff8a33') && (look.animation === 'flame') && (look.intensity === 5) && (look.attenuation >= 0.8), JSON.stringify(look));
+        (look.color === '#ff8a33') && (look.animation === 'torch') && (look.intensity === 7) && (look.attenuation >= 0.8), JSON.stringify(look));
       const card = await waitFor(() => newMessages(since).find(m => /lights the Torch/.test(cardText(m))), 5000);
       ok('§2 the card says it and carries the effect receipt', /lights the Torch: 20 ft Bright, 20 ft more Dim/.test(cardText(card))
         && (card?.getFlag(MOD, 'effectReceipt')?.targets?.[0]?.effects?.[0]?.id === fx?.id), cardText(card).slice(0, 160));
