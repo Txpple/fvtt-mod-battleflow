@@ -291,3 +291,183 @@ describe("seatInitiative — the creature right after the caster", () => {
     expect(s.seatInitiative(undefined)).toBeNull();
   });
 });
+
+// The PHB's Find Familiar, as the pack ships it (2026-10-12): one cr-mode profile with the Bat's uuid
+// beside its cap, and Celestial, Fey or Fiend offered as the creature type.
+const phbFamiliar = {
+  status: "asked",
+  mode: "cr",
+  choice: null,
+  sceneId: "sc1",
+  creatureSizes: [],
+  creatureTypes: ["celestial", "fey", "fiend"],
+  profiles: [
+    {
+      id: "p0",
+      name: "CR 0 Beast",
+      uuid: "Compendium.dnd-players-handbook.actors.Actor.phbmobBat0000000",
+      count: "1",
+      cr: "0",
+      types: ["beast"]
+    }
+  ]
+};
+const square = [{ x: 100, y: 200 }];
+
+describe("Find Familiar — the pool and the creature type the spell asks", () => {
+  it("a cr-mode profile asks the pool even with a default creature; the creature type is asked when several are offered", () => {
+    const needs = s.formNeeds({
+      profiles: phbFamiliar.profiles,
+      choice: null,
+      mode: "cr",
+      creatureTypes: phbFamiliar.creatureTypes,
+      creatureSizes: []
+    });
+    expect(needs).toMatchObject({ profile: false, pool: true, type: true, size: false, any: true });
+    // a record from before the mode was stamped: a uuid still means "this creature"
+    expect(s.formNeeds({ profiles: phbFamiliar.profiles, choice: null }).pool).toBe(false);
+    expect(s.poolPicks({ uuid: null, cr: "0" }, null)).toBe(true);
+    expect(s.poolPicks({ uuid: "x", cr: null }, "cr")).toBe(false);
+  });
+  it("the answer needs the pick and one of the offered types; the pick is what lands, never the profile's default", () => {
+    const pick = {
+      uuid: "Compendium.dnd-monster-manual.actors.Actor.mmOwl00000000000",
+      name: "Owl"
+    };
+    expect(
+      s.placedAnswer(
+        phbFamiliar,
+        { profileId: "p0", placements: square, count: 1, creatureType: "fey" },
+        {}
+      )
+    ).toBeNull();
+    expect(
+      s.placedAnswer(phbFamiliar, { profileId: "p0", pick, placements: square, count: 1 }, {})
+    ).toBeNull();
+    expect(
+      s.placedAnswer(
+        phbFamiliar,
+        { profileId: "p0", pick, placements: square, count: 1, creatureType: "undead" },
+        {}
+      )
+    ).toBeNull();
+    const patch = s.placedAnswer(
+      phbFamiliar,
+      { profileId: "p0", pick, placements: square, count: 1, creatureType: "fiend" },
+      {}
+    );
+    expect(patch).toMatchObject({
+      status: "placed",
+      summonUuid: pick.uuid,
+      summonName: "Owl",
+      creatureType: "fiend",
+      creatureSize: null
+    });
+  });
+  it("one offered type is taken without asking; none is null", () => {
+    expect(s.listAnswer(["fey"], null)).toEqual({ ok: true, value: "fey" });
+    expect(s.listAnswer([], "fey")).toEqual({ ok: true, value: null });
+    expect(s.listAnswer(["sm", "med"], null)).toEqual({ ok: false, value: null });
+  });
+  it("the record carries the mode, the offered lists and the range", () => {
+    const r = s.summonRecord({
+      sourceUuid: "a",
+      sourceName: "A",
+      itemUuid: "i",
+      itemName: "Find Familiar",
+      activityUuid: "x",
+      level: 1,
+      profiles: phbFamiliar.profiles,
+      choice: null,
+      concentrationId: null,
+      sceneId: "sc1",
+      mode: "cr",
+      creatureTypes: ["celestial", "fey", "fiend"],
+      rangeFt: 10
+    });
+    expect(r).toMatchObject({
+      mode: "cr",
+      creatureTypes: ["celestial", "fey", "fiend"],
+      creatureSizes: [],
+      rangeFt: 10
+    });
+    expect(
+      s.summonRecord({
+        sourceUuid: "a",
+        sourceName: "A",
+        itemUuid: "i",
+        itemName: "n",
+        activityUuid: "x",
+        level: 1,
+        profiles: [],
+        choice: null,
+        concentrationId: null,
+        sceneId: null
+      }).rangeFt
+    ).toBeNull();
+  });
+});
+
+describe("the spot picker's judgement — range, sight, an empty space", () => {
+  it("rangeFeet: feet as they are, touch as 5, miles and metres in feet, self or any as no ring", () => {
+    expect(s.rangeFeet({ value: 10, units: "ft" })).toBe(10);
+    expect(s.rangeFeet({ value: null, units: "touch" })).toBe(5);
+    expect(s.rangeFeet({ value: 1, units: "mi" })).toBe(5280);
+    expect(s.rangeFeet({ value: 3, units: "m" })).toBe(10);
+    expect(s.rangeFeet({ value: null, units: "self" })).toBeNull();
+    expect(s.rangeFeet({ value: "", units: "any" })).toBeNull();
+    expect(s.rangeFeet(null)).toBeNull();
+  });
+  it("spotVerdict: range first, then the wall, then the occupant; no range is no range check", () => {
+    expect(
+      s.spotVerdict({ distanceFt: 15, rangeFt: 10, blocked: true, occupied: true }).why
+    ).toMatch(/range/);
+    expect(
+      s.spotVerdict({ distanceFt: 10, rangeFt: 10, blocked: true, occupied: true }).why
+    ).toMatch(/wall/);
+    expect(
+      s.spotVerdict({ distanceFt: 10, rangeFt: 10, blocked: false, occupied: true }).why
+    ).toMatch(/occupied/);
+    expect(
+      s.spotVerdict({ distanceFt: 500, rangeFt: null, blocked: false, occupied: false })
+    ).toEqual({ ok: true, why: null });
+  });
+  it("footprintsOverlap: a shared interior overlaps, edge to edge does not", () => {
+    const a = { x: 0, y: 0, w: 100, h: 100 };
+    expect(s.footprintsOverlap(a, { x: 50, y: 50, w: 100, h: 100 })).toBe(true);
+    expect(s.footprintsOverlap(a, { x: 100, y: 0, w: 100, h: 100 })).toBe(false);
+    expect(s.footprintsOverlap(a, { x: 25, y: 25, w: 50, h: 50 })).toBe(true);
+  });
+});
+
+describe("replacedSummons — one familiar at a time", () => {
+  const singles = new Set(["find familiar"]);
+  const landed = (sourceUuid, itemName, extra = {}) => ({
+    applied: true,
+    outcome: "landed",
+    sourceUuid,
+    itemName,
+    ...extra
+  });
+  it("the caster's earlier standing familiar goes; another caster's, a dismissed one, a failed one and the new one stay", () => {
+    const records = [
+      { id: "old", flag: landed("A", "Find Familiar") },
+      { id: "theirs", flag: landed("B", "Find Familiar") },
+      { id: "gone", flag: landed("A", "Find Familiar", { dismissed: true }) },
+      { id: "asked", flag: landed("A", "Find Familiar", { dismissAsked: true }) },
+      { id: "failed", flag: landed("A", "Find Familiar", { outcome: "failed" }) },
+      { id: "beast", flag: landed("A", "Summon Beast") },
+      { id: "none", flag: null },
+      { id: "new", flag: landed("A", "Find Familiar") }
+    ];
+    expect(
+      s.replacedSummons(records, { id: "new", sourceUuid: "A", itemName: "Find Familiar" }, singles)
+    ).toEqual(["old"]);
+  });
+  it("a spell that is not a single replaces nothing", () => {
+    const records = [{ id: "old", flag: landed("A", "Summon Beast") }];
+    expect(
+      s.replacedSummons(records, { id: "new", sourceUuid: "A", itemName: "Summon Beast" }, singles)
+    ).toEqual([]);
+  });
+});

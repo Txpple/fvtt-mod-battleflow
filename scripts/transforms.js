@@ -17,11 +17,11 @@ import { TRANSFORMS, transformEntries, listedNames, tableIndex } from "./decide/
 import { poolRuleOf, capOfTarget, knownSlotsOf, knownHolderOf, knownState, learnedList, restKnownList, transformRecord,
   pickedAnswer, formEffectData, endOfForm, lockedLine, formTitle, articleOf } from "./decide/transforms.js";
 import { galleryRows, crLabel } from "./decide/gallery.js";
-import { bfCard, esc, popupKey, ruleLine } from "./decide/present.js";
+import { bfCard, esc, popupKey } from "./decide/present.js";
 import { targetsOf } from "./decide/card.js";
-import { formRowHTML, poolFromPacks, poolListHTML, poolRight, summaryOf, wireGallerySearch } from "./gallery.js";
+import { describeCreature, openPicker, poolFromPacks } from "./gallery.js";
 import { isPartyMember } from "./shared.js";
-import { openMomentPopup, momentButton, registerRelay, registerResumable, shownMoments, acknowledgeMoment, momentAcknowledged } from "./ui.js";
+import { momentButton, registerRelay, registerResumable, shownMoments, acknowledgeMoment, momentAcknowledged } from "./ui.js";
 import { SURFACES } from "./surfaces.js";
 import { listen } from "./dispatch.js";
 
@@ -139,52 +139,47 @@ listen("dnd5e.postUseActivity", "transforms", (activity, usageConfig, results) =
 /** A known form as a gallery row, read off the pool when the pack still ships it. */
 const poolRowFor = (pool, k) => pool.find(r => r.uuid === k.uuid) ?? pool.find(r => lower(r.name) === lower(k.name)) ?? null;
 
-/** A row's stat lines, read off the creature it names (a compendium read, no permission). */
-async function describeRow(row) {
-  const out = { label: row.name ?? "", img: row.img ?? null, summary: summaryOf(null) };
-  try {
-    const actor = await fromUuid(row.uuid);
-    if ( actor ) { out.img = actor.prototypeToken?.texture?.src ?? actor.img ?? out.img; out.summary = summaryOf(actor); }
-  } catch { /* the row keeps its name */ }
-  return out;
+/** A known form as a picker row: the pool's copy when the pack still ships it, else read off its own uuid. */
+async function knownRow(pool, k, { checked = false, locked = false, tags = [] } = {}) {
+  const row = poolRowFor(pool, k);
+  const described = await describeCreature(row?.uuid ?? k.uuid, { label: k.name ?? row?.name ?? "", img: row?.img ?? k.img ?? null });
+  return { value: k.uuid, ...described, checked, locked, tags };
 }
 
 /** The cap as the card says it: "CR ¼ or lower" (null for an open pool). */
 const capLabelOf = rule => (rule?.crMax === null || rule?.crMax === undefined) ? "" : `CR ${crLabel(rule.crMax)} or lower`;
 
 /**
- * The gallery's HTML for a record: the Known Forms (each described, the last one marked) and the pool
- * — open under a known-forms list with a slot free (the pick learns into it) or with no list at all;
- * locked behind a line and a link when the list is full (RULINGS *Wild Shape and the polymorph spells*).
+ * The gallery's sections for a record: the Known Forms (each described, the last one marked, one above
+ * the cap locked) and the pool — open under a known-forms list with a slot free (the pick learns into
+ * it) or with no list at all; locked behind a line and a link when the list is full (RULINGS *Wild
+ * Shape and the polymorph spells*).
  */
-async function galleryHTML(flag, pool, { field, gm = false }) {
+async function gallerySections(flag, pool, { field, gm = false }) {
   const rule = poolRuleOf(flag.profile ?? {}, { targetCap: flag.targetCap });
   const allowed = galleryRows(pool, rule);
   const known = flag.known ?? [];
   const slots = Number(flag.slots) || 0;
-  const lines = [];
-  const knownRows = [];
-  for ( const k of known ) {
-    const row = poolRowFor(pool, k);
-    const described = await describeRow(row ?? { uuid: k.uuid, name: k.name, img: k.img });
-    const overCap = row ? !allowed.some(a => a.uuid === row.uuid) : false;
-    const right = (row ? poolRight(row) : "") + ((k.uuid === flag.lastForm) ? "<br>last used" : "") + (overCap ? "<br>above your cap" : "");
-    knownRows.push({ uuid: k.uuid, html: formRowHTML(described, { field: overCap ? "bf-form-locked" : field, value: k.uuid, checked: (k.uuid === flag.lastForm) && !overCap, right }) });
-  }
+  const sections = [];
   const state = knownState({ known, slots });
   if ( slots > 0 ) {
-    lines.push(`<div><b>Your known forms</b> · ${known.length} of ${slots} · one swap per Long Rest</div>${knownRows.map(r => r.html).join("")}`
-      + (state.open ? `<div style="opacity:0.75;font-size:var(--font-size-11,11px);margin:0.2rem 0;">${state.open} slot${state.open === 1 ? "" : "s"} open — a form picked from the pool below is learned into one at this use.</div>` : ""));
+    const rows = [];
+    for ( const k of known ) {
+      const inPool = poolRowFor(pool, k);
+      const overCap = inPool ? !allowed.some(a => a.uuid === inPool.uuid) : false;
+      const last = k.uuid === flag.lastForm;
+      rows.push(await knownRow(pool, k, { checked: last && !overCap, locked: overCap,
+        tags: [last ? "last used" : null, overCap ? "above your cap" : null].filter(Boolean) }));
+    }
+    sections.push({ head: `Your known forms · ${known.length} of ${slots} · one swap per Long Rest`, field, rows });
+    if ( state.open ) sections.push({ note: `${state.open} slot${state.open === 1 ? "" : "s"} open — a form picked from the pool below is learned into one at this use.` });
   }
   const rest = allowed.filter(r => !known.some(k => k.uuid === r.uuid));
   const capLabel = capLabelOf(rule);
   const open = gm || !(slots > 0) || (state.state === "open");
-  if ( open ) {
-    lines.push(poolListHTML(rest, { field, head: (slots > 0) ? "Fill the open slot from the pool" : "The form" }));
-  } else {
-    lines.push(`<details style="margin-top:0.4rem;"><summary style="cursor:pointer;opacity:0.8;">${esc(lockedLine({ more: rest.length, capLabel }))} · <span style="color:rgb(222,120,40);">show them</span></summary>${poolListHTML(rest, { field: "bf-form-locked", head: "The pool" })}</details>`);
-  }
-  return { html: lines.join(""), rule, allowed, capLabel };
+  if ( open ) sections.push({ head: (slots > 0) ? "Fill the open slot from the pool" : "The form", field, pool: rest });
+  else sections.push({ head: "The pool", field, pool: rest, locked: lockedLine({ more: rest.length, capLabel }) });
+  return { sections, rule, allowed, capLabel };
 }
 
 /** The pool for a record: every visible pack's creatures of the profile's types, uncapped (the known forms are matched in it). */
@@ -200,12 +195,11 @@ async function answerPick(message, flag, pick, { learn = false } = {}) {
   return true;
 }
 
-/** The pick read off the popup's form: the row's uuid, name and art from the pool. */
-function pickFrom(form, pool, field) {
-  const uuid = form.querySelector(`input[name="${field}"]:checked`)?.value ?? null;
+/** The picked form by uuid: the pool's row, else the known form's own record. */
+function pickOf(uuid, pool, known) {
   if ( !uuid ) return null;
-  const row = pool.find(r => r.uuid === uuid);
-  return row ? { uuid: row.uuid, name: row.name, img: row.img ?? null } : { uuid, name: form.querySelector(`input[name="${field}"]:checked`)?.closest("[data-bf-form]")?.querySelector("b")?.textContent ?? "", img: null };
+  const row = pool.find(r => r.uuid === uuid) ?? (known ?? []).find(k => k.uuid === uuid) ?? null;
+  return { uuid, name: row?.name ?? "", img: row?.img ?? null };
 }
 
 async function showFormPopup(message) {
@@ -214,37 +208,23 @@ async function showFormPopup(message) {
   const user = resolveUuid(flag.sourceUuid);
   if ( !user ) return;
   const pool = await poolFor(flag);
-  const { html, capLabel } = await galleryHTML(flag, pool, { field: "bf-form-pick" });
+  const { sections, capLabel } = await gallerySections(flag, pool, { field: "bf-form-pick" });
   const row = TRANSFORMS[flag.key];
   const who = flag.self ? "you" : flag.targets.map(t => t.name).join(", ");
-  const dialog = await openMomentPopup(message, TRANSFORM_FLAG, user, {
+  if ( row?.rule ) sections.push({ rule: row.rule });
+  await openPicker(message, TRANSFORM_FLAG, user, {
     title: `${flag.itemName} — ${flag.sourceName}`, icon: "fa-solid fa-paw", width: 500,
-    content: bfCard({
-      eyebrow: "Transform", tone: "pending", title: flag.itemName,
-      subtitle: [capLabel, flag.self ? null : `on ${who}`, "the GM's client transforms"].filter(Boolean).join(" · "),
-      lines: [html, row?.rule ? ruleLine(row.rule) : null]
-    }),
+    card: { eyebrow: "Transform", title: flag.itemName, subtitle: [capLabel, flag.self ? null : `on ${who}`].filter(Boolean).join(" · ") },
+    sections, needs: [{ field: "bf-form-pick", why: "pick a form first" }],
     buttons: [
-      { action: "become", label: flag.self ? "Become the form" : "Transform", default: true, callback: (_event, button) => {
-        const pick = pickFrom(button.form, pool, "bf-form-pick");
-        if ( !pick ) { ui.notifications?.warn(`${TITLE}: answer first — pick a form.`); void showFormPopup(message); return; }
+      { action: "become", label: flag.self ? "Become the form" : "Transform", default: true, checks: true, submit: picks => {
+        const pick = pickOf(picks.one("bf-form-pick"), pool, flag.known);
         const learn = !(flag.known ?? []).some(k => k.uuid === pick.uuid);
         void answerPick(message, flag, pick, { learn }).then(ok => { if ( !ok ) void showFormPopup(message); });
       } },
       { action: "cancel", label: "Not now" }
     ]
   });
-  lockRows(dialog?.element ?? null);
-  wireGallerySearch(dialog?.element ?? null);
-}
-
-/** The locked rows cannot be picked: their radios are disabled once the dialog stands. */
-function lockRows(root) {
-  for ( const input of root?.querySelectorAll?.('input[name="bf-form-locked"]') ?? [] ) {
-    input.disabled = true;
-    const row = input.closest("[data-bf-form]");
-    if ( row ) row.style.opacity = "0.45";
-  }
 }
 
 /** The GM's change of a landed form (RULINGS: the caster picks, the GM may override from the card). */
@@ -252,14 +232,14 @@ async function showChangePopup(message) {
   const flag = readFlag(message, TRANSFORM_FLAG);
   if ( !flag?.applied || flag.ended || !game.user.isGM ) return;
   const pool = await poolFor(flag);
-  const { html, capLabel } = await galleryHTML(flag, pool, { field: "bf-form-change", gm: true });
-  const dialog = await openMomentPopup(message, "transformChange", null, {
+  const { sections, capLabel } = await gallerySections(flag, pool, { field: "bf-form-change", gm: true });
+  await openPicker(message, "transformChange", null, {
     title: `${flag.itemName} — change the form`, icon: "fa-solid fa-paw", width: 500, gate: false,
-    content: bfCard({ eyebrow: "Transform", tone: "pending", title: `Change ${flag.pick?.name ?? "the form"}`, subtitle: [capLabel, "the GM's override · the creature reverts and takes the new form"].filter(Boolean).join(" · "), lines: [html] }),
+    card: { eyebrow: "Transform", title: `Change ${flag.pick?.name ?? "the form"}`, subtitle: [capLabel, "the GM's override · the creature reverts and takes the new form"].filter(Boolean).join(" · ") },
+    sections, needs: [{ field: "bf-form-change", why: "pick a form first" }],
     buttons: [
-      { action: "change", label: "Change the form", default: true, callback: (_event, button) => {
-        const pick = pickFrom(button.form, pool, "bf-form-change");
-        if ( !pick ) { ui.notifications?.warn(`${TITLE}: answer first — pick a form.`); return; }
+      { action: "change", label: "Change the form", default: true, checks: true, submit: picks => {
+        const pick = pickOf(picks.one("bf-form-change"), pool, flag.known);
         void queueFlagWrite(message, TRANSFORM_FLAG, current => {
           if ( !current.applied || current.ended || current.changeAsked ) return false;
           current.changeAsked = { uuid: pick.uuid, name: pick.name, img: pick.img ?? null, askedAt: Date.now() };
@@ -268,8 +248,6 @@ async function showChangePopup(message) {
       { action: "cancel", label: "Keep it" }
     ]
   });
-  lockRows(dialog?.element ?? null);
-  wireGallerySearch(dialog?.element ?? null);
 }
 
 /* --- the elect transforms --------------------------------------------------------------------- */
@@ -685,15 +663,11 @@ registerResumable(FORM_SWAP_FLAG, {
   drive: landFormSwap
 });
 
-/** The known forms as rows the swap popups draw, each described off its creature. */
-async function knownRowsHTML(known, pool, { field = null, lastForm = null } = {}) {
-  const parts = [];
-  for ( const k of known ) {
-    const row = poolRowFor(pool, k);
-    const described = await describeRow(row ?? { uuid: k.uuid, name: k.name, img: k.img });
-    parts.push(formRowHTML(described, { field: field ?? "bf-form-shown", value: k.uuid, right: (row ? poolRight(row) : "") + ((k.uuid === lastForm) ? "<br>last used" : "") }));
-  }
-  return parts.join("");
+/** The known forms as picker rows, each described off its creature. */
+async function knownRows(known, pool, { lastForm = null } = {}) {
+  const rows = [];
+  for ( const k of known ) rows.push(await knownRow(pool, k, { tags: (k.uuid === lastForm) ? ["last used"] : [] }));
+  return rows;
 }
 
 async function showSwapPopup(message) {
@@ -705,53 +679,27 @@ async function showSwapPopup(message) {
   const rule = poolRuleOf(flag.profile ?? {}, {});
   const allowed = galleryRows(pool, rule).filter(r => !(flag.known ?? []).some(k => k.uuid === r.uuid));
   const open = Number(flag.open) || 0;
-  const have = `<div><b>You know these forms</b>${flag.known?.length ? " — tick one to swap it out, or keep them:" : ":"}</div>`
-    + (flag.known?.length ? await knownRowsHTML(flag.known, pool, { field: "bf-form-out" }) : "<em>none yet</em>")
-    + (open ? `<div style="opacity:0.75;font-size:var(--font-size-11,11px);margin:0.2rem 0;">${open} slot${open === 1 ? "" : "s"} open — pick that many below to fill them.</div>` : "");
-  const dialog = await openMomentPopup(message, FORM_SWAP_FLAG, actor, {
+  // one swap: a known form ticked out frees one pick; else as many picks as slots are open
+  const sections = [{ head: `You know these forms${flag.known?.length ? " — tick one to swap it out, or keep them" : ""}`, field: "bf-form-out", multi: true, max: 1,
+    rows: await knownRows(flag.known ?? [], pool) }];
+  if ( open ) sections.push({ note: `${open} slot${open === 1 ? "" : "s"} open — pick that many below to fill them.` });
+  sections.push({ head: open ? "Fill the open slots" : "Available", field: "bf-form-in", multi: true, pool: allowed, max: picks => open + picks.all("bf-form-out").length });
+  await openPicker(message, FORM_SWAP_FLAG, actor, {
     title: `${flag.itemName} — ${flag.actorName}`, icon: "fa-solid fa-paw", width: 500,
-    content: bfCard({
-      eyebrow: flag.itemName, tone: "pending",
-      title: open ? "Choose your known forms" : "Swap a known form?",
-      subtitle: `${flag.known?.length ?? 0} of ${flag.slots} known · one swap per Long Rest · ${capLabelOf(rule) || "any form the rule allows"}`,
-      lines: [have, poolListHTML(allowed, { field: "bf-form-in", head: open ? "Fill the open slots" : "Available" })]
-    }),
+    card: { eyebrow: flag.itemName, title: open ? "Choose your known forms" : "Swap a known form?",
+      subtitle: `${flag.known?.length ?? 0} of ${flag.slots} known · one swap per Long Rest · ${capLabelOf(rule) || "any form the rule allows"}` },
+    sections,
     buttons: [
-      { action: "ok", label: "OK", default: true, callback: (_event, button) => {
-        const out = button.form.querySelector('input[name="bf-form-out"]:checked')?.value || null;
-        const picks = [...button.form.querySelectorAll('input[name="bf-form-in"]:checked')].map(i => i.value)
-          .map(uuid => pool.find(r => r.uuid === uuid)).filter(Boolean).map(r => ({ uuid: r.uuid, name: r.name, img: r.img ?? null }));
-        if ( !picks.length ) { void answerFormSwap(message, { declined: true }); return; }
-        const into = out ? (picks.shift() ?? null) : null;
-        void answerFormSwap(message, { out: into ? out : null, into, adds: picks });
+      { action: "ok", label: "OK", default: true, submit: picks => {
+        const out = picks.one("bf-form-out");
+        const ins = picks.all("bf-form-in").map(uuid => pool.find(r => r.uuid === uuid)).filter(Boolean).map(r => ({ uuid: r.uuid, name: r.name, img: r.img ?? null }));
+        if ( !ins.length ) { void answerFormSwap(message, { declined: true }); return; }
+        const into = out ? (ins.shift() ?? null) : null;
+        void answerFormSwap(message, { out: into ? out : null, into, adds: ins });
       } },
-      { action: "keep", label: "Keep them", callback: () => { void answerFormSwap(message, { declined: true }); } }
+      { action: "keep", label: "Keep them", submit: () => { void answerFormSwap(message, { declined: true }); } }
     ]
   });
-  wireSwapGrid(dialog?.element ?? null, { open });
-  wireGallerySearch(dialog?.element ?? null);
-}
-
-/** One swap: with a known form ticked out, one pick; else as many picks as slots are open. */
-function wireSwapGrid(root, { open }) {
-  if ( !root?.querySelectorAll ) return;
-  const outs = [...root.querySelectorAll('input[name="bf-form-out"]')];
-  const ins = [...root.querySelectorAll('input[name="bf-form-in"]')];
-  for ( const o of outs ) o.type = "checkbox";
-  for ( const i of ins ) i.type = "checkbox";
-  const sync = () => {
-    const removed = outs.filter(o => o.checked).length;
-    const free = open + removed;
-    const picked = ins.filter(i => i.checked).length;
-    for ( const i of ins ) {
-      i.disabled = !i.checked && (picked >= free);
-      const row = i.closest("[data-bf-form]");
-      if ( row ) row.style.opacity = i.disabled ? "0.45" : "";
-    }
-  };
-  for ( const o of outs ) o.addEventListener("change", () => { if ( o.checked ) for ( const x of outs ) if ( x !== o ) x.checked = false; sync(); });
-  for ( const i of ins ) i.addEventListener("change", sync);
-  sync();
 }
 
 /** What the landed answer did, in words (plain text: the card escapes its title). */
@@ -771,14 +719,12 @@ function swapLine(flag) {
 async function showSwapDone(message, flag) {
   const actor = resolveUuid(flag.actorUuid);
   const pool = await poolFromPacks({ types: flag.profile?.types?.length ? flag.profile.types : ["beast"] });
-  await openMomentPopup(message, "formSwapDone", actor, {
+  await openPicker(message, "formSwapDone", actor, {
     title: `${flag.itemName} — ${flag.actorName}`, icon: "fa-solid fa-paw", width: 500,
-    content: bfCard({
-      eyebrow: flag.itemName, tone: (flag.outcome === "changed") ? "good" : "neutral",
-      title: swapLine(flag), subtitle: `${(flag.after ?? flag.known ?? []).length} of ${flag.slots} known`,
-      lines: [`<div><b>You now know these forms:</b></div>${await knownRowsHTML(flag.after ?? flag.known ?? [], pool)}`]
-    }),
-    buttons: [{ action: "ok", label: "OK", default: true, callback: () => acknowledgeMoment(message, FORM_SWAP_FLAG) }]
+    card: { eyebrow: flag.itemName, tone: (flag.outcome === "changed") ? "good" : "neutral",
+      title: swapLine(flag), subtitle: `${(flag.after ?? flag.known ?? []).length} of ${flag.slots} known` },
+    sections: [{ head: "You now know these forms", rows: await knownRows(flag.after ?? flag.known ?? [], pool) }],
+    buttons: [{ action: "ok", label: "OK", default: true, submit: () => acknowledgeMoment(message, FORM_SWAP_FLAG) }]
   });
 }
 

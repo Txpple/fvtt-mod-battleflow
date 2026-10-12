@@ -3304,6 +3304,54 @@ nothing to the concentration effect (measured live 2026-10-10: a flagged token o
 | Find Familiar | the gallery: the CR 0 beasts of every book, one Owl (the MM's), search by name; the second question (Celestial / Fey / Fiend) is a follow-up row |
 | No GM online | the card "no GM online — it lands when a GM connects"; the GM connects, it lands once |
 | Dismiss | the token gone, the resistance ended, the card "dismissed" |
+
+**The sandbox pass (2026-10-12, the user on a Wizard's Find Familiar, the prototype for every summon).** Ruled in chat:
+
+1. **A `cr`-mode summon always picks from the pool.** The PHB's Find Familiar ships its one "CR 0 Beast" profile with the
+   Bat's uuid beside the cap; the build read "a uuid means this creature" and offered the Bat alone ("Nothing to pick").
+   The activity's `summon.mode` is now stamped on the record and `poolPicks` keys on it; the uuid is a default the
+   system's own browser never reads. A record from before the stamp keeps the old reading.
+2. **The player picks the creature type** (and the size) when the activity offers more than one: Find Familiar's
+   Celestial · Fey · Fiend, three pills under the gallery, nothing pre-picked, Place refused until one is picked
+   (`listAnswer`; the prototype's familiar scene). The build had taken `creatureTypes[0]` silently. One offered is
+   taken without asking.
+3. **The words are the player's.** The popup's subtitle is the level alone; the card says "appearing…", "summoned",
+   and "no GM online — it appears when a GM connects". No "the GM's client lands it" in front of a player.
+4. **Placement is Misty Step's, not a dragged token** (supersedes call 4's `TokenPlacement.place`). "Place" arms
+   `gallery.js` `pickSpots`: a ring of the spell's range around the caster (`rangeFeet`: feet, touch as 5 ft, miles
+   and metres converted; self or any draws no ring), the creature's footprint following the pointer, green or red by
+   `spotVerdict` — within range, no sight-blocking wall between the caster's centre and the space's (the best a canvas
+   can say for "a space you can see"), not on a token the player can see (hidden ones never refuse, so nothing leaks).
+   A left click places one, `count` clicks place them all, right click or Escape cancels and the card stays `asked`.
+   The elect creates the creature at the squares, as before.
+5. **The system's checkbox is gone.** `dnd5e.preUseActivity` also sets the usage dialog's own
+   `display["create.summons"] = false`, so the Creation section (Place Summons and the system's profile, size and type
+   selects) never draws; ticked, it started dnd5e's placement beside the module's.
+6. **The `summon` moment names the tokens** (`targets[].tokenUuid`), so FX Studio can play where the creature appeared.
+7. **A missing pick keeps the popup.** Place with the creature, its type or the spell's question unpicked warns and
+   stays open, the picks kept (the click is stopped before the dialog submits); it used to reopen blank.
+8. **One familiar at a time** (`SUMMON_SINGLES`, Find Familiar): when a new one lands, the elect dismisses the same
+   caster's earlier standing familiar (`replacedSummons`), and the card says "the earlier one is dismissed". A
+   Concentration summon needs no row: a second cast ends the first's concentration, which already dismisses it.
+9. **Two seats** (`SUMMON_OWN_INITIATIVE`): landed into a started combat, a summon FOLLOWS the caster (the default: the
+   Summon spells, the caster's Initiative less 0.01) or, for a row there, joins and ROLLS ITS OWN Initiative (Find
+   Familiar: "rolls its own Initiative and acts on its own turn"). The rules decide which, per spell.
+10. **One row everywhere** (supersedes call 3's right column "CR · size · book" for a pool pick): a pool row
+   (Find Familiar, Wild Shape) is a profile row — the name; size · speeds · attacks; its key abilities (a special
+   sense first, Blindsight 60 ft, then its traits); on the right CR over AC and HP. The pool's creatures are read
+   from their packs (one batched read a pack, kept for the session) so the row can say it; no book column (it read
+   "Actors", the premium packs' label) and no count line over the list.
+11. **One picker** (the user: "a unified ui presentation that the ui rendering goes thru, so everything is not a one
+   off"). Every creature pick renders through `gallery.js` `openPicker`: the machine describes sections (rows, a
+   searchable pool, pills, a note, the rule; `max` caps the ticks of a multi pick) and the gallery draws them, checks
+   the needs on the click (the popup stays open, picks kept) and reads the answer back. Summons and every Wild Shape
+   popup (the pick, the GM's change, the Long Rest swap and its confirmation) moved onto it; the row, pool and pill
+   builders are private to gallery.js. The gate: `tools/check-pickers.mjs` (`npm run pickers`, in verify) fails a
+   picker machine that opens its own popup, draws a radio or checkbox, or reaches into the row markup. Wild Shape's
+   card no longer says "the GM's client transforms" (item 3's rule).
+12. **The familiar keeps the form's statistics and items**, its attacks included; "it can't attack" is the table's to
+   keep, nothing is stripped or noted.
+
 ## Wild Shape and the polymorph spells (2026-10-11, issue #2)
 
 **Wild Shape, Circle Forms and the polymorph spells, as one machine (`transforms.js` + `decide/transforms.js`, the

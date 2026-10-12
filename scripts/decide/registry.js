@@ -4115,6 +4115,33 @@ export const SUMMON_CHOICES = Object.freeze({
 });
 
 /**
+ * SUMMON SINGLES (summons.js): a summon the caster may have only one of. When a new one lands, the elect
+ * dismisses the caster's earlier one of the same spell that still stands — the 2024 text's "can't have
+ * more than one … at a time", the new cast taking a new form. A spell with Concentration needs no row:
+ * a second cast ends the first's concentration, and that already dismisses it. `says` the book's
+ * sentence. Wild Companion casts the spell itself, so its familiar is this row's too.
+ */
+export const SUMMON_SINGLES = Object.freeze({
+  "Find Familiar": Object.freeze({
+    says: "You can't have more than one familiar at a time. If you cast this spell while you have a familiar, you instead cause it to adopt a new eligible form.",
+    rule: Object.freeze({ item: "Find Familiar", uuid: "Compendium.dnd-players-handbook.spells.Item.phbsplFindFamili" })
+  })
+});
+
+/**
+ * SUMMON SEATS (summons.js): where a summoned creature landed into a started combat takes its turn. Two
+ * ways, by the spell's text: FOLLOWS the caster (the default, no row — the 2024 Summon spells' "takes its
+ * turn immediately after yours": a combatant on the caster's Initiative less 0.01), or rolls its OWN
+ * Initiative and acts on its own turn (a row here: the familiar). `says` the book's sentence.
+ */
+export const SUMMON_OWN_INITIATIVE = Object.freeze({
+  "Find Familiar": Object.freeze({
+    says: "The familiar rolls its own Initiative and acts on its own turn.",
+    rule: Object.freeze({ item: "Find Familiar", uuid: "Compendium.dnd-players-handbook.spells.Item.phbsplFindFamili" })
+  })
+});
+
+/**
  * TRANSFORMS (transforms.js, issue #2): a transform activity the module takes off the system's hands — the
  * form picked from the shared gallery in one popup, the elect transforming with dnd5e's own presets, the
  * form ended when the rules say. `self` the one using it is the one transformed (else the targeted creatures);
@@ -4223,6 +4250,8 @@ export const tokenSenseEntries = () => everyRow(Object.keys(TOKEN_SENSES));
 export const tokenLightEntries = () => everyRow(Object.keys(TOKEN_LIGHTS));
 export const gearLightEntries = () => everyRow(Object.keys(GEAR_LIGHTS));
 export const summonChoiceEntries = () => everyRow(Object.keys(SUMMON_CHOICES));
+export const summonSingleEntries = () => everyRow(Object.keys(SUMMON_SINGLES));
+export const summonOwnInitiativeEntries = () => everyRow(Object.keys(SUMMON_OWN_INITIATIVE));
 export const transformEntries = () => everyRow(Object.keys(TRANSFORMS));
 export const damageSaveEntries = () => everyRow(Object.keys(DAMAGE_SAVES));
 export const superiorityUseEntries = () => everyRow(Object.keys(SUPERIORITY_USES));

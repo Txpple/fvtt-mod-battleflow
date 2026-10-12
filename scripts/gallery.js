@@ -1,20 +1,49 @@
 /**
- * By the Books — SERVICE (ARCHITECTURE.md §7): THE SHARED GALLERY — one creature picker two machines
- * route through: a summon's `cr`-mode pool (Find Familiar, Wild Companion) and Wild Shape's and the
- * polymorph spells' forms (issues #1, #2). The rows are ruled C (RULINGS *Summons*): the radio, the
- * token art, the name with its stat line and traits, and a right column the caller names. The pool is
- * every visible Actor pack's index (no document load, no permission); the filter is decide/gallery.js.
- * The placement preview lives here too: dnd5e's `TokenPlacement.place` is a canvas preview, no
- * permission needed, so a player places what the elect will create.
+ * By the Books — SERVICE (ARCHITECTURE.md §7): THE SHARED GALLERY — the one creature picker every
+ * machine renders through (`openPicker`): a summon's forms and its `cr`-mode pool (Find Familiar, Wild
+ * Companion), its questions as pills, and Wild Shape's and the polymorph spells' forms (issues #1, #2).
+ * One row everywhere (RULINGS *Summons*): the pick, the token art, the name over size · speeds · attacks
+ * and its key abilities, CR · AC · HP on the right. The pool is every visible Actor pack's index, its
+ * creatures read once a session for the rows; the filter is decide/gallery.js.
+ * The placement lives here too: `pickSpots` is the range ring and the spot the player clicks (Misty
+ * Step's way, RULINGS *Summons*), a canvas overlay that needs no permission, so a player places what
+ * the elect will create.
  */
 import { TITLE } from "./core.js";
-import { esc } from "./decide/present.js";
+import { bfCard, esc, ruleLine } from "./decide/present.js";
+import { openMomentPopup } from "./ui.js";
 import { galleryRows, crLabel } from "./decide/gallery.js";
+import { footprintsOverlap, spotVerdict } from "./decide/summons.js";
 
 const ART = 44;
 
+/** A creature's row summary by uuid, read once per session: a pool opens again without reading its packs again. */
+const SUMMARIES = new Map();
+
 /**
- * Every visible Actor pack's npc index as pool rows, through the shared filter.
+ * The pool's rows given the profile row's lines (`summary`): every creature read from its pack, one
+ * batched read per pack, so a pool row says what a profile row says (size · speeds · attacks, its senses
+ * and traits, CR · AC · HP on the right). A creature that cannot be read keeps a blank summary.
+ * @param {Array<{ uuid: string, pack: string }>} rows
+ */
+async function describePool(rows) {
+  const byPack = new Map();
+  for ( const r of rows ) {
+    if ( SUMMARIES.has(r.uuid) ) continue;
+    byPack.set(r.pack, [...(byPack.get(r.pack) ?? []), r.uuid.split(".").pop()]);
+  }
+  await Promise.all([...byPack].map(async ([packId, ids]) => {
+    try {
+      const docs = await game.packs.get(packId)?.getDocuments({ _id__in: ids }) ?? [];
+      for ( const d of docs ) SUMMARIES.set(d.uuid, summaryOf(d));
+    } catch { /* the rows keep a blank summary */ }
+  }));
+  for ( const r of rows ) r.summary = SUMMARIES.get(r.uuid) ?? summaryOf(null);
+  return rows;
+}
+
+/**
+ * Every visible Actor pack's npc index as pool rows, through the shared filter, each with its summary.
  * @param {{ crMax?: number|null, types?: string[]|null, fly?: boolean|null, sizes?: string[]|null, search?: string }} rule
  */
 export async function poolFromPacks(rule = {}) {
@@ -29,19 +58,24 @@ export async function poolFromPacks(rule = {}) {
         size: e.system?.traits?.size ?? "", fly: Number(e.system?.attributes?.movement?.fly) > 0, pack: pack.collection, uuid: e.uuid, img: e.img ?? null });
     }
   }
-  return galleryRows(rows, rule);
+  return describePool(galleryRows(rows, rule));
 }
 
-/** A creature's lines for a row: AC, HP, speeds, its attacks with their dice, its traits; blank when unknown. */
-export function summaryOf(actor) {
-  if ( !actor?.system ) return { ac: null, hp: null, speed: "", attacks: [], traits: [] };
+/** A creature's lines for a row: AC, HP, CR, size, speeds, its attacks with their dice, its senses and traits; blank when unknown. */
+function summaryOf(actor) {
+  if ( !actor?.system ) return { ac: null, hp: null, cr: null, size: "", speed: "", attacks: [], traits: [] };
   const sys = actor.system;
   const move = sys.attributes?.movement ?? {};
   const units = move.units ?? "ft";
   const speed = ["walk", "fly", "swim", "climb", "burrow"].filter(k => Number(move[k]) > 0)
     .map(k => (k === "walk") ? `${move[k]} ${units}` : `${k} ${move[k]}`).join(", ");
   const attacks = [];
-  const traits = [];
+  // the key abilities: a special sense first (Blindsight 60 ft), then the traits that are not actions
+  const senses = sys.attributes?.senses ?? {};
+  const ranges = senses.ranges ?? senses;
+  const sensesUnits = senses.units ?? "ft";
+  const traits = ["blindsight", "darkvision", "tremorsense", "truesight"].filter(k => Number(ranges[k]) > 0)
+    .map(k => `${CONFIG.DND5E?.senses?.[k]?.label ?? CONFIG.DND5E?.senses?.[k] ?? k} ${ranges[k]} ${sensesUnits}`);
   for ( const item of actor.items ?? [] ) {
     const acts = [...(item.system?.activities ?? [])];
     const attack = acts.find(a => a.type === "attack");
@@ -51,70 +85,308 @@ export function summaryOf(actor) {
       attacks.push(`${item.name}${parts.length ? ` · ${parts.join(", ")}` : ""}`);
     } else if ( (item.type === "feat") && !acts.length ) traits.push(item.name);
   }
-  return { ac: sys.attributes?.ac?.value ?? null, hp: sys.attributes?.hp?.max ?? null, speed, attacks: attacks.slice(0, 3), traits: traits.slice(0, 3) };
+  const size = CONFIG.DND5E?.actorSizes?.[sys.traits?.size]?.label ?? sys.traits?.size ?? "";
+  return { ac: sys.attributes?.ac?.value ?? null, hp: sys.attributes?.hp?.max ?? null, cr: sys.details?.cr ?? null, size, speed,
+    attacks: attacks.slice(0, 3), traits: traits.slice(0, 3) };
 }
 
-/** The right column for a profile pick: AC and HP. */
-export const statsRight = summary => [
-  (summary?.ac !== null && summary?.ac !== undefined) ? `AC ${esc(summary.ac)}` : null,
-  summary?.hp ? `${esc(summary.hp)} HP` : null
-].filter(Boolean).join("<br>");
+/**
+ * A creature as a row: its art and summary read once (a compendium read, no permission), the name the
+ * caller gives or the creature's own. Blank when it cannot be read; the row keeps its name.
+ * @param {string|null} uuid
+ * @param {{ label?: string, img?: string|null }} [fallback]
+ * @returns {Promise<{ label: string, img: string|null, summary: object }>}
+ */
+export async function describeCreature(uuid, fallback = {}) {
+  const out = { label: fallback.label ?? "", img: fallback.img ?? null, summary: summaryOf(null) };
+  if ( !uuid ) return out;
+  try {
+    const actor = await fromUuid(uuid);
+    if ( actor ) {
+      out.label ||= actor.name;
+      out.img = actor.prototypeToken?.texture?.src ?? actor.img ?? out.img;
+      out.summary = SUMMARIES.get(uuid) ?? summaryOf(actor);
+      SUMMARIES.set(uuid, out.summary);
+    }
+  } catch { /* the row keeps its name */ }
+  return out;
+}
 
-/** The right column for a pool pick: CR, size, book. */
-export const poolRight = row => [
-  `CR ${esc(crLabel(row.cr))}`,
-  esc(CONFIG.DND5E?.actorSizes?.[row.size]?.label ?? row.size ?? ""),
-  esc(game.packs.get(row.pack)?.metadata?.label ?? row.pack ?? "")
-].filter(Boolean).join("<br>");
+/* --- THE PICKER: one presentation every creature pick renders through ---------------------------- *
+ * A machine DESCRIBES what it asks (sections of rows, a searchable pool, pills, notes, the rule) and
+ * this draws it, checks it on the click and reads the answer back (RULINGS *Summons*, one row
+ * everywhere). The row, the pool, the pills and the search are this file's own: no machine draws a
+ * creature row or a pick by hand (tools/check-pickers.mjs).
+ * ------------------------------------------------------------------------------------------------ */
+
+const PICKED = "rgba(222,120,40,0.15)";
+const small = (text, opacity) => `<span style="opacity:${opacity};font-size:var(--font-size-11,11px);">${esc(text)}</span>`;
+
+/** The right column, the same for every row: CR when known, AC, HP, then the caller's tags ("last used"). */
+function rightOf(summary, tags = []) {
+  return [
+    (summary?.cr !== null && summary?.cr !== undefined) ? `CR ${esc(crLabel(summary.cr))}` : null,
+    (summary?.ac !== null && summary?.ac !== undefined) ? `AC ${esc(summary.ac)}` : null,
+    summary?.hp ? `${esc(summary.hp)} HP` : null,
+    ...tags.map(esc)
+  ].filter(Boolean).join("<br>");
+}
 
 /**
- * One form row (ruled C): the radio, the art, the name over its stat line and traits, the right
- * column. `row` = { label, img, summary: { speed, attacks, traits } }; `right` is HTML lines.
+ * One row (ruled C, one row everywhere): the pick, the art, the name over size · speeds · attacks and
+ * its key abilities, the right column. No `field` draws the row with no pick (a list shown, not asked).
  */
-export function formRowHTML(row, { field, value, checked = false, right = "" }) {
+function rowHTML(row, { field, multi = false }) {
   const s = row.summary ?? {};
-  const line = [s.speed, ...(s.attacks ?? [])].filter(Boolean).join(" · ");
+  const line = [s.size, s.speed, ...(s.attacks ?? [])].filter(Boolean).join(" · ");
   const art = row.img ? `<img src="${esc(row.img)}" alt="" style="width:${ART}px;height:${ART}px;object-fit:cover;border-radius:3px;border:1px solid var(--color-border-dark,#0006);">`
     : `<span style="display:inline-block;width:${ART}px;height:${ART}px;border-radius:3px;background:rgba(0,0,0,0.15);"></span>`;
-  return `<label data-bf-form style="display:grid;grid-template-columns:auto ${ART}px minmax(0,1fr) auto;gap:0.5rem;align-items:center;padding:0.3rem 0.45rem;border:1px solid var(--color-border-dark,#0006);border-radius:3px;margin-bottom:0.25rem;cursor:pointer;${checked ? "background:rgba(222,120,40,0.15);" : ""}">
-    <input type="radio" name="${esc(field)}" value="${esc(value)}" ${checked ? "checked" : ""} style="margin:0;">
+  const pick = field ? `<input type="${multi ? "checkbox" : "radio"}" name="${esc(field)}" value="${esc(row.value)}" ${row.checked ? "checked" : ""} ${row.locked ? "disabled" : ""} style="margin:0;">` : "<span></span>";
+  return `<label data-bf-form style="display:grid;grid-template-columns:auto ${ART}px minmax(0,1fr) auto;gap:0.5rem;align-items:center;padding:0.3rem 0.45rem;border:1px solid var(--color-border-dark,#0006);border-radius:3px;margin-bottom:0.25rem;${field && !row.locked ? "cursor:pointer;" : ""}${row.checked ? `background:${PICKED};` : ""}${row.locked ? "opacity:0.45;" : ""}">
+    ${pick}
     ${art}
-    <span style="min-width:0;line-height:1.25;"><b>${esc(row.label)}</b>${line ? `<br><span style="opacity:0.8;font-size:var(--font-size-11,11px);">${esc(line)}</span>` : ""}${(s.traits ?? []).length ? `<br><span style="opacity:0.65;font-size:var(--font-size-11,11px);">${esc(s.traits.join(" · "))}</span>` : ""}</span>
-    <span style="text-align:right;font-size:var(--font-size-11,11px);white-space:nowrap;">${right}</span>
+    <span style="min-width:0;line-height:1.25;"><b>${esc(row.label)}</b>${line ? `<br>${small(line, 0.8)}` : ""}${(s.traits ?? []).length ? `<br>${small(s.traits.join(" · "), 0.65)}` : ""}</span>
+    <span style="text-align:right;font-size:var(--font-size-11,11px);white-space:nowrap;">${rightOf(s, row.tags ?? [])}</span>
   </label>`;
 }
 
-/** A pool as a searchable list of rows; `wireGallerySearch` makes the search live once the dialog stands. */
-export function poolListHTML(rows, { field, head = "The form" }) {
-  return `<div style="margin-top:0.5rem;"><b>${esc(head)}</b> · ${rows.length} the rule allows, every book, one per name</div>
-    <input type="search" name="bf-gallery-search" placeholder="Search by name" style="width:100%;margin:0.3rem 0;">
-    <div data-bf-pool style="max-height:320px;overflow:auto;">${rows.map(r =>
-      formRowHTML({ label: r.name, img: r.img, summary: { speed: r.fly ? "flies" : "", attacks: [], traits: [] } }, { field, value: r.uuid, right: poolRight(r) })).join("")}</div>`;
-}
+const headHTML = head => head ? `<div style="margin-top:0.5rem;"><b>${esc(head)}</b></div>` : "";
 
-/** The search box filters the rows by name as the player types. */
-export function wireGallerySearch(root) {
-  const search = root?.querySelector?.('input[name="bf-gallery-search"]');
-  if ( !search ) return;
-  search.addEventListener("input", () => {
-    const q = search.value.trim().toLowerCase();
-    for ( const row of root.querySelectorAll("[data-bf-pool] [data-bf-form]") ) {
-      row.style.display = !q || row.textContent.toLowerCase().includes(q) ? "" : "none";
-    }
-  });
+/** A pool row (`poolFromPacks`) as a picker row. */
+const poolRow = r => ({ value: r.uuid, label: r.name, img: r.img ?? null, summary: r.summary ?? summaryOf(null), checked: !!r.checked, locked: !!r.locked, tags: r.tags ?? [] });
+
+/**
+ * One section's HTML. The kinds:
+ *   { head?, rows, field?, multi?, max? }     rows: { value, label, img, summary, checked?, locked?, tags? }
+ *   { head?, pool, field, multi?, max?, locked? }  a searchable pool (poolFromPacks rows); `locked` a line: folded, unpickable
+ *   `max` (multi only) caps the ticks: a number, or `picks => number` read again on every change; a tick
+ *   past it unticks the field's earlier ones, so the newest pick always stands
+ *   { head, pills, field }                    pills: { value, label }; nothing pre-picked
+ *   { note }                                  a quiet line
+ *   { rule }                                  the book's rule line
+ */
+function sectionHTML(sec) {
+  if ( sec.note ) return `<div style="opacity:0.75;font-size:var(--font-size-11,11px);margin:0.2rem 0;">${esc(sec.note)}</div>`;
+  if ( sec.rule ) return ruleLine(sec.rule);
+  if ( sec.pills ) return `${headHTML(sec.head)}<div style="display:flex;flex-wrap:wrap;gap:0.3rem;margin:0.3rem 0;">${sec.pills.map(o =>
+    `<label style="display:inline-flex;align-items:center;gap:0.3rem;padding:0.15rem 0.5rem;border:1px solid var(--color-border-dark,#0006);border-radius:12px;cursor:pointer;"><input type="radio" name="${esc(sec.field)}" value="${esc(o.value)}" style="margin:0;">${esc(o.label)}</label>`).join("")}</div>`;
+  if ( sec.pool ) {
+    const rows = sec.pool.map(r => rowHTML(poolRow({ ...r, locked: r.locked || !!sec.locked }), { field: sec.field, multi: sec.multi }));
+    const list = `<input type="search" name="bf-gallery-search" placeholder="Search by name" style="width:100%;margin:0.3rem 0;">
+      <div data-bf-pool style="max-height:320px;overflow:auto;">${rows.join("")}</div>`;
+    if ( sec.locked ) return `<details style="margin-top:0.4rem;"><summary style="cursor:pointer;opacity:0.8;">${esc(sec.locked)} · <span style="color:rgb(222,120,40);">show them</span></summary>${headHTML(sec.head)}${list}</details>`;
+    return `${headHTML(sec.head)}${list}`;
+  }
+  if ( sec.rows ) return `${headHTML(sec.head)}${sec.rows.length ? sec.rows.map(r => rowHTML(r, { field: sec.field, multi: sec.multi })).join("") : "<em>none yet</em>"}`;
+  return "";
 }
 
 /**
- * The placement preview on this client: `count` copies of the creature's prototype token placed from
- * the origin token's elevation, the squares confirmed; empty when cancelled on the map.
- * @param {{ originToken: TokenDocument|null, actorUuid: string, count: number }} facts
+ * The answer read off the form: `one(field)` the picked value or null, `all(field)` every ticked value.
+ * @param {HTMLFormElement|null} form
+ */
+function readPicks(form) {
+  const all = field => [...(form?.querySelectorAll?.(`input[name="${field}"]:checked`) ?? [])].map(i => i.value);
+  return { one: field => all(field)[0] ?? null, all, form };
+}
+
+/** The live parts once the dialog stands: the search, the caps on the ticks, the picked row's tint. */
+function wirePicker(root, sections) {
+  if ( !root?.querySelectorAll ) return;
+  const capped = sections.filter(s => s.multi && s.field && (s.max !== undefined));
+  const cap = event => {
+    const picks = readPicks(root.querySelector("form") ?? root);
+    for ( const s of capped ) {
+      const n = Math.max(0, Number((typeof s.max === "function") ? s.max(picks) : s.max) || 0);
+      const ticked = [...root.querySelectorAll(`input[name="${s.field}"]:checked`)];
+      for ( const input of ticked.filter(i => i !== event?.target).slice(0, Math.max(0, ticked.length - n)) ) input.checked = false;
+      if ( ticked.length > n && ticked.includes(event?.target) && n === 0 ) event.target.checked = false;
+    }
+  };
+  for ( const search of root.querySelectorAll('input[name="bf-gallery-search"]') ) {
+    const list = search.nextElementSibling;
+    search.addEventListener("input", () => {
+      const q = search.value.trim().toLowerCase();
+      for ( const row of list?.querySelectorAll?.("[data-bf-form]") ?? [] ) {
+        // a shown row keeps its grid: "" would drop the inline display and stack the row's cells
+        row.style.display = !q || row.textContent.toLowerCase().includes(q) ? "grid" : "none";
+      }
+    });
+  }
+  const tint = () => {
+    for ( const row of root.querySelectorAll("[data-bf-form]") ) {
+      const input = row.querySelector("input");
+      if ( input && !input.disabled ) row.style.background = input.checked ? PICKED : "";
+    }
+  };
+  root.addEventListener("change", event => { cap(event); tint(); });
+}
+
+/**
+ * THE PICKER. Opens the one popup off a card (`openMomentPopup`, the one answer gate) from a
+ * description, and hands each button's `submit` the answer read back. A button with `checks` refuses
+ * the click while a `needs` field is unpicked: the popup stays open with the picks made.
+ * @param {ChatMessage} message
+ * @param {string} key            the popup's key on the card (one live popup a key)
+ * @param {Actor|null} subject    whose answer it is (null with `gate: false`)
+ * @param {object} spec
+ * @param {string} spec.title
+ * @param {string} [spec.icon]
+ * @param {number} [spec.width]
+ * @param {boolean} [spec.gate]
+ * @param {{ eyebrow: string, tone?: string, title: string, subtitle?: string }} spec.card
+ * @param {Array<object>} spec.sections   see `sectionHTML`
+ * @param {Array<{ field: string, why: string }>} [spec.needs]   in the order the popup reads
+ * @param {Array<{ action: string, label: string, default?: boolean, checks?: boolean, submit?: (picks: { one: (field: string) => string|null, all: (field: string) => string[], form: HTMLFormElement|null }) => void }>} spec.buttons
+ */
+export async function openPicker(message, key, subject, { title, icon = "fa-solid fa-paw", width = 500, gate = true, card, sections, needs = [], buttons }) {
+  const missing = form => {
+    const picks = readPicks(form);
+    return needs.find(n => !picks.one(n.field))?.why ?? null;
+  };
+  const dialog = await openMomentPopup(message, key, subject, {
+    title, icon, width, gate,
+    content: bfCard({ eyebrow: card.eyebrow, tone: card.tone ?? "pending", title: card.title, subtitle: card.subtitle ?? "", lines: sections.map(sectionHTML) }),
+    buttons: buttons.map(b => ({ action: b.action, label: b.label, default: !!b.default,
+      callback: (_event, button) => {
+        // the click guard below keeps the popup open; this is the belt for a submit that got past it
+        const why = b.checks ? missing(button.form) : null;
+        if ( why ) { ui.notifications?.warn(`${TITLE}: ${why}.`); return; }
+        b.submit?.(readPicks(button.form));
+      } }))
+  });
+  const root = dialog?.element ?? null;
+  wirePicker(root, sections);
+  for ( const b of buttons.filter(x => x.checks) ) {
+    root?.querySelector(`button[data-action="${b.action}"]`)?.addEventListener("click", event => {
+      const why = missing(event.currentTarget?.form ?? null);
+      if ( !why ) return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      ui.notifications?.warn(`${TITLE}: ${why}.`);
+    }, { capture: true });
+  }
+  return dialog;
+}
+
+/** A token document's centre at a top-left, by its own footprint. */
+const centreOf = (doc, topLeft, w, h) => (typeof doc?.getCenterPoint === "function") ? doc.getCenterPoint(topLeft) : { x: topLeft.x + (w / 2), y: topLeft.y + (h / 2) };
+
+/** The token art as a sprite for the ghost, or null (a missing file: the ghost is the square alone). */
+async function ghostSprite(src, w, h) {
+  try {
+    const load = foundry.canvas?.loadTexture ?? globalThis.loadTexture;
+    const texture = src ? await load?.(src) : null;
+    if ( !texture ) return null;
+    const sprite = new PIXI.Sprite(texture);
+    sprite.width = w; sprite.height = h; sprite.alpha = 0.6;
+    return sprite;
+  } catch { return null; }
+}
+
+/**
+ * The placement on this client, Misty Step's way (RULINGS *Summons*): a ring of the spell's range
+ * around the caster, the creature's footprint following the pointer, green where it may appear and red
+ * where it may not; a left click on a good space places one, `count` clicks place them all; a right
+ * click or Escape cancels. Judged by `spotVerdict`: within range, no sight-blocking wall between the
+ * caster's centre and the space's (the best a canvas can say for "a space you can see"), unoccupied by
+ * a token the player can see. No caster on this scene: no ring and no sight check. Nothing is created
+ * here; the elect makes the creature at the squares. Empty when cancelled.
+ * @param {{ originToken: TokenDocument|null, actorUuid: string, count: number, rangeFt: number|null, label: string }} facts
  * @returns {Promise<Array<{ x: number, y: number, elevation: number, rotation: number, level: string|null }>>}
  */
-export async function previewPlacement({ originToken, actorUuid, count }) {
-  const Placement = globalThis.dnd5e?.canvas?.TokenPlacement;
-  if ( !Placement?.place ) throw new Error(`${TITLE}: dnd5e's TokenPlacement is not where the module expects it`);
+export async function pickSpots({ originToken, actorUuid, count, rangeFt, label }) {
+  if ( !canvas?.ready ) throw new Error("the canvas is not ready");
   const actor = await fromUuid(actorUuid);
-  if ( !actor?.prototypeToken ) throw new Error(`no creature at ${actorUuid}`);
-  const placements = await Placement.place({ origin: originToken ?? undefined, tokens: Array(Math.max(1, Number(count) || 1)).fill(actor.prototypeToken) });
-  return (placements ?? []).map(p => ({ x: p.x, y: p.y, elevation: p.elevation ?? 0, rotation: p.rotation ?? 0, level: p.level ?? null }));
+  const proto = actor?.prototypeToken;
+  if ( !proto ) throw new Error(`no creature at ${actorUuid}`);
+  const grid = canvas.grid;
+  const cells = { w: Math.max(Number(proto.width) || 1, 0.5), h: Math.max(Number(proto.height) || 1, 0.5) };
+  const w = cells.w * grid.sizeX;
+  const h = cells.h * grid.sizeY;
+  const want = Math.max(1, Number(count) || 1);
+  const caster = (originToken?.parent?.id === canvas.scene?.id) ? originToken : null;
+  const from = caster ? centreOf(caster, { x: caster.x, y: caster.y }, caster.width * grid.sizeX, caster.height * grid.sizeY) : null;
+  const elevation = Number(caster?.elevation) || 0;
+  const level = caster?.level ?? null;
+
+  const ring = new PIXI.Graphics();
+  if ( from && (rangeFt !== null) ) {
+    const radius = (rangeFt / canvas.dimensions.distance) * grid.size + (Math.max(caster.width, caster.height) * grid.size / 2);
+    const tint = Number(game.user.color ?? 0xde7828);
+    ring.lineStyle(4, tint, 0.85).beginFill(tint, 0.06).drawCircle(from.x, from.y, radius).endFill();
+  }
+  const marks = new PIXI.Container();
+  const ghost = new PIXI.Container();
+  const frame = new PIXI.Graphics();
+  ghost.addChild(frame);
+  const sprite = await ghostSprite(proto.texture?.src ?? actor.img ?? null, w, h);
+  if ( sprite ) ghost.addChild(sprite);
+  ghost.visible = false;
+  const layer = canvas.controls;
+  layer.addChild(ring, marks, ghost);
+
+  const placed = /** @type {Array<{ x: number, y: number, elevation: number, rotation: number, level: string|null }>} */ ([]);
+  const snapCentre = p => {
+    if ( grid.isGridless ) return { x: p.x, y: p.y };
+    const M = CONST.GRID_SNAPPING_MODES;
+    const odd = (cells.w < 1) || (Math.round(cells.w) % 2 === 1);
+    return grid.getSnappedPoint({ x: p.x, y: p.y }, { mode: odd ? M.CENTER : M.VERTEX });
+  };
+  const judge = topLeft => {
+    const to = { x: topLeft.x + (w / 2), y: topLeft.y + (h / 2) };
+    const distanceFt = from ? grid.measurePath([from, to]).distance : null;
+    let blocked = false;
+    try { blocked = !!(from && CONFIG.Canvas.polygonBackends.sight.testCollision(from, to, { type: "sight", mode: "any" })); } catch { blocked = false; }
+    const mine = { x: topLeft.x, y: topLeft.y, w, h };
+    const occupied = canvas.scene.tokens.some(t => (t.id !== caster?.id) && (game.user.isGM || !t.hidden)
+        && footprintsOverlap(mine, { x: t.x, y: t.y, w: t.width * grid.sizeX, h: t.height * grid.sizeY }))
+      || placed.some(p => footprintsOverlap(mine, { x: p.x, y: p.y, w, h }));
+    return spotVerdict({ distanceFt, rangeFt: from ? rangeFt : null, blocked, occupied });
+  };
+  const paint = (g, ok) => g.clear().lineStyle(3, ok ? 0x3fbf5f : 0xd04040, 0.95).beginFill(ok ? 0x3fbf5f : 0xd04040, 0.2).drawRect(0, 0, w, h).endFill();
+
+  ui.notifications?.info(`${TITLE}: click where ${label} appears${want > 1 ? ` (${want} spaces)` : ""}${(from && rangeFt !== null) ? `, within ${rangeFt} ft` : ""}. Right-click or Esc cancels.`);
+  const stage = canvas.stage;
+  return await new Promise(resolve => {
+    const end = result => {
+      stage.off("pointermove", onMove); stage.off("pointerdown", onDown);
+      document.removeEventListener("keydown", onKey, true);
+      layer.removeChild(ring, marks, ghost);
+      for ( const d of [ring, marks, ghost] ) d.destroy({ children: true });
+      void resolve(result);   // the executor's resolve, not a promise: the lint reads the call as one
+    };
+    const topLeftAt = event => {
+      const c = snapCentre(event.getLocalPosition(stage));
+      return { x: c.x - (w / 2), y: c.y - (h / 2) };
+    };
+    const onMove = event => {
+      const tl = topLeftAt(event);
+      ghost.position.set(tl.x, tl.y);
+      ghost.visible = true;
+      paint(frame, judge(tl).ok);
+    };
+    const onDown = event => {
+      if ( canvas.stage !== stage ) { end([]); return; }
+      if ( event.button === 2 ) { end([]); return; }
+      if ( event.button !== 0 ) return;
+      const tl = topLeftAt(event);
+      const verdict = judge(tl);
+      if ( !verdict.ok ) { ui.notifications?.warn(`${TITLE}: ${verdict.why}. Pick another space.`); return; }
+      placed.push({ x: tl.x, y: tl.y, elevation, rotation: 0, level });
+      const mark = new PIXI.Graphics();
+      paint(mark, true);
+      mark.position.set(tl.x, tl.y);
+      marks.addChild(mark);
+      if ( placed.length >= want ) end(placed);
+    };
+    const onKey = event => {
+      if ( event.key !== "Escape" ) return;
+      event.preventDefault(); event.stopPropagation();
+      end([]);
+    };
+    stage.on("pointermove", onMove);
+    stage.on("pointerdown", onDown);
+    document.addEventListener("keydown", onKey, true);
+  });
 }

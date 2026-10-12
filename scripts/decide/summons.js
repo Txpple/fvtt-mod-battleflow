@@ -59,18 +59,44 @@ export function choiceRowKey(table, itemName, listed) {
 }
 
 /**
- * What the one popup must ask: the form when more than one profile stands, the spell's own choice
- * when a row names one, the pool when a `cr`-mode profile carries no creature. Nothing to ask means
- * the popup is placement alone (a Tier 2 object, a one-profile spell with no choice).
- * @param {{ profiles: Array<{ uuid: string|null, cr: string|null }>, choice: string|null }} facts
- * @returns {{ profile: boolean, pool: boolean, choice: boolean, any: boolean }}
+ * Whether a profile picks its creature from the pool. A `cr`-mode activity always does: the PHB's Find
+ * Familiar ships its "CR 0 Beast" profile with the Bat's uuid beside the cap, a default the system's own
+ * browser never reads. A record from before the mode was stamped falls back to "a cap and no creature".
+ * @param {{ uuid: string|null, cr: string|null }} profile
+ * @param {string|null|undefined} mode   the activity's `summon.mode`
  */
-export function formNeeds({ profiles, choice }) {
+export const poolPicks = (profile, mode) => (profile?.cr !== null) && (profile?.cr !== undefined) && ((mode === "cr") || !profile.uuid);
+
+/**
+ * The answer the popup must take for one of the activity's own lists (creature types, sizes): asked
+ * when it offers more than one, the one when it offers one, null when it offers none.
+ * @param {string[]|null|undefined} list
+ * @param {string|null|undefined} answer
+ * @returns {{ ok: boolean, value: string|null }}
+ */
+export function listAnswer(list, answer) {
+  const options = list ?? [];
+  if ( options.length === 0 ) return { ok: true, value: null };
+  if ( options.length === 1 ) return { ok: true, value: options[0] ?? null };
+  return options.includes(answer ?? "") ? { ok: true, value: /** @type {string} */ (answer) } : { ok: false, value: null };
+}
+
+/**
+ * What the one popup must ask: the form when more than one profile stands, the spell's own choice
+ * when a row names one, the pool when a profile picks from it (`poolPicks`), the creature type and the
+ * size when the activity offers more than one (Find Familiar's Celestial, Fey or Fiend). Nothing to ask
+ * means the popup is placement alone (a Tier 2 object, a one-profile spell with no choice).
+ * @param {{ profiles: Array<{ uuid: string|null, cr: string|null }>, choice: string|null, mode?: string|null,
+ *   creatureTypes?: string[]|null, creatureSizes?: string[]|null }} facts
+ * @returns {{ profile: boolean, pool: boolean, choice: boolean, type: boolean, size: boolean, any: boolean }}
+ */
+export function formNeeds({ profiles, choice, mode = null, creatureTypes = null, creatureSizes = null }) {
   const rows = profiles ?? [];
-  const profile = rows.length > 1;
-  const pool = rows.some(p => !p.uuid && (p.cr !== null));
-  const need = { profile, pool, choice: !!choice };
-  return { ...need, any: need.profile || need.pool || need.choice };
+  const need = {
+    profile: rows.length > 1, pool: rows.some(p => poolPicks(p, mode)), choice: !!choice,
+    type: (creatureTypes?.length ?? 0) > 1, size: (creatureSizes?.length ?? 0) > 1
+  };
+  return { ...need, any: need.profile || need.pool || need.choice || need.type || need.size };
 }
 
 /**
@@ -87,20 +113,69 @@ export function formNeeds({ profiles, choice }) {
  * @param {string|null} facts.choice         the SUMMON_CHOICES key, or null
  * @param {string|null} facts.concentrationId
  * @param {string|null} facts.sceneId        where the caster stands
+ * @param {string|null} [facts.mode]         the activity's `summon.mode` ("cr" picks from the pool)
+ * @param {string[]} [facts.creatureTypes]   the types the activity offers (more than one is asked)
+ * @param {string[]} [facts.creatureSizes]   the sizes the activity offers (more than one is asked)
+ * @param {number|null} [facts.rangeFt]      the spell's range in feet; null places anywhere the caster can see
  */
-export function summonRecord({ sourceUuid, sourceName, itemUuid, itemName, activityUuid, level, profiles, choice, concentrationId, sceneId }) {
+export function summonRecord({ sourceUuid, sourceName, itemUuid, itemName, activityUuid, level, profiles, choice, concentrationId, sceneId,
+  mode = null, creatureTypes = [], creatureSizes = [], rangeFt = null }) {
   return {
     status: "asked", sourceUuid, sourceName, itemUuid, itemName, activityUuid,
     level: Number(level) || 0, profiles: [...(profiles ?? [])], choice: choice ?? null,
-    concentrationId: concentrationId ?? null, sceneId: sceneId ?? null, askedAt: Date.now()
+    concentrationId: concentrationId ?? null, sceneId: sceneId ?? null,
+    mode: mode ?? null, creatureTypes: [...(creatureTypes ?? [])], creatureSizes: [...(creatureSizes ?? [])],
+    rangeFt: Number.isFinite(Number(rangeFt)) && (rangeFt !== null) ? Number(rangeFt) : null, askedAt: Date.now()
   };
+}
+
+/**
+ * Two axis-aligned footprints overlap; a square is its interior, so two tokens edge to edge do not.
+ * @param {{ x: number, y: number, w: number, h: number }} a
+ * @param {{ x: number, y: number, w: number, h: number }} b
+ */
+export function footprintsOverlap(a, b) {
+  const eps = 1;
+  return (b.x < a.x + a.w - eps) && (b.x + b.w > a.x + eps) && (b.y < a.y + a.h - eps) && (b.y + b.h > a.y + eps);
+}
+
+/**
+ * The spot a player clicked for a summoned creature, judged in the order the spells word it: within
+ * range, a space the caster can see (no sight-blocking wall between), unoccupied. `{ ok, why }`.
+ * @param {{ distanceFt: number|null, rangeFt: number|null, blocked: boolean, occupied: boolean }} facts
+ * @returns {{ ok: boolean, why: string|null }}
+ */
+export function spotVerdict({ distanceFt, rangeFt, blocked, occupied }) {
+  if ( (rangeFt !== null) && (distanceFt !== null) && (distanceFt > rangeFt) ) return { ok: false, why: `beyond the spell's range (${rangeFt} ft)` };
+  if ( blocked ) return { ok: false, why: "a wall blocks your sight of that space" };
+  if ( occupied ) return { ok: false, why: "that space is occupied" };
+  return { ok: true, why: null };
+}
+
+/**
+ * A range as feet, for the placement ring: feet as they are, miles in feet, touch as 5 ft; self, any,
+ * special or an unknown unit is null (no ring, no range check — the sight check still stands).
+ * @param {{ value?: number|string|null, units?: string|null }|null|undefined} range   the activity's range
+ * @returns {number|null}
+ */
+export function rangeFeet(range) {
+  const units = String(range?.units ?? "");
+  if ( units === "touch" ) return 5;
+  const n = Number(range?.value);
+  if ( !Number.isFinite(n) || (n <= 0) ) return null;
+  if ( units === "ft" ) return n;
+  if ( units === "mi" ) return n * 5280;
+  if ( units === "m" ) return n * 10 / 3;   // the metric rule: 1.5 m a square, 5 ft a square
+  if ( units === "km" ) return n * 10000 / 3;
+  return null;
 }
 
 /**
  * The popup's answer folded into an `asked` record, judged: the profile is one of the record's, the
  * choice one of the row's options when a row stands, the pool pick present when the profile needs one,
- * every placement a square. The patch to write, or null when the answer is not one the form allows. The
- * record's `choice` stays the row's key; the answer to it lands as `picked`.
+ * the creature type and size among the activity's when it offers more than one, every placement a
+ * square. The patch to write, or null when the answer is not one the form allows. The record's
+ * `choice` stays the row's key; the answer to it lands as `picked`.
  * @param {object} record
  * @param {{ profileId: string|null, pick?: { uuid: string, name: string, img?: string|null }|null, choice?: string|null,
  *   placements: Array<{ x: number, y: number, elevation?: number, rotation?: number, level?: string|null }>,
@@ -112,8 +187,11 @@ export function placedAnswer(record, answer, table) {
   const rows = record.profiles ?? [];
   const profile = rows.length === 1 ? rows[0] : rows.find(p => p.id === answer?.profileId) ?? null;
   if ( !profile ) return null;
-  const needsPool = !profile.uuid && (profile.cr !== null);
+  const needsPool = poolPicks(profile, record.mode);
   if ( needsPool && !answer?.pick?.uuid ) return null;
+  const type = listAnswer(record.creatureTypes, answer?.creatureType);
+  const size = listAnswer(record.creatureSizes, answer?.creatureSize);
+  if ( !type.ok || !size.ok ) return null;
   let picked = null;
   if ( record.choice ) {
     const row = table?.[record.choice];
@@ -125,10 +203,11 @@ export function placedAnswer(record, answer, table) {
   if ( !placements.length ) return null;
   return {
     status: "placed", profileId: profile.id, profileName: profile.name || profile.label || answer?.pick?.name || "",
-    summonUuid: profile.uuid ?? answer?.pick?.uuid ?? null, summonName: answer?.pick?.name || profile.label || profile.name || "",
+    summonUuid: (needsPool ? answer?.pick?.uuid : profile.uuid) ?? null,
+    summonName: (needsPool ? answer?.pick?.name : null) || profile.label || profile.name || "",
     picked, placements, count: Math.max(1, Number(answer?.count) || placements.length),
     sceneId: answer?.sceneId ?? record.sceneId ?? null,
-    creatureSize: answer?.creatureSize ?? null, creatureType: answer?.creatureType ?? null,
+    creatureSize: size.value, creatureType: type.value,
     placedAt: Date.now()
   };
 }
@@ -196,4 +275,20 @@ export function seatInitiative(casterInitiative) {
   if ( (casterInitiative === null) || (casterInitiative === undefined) ) return null;
   const n = Number(casterInitiative);
   return Number.isFinite(n) ? Math.round((n - 0.01) * 100) / 100 : null;
+}
+
+/**
+ * The earlier summons a new one replaces (SUMMON_SINGLES): the same caster's records of the same spell
+ * that landed and still stand, never the new one itself. Empty when the spell is not a single.
+ * @param {Array<{ id: string, flag: object|null|undefined }>} records   every card's summon record, by message id
+ * @param {{ id: string, sourceUuid: string, itemName: string }} current  the record that just landed
+ * @param {Set<string>} singles   lower-cased SUMMON_SINGLES keys
+ * @returns {string[]}  the message ids to dismiss
+ */
+export function replacedSummons(records, current, singles) {
+  const item = String(current?.itemName ?? "").toLowerCase();
+  if ( !item || !singles?.has?.(item) ) return [];
+  return (records ?? []).filter(({ id, flag }) => (id !== current.id) && !!flag?.applied && !flag.dismissAsked && !flag.dismissed
+    && (flag.outcome !== "failed") && (flag.sourceUuid === current.sourceUuid) && (String(flag.itemName ?? "").toLowerCase() === item))
+    .map(r => r.id);
 }

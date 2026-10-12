@@ -294,7 +294,8 @@ export const MOMENT_RECORDS = Object.freeze({
       marker: "message", events: ["cast"],
       facts: { actor: r.sourceUuid ?? null, item: r.itemUuid ?? ctx.itemUuid ?? null, activity: r.activityUuid ?? ctx.activityUuid ?? null,
         ability: r.itemName ?? null,
-        targets: (r.landed ?? []).map(l => ({ uuid: l.actorUuid ?? null, name: l.name ?? null })),
+        // the token each creature landed as, so a reader plays at the space it appeared in
+        targets: (r.landed ?? []).map(l => ({ uuid: l.actorUuid ?? null, tokenUuid: l.tokenUuid ?? null, name: l.name ?? null })),
         details: { outcome: r.outcome ?? null, profile: r.profileName ?? null, summon: r.summonName ?? null, row: r.choice ?? null, picked: r.picked ?? null,
           count: r.count ?? null, level: r.level ?? null, dismissed: !!r.dismissed } }
     }] : []

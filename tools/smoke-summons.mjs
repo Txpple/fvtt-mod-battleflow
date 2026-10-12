@@ -18,7 +18,7 @@ export const COVERS = [
 
 const SECTIONS = {
   1: 'THE RECORD: a Summon Beast cast by the Sorcerer posts its card with NO token created by the system and a `summon` flag `asked` carrying three profile rows with art and stat lines',
-  2: 'THE LANDING: the record answered (Bestial Land Spirit, one square beside the caster) is landed by the elect — one token on the scene, the Land spirit, flags.dnd5e.summon.level = 2, the card "landed by the GM\'s client"',
+  2: 'THE LANDING: the record answered (Bestial Land Spirit, one square beside the caster) is landed by the elect — one token on the scene, the Land spirit, flags.dnd5e.summon.level = 2, the card "summoned"',
   3: 'THE DRAGON: Summon Dragon answered with fire lands a Draconic Spirit whose Breath Weapon carries fire alone, and a "Shared Resistance (Fire)" effect on the caster dependent on the concentration effect',
   4: 'DISMISS: the Dismiss ask deletes the landed token and the resistance effect; the card says dismissed',
   5: 'THE SEAT: with the caster in a started combat at Initiative 15, the landed creature joins at 14.99 right after it',
@@ -141,7 +141,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         const source = base?._stats?.compendiumSource ?? '';
         ok('§2 it is the Land spirit at the spell\'s level', /BestialLan/.test(source) && (tok?.actor?.getFlag('dnd5e', 'summon')?.level === 2), `${base?.name} from ${source} level=${tok?.actor?.getFlag('dnd5e', 'summon')?.level}`);
         const row = await waitFor(() => document.querySelector(`[data-message-id="${message.id}"] .bythebooks-summon`), 6000);
-        ok('§2 the card says landed', /landed by the GM/.test(row?.textContent ?? ''), (row?.textContent ?? '').trim().slice(0, 120));
+        ok('§2 the card says summoned', /— summoned/.test(row?.textContent ?? ''), (row?.textContent ?? '').trim().slice(0, 120));
         if (want(5)) {
           // The seat: a combat with the caster at 15; a second cast lands beside it.
           const combat = await Combat.create({ scene: canvas.scene.id, active: true, [`flags.${MOD}.suiteSummons`]: true });
