@@ -60,11 +60,13 @@ export const ORDER = [
   { name: "smoke-summons", note: "summons — the system's placement switched off, the popup off the cast card, the placement recorded, the elect landing the creature with ownership and the seat, the dragon's breath narrowed and the shared resistance, Dismiss" },
   { name: "smoke-transforms", note: "Wild Shape and the polymorph spells — the chooser switched off at the use, the record with the known forms, the pick folded, the elect transforming with the preset and clocking the form, the ends (Revert, 0 HP, the temp HP gone), the Long Rest's known-form swap" },
   { name: "smoke-mastery-record", note: "the mastery record — the fill from equipped weapons, the not-mastered line and Master it, the long-rest swap, the party view's door" },
-  { name: "smoke-hitmenu", note: "the hit menu — the Battle Master's maneuvers on the damage offer: one pick, the die rides, the pool spent, the save through the machine, the sweep at a second creature" },
+  { name: "smoke-hitmenu", note: "the hit menu — the Battle Master's maneuvers on the damage offer: one pick, the die rides, the pool spent, the save through the machine, the sweep at a second creature",
+    needs: ["fixture-d20-folds"] },   // the Battle Master that seed builds on the Fighter
   // The same seam from the DEFENDER's side (the shields), and a bare damage cast's dice (Heat Metal).
   { name: "smoke-shields", note: "the damage shields — Fire Shield's type by its effect, Death Armor walked to its caster and once per turn, Armor of Agathys marked at the cast and ended with its pool, the reach, the list" },
   { name: "smoke-heatmetal", note: "the damage casts — Heat Metal's dice roll at the use and land, the save follows through the machine, Heated Metal read by both gates, the reheat, the list" },
-  { name: "smoke-superiority", note: "the rest of the Battle Master's maneuvers — Parry's reduction on the hold, the four Bonus Action uses, Ambush and Tactical Assessment as scoped folds, Commander's Strike as a driven attack, Rally natively" },
+  { name: "smoke-superiority", note: "the rest of the Battle Master's maneuvers — Parry's reduction on the hold, the four Bonus Action uses, Ambush and Tactical Assessment as scoped folds, Commander's Strike as a driven attack, Rally natively",
+    needs: ["fixture-d20-folds"] },   // the Battle Master that seed builds on the Fighter
   // ⚠ Before smoke-surfaces: it places a real template and Regions, deleted in its `finally`. The
   // seed re-places the Victim token smoke-effects sweeps off.
   { name: "fixture-suite", note: "not a suite — re-places the tokens smoke-metamagic and smoke-emanations need", reset: true },
@@ -119,7 +121,7 @@ export const ORDER = [
   // BTB Test Cleric is lent Sanctuary and Sacred Flame, BTB Test Sorcerer Mirror Image; BTB Test Attacker swings.
   {
     name: "smoke-wards", note: "the spells slice's Tier 3 — Sanctuary's gate before the attack roll and before a damaging spell's cast (the save demanded of the attacker; a failure turns it aside, a success makes the use again; the ward ends on its bearer's own attack), and Mirror Image's duplicates rolled on a hit that stands (a duplicate destroyed, the hit absorbed; the hit through; the last one ends it; Blindsight sees through)",
-    needs: ["fixture-suite"]
+    needs: ["fixture-suite", "fixture-d20-folds"]   // §9 rides the Fighter's Longsword, which that seed lends
   },
   // BTB Test Cleric is lent the PHB's Healer and Cure Wounds.
   {
