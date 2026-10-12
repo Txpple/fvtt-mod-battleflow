@@ -398,12 +398,15 @@ const reverting = new Set();
 
 /**
  * The elect ends a form: dnd5e's own revert, the record stamped `ended`, the card said. Idempotent:
- * a creature not transformed, or already reverting, is left alone.
+ * a creature not transformed, or already reverting, is left alone. ⚠ A deleted form effect is no longer
+ * on the creature (Concentration's end deletes its dependent before this runs): its listener passes the
+ * effect's own record, or the card would never be stamped `ended`.
  * @param {Actor} actor   the transformed creature
  * @param {{ why: string, word: string }} ended
+ * @param {object|null} [formFlag]   the form effect's record, when the effect is already gone
  */
-async function revertForm(actor, ended) {
-  const form = readFlag(formEffectOn(actor), FORM_FLAG) ?? null;
+async function revertForm(actor, ended, formFlag = null) {
+  const form = formFlag ?? readFlag(formEffectOn(actor), FORM_FLAG) ?? null;
   const key = actor.isToken ? actor.token.uuid : actor.id;
   if ( !actor.isPolymorphed || reverting.has(key) ) return;
   reverting.add(key);
@@ -449,7 +452,8 @@ listen("deleteActiveEffect", "transforms", effect => {
     if ( !(actor instanceof Actor) ) return;
     if ( !actor.isToken && !game.actors.get(actor.id) ) return;   // the copy itself is going: a revert already ran
     const dependent = !!effect.getFlag("dnd5e", "dependentOn");
-    void revertForm(actor, dependent ? { word: "concentration", why: "Concentration ended" } : { word: "revert", why: "the form was ended" });
+    void revertForm(actor, dependent ? { word: "concentration", why: "Concentration ended" } : { word: "revert", why: "the form was ended" },
+      readFlag(effect, FORM_FLAG));
   } catch(err) { console.error(`${TITLE} | The form's end could not run.`, err); }
 });
 
