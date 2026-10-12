@@ -63,6 +63,13 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     return fn();
   };
 
+  // ⚠ The range is VIEWED and read, never `game.scenes.active`: the world's active scene is whatever the
+  // table last played (a prod mirror made it Party Camp, whose Drill Post became the foe while the
+  // fighter stood on the range, and Precision had no target it could reach). smoke-summons' 2fb0002.
+  const range = game.scenes.getName("By the Books Test Range");
+  if (range && (canvas.scene?.id !== range.id)) await range.view();
+  for (let i = 0; i < 40 && !(canvas.ready && canvas.scene?.id === range?.id); i++) await sleep(250);
+
   try {
     const fighter = game.actors.getName("BTB Test Fighter");
     const bard = game.actors.getName("BTB Test Bard");
@@ -147,7 +154,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     /* --- 3: the attack path ------------------------------------------------------------ */
     if (has(3)) {
       // Drives the whole chain: spend → reroll → re-verdict → damage (the fixture grants a Longsword).
-      const scene = game.scenes.active;
+      const scene = range;
       const foeToken = scene?.tokens?.find(t => t.actor && (t.actor.type === "npc") && !t.actorLink);   // UNLINKED: a linked foe collapses two tokens onto one actor
       const placed = foeToken ? canvas.tokens.get(foeToken.id) : null;
       const sword = fighter.items.find(i => i.name === "Longsword");
@@ -381,7 +388,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       // ⚠ THE BAND (attack +5, AC 18): d20 5 → 10 (both stamp); bardic 3 → 13 (still misses);
       // precision 6 → composed 19 HITS, un-composed 16 misses. The two must straddle the AC.
       // ⚠ Fold first, then precision: the only order that can break.
-      const scene = game.scenes.active;
+      const scene = range;
       const foeToken = scene?.tokens?.find(t => t.actor && (t.actor.type === "npc") && !t.actorLink);   // UNLINKED: a linked foe collapses two tokens onto one actor
       const placed = foeToken ? canvas.tokens.get(foeToken.id) : null;
       const sword = fighter.items.find(i => i.name === "Longsword");
@@ -625,7 +632,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       // give two `add`s of the die; the card's sentence and `foldedTotal` must count it once.
       // ⚠ THE BAND: attack +5, d20 5 → 10, bardic 3, AC 30: right 13, wrong 16 — both miss on purpose
       // (the verdict is not under test). AC 30 also keeps precision's hopeless gate shut.
-      const scene = game.scenes.active;
+      const scene = range;
       const foeToken = scene?.tokens?.find(t => t.actor && (t.actor.type === "npc") && !t.actorLink);   // UNLINKED: a linked foe collapses two tokens onto one actor
       const sword = fighter.items.find(i => i.name === "Longsword");
       const act = sword?.system.activities?.find(a => a.type === "attack");
@@ -781,7 +788,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       // ⚠ The merged window must go away when nothing is left to ask:
       //   (a) the clock ran out;
       //   (b) a spend fixed the roll — a click would spend a real die on a target already hit.
-      const scene = game.scenes.active;
+      const scene = range;
       const foeToken = scene?.tokens?.find(t => t.actor && (t.actor.type === "npc") && !t.actorLink);   // UNLINKED: a linked foe collapses two tokens onto one actor
       const placed = foeToken ? canvas.tokens.get(foeToken.id) : null;
       const sword = fighter.items.find(i => i.name === "Longsword");
@@ -925,7 +932,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       // ⚠ THE WASTED-SPEND RACE: a click arriving after a sibling fixed the roll must not spend. A
       // click can be in flight when the window closes, and crash-resume calls the resolver directly.
       // Asserts the OUTCOME (the die is still there), not which guard caught it.
-      const scene = game.scenes.active;
+      const scene = range;
       const foeToken = scene?.tokens?.find(t => t.actor && (t.actor.type === "npc") && !t.actorLink);   // UNLINKED: a linked foe collapses two tokens onto one actor
       const placed = foeToken ? canvas.tokens.get(foeToken.id) : null;
       const sword = fighter.items.find(i => i.name === "Longsword");

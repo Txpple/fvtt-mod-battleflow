@@ -64,6 +64,15 @@ const out = await f.evaluate(async () => {
     await sword.update({ "system.equipped": true });
     log.push("equipped the Longsword");
   }
+  // ⚠ A fighter built from the pack carries NO weapon proficiency (NOTES): unproficient, the Longsword
+  // swings at +2, not the band's +5, and at AC 18 no Precision die can close the gap, so Precision
+  // rightly never offers and smoke-d20-folds §6–§9 read red.
+  const WEAPON_PROF = "system.traits.weaponProf.value";
+  const profs = new Set(fighter.system._source.traits?.weaponProf?.value ?? []);
+  if (!profs.has("sim") || !profs.has("mar")) {
+    await fighter.update({ [WEAPON_PROF]: [...new Set([...profs, "sim", "mar"])] });
+    log.push("granted the fighter simple and martial weapons");
+  }
   const attackActivity = sword.system.activities?.find(a => a.type === "attack");
 
   // And a tool: smoke-d20-folds §4 asserts `dnd5e.rollToolCheck` fires (`rollToolV2` does not exist).
