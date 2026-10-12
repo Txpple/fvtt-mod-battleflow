@@ -14,7 +14,7 @@ import { announcePlan, connectSuite, finish, sectionArg, sectionPlan } from './h
 // THE COVERAGE MAP (tools/coverage-map.mjs) — ⚠ NEVER import a suite; the map is parsed.
 export const COVERS = [
   'summons.js',   // §1 the intercept and the record, §2 the landing, §3 the dragon, §4 Dismiss, §5 the seat, §6 the pool it picks from (gallery.js is a service: the battery's)
-  'summon-art.js' // §7 the Summon Art window lists the familiar's pool, and the table's art lands on the familiar
+  'summon-art.js' // §7 the Summon Art window lists the familiar's pool, and the table's art lands on the familiar; §8 Match files and Save
 ];
 
 const SECTIONS = {
@@ -24,7 +24,8 @@ const SECTIONS = {
   4: 'DISMISS: the Dismiss ask deletes the landed token and the resistance effect; the card says dismissed',
   5: 'THE SEAT: with the caster in a started combat at Initiative 15, the landed creature joins at 14.99 right after it',
   6: 'THE POOL: the pack index pool at CR 0, beasts only, holds Owl once (the MM copy), sorted by CR then name',
-  7: 'SUMMON ART: the Summon Art window lists the Owl for Find Familiar; with the Owl given a token and a portrait in the table, a Find Familiar landed as an Owl wears the token, the portrait and the token on its companion effect'
+  7: 'SUMMON ART: the Summon Art window lists the Owl for Find Familiar; with the Owl given a token and a portrait in the table, a Find Familiar landed as an Owl wears the token, the portrait and the token on its companion effect',
+  8: 'MATCH AND SAVE: in the Summon Art window, Match files over a folder holding owl.webp, owl-portrait.webp and bat.webp fills the Owl and the Bat, keeps a Bat token set by hand, and Save stores the table by name'
 };
 const DEPENDS = { 3: [1], 4: [2], 5: [2] };
 
@@ -229,6 +230,34 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       if (landed) {
         await api.askDismiss(message);
         await waitFor(() => message.getFlag(MOD, 'summon')?.dismissed ? true : null, 15000);
+      }
+    }
+    if (want(8)) {
+      // The folder is Foundry's browse, stubbed for the one call: the suite owns no files on the box.
+      const FP = foundry.applications.apps.FilePicker.implementation;
+      const browse = FP.browse;
+      if (artBefore === undefined) artBefore = foundry.utils.deepClone(game.settings.get(MOD, 'summonArt') ?? {});
+      await game.settings.set(MOD, 'summonArt', { 'find familiar': { bat: { token: 'mine/bat.webp' } } });
+      FP.browse = async () => ({ files: ['art/fam/owl.webp', 'art/fam/owl-portrait.webp', 'art/fam/bat.webp', 'art/fam/notes.txt'], dirs: [] });
+      const menu = game.settings.menus.get(`${MOD}.summonArtMenu`);
+      const win = new menu.type();
+      try {
+        await win.render(true);
+        await waitFor(() => win.element?.querySelector('[data-bf-art-row="owl"]'), 20000);
+        const folder = win.element.querySelector('[data-bf-art-folder]');
+        folder.value = 'art/fam';
+        folder.dispatchEvent(new Event('change'));
+        win.element.querySelector('[data-bf-art-match]').click();
+        const owlToken = await waitFor(() => win.element?.querySelector('[data-bf-art-row="owl"] [data-bf-art-field="token"]')?.value || null, 8000);
+        const field = (row, f) => win.element?.querySelector(`[data-bf-art-row="${row}"] [data-bf-art-field="${f}"]`)?.value ?? null;
+        ok('§8 Match files fills the Owl', owlToken === 'art/fam/owl.webp' && field('owl', 'portrait') === 'art/fam/owl-portrait.webp', JSON.stringify({ token: owlToken, portrait: field('owl', 'portrait') }));
+        ok('§8 a field set by hand is kept', field('bat', 'token') === 'mine/bat.webp', `bat token=${field('bat', 'token')}`);
+        win.element.querySelector('[data-bf-art-save]').click();
+        const saved = await waitFor(() => { const t = game.settings.get(MOD, 'summonArt'); return t?.['find familiar']?.owl ? t : null; }, 8000);
+        ok('§8 Save stores the table by name', JSON.stringify(saved?.['find familiar']) === JSON.stringify({ bat: { token: 'mine/bat.webp' }, owl: { token: 'art/fam/owl.webp', portrait: 'art/fam/owl-portrait.webp' } }), JSON.stringify(saved));
+      } finally {
+        FP.browse = browse;
+        if (win.rendered) await win.close();
       }
     }
   } catch (err) {
