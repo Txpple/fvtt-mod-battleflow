@@ -38,6 +38,7 @@ export const WHERE = {
   SUMMON_CHOICES: ["summons.js", "Summons"],
   SUMMON_SINGLES: ["summons.js", "Summons"],
   SUMMON_OWN_INITIATIVE: ["summons.js", "Summons"],
+  COMPANIONS: ["summons.js", "Summons"],
   TRANSFORMS: ["transforms.js", "Wild Shape and the polymorph spells"],
   TOKEN_SIZES: ["effect-riders.js", "The species walk, continued"],
   SPENT_AREAS: ["saves/areas.js", "Rulings the code carried · Save demands and their areas"],

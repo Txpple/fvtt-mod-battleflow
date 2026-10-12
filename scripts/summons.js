@@ -16,10 +16,11 @@
  */
 import { MODULE_ID, readFlag, TITLE, activeCombatFor, isActiveGM, queueFlagWrite, canAnswerFor, statContext } from "./core.js";
 import { cardActivity, lower, resolveUuid } from "./lookup.js";
-import { SUMMON_CHOICES, summonChoiceEntries, summonOwnInitiativeEntries, summonSingleEntries, listedNames } from "./decide/registry.js";
+import { COMPANIONS, SUMMON_CHOICES, summonChoiceEntries, summonOwnInitiativeEntries, summonSingleEntries, listedNames } from "./decide/registry.js";
 import { profileRows, choiceRowKey, formNeeds, poolPicks, summonRecord, placedAnswer, narrowedActivities, resistanceEffectData,
-  ownershipGrant, seatInitiative, rangeFeet, replacedSummons } from "./decide/summons.js";
-import { bfCard, popupKey } from "./decide/present.js";
+  ownershipGrant, seatInitiative, rangeFeet, replacedSummons, companionEffectName, currentCompanion, companionMenu, companionAsk,
+  carriedItemIds } from "./decide/summons.js";
+import { bfCard, esc, popupKey } from "./decide/present.js";
 import { concentrationIdOf } from "./decide/card.js";
 import { effectRecord, joinEffectReceipt } from "./decide/receipt.js";
 import { describeCreature, openPicker, pickSpots, poolFromPacks } from "./gallery.js";
@@ -72,6 +73,9 @@ async function stampRecord(activity, message) {
     mode: activity.summon?.mode ?? null, creatureTypes: [...(activity.creatureTypes ?? [])],
     creatureSizes: [...(activity.creatureSizes ?? [])], rangeFt: rangeFeet(activity.range)
   });
+  // a companion standing: the new form takes its place (its square, or the pocket)
+  const was = companionOf(activity.item.name) ? currentCompanion(summonRecords(), actor.uuid, activity.item.name) : null;
+  if ( was && game.messages.get(was) ) record.replaces = replacesOf(game.messages.get(was));
   await message.setFlag(MODULE_ID, SUMMON_FLAG, { ...record, ...statContext(actor.uuid) });
 }
 
@@ -143,6 +147,8 @@ async function showSummonPopup(message) {
     sections.push({ rule: choiceRow.rule });
   }
   // what must be picked, in the order the popup reads (the creature, its type and size, the spell's own question)
+  const replacing = flag.replaces ?? null;
+  if ( replacing ) sections.push({ note: (replacing.state === "pocket") ? "The new form waits in the pocket dimension, as the old one did." : "The new form takes the old one's place." });
   const asked = [
     needs.pool ? { field: "bf-summon-pick", why: "pick the creature first" } : null,
     needs.type ? { field: "bf-summon-type", why: "pick its creature type first" } : null,
@@ -163,11 +169,14 @@ async function showSummonPopup(message) {
           try {
             const count = await countOf(flag, profile);
             const usePool = poolPicks(profile, flag.mode);
-            const placements = await pickSpots({ originToken: casterToken(flag), actorUuid: usePool ? pickRow.uuid : profile.uuid, count,
+            const inPlace = (replacing?.state === "present") && replacing.placement;
+            const intoPocket = replacing?.state === "pocket";
+            const placements = inPlace ? [replacing.placement] : intoPocket ? [{ x: 0, y: 0, elevation: 0, rotation: 0 }] : await pickSpots({ originToken: casterToken(flag), actorUuid: usePool ? pickRow.uuid : profile.uuid, count,
               rangeFt: flag.rangeFt ?? null, label: usePool ? pickRow.name : (profile.label || profile.name || "the creature") });
             if ( !placements.length ) return;   // cancelled on the map: the card's button recalls the popup
             await answerPlacement(message, flag, { profileId: profile.id, pick: pickRow ? { uuid: pickRow.uuid, name: pickRow.name, img: pickRow.img } : null,
-              choice: picks.one("bf-summon-choice"), placements, count, sceneId: canvas.scene?.id ?? flag.sceneId ?? null,
+              choice: picks.one("bf-summon-choice"), placements, count, intoPocket,
+              sceneId: (inPlace ? replacing.placement.sceneId : null) ?? canvas.scene?.id ?? flag.sceneId ?? null,
               creatureSize: needs.size ? creatureSize : (sizes[0] ?? null), creatureType: needs.type ? creatureType : (types[0] ?? null) });
           } catch(err) {
             console.error(`${TITLE} | The summon could not be placed — place the creature by hand.`, err);
@@ -207,6 +216,7 @@ async function landSummon(message) {
   let failure = null;
   let resistance = null;
   let replaced = [];
+  let companion = null;
   try {
     const caster = resolveUuid(flag.sourceUuid);
     const activity = cardActivity(message, flag.activityUuid);
@@ -233,7 +243,8 @@ async function landSummon(message) {
       }
       tokensData.push(await activity.getTokenData({ actor, placement: { ...placement }, tokenUpdates: changes.tokenUpdates, actorUpdates: changes.actorUpdates }));
     }
-    const created = await scene.createEmbeddedDocuments("Token", tokensData, { dnd5e: { autoRollNPCHP: "no" } });
+    // a new form for a companion waiting in the pocket waits there too: the token is kept, not drawn
+    const created = flag.intoPocket ? [] : await scene.createEmbeddedDocuments("Token", tokensData, { dnd5e: { autoRollNPCHP: "no" } });
     for ( const t of created ) landed.push({ tokenId: t.id, sceneId: scene.id, tokenUuid: t.uuid, actorUuid: t.actor?.uuid ?? null, name: t.name });
     Hooks.callAll("dnd5e.postSummon", activity, profile, created, options);
     // The caster's players own what they summoned.
@@ -257,6 +268,23 @@ async function landSummon(message) {
       const [effect] = await caster.createEmbeddedDocuments("ActiveEffect", [data]);
       if ( effect ) resistance = { uuid: caster.uuid, name: caster.name, img: caster.img ?? null, effectId: effect.id, effectName: effect.name, effectImg: effect.img ?? null, description: data.description };
     }
+    // A companion: the effect on its owner for as long as it stands, and its stat block (what it carries is the rest).
+    const crow = companionOf(flag.itemName);
+    if ( crow ) {
+      const name = flag.summonName || actor.name;
+      const type = flag.creatureType ? (CONFIG.DND5E?.creatureTypes?.[flag.creatureType]?.label ?? flag.creatureType) : null;
+      const pocket = !!flag.intoPocket;
+      const snapshot = pocket ? foundry.utils.deepClone(tokensData[0] ?? null) : null;
+      if ( snapshot ) delete snapshot._id;
+      await endCompanionEffects(caster, message.id);   // a landing makes exactly one
+      const [effect] = await caster.createEmbeddedDocuments("ActiveEffect", [{
+        name: companionEffectName({ noun: crow.noun, name, type, pocket }), img: tokensData[0]?.texture?.src ?? actor.img,
+        type: "base", transfer: false, disabled: false, origin: activity.item.uuid, description: crow.says ?? "",
+        flags: { [MODULE_ID]: { companion: message.id } }
+      }]);
+      companion = { noun: crow.noun, name, type, state: pocket ? "pocket" : "present", effectId: effect?.id ?? null,
+        baseItems: actor.items.contents.map(i => i.id), snapshot, events: [] };
+    }
     // One at a time (SUMMON_SINGLES): the caster's earlier familiar goes as the new one lands.
     replaced = replacedSummons(game.messages.contents.map(m => ({ id: m.id, flag: readFlag(m, SUMMON_FLAG) })),
       { id: message.id, sourceUuid: flag.sourceUuid, itemName: flag.itemName }, listedNames(summonSingleEntries()));
@@ -271,6 +299,7 @@ async function landSummon(message) {
       if ( failure ) current.failure = failure;
       if ( resistance ) current.resistance = { effectId: resistance.effectId, effectName: resistance.effectName };
       if ( replaced.length ) current.replaced = replaced.length;
+      if ( companion ) current.companion = companion;
     });
     for ( const id of replaced ) {
       const earlier = game.messages.get(id);
@@ -294,6 +323,12 @@ async function dismissSummon(message) {
   if ( !claimed ) return;
   const flag = readFlag(message, SUMMON_FLAG);
   try {
+    const doc = flag.companion ? liveToken(flag) : null;
+    if ( doc ) {
+      await dropCarried(doc, flag.companion.baseItems);
+      await queueFlagWrite(message, SUMMON_FLAG, current => { current.companion.events = [...(current.companion.events ?? []), companionEvent("leave", doc, flag.companion.name)]; });
+      await pause(LEAVE_MS);
+    }
     const byScene = new Map();
     for ( const l of flag.landed ?? [] ) byScene.set(l.sceneId, [...(byScene.get(l.sceneId) ?? []), l.tokenId]);
     for ( const [sceneId, ids] of byScene ) {
@@ -304,19 +339,26 @@ async function dismissSummon(message) {
     const caster = resolveUuid(flag.sourceUuid);
     const effect = flag.resistance?.effectId ? caster?.effects?.get(flag.resistance.effectId) : null;
     if ( effect ) await effect.delete();
+    if ( flag.companion ) await endCompanionEffects(caster, message.id);
   } catch(err) {
     console.error(`${TITLE} | The summon could not be dismissed — delete the token by hand.`, err);
   } finally {
-    await queueFlagWrite(message, SUMMON_FLAG, current => { current.dismissed = true; current.dismissing = false; current.dismissedAt = Date.now(); });
+    await queueFlagWrite(message, SUMMON_FLAG, current => {
+      current.dismissed = true; current.dismissing = false; current.dismissedAt = Date.now();
+      if ( current.companion ) { current.companion.state = "gone"; current.companion.snapshot = null; }
+    });
   }
 }
 
 registerResumable(SUMMON_FLAG, {
-  pending: flag => (flag?.status === "placed") && ((!flag.applied && !flag.applying) || (flag.applied && flag.dismissAsked && !flag.dismissed && !flag.dismissing)),
+  pending: flag => (flag?.status === "placed") && ((!flag.applied && !flag.applying) || (flag.applied && flag.dismissAsked && !flag.dismissed && !flag.dismissing)
+    || (flag.applied && !flag.dismissAsked && !!flag.companion?.ask && !flag.companion.acting)),
   drives: () => isActiveGM(),
   drive: async message => {
     const flag = readFlag(message, SUMMON_FLAG);
-    if ( flag?.applied ) await dismissSummon(message); else await landSummon(message);
+    if ( !flag?.applied ) await landSummon(message);
+    else if ( flag.dismissAsked ) await dismissSummon(message);
+    else await actCompanion(message);
   }
 });
 
@@ -343,6 +385,281 @@ listen("deleteActiveEffect", "summons", effect => {
   } catch(err) { console.warn(`${TITLE} | Could not end the summon with its concentration — delete the token by hand.`, err); }
 });
 
+/* --- companions: a summon that stays (COMPANIONS, RULINGS *Summons*) ---------------------------- */
+
+/** The COMPANIONS row a spell answers to, by name, or null. */
+const companionOf = name => Object.entries(COMPANIONS).find(([k]) => lower(k) === lower(name ?? ""))?.[1] ?? null;
+
+/** Every card's summon record, by message id. */
+const summonRecords = () => game.messages.contents.map(m => ({ id: m.id, flag: readFlag(m, SUMMON_FLAG) }));
+
+/** The live token a record landed, or null (in the pocket, dismissed, deleted by hand). */
+function liveToken(flag) {
+  for ( const l of flag?.landed ?? [] ) {
+    const doc = game.scenes.get(l.sceneId)?.tokens?.get(l.tokenId);
+    if ( doc ) return doc;
+  }
+  return null;
+}
+
+/** A token document's centre on its scene. */
+const centreOfDoc = doc => doc.getCenterPoint?.() ?? { x: doc.x + (doc.width * doc.parent.grid.sizeX / 2), y: doc.y + (doc.height * doc.parent.grid.sizeY / 2) };
+
+/** What a new cast replaces: the standing companion's message, where it is, and its square on the table. */
+function replacesOf(message) {
+  const flag = readFlag(message, SUMMON_FLAG);
+  const doc = liveToken(flag);
+  return { id: message.id, state: flag?.companion?.state ?? "present",
+    placement: doc ? { x: doc.x, y: doc.y, elevation: doc.elevation ?? 0, rotation: doc.rotation ?? 0, level: doc.level ?? null, sceneId: doc.parent.id } : null };
+}
+
+/** The activity uuids whose next use is the cast menu's "Summon": the cast goes on, once. */
+const castThrough = new Set();
+
+/** The no-GM refusal: a companion is made and unmade by the GM's client. */
+const needsGM = row => {
+  if ( game.users.activeGM ) return false;
+  ui.notifications?.error(`${TITLE}: you can't summon or dismiss a ${lower(row.noun)} without a GM online.`);
+  return true;
+};
+
+// While a companion stands, casting its spell opens the menu instead of the cast (and spends nothing).
+// With no GM online the cast is refused before the dialog, so no slot is spent on a creature that cannot land.
+listen("dnd5e.preUseActivity", "summons", activity => {
+  try {
+    const row = takes(activity) ? companionOf(activity.item?.name) : null;
+    if ( !row ) return;
+    if ( castThrough.delete(activity.uuid) ) return;
+    if ( needsGM(row) ) return false;
+    const id = currentCompanion(summonRecords(), activity.actor?.uuid ?? "", activity.item.name);
+    const message = id ? game.messages.get(id) : null;
+    if ( !message ) return;
+    void showCompanionMenu(message, activity);
+    return false;
+  } catch(err) { console.warn(`${TITLE} | Could not read the standing companion — the spell is cast as usual.`, err); }
+});
+
+/** A player's ask of the standing companion, written on its card for the elect. */
+async function askCompanion(message, ask) {
+  await queueFlagWrite(message, SUMMON_FLAG, current => {
+    const patch = companionAsk(current.companion, ask);
+    if ( !patch ) return false;
+    Object.assign(current.companion, patch);
+  });
+}
+
+const MENU = {
+  away: { label: "Put it away", hint: "into its pocket dimension" },
+  recall: { label: "Call it back", hint: "an unoccupied space within reach" },
+  dismiss: { label: "Dismiss forever", hint: "" },
+  summon: { label: "Summon", hint: "cast the spell: a new form takes its place" }
+};
+
+/** The cast menu: the companion as it stands, and what can be done with it (the choices by its state). */
+async function showCompanionMenu(message, activity) {
+  const flag = readFlag(message, SUMMON_FLAG);
+  const row = companionOf(flag?.itemName);
+  const caster = resolveUuid(flag?.sourceUuid);
+  if ( !flag?.companion || !row || !caster ) return;
+  const state = flag.companion.state;
+  const creature = await describeCreature(flag.summonUuid, { label: flag.companion.name || flag.summonName });
+  const where = (state === "pocket") ? "in its pocket dimension" : "on the table";
+  const act = {
+    away: () => askCompanion(message, { kind: "away" }),
+    recall: async () => {
+      const origin = caster.getActiveTokens?.(false, true)?.find(t => t.parent?.id === canvas.scene?.id) ?? null;
+      const [placement] = await pickSpots({ originToken: origin, actorUuid: flag.summonUuid, count: 1, rangeFt: row.recallFt ?? null,
+        label: flag.companion.name || flag.summonName, seen: false });
+      if ( placement ) await askCompanion(message, { kind: "recall", placement: { ...placement, sceneId: canvas.scene?.id ?? null } });
+    },
+    dismiss: () => askDismiss(message),
+    summon: () => { castThrough.add(activity.uuid); return activity.use(); }
+  };
+  await openPicker(message, "companionMenu", caster, {
+    title: `${flag.itemName} — ${flag.sourceName}`, icon: "fa-solid fa-spaghetti-monster-flying", width: 440,
+    card: { eyebrow: row.noun, title: creature.label, subtitle: [flag.companion.type, where].filter(Boolean).join(" · ") },
+    sections: [{ rows: [{ value: flag.summonUuid, ...creature }] }, { rule: row.rule }],
+    buttons: [
+      ...companionMenu(state, row).map((kind, i) => ({ action: kind, label: MENU[kind].label, default: i === 0,
+        submit: () => { if ( !needsGM(row) ) void Promise.resolve(act[kind]()).catch(err => console.error(`${TITLE} | The ${lower(row.noun)} could not ${kind}.`, err)); } })),
+      { action: "cancel", label: "Not now" }
+    ]
+  });
+}
+
+/**
+ * What it carried goes as it leaves the table (into the pocket, dismissed, at 0 HP): a Loot Shelf chest
+ * where it stood when Loot Shelf is active (`createLootContainer`, ephemeral: gone once emptied), else
+ * lost (RULINGS *Summons*). Loot Shelf is detected, never required.
+ */
+async function dropCarried(doc, baseItems) {
+  const actor = doc?.actor;
+  if ( !actor ) return [];
+  const ids = carriedItemIds(actor.items.contents.map(i => ({ id: i.id, type: i.type })), baseItems ?? []);
+  if ( !ids.length ) return [];
+  const shelf = game.modules.get("fvtt-mod-lootshelf");
+  if ( shelf?.active && shelf.api?.createLootContainer ) {
+    try {
+      const items = ids.map(id => actor.items.get(id)?.toObject()).filter(Boolean);
+      const chest = await shelf.api.createLootContainer({ name: `${doc.name}'s gear`, img: items[0]?.img ?? undefined, items, ephemeral: true });
+      const token = await chest.getTokenDocument({ x: doc.x, y: doc.y, elevation: doc.elevation ?? 0 });
+      await doc.parent.createEmbeddedDocuments("Token", [token.toObject()]);
+    } catch(err) { console.warn(`${TITLE} | Loot Shelf could not take what it carried — the items are lost.`, err); }
+  }
+  await actor.deleteEmbeddedDocuments("Item", ids);
+  return ids;
+}
+
+/** The leave or arrive beat, on the record (each client floats it; the moment gate publishes it). */
+const companionEvent = (kind, doc, name) => {
+  const c = centreOfDoc(doc);
+  return { id: foundry.utils.randomID(8), kind, name, x: c.x, y: c.y, sceneId: doc.parent.id, tokenUuid: doc.uuid };
+};
+
+/** Long enough for the leave picture to play over the token before it goes. */
+const LEAVE_MS = 900;
+const pause = ms => new Promise(resolve => { setTimeout(resolve, ms); });
+
+/** Every effect on the owner that names this card's companion (the recorded one, and any stray copy). */
+const companionEffectsOf = (caster, messageId) => (caster?.effects?.contents ?? []).filter(e => readFlag(e, "companion") === messageId);
+
+/** Remove them, as the elect: the owner's removal prompt lets this pass. */
+async function endCompanionEffects(caster, messageId) {
+  const ids = companionEffectsOf(caster, messageId).map(e => e.id);
+  if ( ids.length ) await caster.deleteEmbeddedDocuments("ActiveEffect", ids, { [MODULE_ID]: { companionEnd: true } });
+}
+
+/** The owner's effect for a companion, renamed to where it is. */
+async function renameCompanionEffect(caster, companion, pocket) {
+  const effect = companion?.effectId ? caster?.effects?.get(companion.effectId) : null;
+  if ( effect ) await effect.update({ name: companionEffectName({ noun: companion.noun, name: companion.name, type: companion.type, pocket }) });
+}
+
+/** The elect answers a companion ask: into the pocket (the token kept as a snapshot) or back from it. */
+async function actCompanion(message) {
+  let claimed = false;
+  await queueFlagWrite(message, SUMMON_FLAG, current => {
+    if ( !current.companion?.ask || current.companion.acting ) return false;
+    current.companion.acting = true;
+    claimed = true;
+  });
+  if ( !claimed ) return;
+  const flag = readFlag(message, SUMMON_FLAG);
+  const companion = flag.companion;
+  const caster = resolveUuid(flag.sourceUuid);
+  const patch = { ask: null, acting: false };
+  try {
+    if ( companion.ask.kind === "away" ) {
+      const doc = liveToken(flag);
+      if ( doc ) {
+        await dropCarried(doc, companion.baseItems);
+        const snapshot = doc.toObject();
+        delete snapshot._id;
+        await queueFlagWrite(message, SUMMON_FLAG, current => { current.companion.events = [...(current.companion.events ?? []), companionEvent("leave", doc, companion.name)]; });
+        await pause(LEAVE_MS);
+        await doc.delete();
+        patch.snapshot = snapshot;
+      }
+      patch.state = "pocket";
+      await renameCompanionEffect(caster, companion, true);
+    } else if ( companion.ask.kind === "recall" ) {
+      const at = companion.ask.placement;
+      const scene = game.scenes.get(at.sceneId);
+      if ( !scene || !companion.snapshot ) throw new Error("nothing to call back, or the scene is gone");
+      const [doc] = await scene.createEmbeddedDocuments("Token", [{ ...companion.snapshot, x: at.x, y: at.y, elevation: at.elevation ?? 0 }]);
+      patch.state = "present";
+      patch.snapshot = null;
+      patch.events = [...(companion.events ?? []), companionEvent("appear", doc, companion.name)];
+      await queueFlagWrite(message, SUMMON_FLAG, current => {
+        current.landed = [{ tokenId: doc.id, sceneId: scene.id, tokenUuid: doc.uuid, actorUuid: doc.actor?.uuid ?? null, name: doc.name }];
+      });
+      await renameCompanionEffect(caster, companion, false);
+      const combat = activeCombatFor(caster);
+      if ( combat ) {
+        const own = listedNames(summonOwnInitiativeEntries()).has(lower(flag.itemName));
+        const seated = await combat.createEmbeddedDocuments("Combatant", [{ tokenId: doc.id, sceneId: scene.id, actorId: doc.actorId,
+          initiative: own ? null : seatInitiative(combat.getCombatantsByActor(caster)[0]?.initiative ?? null) }]);
+        if ( own && seated.length ) await combat.rollInitiative(seated.map(c => c.id));
+      }
+    }
+  } catch(err) {
+    console.error(`${TITLE} | The ${lower(companion.noun)} could not ${companion.ask.kind === "away" ? "go to its pocket" : "come back"}.`, err);
+    ui.notifications?.error(`${TITLE}: the ${lower(companion.noun)} could not ${companion.ask.kind === "away" ? "go to its pocket" : "come back"} (${err?.message ?? err}).`);
+  } finally {
+    await queueFlagWrite(message, SUMMON_FLAG, current => { Object.assign(current.companion, patch); });
+  }
+}
+
+// Removing the companion's effect asks first: yes dismisses it forever; the pocket is the spell's menu.
+// The elect's own removal (a dismissal) carries `companionEnd` and passes.
+listen("preDeleteActiveEffect", "summons", (effect, options, userId) => {
+  try {
+    const id = readFlag(effect, "companion");
+    if ( !id || options?.[MODULE_ID]?.companionEnd ) return;
+    const message = game.messages.get(id) ?? null;
+    const flag = message ? readFlag(message, SUMMON_FLAG) : null;
+    const standing = !!flag?.applied && !flag.dismissAsked && !flag.dismissed && (flag.companion?.state !== "gone") && (flag.companion?.effectId === effect.id);
+    if ( !standing ) return;   // an orphan, or a companion already gone: removed as usual
+    if ( userId === game.user.id ) void confirmCompanionEnd(effect, message);
+    return false;
+  } catch(err) { console.warn(`${TITLE} | Could not read the companion's effect — it is removed as usual.`, err); }
+});
+
+async function confirmCompanionEnd(effect, message) {
+  const flag = message ? readFlag(message, SUMMON_FLAG) : null;
+  const row = companionOf(flag?.itemName);
+  const noun = lower(row?.noun ?? "companion");
+  const yes = await foundry.applications.api.DialogV2.confirm({
+    window: { title: `Dismiss ${noun}?` },
+    content: `<p>Dismiss ${noun}? This will remove them forever.</p><p>If you wish to place it in your pocket dimension, press ${esc(flag?.itemName ?? "the spell")}.</p>`,
+    rejectClose: false
+  });
+  if ( !yes ) return;
+  if ( !message || !flag?.applied ) { await effect.delete({ [MODULE_ID]: { companionEnd: true } }); return; }
+  if ( row && needsGM(row) ) return;
+  await askDismiss(message);
+}
+
+// At 0 HP the familiar disappears (the spell's own text), leaving behind what it carried: the elect
+// dismisses it, which drops the gear, plays the leave and ends the owner's effect.
+listen("updateActor", "summons", (actor, changes) => {
+  try {
+    if ( !isActiveGM() || !actor?.isToken || !foundry.utils.hasProperty(changes, "system.attributes.hp.value") ) return;
+    if ( Number(actor.system?.attributes?.hp?.value) > 0 ) return;
+    const tokenUuid = actor.token?.uuid;
+    const hit = summonRecords().find(({ flag }) => (flag?.companion?.state === "present") && !flag.dismissAsked && (flag.landed ?? []).some(l => l.tokenUuid === tokenUuid));
+    const message = hit ? game.messages.get(hit.id) : null;
+    if ( !message ) return;
+    void (async () => {
+      await queueFlagWrite(message, SUMMON_FLAG, current => { if ( current.companion ) current.companion.fell = true; });
+      await askDismiss(message);
+    })().catch(err => console.warn(`${TITLE} | Could not take the companion off the table at 0 HP.`, err));
+  } catch(err) { console.warn(`${TITLE} | Could not read the companion's Hit Points.`, err); }
+});
+
+// The beats float on every client, the effect's own way: "+(Owl)" rising as it appears, "−(Owl)" falling as it leaves.
+const floated = new Set();
+listen("updateChatMessage", "summons", message => {
+  try {
+    const events = readFlag(message, SUMMON_FLAG)?.companion?.events ?? [];
+    for ( const e of events ) {
+      if ( floated.has(e.id) ) continue;
+      floated.add(e.id);
+      if ( (e.sceneId !== canvas.scene?.id) || !canvas?.interface?.createScrollingText ) continue;
+      const on = e.kind === "appear";
+      canvas.interface.createScrollingText({ x: e.x, y: e.y }, `${on ? "+" : "−"}(${e.name})`, {
+        anchor: CONST.TEXT_ANCHOR_POINTS.CENTER,
+        direction: on ? CONST.TEXT_ANCHOR_POINTS.TOP : CONST.TEXT_ANCHOR_POINTS.BOTTOM,
+        distance: 2 * canvas.grid.size, fontSize: 28, stroke: 0x000000, strokeThickness: 4, jitter: 0.25
+      });
+    }
+  } catch(err) { console.warn(`${TITLE} | The companion's float could not draw.`, err); }
+});
+listen("ready", "summons", () => {
+  // what stood before this client loaded has already floated
+  for ( const { flag } of summonRecords() ) for ( const e of flag?.companion?.events ?? [] ) floated.add(e.id);
+});
+
 /* --- the card says it (R5) --------------------------------------------------------------------------- */
 
 function drawSummon(message, html, flag) {
@@ -365,13 +682,14 @@ function drawSummon(message, html, flag) {
     row.innerHTML = bfCard({ eyebrow: "Summon", tone: "pending", title: `${what} — placed`,
       subtitle: gm ? "appearing…" : "no GM online — it appears when a GM connects" });
   } else if ( flag.dismissed ) {
-    row.innerHTML = bfCard({ eyebrow: "Summon", tone: "neutral", title: `${what} — dismissed`, subtitle: flag.resistance ? `${flag.resistance.effectName} ended` : "" });
+    row.innerHTML = bfCard({ eyebrow: "Summon", tone: "neutral", title: `${what} — ${flag.companion?.fell ? "dropped to 0 HP and disappeared" : "dismissed"}`, subtitle: flag.resistance ? `${flag.resistance.effectName} ended` : "" });
   } else if ( flag.outcome === "failed" ) {
     row.innerHTML = bfCard({ eyebrow: "Summon", tone: "bad", title: `${what} — could not be landed`, subtitle: `${flag.failure ?? "see the console"} · place it by hand` });
   } else {
     const kind = flag.creatureType ? (CONFIG.DND5E?.creatureTypes?.[flag.creatureType]?.label ?? flag.creatureType) : null;
     row.innerHTML = bfCard({ eyebrow: "Summon", tone: "good", title: `${names.join(", ") || what} — summoned`,
       subtitle: [kind, flag.picked, flag.resistance ? `${flag.resistance.effectName} on ${flag.sourceName}` : null,
+        (flag.companion?.state === "pocket") ? "in its pocket dimension" : null,
         flag.replaced ? "the earlier one is dismissed" : null].filter(Boolean).join(" · ") });
     if ( (mine || game.user.isGM) && !flag.dismissAsked ) row.appendChild(momentButton("Dismiss", () => { void askDismiss(message); }, { margin: "0.25rem 0 0" }));
     else if ( flag.dismissAsked ) row.appendChild(Object.assign(document.createElement("em"), { textContent: "dismissing…" }));

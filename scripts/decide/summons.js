@@ -179,7 +179,7 @@ export function rangeFeet(range) {
  * @param {object} record
  * @param {{ profileId: string|null, pick?: { uuid: string, name: string, img?: string|null }|null, choice?: string|null,
  *   placements: Array<{ x: number, y: number, elevation?: number, rotation?: number, level?: string|null }>,
- *   count: number, sceneId: string|null, creatureSize?: string|null, creatureType?: string|null }} answer
+ *   count: number, sceneId: string|null, creatureSize?: string|null, creatureType?: string|null, intoPocket?: boolean }} answer
  * @param {Record<string, { options: string[] }>} table  SUMMON_CHOICES
  */
 export function placedAnswer(record, answer, table) {
@@ -208,6 +208,7 @@ export function placedAnswer(record, answer, table) {
     picked, placements, count: Math.max(1, Number(answer?.count) || placements.length),
     sceneId: answer?.sceneId ?? record.sceneId ?? null,
     creatureSize: size.value, creatureType: type.value,
+    intoPocket: !!answer?.intoPocket,
     placedAt: Date.now()
   };
 }
@@ -291,4 +292,74 @@ export function replacedSummons(records, current, singles) {
   return (records ?? []).filter(({ id, flag }) => (id !== current.id) && !!flag?.applied && !flag.dismissAsked && !flag.dismissed
     && (flag.outcome !== "failed") && (flag.sourceUuid === current.sourceUuid) && (String(flag.itemName ?? "").toLowerCase() === item))
     .map(r => r.id);
+}
+
+/* --- companions: a summon that stays (COMPANIONS) ------------------------------------------------ */
+
+/**
+ * The effect's name on the companion's owner, the one place the table sees it: "Familiar: Owl (Fey)",
+ * and "· in the pocket" while it waits there.
+ * @param {{ noun: string, name: string, type?: string|null, pocket?: boolean }} facts
+ */
+export function companionEffectName({ noun, name, type = null, pocket = false }) {
+  return `${noun}: ${name}${type ? ` (${type})` : ""}${pocket ? " · in the pocket" : ""}`;
+}
+
+/**
+ * The owner's companion of this spell that stands — on the table or in the pocket — as its message id,
+ * the latest landed when there are more; null when there is none.
+ * @param {Array<{ id: string, flag: object|null|undefined }>} records
+ * @param {string} sourceUuid
+ * @param {string} itemName
+ * @returns {string|null}
+ */
+export function currentCompanion(records, sourceUuid, itemName) {
+  const item = String(itemName ?? "").toLowerCase();
+  const standing = (records ?? []).filter(({ flag }) => !!flag?.applied && !flag.dismissAsked && !flag.dismissed && (flag.outcome !== "failed")
+    && !!flag.companion && (flag.companion.state !== "gone") && (flag.sourceUuid === sourceUuid) && (String(flag.itemName ?? "").toLowerCase() === item));
+  standing.sort((a, b) => (Number(b.flag.placedAt) || 0) - (Number(a.flag.placedAt) || 0));
+  return standing[0]?.id ?? null;
+}
+
+/**
+ * The cast menu while a companion stands: put it away or call it back (as it stands), dismiss it
+ * forever, or cast for a new form. `pocket` false offers no pocket.
+ * @param {"present"|"pocket"} state
+ * @param {{ pocket?: boolean }} row
+ * @returns {string[]}  of away · recall · dismiss · summon
+ */
+export function companionMenu(state, { pocket = true } = {}) {
+  const first = !pocket ? [] : (state === "pocket") ? ["recall"] : ["away"];
+  return [...first, "dismiss", "summon"];
+}
+
+/**
+ * A player's ask of a standing companion, judged against its state: away from the table, a recall
+ * from the pocket with a square to land on. The patch to the record's `companion`, or null.
+ * @param {{ state: string, ask?: object|null }|null|undefined} companion
+ * @param {{ kind: string, placement?: { x: number, y: number, elevation?: number, sceneId: string|null } }} ask
+ */
+export function companionAsk(companion, ask) {
+  if ( !companion || companion.ask ) return null;
+  if ( (ask?.kind === "away") && (companion.state === "present") ) return { ask: { kind: "away", at: Date.now() } };
+  const p = ask?.placement;
+  if ( (ask?.kind === "recall") && (companion.state === "pocket") && Number.isFinite(Number(p?.x)) && Number.isFinite(Number(p?.y)) && p?.sceneId ) {
+    return { ask: { kind: "recall", placement: { x: Number(p.x), y: Number(p.y), elevation: Number(p.elevation) || 0, sceneId: p.sceneId }, at: Date.now() } };
+  }
+  return null;
+}
+
+/** The item types a creature carries rather than is: what it leaves behind (its natural weapons are its stat block's). */
+const CARRIED = new Set(["weapon", "equipment", "consumable", "tool", "loot", "container"]);
+
+/**
+ * What a companion leaves behind at 0 HP or into the pocket: every carried item that was not in its
+ * stat block when it landed.
+ * @param {Array<{ id: string, type: string }>} items
+ * @param {string[]} baseItems   the item ids it landed with
+ * @returns {string[]}
+ */
+export function carriedItemIds(items, baseItems) {
+  const base = new Set(baseItems ?? []);
+  return (items ?? []).filter(i => !base.has(i.id) && CARRIED.has(i.type)).map(i => i.id);
 }

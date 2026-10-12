@@ -292,10 +292,11 @@ async function ghostSprite(src, w, h) {
  * caster's centre and the space's (the best a canvas can say for "a space you can see"), unoccupied by
  * a token the player can see. No caster on this scene: no ring and no sight check. Nothing is created
  * here; the elect makes the creature at the squares. Empty when cancelled.
- * @param {{ originToken: TokenDocument|null, actorUuid: string, count: number, rangeFt: number|null, label: string }} facts
+ * @param {{ originToken: TokenDocument|null, actorUuid: string, count: number, rangeFt: number|null, label: string, seen?: boolean }} facts
+ *   `seen` false drops the sight check (a familiar called back needs only an unoccupied space in reach)
  * @returns {Promise<Array<{ x: number, y: number, elevation: number, rotation: number, level: string|null }>>}
  */
-export async function pickSpots({ originToken, actorUuid, count, rangeFt, label }) {
+export async function pickSpots({ originToken, actorUuid, count, rangeFt, label, seen = true }) {
   if ( !canvas?.ready ) throw new Error("the canvas is not ready");
   const actor = await fromUuid(actorUuid);
   const proto = actor?.prototypeToken;
@@ -337,7 +338,7 @@ export async function pickSpots({ originToken, actorUuid, count, rangeFt, label 
     const to = { x: topLeft.x + (w / 2), y: topLeft.y + (h / 2) };
     const distanceFt = from ? grid.measurePath([from, to]).distance : null;
     let blocked = false;
-    try { blocked = !!(from && CONFIG.Canvas.polygonBackends.sight.testCollision(from, to, { type: "sight", mode: "any" })); } catch { blocked = false; }
+    try { blocked = !!(seen && from && CONFIG.Canvas.polygonBackends.sight.testCollision(from, to, { type: "sight", mode: "any" })); } catch { blocked = false; }
     const mine = { x: topLeft.x, y: topLeft.y, w, h };
     const occupied = canvas.scene.tokens.some(t => (t.id !== caster?.id) && (game.user.isGM || !t.hidden)
         && footprintsOverlap(mine, { x: t.x, y: t.y, w: t.width * grid.sizeX, h: t.height * grid.sizeY }))

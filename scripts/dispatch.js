@@ -102,6 +102,7 @@ export const ORDER = Object.freeze([
 export const VETOABLE = Object.freeze([
   "preCreateChatMessage",
   "preCreateActiveEffect",
+  "preDeleteActiveEffect",
   "preCreateRegionBehavior",
   "dnd5e.preUseActivity",
   "dnd5e.preDisplayCard",

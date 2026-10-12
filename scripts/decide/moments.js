@@ -289,7 +289,7 @@ export const MOMENT_RECORDS = Object.freeze({
 
   summon: {
     events: ["cast"],
-    means: "a summon the module drove was landed by the elect — the creature(s) created from the caster's placement, the spell's own choice applied, ownership granted (summons.js, issue #1); resolved when `applied`",
+    means: "a summon the module drove was landed by the elect — the creature(s) created from the caster's placement, the spell's own choice applied, ownership granted (summons.js, issue #1); resolved when `applied`; a companion's later beats (into the pocket, called back, dismissed) each resolve on their own marker, `details.companion` leave or appear",
     resolved: (r, ctx) => r?.applied ? [{
       marker: "message", events: ["cast"],
       facts: { actor: r.sourceUuid ?? null, item: r.itemUuid ?? ctx.itemUuid ?? null, activity: r.activityUuid ?? ctx.activityUuid ?? null,
@@ -298,7 +298,15 @@ export const MOMENT_RECORDS = Object.freeze({
         targets: (r.landed ?? []).map(l => ({ uuid: l.actorUuid ?? null, tokenUuid: l.tokenUuid ?? null, name: l.name ?? null })),
         details: { outcome: r.outcome ?? null, profile: r.profileName ?? null, summon: r.summonName ?? null, row: r.choice ?? null, picked: r.picked ?? null,
           count: r.count ?? null, level: r.level ?? null, dismissed: !!r.dismissed } }
-    }] : []
+    },
+    // a companion's beats, each its own: "leave" (into the pocket, dismissed) and "appear" (called back),
+    // published while the token still stands (a leave) or as it lands (an appear)
+    ...(r.companion?.events ?? []).map(e => ({
+      marker: `companion-${e.id}`, events: ["cast"],
+      facts: { actor: r.sourceUuid ?? null, item: r.itemUuid ?? ctx.itemUuid ?? null, activity: r.activityUuid ?? ctx.activityUuid ?? null,
+        ability: r.itemName ?? null, targets: [{ tokenUuid: e.tokenUuid ?? null, name: e.name ?? null }],
+        details: { companion: e.kind, summon: e.name ?? null } }
+    }))] : []
   },
 
   transform: {
@@ -867,6 +875,8 @@ export const STATE_KEYS = Object.freeze({
   metamagicAsk: "the ask at the area pending on the card (area-ask.js; the key is historical); the answer's records — the metamagic record, areaChoice, the demand — are the resolves",
   metamagicDeferred: "the held card's data while Careful asks; the real card's records are the resolves",
   metamagicType: "the type Transmuted Spell set on the damage roll; the metamagic record on the card is the resolve",
+  companion: "an ActiveEffect flag on a companion's OWNER — the message id of the summon card it names (summons.js); the effect is a marker, the card's record holds the companion",
+  companionEnd: "a delete option, not a flag — the elect's own removal of a companion's effect, which the owner's removal prompt lets pass (summons.js)",
   wardPool: "an ActiveEffect flag on the WARDED creature — an effect ward's hit points (Bastion of Law, B4: `{ feature, left, max }`), lowered as damage lands, the effect gone at 0; the wardAbsorb record on the bearer's update is the resolve",
   healSelf: "a card — a `self` heal-reroll row's own healing (Blessed Healer, B4) after the owner's slot-cast heal landed on another creature; the receipt on the same card is the resolve",
   wardAbsorb: "an actor field — the ward's take on its bearer's damage update, for the pop on every client; the receipt is the resolve",

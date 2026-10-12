@@ -3349,7 +3349,34 @@ nothing to the concentration effect (measured live 2026-10-10: a flagged token o
    builders are private to gallery.js. The gate: `tools/check-pickers.mjs` (`npm run pickers`, in verify) fails a
    picker machine that opens its own popup, draws a radio or checkbox, or reaches into the row markup. Wild Shape's
    card no longer says "the GM's client transforms" (item 3's rule).
-12. **The familiar keeps the form's statistics and items**, its attacks included; "it can't attack" is the table's to
+12. **Companions** (`COMPANIONS`, Find Familiar first; Primal Companion, Vestige Companion and Find Steed join when their
+   text is ruled). A summon that stays until dismissed:
+   - **The effect.** "Familiar: Owl (Fey)" on its owner for as long as it stands, on the table or in the pocket ("· in
+     the pocket"); a marker, no changes. Removing it asks "Dismiss familiar? This will remove them forever. If you wish
+     to place it in your pocket dimension, press Find Familiar."; yes dismisses it forever, no keeps it
+     (`preDeleteActiveEffect`, a veto; the elect's own removal carries `companionEnd`).
+   - **The cast menu.** Casting the spell while one stands opens a menu instead of the cast, no slot spent: on the
+     table Put it away · Dismiss forever · Summon; in the pocket Call it back · Dismiss forever · Summon. Summon is the
+     real cast (ritual or slot, the gallery, the type), and the new form takes the old one's place: in its square (no
+     picker) or in the pocket; the old one is dismissed (`replaces` on the record, `intoPocket` on the answer).
+   - **The pocket.** Put away: the token is kept as a snapshot and removed; Call back: the picker with the row's
+     `recallFt` ring (30 ft), unoccupied, no sight check (`pickSpots` `seen: false`), the snapshot rebuilt there as it
+     left. A familiar called back into a started combat rolls its own Initiative again.
+   - **No GM online:** every one of these, the first cast included, is refused with "you can't summon or dismiss a
+     familiar without a GM online", before any slot is spent.
+   - **Leaving and arriving.** Each beat floats on every client the effect's own way ("+(Owl)" rising, "−(Owl)"
+     falling) and publishes its own moment marker (`companion-<id>`, `details.companion` leave or appear): FX Studio
+     plays `summon-leaves` on a leave, the summon FX on an appear. A leave is published while the token stands and the
+     token goes a beat later.
+   - **At 0 HP it disappears** (the spell's own text): the elect dismisses it, the card says "dropped to 0 HP and
+     disappeared"; casting again summons a new one.
+   - **What it carried** (the gear it did not land with) drops when it goes into the pocket, is dismissed, or falls to
+     0 HP: a Loot Shelf chest where it stood ("Owl's gear", `createLootContainer`, ephemeral) when Loot Shelf is active,
+     else lost. Loot Shelf, not Item Piles (the user): the family's own, detected, never required.
+   - **Only the standing companion's own effect asks before it goes**; a stray copy or a gone companion's effect is
+     removed as usual, a dismissal removes every effect naming its card, and a landing clears any before making its one
+     (a landing on the sandbox left two, the second orphaned and unremovable).
+13. **The familiar keeps the form's statistics and items**, its attacks included; "it can't attack" is the table's to
    keep, nothing is stripped or noted.
 
 ## Wild Shape and the polymorph spells (2026-10-11, issue #2)

@@ -4129,6 +4129,23 @@ export const SUMMON_SINGLES = Object.freeze({
 });
 
 /**
+ * COMPANIONS (summons.js): a summon that stays until it is dismissed: an effect on its owner names it for
+ * as long as it stands (on the table or in the pocket; removing the effect asks, then dismisses it
+ * forever), and casting the spell again while it stands opens a menu instead of the cast — put it away
+ * or call it back, dismiss it forever, or cast for a new form (which takes the old one's place: in its
+ * space, or in the pocket). `noun` the effect's word; `pocket` it can wait in a pocket dimension,
+ * `recallFt` the reach of its return (an unoccupied space, no sight needed); `says` the book's sentence.
+ * Primal Companion, Vestige Companion and Find Steed join when their text is ruled.
+ */
+export const COMPANIONS = Object.freeze({
+  "Find Familiar": Object.freeze({
+    noun: "Familiar", pocket: true, recallFt: 30,
+    says: "As a Magic action, you can temporarily dismiss the familiar to a pocket dimension. Alternatively, you can dismiss it forever. As a Magic action while it is temporarily dismissed, you can cause it to reappear in an unoccupied space within 30 feet of you.",
+    rule: Object.freeze({ item: "Find Familiar", uuid: "Compendium.dnd-players-handbook.spells.Item.phbsplFindFamili" })
+  })
+});
+
+/**
  * SUMMON SEATS (summons.js): where a summoned creature landed into a started combat takes its turn. Two
  * ways, by the spell's text: FOLLOWS the caster (the default, no row — the 2024 Summon spells' "takes its
  * turn immediately after yours": a combatant on the caster's Initiative less 0.01), or rolls its OWN

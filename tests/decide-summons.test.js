@@ -471,3 +471,92 @@ describe("replacedSummons — one familiar at a time", () => {
     ).toEqual([]);
   });
 });
+
+describe("companions — the familiar that stays", () => {
+  const rec = (sourceUuid, extra = {}) => ({
+    applied: true,
+    outcome: "landed",
+    sourceUuid,
+    itemName: "Find Familiar",
+    companion: { state: "present" },
+    ...extra
+  });
+  it("the effect names it and where it waits", () => {
+    expect(s.companionEffectName({ noun: "Familiar", name: "Owl", type: "Fey" })).toBe(
+      "Familiar: Owl (Fey)"
+    );
+    expect(
+      s.companionEffectName({ noun: "Familiar", name: "Owl", type: "Fey", pocket: true })
+    ).toBe("Familiar: Owl (Fey) · in the pocket");
+    expect(s.companionEffectName({ noun: "Familiar", name: "Cat" })).toBe("Familiar: Cat");
+  });
+  it("the standing companion is the owner's latest one on the table or in the pocket; a gone, dismissed or other one is not", () => {
+    const records = [
+      { id: "old", flag: rec("A", { placedAt: 1 }) },
+      { id: "new", flag: rec("A", { placedAt: 2, companion: { state: "pocket" } }) },
+      { id: "gone", flag: rec("A", { placedAt: 3, companion: { state: "gone" } }) },
+      { id: "asked", flag: rec("A", { placedAt: 4, dismissAsked: true }) },
+      { id: "theirs", flag: rec("B", { placedAt: 5 }) },
+      { id: "plain", flag: rec("A", { placedAt: 6, companion: undefined }) }
+    ];
+    expect(s.currentCompanion(records, "A", "Find Familiar")).toBe("new");
+    expect(s.currentCompanion(records, "C", "Find Familiar")).toBeNull();
+  });
+  it("the menu by its state: away or back, dismiss forever, summon", () => {
+    expect(s.companionMenu("present")).toEqual(["away", "dismiss", "summon"]);
+    expect(s.companionMenu("pocket")).toEqual(["recall", "dismiss", "summon"]);
+    expect(s.companionMenu("present", { pocket: false })).toEqual(["dismiss", "summon"]);
+  });
+  it("an ask must fit the state; a recall needs a square on a scene; one ask at a time", () => {
+    expect(s.companionAsk({ state: "present" }, { kind: "away" })?.ask.kind).toBe("away");
+    expect(s.companionAsk({ state: "pocket" }, { kind: "away" })).toBeNull();
+    expect(
+      s.companionAsk(
+        { state: "present" },
+        { kind: "recall", placement: { x: 1, y: 2, sceneId: "s" } }
+      )
+    ).toBeNull();
+    expect(
+      s.companionAsk(
+        { state: "pocket" },
+        { kind: "recall", placement: { x: 1, y: 2, sceneId: null } }
+      )
+    ).toBeNull();
+    expect(
+      s.companionAsk(
+        { state: "pocket" },
+        { kind: "recall", placement: { x: 1, y: 2, sceneId: "s" } }
+      )?.ask.placement
+    ).toEqual({ x: 1, y: 2, elevation: 0, sceneId: "s" });
+    expect(
+      s.companionAsk({ state: "present", ask: { kind: "away" } }, { kind: "away" })
+    ).toBeNull();
+  });
+  it("what it carried is what it did not land with, and only gear", () => {
+    const items = [
+      { id: "bite", type: "weapon" },
+      { id: "keen", type: "feat" },
+      { id: "ring", type: "equipment" },
+      { id: "potion", type: "consumable" },
+      { id: "note", type: "feat" }
+    ];
+    expect(s.carriedItemIds(items, ["bite", "keen"])).toEqual(["ring", "potion"]);
+  });
+  it("a cast into the pocket is carried on the answer", () => {
+    const rec1 = {
+      status: "asked",
+      mode: null,
+      choice: null,
+      creatureTypes: [],
+      creatureSizes: [],
+      profiles: [{ id: "p", uuid: "u", cr: null }]
+    };
+    expect(
+      s.placedAnswer(
+        rec1,
+        { profileId: "p", placements: [{ x: 0, y: 0 }], count: 1, intoPocket: true },
+        {}
+      )?.intoPocket
+    ).toBe(true);
+  });
+});
