@@ -44,6 +44,11 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     return false;
   };
   const sleep = ms => new Promise(r => setTimeout(r, ms));
+  // ⚠ Foundry 14 has no `User#updateTokenTargets`: target through the canvas tokens, the others released.
+  const targetOnly = ids => {
+    for (const t of [...game.user.targets]) t.setTarget(false, { releaseOthers: false, groupSelection: true });
+    for (const id of ids) canvas.tokens.get(id)?.setTarget(true, { releaseOthers: false, groupSelection: true });
+  };
   const waitFor = async (test, timeout = 8000) => {
     const until = Date.now() + timeout;
     while (Date.now() < until) { const v = await test(); if (v) return v; await sleep(200); }
@@ -72,6 +77,9 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   const sorcerer = game.actors.getName('BTB Test Sorcerer');
   const dummy = game.actors.getName('BTB Test Dummy');
   const dummyToken = canvas.scene.tokens.find(t => t.actor?.id === dummy?.id || t.name === 'BTB Test Dummy') ?? null;
+  // ⚠ dnd5e reverts an UNLINKED token by creating a new token and deleting the old one: after a revert
+  // the Dummy is re-found, never read off the deleted document (its actor stays polymorphed forever).
+  const dummyNow = () => canvas.scene.tokens.find(t => (t.actorId === dummy?.id) || (t.name === 'BTB Test Dummy')) ?? null;
   const lent = [];
   const madeMessages = [];
   const priorKnown = foundry.utils.deepClone(wildShape.getFlag(MOD, 'knownForms') ?? null);
@@ -229,9 +237,9 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           lent.push(spell.id);
           const frog = await poolRow('Giant Frog');
           if (!frog) throw new Error('the beast pool lacks Giant Frog');
-          game.user.updateTokenTargets([dummyToken.id]);
+          targetOnly([dummyNow()?.id].filter(Boolean));
           const { message, flag } = await useTransform(spell);
-          game.user.updateTokenTargets([]);
+          targetOnly([]);
           ok('§5 the record aims at the targeted Dummy with the cap read off its CR, the pool open (no slots)', flag?.self === false && flag.targets?.[0]?.uuid === dummyToken.actor?.uuid && flag.targetCap === 0 && flag.slots === 0, JSON.stringify({ self: flag?.self, targets: flag?.targets, cap: flag?.targetCap, slots: flag?.slots }));
           const landed = await answer(message, asKnown(frog));
           const target = dummyToken.actor;
@@ -239,7 +247,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           if (target?.isPolymorphed) {
             await target.update({ 'system.attributes.hp.temp': 0 });
             const ended = await waitFor(() => message.getFlag(MOD, 'transform')?.ended ? message.getFlag(MOD, 'transform') : null, 15000);
-            ok('§5 with no Temporary Hit Points left the spell ends on the target: reverted, the record ended', ended?.ended?.word === 'noTemp' && !dummyToken.actor?.isPolymorphed, JSON.stringify({ ended: ended?.ended, still: dummyToken.actor?.isPolymorphed }));
+            ok('§5 with no Temporary Hit Points left the spell ends on the target: reverted, the record ended', ended?.ended?.word === 'noTemp' && !dummyNow()?.actor?.isPolymorphed, JSON.stringify({ ended: ended?.ended, still: dummyNow()?.actor?.isPolymorphed }));
             const end = await waitFor(() => game.messages.contents.find(m => m.getFlag(MOD, 'formEnd')?.messageId === message.id) ?? null, 6000);
             if (end) madeMessages.push(end);
           }
@@ -250,15 +258,15 @@ const out = await f.evaluate(async ({ sections, titles }) => {
             const conc = concActivity ? await sorcerer.beginConcentrating(concActivity) : null;
             if (!conc) skips.push('§8 — the PHB Polymorph carries no Concentration activity this box can begin');
             else {
-              game.user.updateTokenTargets([dummyToken.id]);
+              targetOnly([dummyNow()?.id].filter(Boolean));
               const again = await useTransform(spell);
-              game.user.updateTokenTargets([]);
+              targetOnly([]);
               await answer(again.message, asKnown(frog));
-              const formEffect = formEffectOn(dummyToken.actor);
+              const formEffect = formEffectOn(dummyNow()?.actor);
               ok('§8 the form effect depends on the caster\'s Concentration', !!formEffect && (formEffect.getFlag('dnd5e', 'dependentOn') === conc.uuid), JSON.stringify({ effect: formEffect?.name, dep: formEffect?.getFlag('dnd5e', 'dependentOn'), conc: conc.uuid }));
               await conc.delete();
               const ended = await waitFor(() => again.message.getFlag(MOD, 'transform')?.ended ? again.message.getFlag(MOD, 'transform') : null, 15000);
-              ok('§8 ending Concentration ends the form: the Dummy reverted, the record ended by Concentration', ended?.ended?.word === 'concentration' && !dummyToken.actor?.isPolymorphed, JSON.stringify({ ended: ended?.ended, still: dummyToken.actor?.isPolymorphed }));
+              ok('§8 ending Concentration ends the form: the Dummy reverted, the record ended by Concentration', ended?.ended?.word === 'concentration' && !dummyNow()?.actor?.isPolymorphed, JSON.stringify({ ended: ended?.ended, still: dummyNow()?.actor?.isPolymorphed }));
               const end = await waitFor(() => game.messages.contents.find(m => m.getFlag(MOD, 'formEnd')?.messageId === again.message.id) ?? null, 6000);
               if (end) madeMessages.push(end);
               await revertAll();
