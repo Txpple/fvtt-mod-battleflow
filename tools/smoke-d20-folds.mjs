@@ -689,6 +689,9 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           } else {
             // ⚠ AC is set on each token's own (unlinked) actor, in its delta. ⚠ Capture once per uuid: a
             // linked foe collapses both tokens onto one actor and the second capture reads the written 30.
+            // AC 17 and AC 30: the die can still win against the first (an offer that cannot win is not made, RULINGS
+            // *Rescuing the hit*), and a 3 misses both
+            const acOf = t => (t === placedA) ? 17 : 30;
             for (const t of [placedA, placedB]) {
               const a = t.actor;
               if ( !priorAC.has(a.uuid) ) priorAC.set(a.uuid, {
@@ -696,7 +699,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
                 hp: a.system.attributes.hp.value
               });
               await a.update({
-                "system.attributes.ac.override": 30,
+                "system.attributes.ac.override": acOf(t),
                 "system.attributes.hp.value": a.system.attributes.hp.max
               });
             }
@@ -725,9 +728,6 @@ const out = await f.evaluate(async ({ sections, titles }) => {
               !!flag && (flag.status === "pending") && (flag.targets?.length === 2),
               JSON.stringify({ status: flag?.status, base: flag?.baseTotal,
                 targets: flag?.targets?.length }));
-            ok("precision stays out of it — a d8 cannot reach AC 30, so it never stamps",
-              !attackMsg?.getFlag(MODULE_ID, "precision"),
-              attackMsg?.getFlag(MODULE_ID, "precision") ? "STAMPED" : "no precision flag");
 
             const popup = await until(() => [...document.querySelectorAll(".application")]
               .find(el => (el.tagName === "DIALOG") && !priorDialogs.has(el.id)
@@ -750,13 +750,13 @@ const out = await f.evaluate(async ({ sections, titles }) => {
               JSON.stringify((done?.targets ?? []).map(t => t.verdict)));
 
             const card = await until(() => game.messages.contents.findLast(m => (m.timestamp >= since) &&
-              (m.content ?? "").includes("vs AC 30")), 15_000);
+              (m.content ?? "").includes("vs AC")), 15_000);
             const text = (card?.content ?? "").replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim();
-            const sums = [...text.matchAll(/10 \+ (\d+) = (\d+) vs AC 30/g)].map(m => m[2]);
+            const sums = [...text.matchAll(/10 \+ (\d+) = (\d+) vs AC \d+/g)].map(m => m[2]);
             ok("⚠ RECEIPT: the CARD says the same number on every row, and says it once",
               (sums.length === 2) && sums.every(s => s === "13"),
               sums.length ? `rows announced [${sums.join(", ")}]` : (text || "no fold card"));
-            log.push(`section 7: two targets AC 30 · base ${flag?.baseTotal} → `
+            log.push(`section 7: two targets AC 17 and 30 · base ${flag?.baseTotal} → `
               + `folded ${done?.foldedTotal} · rows [${sums.join(", ")}]`);
           }
         } finally {

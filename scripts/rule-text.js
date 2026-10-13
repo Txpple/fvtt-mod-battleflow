@@ -2,8 +2,8 @@
  * By the Books — SPINE (ARCHITECTURE.md §7): the rule text, read from the book (RULINGS *The rule fold
  * reads the book*). A row points at its content — `{ item, uuid?, benefit? }`, or `{ page, key,
  * benefit? }` for dnd5e's rules pages (`page` "condition" | "mastery" | "rule") — and this reads that content,
- * enriched: the paragraph whose bold lead is the row's `benefit`, else the text's first paragraph of rule (a
- * prerequisite line, a "Repeatable." note and a Foundry note are not the rule). Nothing here
+ * enriched: the paragraph whose bold lead is the row's `benefit`, else a rules page whole, else an item's first
+ * paragraph of rule (a prerequisite line, a "Repeatable." note and a Foundry note are not the rule). Nothing here
  * is copied from a book; a text the packs do not carry is no text.
  * The markup (decide/present.js `ruleLine`, `foldedRuleHTML`) carries the pointer; one observer fills
  * every pointer that reaches the page, on cards, popups and sheets alike.
@@ -84,8 +84,18 @@ async function readText(ref) {
     if ( paragraph ) return unfilled(paragraph.outerHTML);
     console.warn(`${TITLE} | "${ref.benefit}" is no paragraph of ${doc.name}; the fold shows its first paragraph.`);
   }
+  // a rules page (Unseen Attackers, Ranged Attacks in Close Combat) is short and its rule may be any paragraph: whole
+  if ( ref.page ) return unfilled(box.innerHTML.trim()) || null;
   const first = [...box.querySelectorAll("p")].find(isRule);
-  return unfilled(first ? first.outerHTML : box.innerHTML.trim()) || null;
+  return unfilled(first ? withItsList(first) : box.innerHTML.trim()) || null;
+}
+
+/** A paragraph and the list it introduces ("you gain the following benefits:"), which is its rule too. */
+function withItsList(p) {
+  let html = p.outerHTML;
+  if ( !/:\s*$/.test(p.textContent.trim()) ) return html;
+  for ( let next = p.nextElementSibling; next && /^(UL|OL)$/.test(next.tagName); next = next.nextElementSibling ) html += next.outerHTML;
+  return html;
 }
 
 /** The sheet's references enrichment could not fill ("(currently, @scale.bard.inspiration.die)"), gone. */

@@ -854,7 +854,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         usage?.message?.id ? { data: { 'system.origin': usage.message.id } } : {});
       return rolls?.[0]?.parent ?? null;
     };
-    const hgPickButton = label => [...document.querySelectorAll('.application.dialog button[data-action^="pick-"]')].find(b => textOf(b) === label) ?? null;
+    // an effect choice is radios and Apply (DESIGN *Cards*): the option ticked, then Apply
+      const hgPickButton = (label => { const input = [...document.querySelectorAll('.application.dialog input[name="bf-effect-pick"]')].find(i => textOf(i.closest('label')) === label); if (!input) return null; return { click: () => { input.checked = true; input.dispatchEvent(new Event('change', { bubbles: true })); input.closest('.application')?.querySelector('button[data-action="apply"]')?.click(); } }; });
     // ---- A1 §24–§27 helpers (the Rage, the gate, the dialogs)
     const clearTargets = () => game.user.targets.forEach(t => { t.setTarget(false, { releaseOthers: true }); });
     const actNamed = (item, name = null) => [...(item?.system?.activities ?? [])].find(a => !name || (a.name === name)) ?? null;
@@ -879,7 +880,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     const closeA1 = async () => {
       for (const app of [...foundry.applications.instances.values()]) {
         const ours = /RollConfigurationDialog/.test(app.constructor?.name ?? '')
-          || app.element?.querySelector?.('[data-bf-rescue-row], button[data-action^="pick-"]');
+          || app.element?.querySelector?.('[data-bf-rescue-row], button[data-action^="pick-"], input[name="bf-effect-pick"]');
         if (ours) { try { await app.close(); } catch { /* gone */ } }
       }
       await closeDialogs();
@@ -1793,7 +1794,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const rage = await lend(pcAttacker, 'Rage');
       const wilds = await lend(pcAttacker, 'Rage of the Wilds');
       const t0 = Date.now();
-      const pickButton = label => [...document.querySelectorAll('.application.dialog button[data-action^="pick-"]')].find(b => textOf(b) === label) ?? null;
+      // an effect choice is radios and Apply (DESIGN *Cards*): the option ticked, then Apply
+      const pickButton = (label => { const input = [...document.querySelectorAll('.application.dialog input[name="bf-effect-pick"]')].find(i => textOf(i.closest('label')) === label); if (!input) return null; return { click: () => { input.checked = true; input.dispatchEvent(new Event('change', { bubbles: true })); input.closest('.application')?.querySelector('button[data-action="apply"]')?.click(); } }; });
       const wolfRegion = () => scene.regions.find(r => { const fl = r.getFlag(MOD, 'emanation'); return (fl?.kind === 'feature') && (fl.key === 'Rage of the Wolf') && (fl.tokenId === pcToken.document.id); }) ?? null;
       const memberOn = actor => actor.effects.find(e => e.getFlag(MOD, 'emanation') && e.name.startsWith('Rage of the Wolf')) ?? null;   // "Rage of the Wolf — <bearer>"
       try {
@@ -2470,7 +2472,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         if (!potent || !boltAct()) log.push(`§35 skipped: potent=${!!potent} bolt=${!!boltAct()}`);
         else {
           await pcAttacker.update({ 'system.attributes.inspiration': false });
-          await victim.update({ 'system.attributes.ac.override': 30 });
+          // the pinned 2 misses AC 20; a reroll's 20 still reaches it, so Heroic Inspiration is offered (RULINGS *Rescuing the hit*)
+          await victim.update({ 'system.attributes.ac.override': 20 });
           // a. the clean miss, no rescue: the share rolls and lands
           const m1 = await boltMiss();
           const d1 = await waitFor(() => { const d = damagesFor(m1?.id)[0]; return d?.getFlag(MOD, 'receipt') ? d : null; }, 10000);

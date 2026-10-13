@@ -217,9 +217,9 @@ Foundry note is not the rule and is not shown. A pick is radios and one button (
 now beside it, laid out evenly: never a wall of buttons.
 
 - **Where it lives:** `decide/present.js` `ruleLine` IS the tick (and `foldedRuleHTML`, the same for a
-  grid row); the open quote is that file's own (`ruleQuote`), drawn only inside the fold and by the
-  rescue pane, whose one job is the quote. `rule-text.js` reads the paragraph a row names, else the
-  text's first paragraph of rule.
+  grid row); the open quote is that file's own (`ruleQuote`), drawn only inside the fold, the rescue
+  pane's included. `rule-text.js` reads the paragraph a row names, else a rules page whole, else an
+  item's first paragraph of rule; a sheet reference it cannot fill ("(currently, @scale…)") goes.
 - **The gate:** `tools/check-rule-folds.mjs` in `npm run verify`: the rule's markup outside
   present.js, a hand-written tick, the open quote anywhere else, or a book text enriched outside
   rule-text.js fails the build. An exception names itself (`// rule-fold: <why>`).

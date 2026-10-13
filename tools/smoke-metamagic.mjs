@@ -36,7 +36,7 @@ const SECTIONS = {
   12: 'Twinned Spell (Stage 3): Hold Person fits (its source target count is a formula over the cast\'s level), Fireball does not; the cast spends the point and the card says one more target',
   13: 'Transmuted Spell (Stage 3): ticking it shows the five other listed types; cold picked; the card carries cold from fire; the spell\'s damage roll chained to the card wears cold',
   14: 'Extended Spell (Stage 3): Hold Person on the Victim, a forced failure — Paralyzed lands with its clock doubled (120 s); the caster\'s concentration save opens with Extended Spell as an Advantage source',
-  15: 'Seeking Spell (Stage 4): a missed Chromatic Orb (AC 60) is offered Seeking as a d20 fold; the popup\'s button rerolls the d20, the spend records the reroll, one Sorcery Point goes by hand with the record on the attack message',
+  15: 'Seeking Spell (Stage 4): a missed Chromatic Orb (AC 26) is offered Seeking as a d20 fold; the popup\'s button rerolls the d20, the spend records the reroll, one Sorcery Point goes by hand with the record on the attack message',
   16: 'Empowered Spell (Stage 4): a Fireball damage roll is offered Empowered; the popup shows the eight dice, the cap holds at three, Reroll spends the point, patches the message\'s own roll (three faces struck, the total moved), and announces old → new',
   17: 'Careful lists NOBODY in the casting window (user, 2026-09-18 — the ticks of 2026-09-09 retired): with the Ranger and a goblin targeted, the row is the tick, the name, the cost and the rule; the ask opens on the card listing the two with the ally ticked; the player\'s own pick (the goblin) is honoured on the demand',
   18: 'Careful with NO target selected (the third look): the window lists nobody; the ask at the area lists exactly the creatures inside',
@@ -510,10 +510,10 @@ const out = await f.evaluate(async ({ sections, titles, extra }) => {
       await set('holdTimer', 0);
       const foe = attTok.actor;
       const priorAC = { override: foe.system._source.attributes.ac.override ?? null };
-      await foe.update({ 'system.attributes.ac.override': 60 });   // a guaranteed miss
+      await foe.update({ 'system.attributes.ac.override': 26 });   // a miss on the pinned 10 (16); a 20 on the reroll still reaches it (RULINGS *Rescuing the hit*)
       await sorcTok.update(sorcHome, { teleport: true, animate: false });
       await attTok.update({ x: sorcHome.x + scene.grid.size * 2, y: sorcHome.y }, { teleport: true, animate: false });
-      // ⚠ The miss must be certain (a natural 20 hits AC 60) and the target real: the d20 is pinned
+      // ⚠ The miss must be certain (only a natural 20 hits AC 26) and the target real: the d20 is pinned
       // to 10 for the original roll only, and the token is re-resolved off the canvas.
       const foeTok = canvas.tokens.get(attTok.id) ?? canvas.tokens.placeables.find(t => t.document.actorId === attacker.id) ?? null;
       game.user.targets.forEach(t => { t.setTarget(false, { releaseOthers: false }); });
@@ -522,7 +522,7 @@ const out = await f.evaluate(async ({ sections, titles, extra }) => {
       ok('15-pre. the orb has its target — the foe token is on the canvas and targeted', !!foeTok && game.user.targets.has(foeTok),
         `token=${!!foeTok} targeted=${!!foeTok && game.user.targets.has(foeTok)} ac=${foeTok?.actor?.system?.attributes?.ac?.value}`);
       const realPRNG15 = CONFIG.Dice.randomUniform;
-      CONFIG.Dice.randomUniform = () => 1 - ((10 - 0.5) / 20);   // every d20 shows 10: a miss against 60, never a crit
+      CONFIG.Dice.randomUniform = () => 1 - ((10 - 0.5) / 20);   // every d20 shows 10: a miss against 26, never a crit
       const before = new Set(game.messages.map(m => m.id));
       await spellAct('Chromatic Orb').use({ consume: { spellSlot: false }, create: { measuredTemplate: false } }, { configure: false }, {});
       const card = await waitFor(() => game.messages.find(m => !before.has(m.id) && (m.type === 'usage')) ?? null, 6000);

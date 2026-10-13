@@ -745,8 +745,12 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           `success=${passed?.outcome?.success} fold=${JSON.stringify(passRoll?.getFlag(MOD, 'd20fold')?.offers ?? null)}`);
         await saveBonus('');
         const t1 = marker();
-        await smack(70);                          // DC 30 — a failure
+        // DC 10 failed on a 2: a reroll's 20 can still win (an offer that cannot win is not made, RULINGS *Rescuing the hit*)
+        const priorUniform = CONFIG.Dice.randomUniform;
+        CONFIG.Dice.randomUniform = () => 1 - ((2 - 0.5) / 20);
+        await smack(12);
         const askMsg = await waitFor(() => asksNew(t1)[0]);
+        CONFIG.Dice.randomUniform = priorUniform;
         const held = await waitFor(() => {
           const a = askMsg?.getFlag(MOD, 'concentration');
           const r = a?.withheld ? game.messages.get(a.withheld) : null;

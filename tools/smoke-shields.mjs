@@ -431,7 +431,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         await sleep(600);
         return card;
       };
-      const popupButton = label => [...document.querySelectorAll('.application.dialog button[data-action^="pick-"]')].find(b => textOf(b) === label) ?? null;
+      // an effect choice is radios and Apply (DESIGN *Cards*): the option ticked, then Apply
+      const popupButton = (label => { const input = [...document.querySelectorAll('.application.dialog input[name="bf-effect-pick"]')].find(i => textOf(i.closest('label')) === label); if (!input) return null; return { click: () => { input.checked = true; input.dispatchEvent(new Event('change', { bubbles: true })); input.closest('.application')?.querySelector('button[data-action="apply"]')?.click(); } }; });
 
       const card = await castShield();
       const choice = card?.getFlag(MOD, 'castApply')?.choice ?? null;
