@@ -10,6 +10,7 @@
 import { MODULE_ID, S, TITLE, setting } from "./core.js";
 import { esc } from "./decide/present.js";
 import { ART_SPELLS, artKey, cleanTable, fillBlanks, matchFiles } from "./decide/summon-art.js";
+import { SUMMON_ONE_FORM } from "./decide/registry.js";
 import { poolPicks } from "./decide/summons.js";
 import { describeCreature, listRowHTML, poolFromPacks, poolRuleOf } from "./gallery.js";
 import { listenOnce } from "./dispatch.js";
@@ -56,6 +57,9 @@ async function creaturesOf(spell) {
       }
     }
     rows = [...byKey.values()];
+    // a one-form spell (Major Image) lands one creature under the spell's own name: one row, named so
+    const one = Object.entries(SUMMON_ONE_FORM).find(([k]) => artKey(k) === artKey(spell.name))?.[1] ?? null;
+    if ( one ) rows = [{ ...(rows.find(r => r.key === artKey(one.from)) ?? rows[0] ?? {}), key: artKey(one.name), name: one.name }];
   }
   CREATURES.set(spell.name, rows);
   return rows;

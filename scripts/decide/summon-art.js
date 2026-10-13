@@ -13,11 +13,23 @@
  */
 export const ART_SPELLS = Object.freeze([
   Object.freeze({ name: "Find Familiar", uuid: "Compendium.dnd-players-handbook.spells.Item.phbsplFindFamili" }),
+  Object.freeze({ name: "Battle Familiar", uuid: "Compendium.dnd-arcana-unleashed.spells.Item.aunBattleFamilq9" }),
   Object.freeze({ name: "Mage Hand", uuid: "Compendium.dnd-players-handbook.spells.Item.phbsplMageHand00" }),
-  Object.freeze({ name: "Dancing Lights", uuid: "Compendium.dnd-players-handbook.spells.Item.phbsplDancingLig" }),
   Object.freeze({ name: "Unseen Servant", uuid: "Compendium.dnd-players-handbook.spells.Item.phbsplUnseenServ" }),
+  Object.freeze({ name: "Tenser's Floating Disk", uuid: "Compendium.dnd-players-handbook.spells.Item.phbsplTensersFlo" }),
+  Object.freeze({ name: "Phantom Steed", uuid: "Compendium.dnd-players-handbook.spells.Item.phbsplPhantomSte" }),
+  Object.freeze({ name: "Dancing Lights", uuid: "Compendium.dnd-players-handbook.spells.Item.phbsplDancingLig" }),
   Object.freeze({ name: "Light", uuid: "Compendium.dnd-players-handbook.spells.Item.phbsplLight00000" }),
-  Object.freeze({ name: "Continual Flame", uuid: "Compendium.dnd-players-handbook.spells.Item.phbsplContinualF" })
+  Object.freeze({ name: "Continual Flame", uuid: "Compendium.dnd-players-handbook.spells.Item.phbsplContinualF" }),
+  Object.freeze({ name: "Flaming Sphere", uuid: "Compendium.dnd-players-handbook.spells.Item.phbsplFlamingSph" }),
+  Object.freeze({ name: "Minor Illusion", uuid: "Compendium.dnd-players-handbook.spells.Item.phbsplMinorIllus" }),
+  Object.freeze({ name: "Silent Image", uuid: "Compendium.dnd-players-handbook.spells.Item.phbsplSilentImag" }),
+  Object.freeze({ name: "Major Image", uuid: "Compendium.dnd-players-handbook.spells.Item.phbsplMajorImage" }),
+  Object.freeze({ name: "Clairvoyance", uuid: "Compendium.dnd-players-handbook.spells.Item.phbsplClairvoyan" }),
+  Object.freeze({ name: "Animate Dead", uuid: "Compendium.dnd-players-handbook.spells.Item.phbsplAnimateDea" }),
+  Object.freeze({ name: "Summon Fey", uuid: "Compendium.dnd-players-handbook.spells.Item.phbsplSummonFey0" }),
+  Object.freeze({ name: "Summon Undead", uuid: "Compendium.dnd-players-handbook.spells.Item.phbsplSummonUnde" }),
+  Object.freeze({ name: "Conjure Constructs", uuid: "Compendium.dnd-heroes-faerun.options.Item.hofConjureConstr" })
 ]);
 
 /** The file types a folder match reads as art. */

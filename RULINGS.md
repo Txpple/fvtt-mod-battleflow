@@ -3455,6 +3455,12 @@ mode"):
    owner to cast them as if spells, for each option of the command"). `SUMMON_COMMANDS`: on landing, Conjure
    Constructs' "Command" feature becomes two at-will spells on the spirits, Clockwork Force and Orderly Ward,
    each its one activity as it landed (the caster's DC, the cast level's extra die); the feature goes.
+28. **Summon Art lists every summon spell the sandbox's test mage carries** (the user): Find Familiar, Battle
+   Familiar, Mage Hand, Unseen Servant, Tenser's Floating Disk, Phantom Steed, Dancing Lights, Light, Continual
+   Flame, Flaming Sphere, Minor Illusion, Silent Image, Major Image, Clairvoyance, Animate Dead, Summon Fey,
+   Summon Undead, Conjure Constructs (`ART_SPELLS`). A one-form spell lists its one form (Major Image). The
+   sandbox's table was filled with generated art (worlds/…/assets/summons/), a token for every creature and a
+   portrait for every true creature; an object's portrait is its token.
 
 ## Rests end the short effects (2026-10-12)
 
