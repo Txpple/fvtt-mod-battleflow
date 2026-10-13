@@ -3468,6 +3468,10 @@ mode"):
 30. **A Summon spell's creature is named form, then type** (the user: "Tricksy Fey", "Putrid Undead"; `formName`):
    Air Beast, Clay Construct, Fire Dragon (the picked type), Mind Flayer Aberration, Ankylosaur Dinosaur. The
    token and its sheet wear it; the Summon Art keys stay the book's names.
+31. **The sweep's fixes** (a full cast of every summon on the sandbox's test mage, each landing screenshotted):
+   Phantom Steed lands as "Phantom Steed", not the pack's "Riding Horse" (`SUMMON_ONE_FORM`); a steady light
+   look puts out the creature's own flicker (the pack's Light object flames: the Glowing Stone washed white);
+   a light's object is one 5-ft square even when the activity offers no size (Continual Flame's was Tiny).
 
 ## Rests end the short effects (2026-10-12)
 

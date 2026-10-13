@@ -442,7 +442,8 @@ async function landSummon(message) {
       // dnd5e's own changes for the profile, per token (a formula may be dice).
       const changes = await activity.getChanges(actor, profile, options);
       if ( lightRow ) {
-        foundry.utils.mergeObject(changes.tokenUpdates, { name: lightRow.object.name, light: tokenLight(lightRow),
+        // one 5-ft square whatever the activity's sizes (Continual Flame offers none, so its object kept the pack's Tiny)
+        foundry.utils.mergeObject(changes.tokenUpdates, { name: lightRow.object.name, light: tokenLight(lightRow), width: 1, height: 1,
           texture: { src: lightRow.object.img }, ring: { enabled: false } });
         changes.actorUpdates.name = lightRow.object.name;
         changes.actorUpdates.img = lightRow.object.img;

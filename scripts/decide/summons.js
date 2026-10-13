@@ -356,7 +356,9 @@ export function tokenLight(row) {
   const look = row?.look;
   if ( look?.color ) out.color = look.color;
   for ( const k of /** @type {const} */ (["alpha", "luminosity", "attenuation"]) ) if ( Number.isFinite(look?.[k]) ) out[k] = look?.[k];
-  if ( look?.animation?.type ) out.animation = { type: look.animation.type,
+  // a look with no flicker is steady: the creature's own animation (the pack's Light flames) is put out
+  if ( look && !look.animation?.type ) out.animation = { type: null };
+  else if ( look?.animation?.type ) out.animation = { type: look.animation.type,
     ...(Number.isFinite(look.animation.speed) ? { speed: look.animation.speed } : {}),
     ...(Number.isFinite(look.animation.intensity) ? { intensity: look.animation.intensity } : {}) };
   return out;

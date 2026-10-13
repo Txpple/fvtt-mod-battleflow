@@ -4188,7 +4188,10 @@ export const SUMMON_LIGHTS = Object.freeze({
  */
 export const SUMMON_ONE_FORM = Object.freeze({
   "Major Image": Object.freeze({ name: "Major Image", from: "Illusory Creature",
-    rule: Object.freeze({ item: "Major Image", uuid: "Compendium.dnd-players-handbook.spells.Item.phbsplMajorImage" }) })
+    rule: Object.freeze({ item: "Major Image", uuid: "Compendium.dnd-players-handbook.spells.Item.phbsplMajorImage" }) }),
+  // the pack's steed is its Riding Horse: it lands named for what it is
+  "Phantom Steed": Object.freeze({ name: "Phantom Steed", from: "Phantom Steed",
+    rule: Object.freeze({ item: "Phantom Steed", uuid: "Compendium.dnd-players-handbook.spells.Item.phbsplPhantomSte" }) })
 });
 
 /**

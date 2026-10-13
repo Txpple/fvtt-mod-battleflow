@@ -646,3 +646,11 @@ describe("formName — a Summon spell's form, then its type", () => {
     expect(s.formName("Find Familiar", "Owl")).toBeNull();
   });
 });
+
+describe("tokenLight — a steady look puts the creature's own flicker out", () => {
+  it("Light's look has no animation: the token's is set to none", () => {
+    expect(s.tokenLight({ bright: 20, dim: 40, look: reg.SPELL_LOOKS.light }).animation).toEqual({
+      type: null
+    });
+  });
+});
