@@ -188,7 +188,8 @@ const poolRow = r => ({ value: r.uuid, label: r.name, img: r.img ?? null, summar
  *   { head?, pool, field, multi?, max?, locked? }  a searchable pool (poolFromPacks rows); `locked` a line: folded, unpickable
  *   `max` (multi only) caps the ticks: a number, or `picks => number` read again on every change; a tick
  *   past it unticks the field's earlier ones, so the newest pick always stands
- *   { head, pills, field }                    pills: { value, label, checked? }; nothing pre-picked unless a pill says so
+ *   { head, pills, field }                    pills: { value, label, checked?, locked? }; nothing pre-picked unless a pill says
+ *                                             so; a `locked` pill is greyed and cannot be picked
  *   { note }                                  a quiet line
  *   { rule }                                  the book's rule line
  */
@@ -196,7 +197,7 @@ function sectionHTML(sec) {
   if ( sec.note ) return `<div style="opacity:0.75;font-size:var(--font-size-11,11px);margin:0.2rem 0;">${esc(sec.note)}</div>`;
   if ( sec.rule ) return ruleLine(sec.rule);
   if ( sec.pills ) return `${headHTML(sec.head)}<div style="display:flex;flex-wrap:wrap;gap:0.3rem;margin:0.3rem 0;">${sec.pills.map(o =>
-    `<label style="display:inline-flex;align-items:center;gap:0.3rem;padding:0.15rem 0.5rem;border:1px solid var(--color-border-dark,#0006);border-radius:12px;cursor:pointer;"><input type="radio" name="${esc(sec.field)}" value="${esc(o.value)}" ${o.checked ? "checked" : ""} style="margin:0;">${esc(o.label)}</label>`).join("")}</div>`;
+    `<label style="display:inline-flex;align-items:center;gap:0.3rem;padding:0.15rem 0.5rem;border:1px solid var(--color-border-dark,#0006);border-radius:12px;${o.locked ? "opacity:0.45;cursor:not-allowed;" : "cursor:pointer;"}"><input type="radio" name="${esc(sec.field)}" value="${esc(o.value)}" ${(o.checked && !o.locked) ? "checked" : ""} ${o.locked ? "disabled" : ""} style="margin:0;">${esc(o.label)}</label>`).join("")}</div>`;
   if ( sec.pool ) {
     const rows = sec.pool.map(r => rowHTML(poolRow({ ...r, locked: r.locked || !!sec.locked }), { field: sec.field, multi: sec.multi }));
     const list = `<input type="search" name="bf-gallery-search" placeholder="Search by name" style="width:100%;margin:0.3rem 0;">

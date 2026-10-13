@@ -230,7 +230,8 @@ async function askSummon(key, facts, { cast = [], light = null } = {}, onAnswer)
   const targets = [...(game.user.targets ?? [])].filter(t => t.actor);
   const sections = [];
   if ( light ) sections.push({ head: "Where the light goes", field: "bf-light-on", pills: [
-    { value: "token", label: targets.length ? `On ${targets.map(t => t.name).join(", ")}` : "On a token (target it first)", checked: targets.length > 0 },
+    // no token targeted: the token way is greyed out (target one, then cast again)
+    { value: "token", label: targets.length ? `On ${targets.map(t => t.name).join(", ")}` : "On a token (target one first)", checked: targets.length > 0, locked: !targets.length },
     { value: "object", label: `On an object: ${light.object.name}`, checked: !targets.length }] });
   if ( needs.profile ) sections.push({ head: "The form", field: "bf-summon-profile", rows: facts.profiles.map((p, i) => profileRow(p, i === 0)) });
   else if ( (facts.profiles.length === 1) && !needs.pool ) sections.push({ field: "bf-summon-profile", rows: [profileRow(facts.profiles[0], true)] });
