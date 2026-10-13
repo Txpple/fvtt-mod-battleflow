@@ -267,13 +267,7 @@ describe("formEffectData and endOfForm — the clocked effect and what ends the 
 });
 
 describe("the words", () => {
-  it("the locked line, the titles, the article", () => {
-    expect(s.lockedLine({ more: 29, capLabel: "CR ¼ or lower" })).toBe(
-      "29 more forms in the pool at CR ¼ or lower · locked until a Long Rest"
-    );
-    expect(s.lockedLine({ more: 1, capLabel: "" })).toBe(
-      "1 more form in the pool · locked until a Long Rest"
-    );
+  it("the titles, the article", () => {
     expect(s.formTitle({ who: "Tamsin", form: "Wolf" })).toBe("Tamsin is now a Wolf");
     expect(s.formTitle({ who: "Tamsin", form: "Owl", ended: { why: "the time ran out" } })).toBe(
       "Tamsin is no longer an Owl — the time ran out"

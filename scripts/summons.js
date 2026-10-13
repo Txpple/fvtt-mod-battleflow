@@ -16,19 +16,19 @@
  */
 import { MODULE_ID, readFlag, TITLE, activeCombatFor, isActiveGM, queueFlagWrite, answersHere, statContext } from "./core.js";
 import { cardActivity, lower, resolveUuid } from "./lookup.js";
-import { COMPANIONS, SUMMON_CHOICES, SUMMON_COMMANDS, SUMMON_LIGHTS, SUMMON_LOOKS, SUMMON_ONE_FORM, summonChoiceEntries, summonOwnInitiativeEntries, summonSingleEntries, listedNames } from "./decide/registry.js";
+import { COMPANIONS, SUMMON_AS, SUMMON_CHOICES, SUMMON_COMMANDS, SUMMON_GUISES, SUMMON_LIGHTS, SUMMON_LOOKS, SUMMON_ONE_FORM, summonChoiceEntries, summonOwnInitiativeEntries, summonSingleEntries, listedNames } from "./decide/registry.js";
 import { profileRows, choiceRowKey, formNeeds, poolPicks, summonRecord, placedAnswer, narrowedActivities, resistanceEffectData,
   ownershipGrant, seatInitiative, rangeFeet, replacedSummons, companionEffectName, currentCompanion, companionMenu, companionAsk,
-  carriedItemIds, sizesInOrder, castOptions, summonEffectName, tokenLight, formName } from "./decide/summons.js";
+  carriedItemIds, sizesInOrder, summonEffectName, tokenLight, formName, guisesOf } from "./decide/summons.js";
 import { bfCard, esc, popupKey } from "./decide/present.js";
 import { artChanges } from "./decide/summon-art.js";
 import { concentrationIdOf } from "./decide/card.js";
 import { effectRecord, joinEffectReceipt } from "./decide/receipt.js";
 import { describeCreature, openPicker, pickSpots, poolFromPacks, poolRuleOf, summonArt } from "./gallery.js";
-import { askConcentrationEnd, CONCENTRATION_ASKED } from "./shared.js";
+import { CONCENTRATION_ASKED } from "./shared.js";
 import { momentButton, registerResumable, shownMoments } from "./ui.js";
 import { SURFACES } from "./surfaces.js";
-import { listen } from "./dispatch.js";
+import { listen, listenOnce } from "./dispatch.js";
 
 const SUMMON_FLAG = "summon";
 const listed = () => listedNames(summonChoiceEntries());
@@ -41,6 +41,25 @@ const lightRowOf = name => Object.entries(SUMMON_LIGHTS).find(([k]) => lower(k) 
 
 /** The SUMMON_ONE_FORM row a spell answers to, by name, or null. */
 const oneFormOf = name => Object.entries(SUMMON_ONE_FORM).find(([k]) => lower(k) === lower(name ?? ""))?.[1] ?? null;
+
+/** The SUMMON_AS row a feature answers to (Wild Companion), by name, or null. */
+const asRowOf = name => Object.entries(SUMMON_AS).find(([k]) => lower(k) === lower(name ?? ""))?.[1] ?? null;
+
+/** The name the tables know a summon by: the spell a feature casts (Wild Companion is Find Familiar), else its own. */
+const rulesName = name => asRowOf(name)?.as ?? name;
+
+/** The table's art for a creature: the item's own entry, else the spell's it casts (Wild Companion wears Find Familiar's). */
+function artOf(itemName, creature) {
+  const own = summonArt(itemName, creature);
+  if ( own.token || own.portrait || (rulesName(itemName) === itemName) ) return own;
+  return summonArt(rulesName(itemName), creature);
+}
+
+/** The SUMMON_GUISES row a spell answers to, by name, or null. */
+const guiseRowOf = name => Object.entries(SUMMON_GUISES).find(([k]) => lower(k) === lower(name ?? ""))?.[1] ?? null;
+
+/** A size key's footprint in grid squares (dnd5e's own table, where one square is the default), or null. */
+const squaresOf = size => (CONFIG.DND5E?.actorSizes?.[size] ? (Number(CONFIG.DND5E.actorSizes[size].token) || 1) : null);
 
 /** The SUMMON_LOOKS row a creature answers to, by name, or null. */
 const lookOf = name => Object.entries(SUMMON_LOOKS).find(([k]) => lower(k) === lower(name ?? ""))?.[1] ?? null;
@@ -57,12 +76,33 @@ const summonActivityOf = item => [...(item?.system?.activities ?? [])].find(a =>
  */
 const planned = new Map();
 
-/* --- straight to the menu: no activity picker, no usage dialog ------------------------------------- */
+/* --- the spell is cast, then the menu: the system's dialog first --------------------------------- */
 
-// ⚠ dnd5e calls no hook before its activity picker (`Item5e#use`): an item with a summon activity (Dancing
-// Lights' Move Lights, Minor Illusion's Study, Flaming Sphere's ram save) skips it for the summon, the
-// picker dismissed unseen (gear-lights.js does the same). The other activities stay on the sheet and the
-// placed creature's own (RULINGS *Summons*: every summon goes straight to the module's menu).
+// A summon spell is one button: its other activities (Flaming Sphere's ram save, Dancing Lights' Move Lights,
+// Minor Illusion's Study) are hidden on the caster's spell, since the placed creature does those itself
+// (RULINGS *Summons*, call 32). Hidden through `Activity#isHidden`, which every list the system draws or uses
+// reads (`canUse`: the sheet, the activity picker, `Item5e#use`), so a spell with one left uses it straight.
+/** A spell's activity that is not its summon, on a spell whose summon the module takes. */
+const offCaster = activity => (activity?.type !== "summon") && (activity?.item?.type === "spell") && !!summonActivityOf(activity.item);
+
+/** `Activity#isHidden` with the summon spell's other activities hidden too; `was` the system's getter. */
+function hiddenGetter(was) {
+  return function() {
+    if ( was.call(this) ) return true;
+    try { return offCaster(this); } catch { return false; }
+  };
+}
+
+listenOnce("init", "summons", () => {
+  let proto = CONFIG.DND5E?.activityTypes?.summon?.documentClass?.prototype ?? null;
+  while ( proto && !Object.hasOwn(proto, "isHidden") ) proto = Object.getPrototypeOf(proto);
+  const was = proto ? Object.getOwnPropertyDescriptor(proto, "isHidden") : null;
+  if ( !was?.get ) { console.warn(`${TITLE} | Could not hide a summon spell's other activities: dnd5e's Activity#isHidden was not found.`); return; }
+  Object.defineProperty(proto, "isHidden", { ...was, get: hiddenGetter(was.get) });
+});
+
+// ⚠ dnd5e calls no hook before its activity picker (`Item5e#use`): an item (not a spell) with a summon
+// activity and others skips it for the summon, the picker dismissed unseen (gear-lights.js does the same).
 listen("renderActivityChoiceDialog", "summons", (app, element) => {
   try {
     const activity = summonActivityOf(app?.item);
@@ -73,10 +113,9 @@ listen("renderActivityChoiceDialog", "summons", (app, element) => {
   } catch(err) { console.error(`${TITLE} | Could not open the summon — use the spell's summon from the sheet.`, err); }
 });
 
-// The use of a summon activity opens the module's menu instead (the form, the creature, its type and size,
-// the spell's own question, the slot), and the cast happens on Place, after the spaces are picked: a
-// cancelled menu spends nothing. A companion standing opens its own menu (COMPANIONS). The cast the menu
-// makes runs with no dialog and the system's placement off.
+// The use of a summon activity opens the system's own Cast Spell dialog (the slot, the spend ticks, the
+// Concentration it ends), its Creation section hidden and switched off. A companion standing opens its own
+// menu instead (COMPANIONS). The cast the menu makes runs with no dialog and the system's placement off.
 listen("dnd5e.preUseActivity", "summons", (activity, usageConfig, dialogConfig) => {
   try {
     if ( !takes(activity) ) return;
@@ -98,13 +137,40 @@ listen("dnd5e.preUseActivity", "summons", (activity, usageConfig, dialogConfig) 
       const through = castThrough.delete(activity.uuid);
       // With no GM online the cast is refused before anything, so no slot is spent on a creature that cannot land.
       if ( needsGM(row) ) return false;
-      const id = through ? null : currentCompanion(summonRecords(), activity.actor?.uuid ?? "", activity.item.name);
+      const id = through ? null : currentCompanion(summonRecords(), activity.actor?.uuid ?? "", rulesName(activity.item.name));
       const message = id ? game.messages.get(id) : null;
       if ( message ) { void showCompanionMenu(message, activity); return false; }
     }
-    if ( !activity.actor?.isOwner ) return;
+  } catch(err) { console.warn(`${TITLE} | Could not take the summon — the spell is cast as usual.`, err); }
+});
+
+// The dialog's answer is taken here, after the dialog and before anything is spent (RULINGS *Summons*, call
+// 33): the use is vetoed, the module's menu opens at the level the dialog picked, and Place casts again with
+// that answer and no dialog. A cancelled menu or a cancelled placement spends nothing.
+listen("dnd5e.preActivityConsumption", "summons", (activity, usageConfig) => {
+  try {
+    if ( !takes(activity) || planned.has(activity.uuid) || !activity.actor?.isOwner ) return;
+    // another way ticked in the dialog (Wild Companion's Wild Shape use): Place casts with that activity, its own spend
+    const way = paidWith.get(activity.uuid);
+    paidWith.delete(activity.uuid);
+    const other = way ? liveActivity({ actor: activity.actor, item: activity.item, id: way }) : null;
+    if ( other ) {
+      void openCastMenu(other, {}, Number(other.item.system?.level) || other.relevantLevel).catch(err => {
+        console.error(`${TITLE} | The summon menu failed — use it again.`, err);
+        ui.notifications?.error(`${TITLE}: the summon menu could not open (${err?.message ?? err}).`);
+      });
+      return false;
+    }
     const live = liveActivity(activity) ?? activity;
-    void openCastMenu(live).catch(err => {
+    const slotKey = usageConfig.spell?.slot ?? null;
+    const noSlot = usageConfig.consume?.spellSlot === false;
+    const slotLevel = (!noSlot && slotKey) ? (Number(activity.actor.system?.spells?.[slotKey]?.level) || null) : null;
+    const asked = {
+      spell: usageConfig.spell ? foundry.utils.deepClone(usageConfig.spell) : undefined,
+      consume: usageConfig.consume ? foundry.utils.deepClone(usageConfig.consume) : undefined,
+      concentration: usageConfig.concentration ? foundry.utils.deepClone(usageConfig.concentration) : undefined
+    };
+    void openCastMenu(live, asked, slotLevel ?? (Number(live.item.system?.level) || live.relevantLevel)).catch(err => {
       console.error(`${TITLE} | The summon menu failed — cast the spell again.`, err);
       ui.notifications?.error(`${TITLE}: the summon menu could not open (${err?.message ?? err}).`);
     });
@@ -112,12 +178,108 @@ listen("dnd5e.preUseActivity", "summons", (activity, usageConfig, dialogConfig) 
   } catch(err) { console.warn(`${TITLE} | Could not take the summon — the spell is cast as usual.`, err); }
 });
 
+/** The module's menu after the system's dialog, at the cast's level; Place casts with the dialog's answer. */
+async function openCastMenu(activity, asked, level) {
+  const item = activity.item;
+  const facts = await castFacts(activity, level);
+  const was = companionOf(item.name) ? currentCompanion(summonRecords(), activity.actor.uuid, rulesName(item.name)) : null;
+  if ( was && game.messages.get(was) ) facts.replaces = replacesOf(game.messages.get(was));
+  facts.askedBy = game.user.id;
+  await askSummon(`cast-${activity.uuid}`, facts, { light: lightRowOf(item.name) }, async answer => {
+    const usage = { create: { summons: false }, [MODULE_ID]: { [CONCENTRATION_ASKED]: true, lightOn: answer.lightOn ?? null } };
+    if ( asked.spell ) usage.spell = asked.spell;
+    if ( asked.consume ) usage.consume = asked.consume;
+    if ( asked.concentration ) usage.concentration = asked.concentration;
+    planned.set(activity.uuid, answer);
+    try { await activity.use(usage, { configure: false }, {}); } finally { planned.delete(activity.uuid); }
+  });
+}
+
+/* --- a feature with more than one way to pay: one more line in the system's Consumption ------------ */
+
+/** The item's summon activities the module takes, when there are more than one (Wild Companion: a slot or Wild Shape). */
+const payWays = item => [...(item?.system?.activities ?? [])].filter(a => takes(a));
+
+/** The way a use was switched to in its dialog, by the dialog's activity uuid: the other activity's id. */
+const paidWith = new Map();
+
+/** The pool an item-uses activity spends (Wild Companion's Wild Shape use): the item, its uses left, its name. */
+function usesPoolOf(activity) {
+  const target = activity?.consumption?.targets?.find?.(t => t.type === "itemUses") ?? null;
+  if ( !target ) return null;
+  const ref = String(target.target ?? "");
+  const item = activity.actor?.items?.get(ref) ?? activity.actor?.items?.find(i => (i._stats?.compendiumSource === ref)
+    || (i.getFlag?.("dnd5e", "sourceId") === ref)) ?? null;
+  return item ? { item, left: Number(item.system?.uses?.value) || 0, name: item.name } : null;
+}
+
+// The use opens the first way's dialog (the activity picker is skipped). Its Consumption gains a line for each
+// other way, built as a copy of the system's own line ("Consume Wild Shape use? (2 remaining)"); the lines are
+// mutually exclusive. A ticked other way is taken at the consumption hook: the use is vetoed as every summon's
+// is, and Place casts with that way instead (RULINGS *Summons*, call 39). Nothing is spent until placed.
+listen("renderActivityUsageDialog", "summons", (app, element) => {
+  try {
+    const activity = app?.activity;
+    if ( !takes(activity) || !element?.querySelector || element.querySelector("[data-bf-pay-way]") ) return;
+    const others = payWays(activity.item).filter(w => w.id !== activity.id);
+    if ( !others.length ) return;
+    // ⚠ the system's tick is the one consume field with a `checked` (a dnd5e-checkbox, or an input on older sheets)
+    const own = [...element.querySelectorAll('[name^="consume"]')].find(el => typeof el.checked === "boolean") ?? null;
+    const ownRow = own?.closest(SURFACES.formGroup) ?? null;
+    if ( !own || !ownRow ) return;
+    // ⚠ the dialog redraws itself on every change (the line is rebuilt each time): the pick lives in `paidWith`,
+    // cleared only on the dialog's first draw, and every redraw ticks the line it names
+    if ( !app._bfPayDrawn ) { paidWith.delete(activity.uuid); app._bfPayDrawn = true; }
+    const picked = paidWith.get(activity.uuid) ?? null;
+    if ( picked ) own.checked = false;
+    const boxes = [own];
+    for ( const way of others ) {
+      const pool = usesPoolOf(way);
+      const row = ownRow.cloneNode(true);
+      const box = [...row.querySelectorAll("input, dnd5e-checkbox")].find(el => typeof el.checked === "boolean") ?? null;
+      if ( !box ) continue;
+      box.removeAttribute("name");
+      box.dataset.bfPayWay = way.id;
+      box.checked = (picked === way.id);
+      if ( pool && (pool.left < 1) ) box.disabled = true;
+      const label = row.querySelector("label");
+      if ( label ) label.textContent = `Consume ${pool ? `${pool.name} use` : (way.name || "the other way")}?`;
+      const hint = row.querySelector(".hint");
+      if ( hint ) hint.textContent = pool ? `Spend 1 ${pool.name} use (${pool.left} remaining).` : "";
+      ownRow.after(row);
+      boxes.push(box);
+    }
+    // one line ticked at a time; the system's own line is the default
+    for ( const box of boxes ) box.addEventListener("change", () => {
+      if ( !box.checked ) { if ( !boxes.some(b => b.checked) ) { own.checked = true; paidWith.delete(activity.uuid); } return; }
+      for ( const other of boxes ) if ( other !== box ) other.checked = false;
+      if ( box.dataset.bfPayWay ) paidWith.set(activity.uuid, box.dataset.bfPayWay); else paidWith.delete(activity.uuid);
+    });
+  } catch(err) { console.warn(`${TITLE} | Could not offer the other ways to pay.`, err); }
+});
+
+/* --- gone at the Long Rest (SUMMON_AS `longRest`) ---------------------------------------------------- */
+
+// The resting client alone fires this hook; it asks the dismissal of every standing record of the rester's
+// whose feature says it disappears when its caster finishes a Long Rest (Wild Companion).
+listen("dnd5e.restCompleted", "summons", (actor, result, config) => {
+  try {
+    if ( !(actor instanceof Actor) || !actor.isOwner || ((result?.type ?? config?.type) !== "long") ) return;
+    for ( const message of game.messages.contents ) {
+      const flag = readFlag(message, SUMMON_FLAG);
+      if ( !flag?.applied || flag.dismissAsked || flag.dismissed || (flag.sourceUuid !== actor.uuid) ) continue;
+      if ( !asRowOf(flag.itemName)?.longRest ) continue;
+      void askDismiss(message);
+    }
+  } catch(err) { console.warn(`${TITLE} | Could not end the companion at the Long Rest — dismiss it by hand.`, err); }
+});
+
 /* --- the record on the cast card ------------------------------------------------------------------ */
 
 /** A form row's label, art and lines, read off the creature it names (a compendium read, no permission). */
-async function describeProfile(row) {
+async function describeProfile(row, summon = null) {
   if ( !row.uuid ) return { ...row, label: row.name || `a creature of CR ${row.cr ?? "?"}${row.types.length ? ` (${row.types.join(", ")})` : ""}`, img: null, summary: null };
-  return { ...row, ...(await describeCreature(row.uuid, { label: row.name || "" })) };
+  return { ...row, ...(await describeCreature(row.uuid, { label: row.name || "", summon })) };
 }
 
 /** A SUMMON_ONE_FORM spell's profiles narrowed to its one form, named as the spell names it; others as they are. */
@@ -138,11 +300,14 @@ async function castFacts(activity, level) {
   return {
     sourceUuid: actor.uuid, sourceName: tok?.name ?? actor.name,
     itemUuid: activity.item.uuid, itemName: activity.item.name, activityUuid: activity.uuid,
-    level, profiles: oneForm(activity.item.name, await Promise.all(profileRows(activity.profiles.map(p => p.toObject?.() ?? p), level).map(describeProfile))),
+    // the attack lines at the cast: dnd5e stamps the cast's level and the caster's modifier on the creature
+    level, profiles: oneForm(activity.item.name, await Promise.all(profileRows(activity.profiles.map(p => p.toObject?.() ?? p), level)
+      .map(r => describeProfile(r, { level: Number(level) || 0, mod: Number(activity.getRollData?.()?.mod) || 0 })))),
     choice: choiceRowKey(SUMMON_CHOICES, activity.item.name, listed()),
     sceneId: tok?.parent?.id ?? canvas.scene?.id ?? null,
     mode: activity.summon?.mode ?? null, creatureTypes: [...(activity.creatureTypes ?? [])],
-    creatureSizes: sizesOf(activity), rangeFt: rangeFeet(activity.range)
+    creatureSizes: sizesOf(activity), rangeFt: asRowOf(activity.item.name)?.rangeFt ?? rangeFeet(activity.range),
+    guises: guisesOf(guiseRowOf(activity.item.name))
   };
 }
 
@@ -151,7 +316,7 @@ async function stampRecord(activity, message, answer) {
   const facts = await castFacts(activity, activity.relevantLevel);
   const record = summonRecord({ ...facts, concentrationId: concentrationIdOf(message) });
   // a companion standing: the new form takes its place (its square, or the pocket)
-  const was = companionOf(activity.item.name) ? currentCompanion(summonRecords(), actor.uuid, activity.item.name) : null;
+  const was = companionOf(activity.item.name) ? currentCompanion(summonRecords(), actor.uuid, rulesName(activity.item.name)) : null;
   if ( was && game.messages.get(was) ) record.replaces = replacesOf(game.messages.get(was));
   record.askedBy = game.user.id;   // the caster's own screen answers: a GM casting for a player's character included
   if ( lightRowOf(activity.item.name) ) record.light = activity.item.name;
@@ -176,7 +341,7 @@ listen("dnd5e.postUseActivity", "summons", (activity, _usageConfig, results) => 
 
 /** Dismiss the caster's standing summons of a SUMMON_SINGLES spell, all but `keep` (a message id). */
 function dismissSingles(sourceUuid, itemName, keep) {
-  const ids = replacedSummons(summonRecords(), { id: keep ?? "", sourceUuid, itemName }, listedNames(summonSingleEntries()));
+  const ids = replacedSummons(summonRecords(), { id: keep ?? "", sourceUuid, itemName: rulesName(itemName) }, listedNames(summonSingleEntries()));
   for ( const id of ids ) {
     const earlier = game.messages.get(id);
     if ( earlier ) void askDismiss(earlier).catch(err => console.warn(`${TITLE} | Could not dismiss the earlier summon — delete its token by hand.`, err));
@@ -184,7 +349,7 @@ function dismissSingles(sourceUuid, itemName, keep) {
   return ids;
 }
 
-/* --- the one menu: the form, the choice, the pool, the slot, then the placement ------------------- */
+/* --- the one menu: the form, the choice, the pool, then the placement ------ ------------------- */
 
 /** The caster's token document on the record's scene, for the preview's origin and elevation. */
 function casterToken(flag) {
@@ -203,36 +368,21 @@ async function countOf(flag, profile) {
   } catch { return 1; }
 }
 
-/** Whether the use spends a slot the menu must pick: a leveled spell, not off a scroll. */
-const spendsSlot = activity => !!activity.requiresSpellSlot && (activity.consumption?.spellSlot !== false)
-  && (Number(activity.item?.system?.level) > 0) && !activity.item?.getFlag?.("dnd5e", "spellLevel");
-
-/** How a spell may be cast (the slots with one left, the ritual), as the system's own slot rules read them. */
-function castOptionsOf(activity) {
-  const item = activity.item;
-  const method = CONFIG.DND5E?.spellcasting?.[item.system?.method];
-  const exclusiveSlots = type => !!CONFIG.DND5E?.spellcasting?.[type]?.exclusive?.slots;
-  const slots = Object.entries(activity.actor.system?.spells ?? {}).map(([key, s]) => ({ key, level: Number(s.level) || 0, value: Number(s.value) || 0,
-    max: Number(s.max) || 0, type: s.type ?? null, label: s.label ?? "" }));
-  return castOptions(slots, { level: Number(item.system?.level) || 0, ritual: !!item.system?.properties?.has?.("ritual"), spendsSlot: spendsSlot(activity),
-    allowed: s => !(method?.exclusive?.spells && (item.system.method !== s.type)) && !(exclusiveSlots(s.type) && (item.system.method !== s.type)) });
-}
-
 /**
  * The menu, described to the shared picker. `facts` the record's facts (or the record itself, off a card);
- * `cast` the slot options; `light` the SUMMON_LIGHTS row. `onAnswer` gets the answer once the spaces are
+ * `light` the SUMMON_LIGHTS row. `onAnswer` gets the answer once the spaces are
  * picked (the light on a token picks none).
  */
-async function askSummon(key, facts, { cast = [], light = null } = {}, onAnswer) {
+async function askSummon(key, facts, { light = null } = {}, onAnswer) {
   const caster = resolveUuid(facts.sourceUuid);
   if ( !caster ) return;
   const types = facts.creatureTypes ?? [];
   const sizes = facts.creatureSizes ?? [];
-  // a light's object asks no size: one 5-ft square (`light.size`), whatever the spell allows (RULINGS *Summons*)
+  // a light's object asks no size: the row's own (`light.size`), whatever the spell allows (RULINGS *Summons*)
   const needs = formNeeds({ profiles: facts.profiles, choice: facts.choice, mode: facts.mode, creatureTypes: types, creatureSizes: light ? [] : sizes });
   const poolProfile = facts.profiles.find(p => poolPicks(p, facts.mode)) ?? null;
   // the table's own token art over the compendium's (the Summon Art window), on the rows and the ghost alike
-  const tokenArt = (name, img) => summonArt(facts.itemName, name).token ?? img ?? null;
+  const tokenArt = (name, img) => artOf(facts.itemName, name).token ?? img ?? null;
   const pool = ((needs.pool && poolProfile) ? await poolFromPacks(poolRuleOf(poolProfile)) : []).map(r => ({ ...r, img: tokenArt(r.name, r.img) }));
   const choiceRow = needs.choice ? SUMMON_CHOICES[facts.choice] : null;
   // a light's object reads as the thing touched (a stone), in the table's art when it sets one
@@ -245,8 +395,17 @@ async function askSummon(key, facts, { cast = [], light = null } = {}, onAnswer)
     // no token targeted: the token way is greyed out (target one, then cast again)
     { value: "token", label: targets.length ? `On ${targets.map(t => t.name).join(", ")}` : "On a token (target one first)", checked: targets.length > 0, locked: !targets.length },
     { value: "object", label: `On an object: ${light.object.name}`, checked: !targets.length }] });
-  if ( needs.profile ) sections.push({ head: "The form", field: "bf-summon-profile", rows: facts.profiles.map((p, i) => profileRow(p, i === 0)) });
-  else if ( (facts.profiles.length === 1) && !needs.pool ) sections.push({ field: "bf-summon-profile", rows: [profileRow(facts.profiles[0], true)] });
+  // a guise the caster picks (SUMMON_GUISES): one row per guise, the one creature in each guise's own art
+  const guises = facts.guises ?? [];
+  if ( guises.length && !needs.profile && !needs.pool ) {
+    const base = facts.profiles[0];
+    sections.push({ head: guiseRowOf(facts.itemName)?.ask ?? "The look", field: "bf-summon-guise", rows: guises.map((g, i) => ({
+      value: g.guise, label: g.name, img: tokenArt(g.name, base?.img ?? null), summary: base?.summary ?? null, checked: i === 0 })) });
+  }
+  else if ( needs.profile ) sections.push({ head: "The form", field: "bf-summon-profile", rows: facts.profiles.map((p, i) => profileRow(p, i === 0)) });
+  // a light's object stands only while the light goes on an object: with a token targeted it is unpicked and greyed
+  else if ( (facts.profiles.length === 1) && !needs.pool && !guises.length ) sections.push({ field: "bf-summon-profile", rows: [profileRow(facts.profiles[0], true)],
+    onlyWhen: light ? { field: "bf-light-on", value: "object" } : undefined });
   if ( needs.pool ) sections.push({ field: "bf-summon-pick", pool });
   if ( needs.type ) sections.push({ head: "Its creature type", field: "bf-summon-type", pills: types.map(t => ({ value: t, label: CONFIG.DND5E?.creatureTypes?.[t]?.label ?? t })) });
   if ( needs.size ) sections.push({ head: "Its size", field: "bf-summon-size", pills: sizes.map(s => ({ value: s, label: CONFIG.DND5E?.actorSizes?.[s]?.label ?? s })) });
@@ -254,7 +413,6 @@ async function askSummon(key, facts, { cast = [], light = null } = {}, onAnswer)
     sections.push({ head: choiceRow.ask, field: "bf-summon-choice", pills: choiceRow.options.map(o => ({ value: o, label: CONFIG.DND5E?.damageTypes?.[o]?.label ?? o })) });
     sections.push({ rule: choiceRow.rule });
   }
-  if ( cast.length > 1 ) sections.push({ head: "Cast with", field: "bf-summon-slot", pills: cast.map((o, i) => ({ value: o.value, label: o.label, checked: i === 0 })) });
   const replacing = facts.replaces ?? null;
   if ( replacing ) sections.push({ note: (replacing.state === "pocket") ? "The new form waits in the pocket dimension, as the old one did." : "The new form takes the old one's place." });
   // what must be picked, in the order the popup reads (the creature, its type and size, the spell's own question)
@@ -265,32 +423,34 @@ async function askSummon(key, facts, { cast = [], light = null } = {}, onAnswer)
     choiceRow ? { field: "bf-summon-choice", why: `pick ${lower(choiceRow.ask)} first` } : null
   ].filter(Boolean);
   // the light's token way needs a token targeted (the pill is greyed without one; this is the belt)
-  const validate = light ? picks => ((picks.one("bf-light-on") === "token") && !game.user.targets?.size) ? "target the token first, then press Place" : null : null;
+  const validate = light ? picks => ((picks.one("bf-light-on") === "token") && !game.user.targets?.size) ? "target the token first, then press Light" : null : null;
   await openPicker({ id: key }, SUMMON_FLAG, caster, {
     title: `${facts.itemName} — ${facts.sourceName}`, icon: "fa-solid fa-spaghetti-monster-flying", width: 480, by: facts.askedBy ?? game.user.id,
     card: { eyebrow: light ? "Light" : "Summon", title: facts.itemName, subtitle: facts.level ? `level ${facts.level}` : "" },
     sections, needs: asked, validate,
     buttons: [
-      { action: "place", label: "Place", default: true, checks: true, submit: picks => {
+      { action: "place", label: light ? "Light" : "Place", default: true, checks: true, submit: picks => {
         const profile = facts.profiles.find(p => p.id === picks.one("bf-summon-profile")) ?? facts.profiles[0];
         const pickRow = pool.find(r => r.uuid === picks.one("bf-summon-pick")) ?? null;
         const creatureType = picks.one("bf-summon-type");
         const creatureSize = picks.one("bf-summon-size");
-        const slot = cast.find(o => o.value === picks.one("bf-summon-slot")) ?? cast[0] ?? null;
         const lightOn = light ? (picks.one("bf-light-on") ?? "object") : null;
         void (async () => {
           try {
-            if ( lightOn === "token" ) { await onAnswer({ lightOn, slot }); return; }
+            if ( lightOn === "token" ) { await onAnswer({ lightOn }); return; }
             const count = await countOf(facts, profile);
             const usePool = poolPicks(profile, facts.mode);
             const inPlace = (replacing?.state === "present") && replacing.placement;
             const intoPocket = replacing?.state === "pocket";
+            // a guise follows the pointer in its own art and its house size (SUMMON_GUISES)
+            const guise = guises.find(g => g.guise === picks.one("bf-summon-guise")) ?? null;
             const placements = inPlace ? [replacing.placement] : intoPocket ? [{ x: 0, y: 0, elevation: 0, rotation: 0 }] : await pickSpots({ originToken: casterToken(facts), actorUuid: usePool ? pickRow.uuid : profile.uuid, count,
-              rangeFt: facts.rangeFt ?? null, label: usePool ? pickRow.name : labelOf(profile),
-              img: usePool ? pickRow.img : imgOf(profile) });
+              rangeFt: facts.rangeFt ?? null, label: usePool ? pickRow.name : (guise?.name ?? labelOf(profile)),
+              img: usePool ? pickRow.img : guise ? tokenArt(guise.name, imgOf(profile)) : imgOf(profile),
+              squares: guise ? squaresOf(guiseRowOf(facts.itemName)?.size) : null });
             if ( !placements.length ) return;   // cancelled on the map: nothing cast
             await onAnswer({ profileId: profile.id, pick: pickRow ? { uuid: pickRow.uuid, name: pickRow.name, img: pickRow.img } : null,
-              choice: picks.one("bf-summon-choice"), placements, count, intoPocket, slot, lightOn,
+              choice: picks.one("bf-summon-choice"), guise: picks.one("bf-summon-guise"), placements, count, intoPocket, lightOn,
               sceneId: (inPlace ? replacing.placement.sceneId : null) ?? canvas.scene?.id ?? facts.sceneId ?? null,
               creatureSize: light ? (sizes.includes(light.size) ? light.size : (sizes[0] ?? null)) : needs.size ? creatureSize : (sizes[0] ?? null), creatureType: needs.type ? creatureType : (types[0] ?? null) });
           } catch(err) {
@@ -301,34 +461,6 @@ async function askSummon(key, facts, { cast = [], light = null } = {}, onAnswer)
       } },
       { action: "cancel", label: "Not now" }
     ]
-  });
-}
-
-/**
- * The menu before the cast, on the caster's client: the Concentration question first (dnd5e's dialog,
- * which asked it, is skipped), then the menu; Place picks the spaces and THEN casts, the answer riding
- * the use to its card. Nothing is spent until the spaces are picked.
- */
-async function openCastMenu(activity) {
-  const item = activity.item;
-  const cast = castOptionsOf(activity);
-  if ( spendsSlot(activity) && !cast.length ) {
-    ui.notifications?.warn(`${TITLE}: no spell slot left to cast ${item.name}.`);
-    return;
-  }
-  const concentration = await askConcentrationEnd(activity);
-  if ( !concentration.go ) return;
-  const facts = await castFacts(activity, Number(item.system?.level) || activity.relevantLevel);
-  const was = companionOf(item.name) ? currentCompanion(summonRecords(), activity.actor.uuid, item.name) : null;
-  if ( was && game.messages.get(was) ) facts.replaces = replacesOf(game.messages.get(was));
-  facts.askedBy = game.user.id;
-  await askSummon(`cast-${activity.uuid}`, facts, { cast, light: lightRowOf(item.name) }, async answer => {
-    const usage = { create: { summons: false }, [MODULE_ID]: { [CONCENTRATION_ASKED]: true, lightOn: answer.lightOn ?? null } };
-    if ( answer.slot?.ritual ) usage.consume = { spellSlot: false };
-    else if ( answer.slot ) usage.spell = { slot: answer.slot.value };
-    if ( concentration.end ) usage.concentration = { begin: true, end: concentration.end };
-    planned.set(activity.uuid, answer);
-    try { await activity.use(usage, { configure: false }, {}); } finally { planned.delete(activity.uuid); }
   });
 }
 
@@ -434,7 +566,7 @@ async function landSummon(message) {
     const tokensData = [];
     const creatureName = flag.summonName || actor.name;
     // the table's own art (the Summon Art window), read now: a creature landed earlier keeps what it had
-    const art = artChanges(summonArt(flag.itemName, creatureName));
+    const art = artChanges(artOf(flag.itemName, creatureName));
     // a light's object (SUMMON_LIGHTS): the thing touched, named and drawn so, carrying the spell's light
     const lightRow = flag.light ? lightRowOf(flag.light) : null;
     const look = lookOf(creatureName);
@@ -442,8 +574,10 @@ async function landSummon(message) {
       // dnd5e's own changes for the profile, per token (a formula may be dice).
       const changes = await activity.getChanges(actor, profile, options);
       if ( lightRow ) {
-        // one 5-ft square whatever the activity's sizes (Continual Flame offers none, so its object kept the pack's Tiny)
-        foundry.utils.mergeObject(changes.tokenUpdates, { name: lightRow.object.name, light: tokenLight(lightRow), width: 1, height: 1,
+        // the row's size whatever the activity's sizes (Continual Flame's offers none): half a square for a Tiny
+        // object (the light's stones), else one 5-ft square
+        const squares = (lightRow.size === "tiny") ? 0.5 : 1;
+        foundry.utils.mergeObject(changes.tokenUpdates, { name: lightRow.object.name, light: tokenLight(lightRow), width: squares, height: squares,
           texture: { src: lightRow.object.img }, ring: { enabled: false } });
         changes.actorUpdates.name = lightRow.object.name;
         changes.actorUpdates.img = lightRow.object.img;
@@ -452,6 +586,18 @@ async function landSummon(message) {
       if ( single ) {
         changes.tokenUpdates.name = single.name;
         changes.actorUpdates.name = single.name;
+      }
+      // a guise (SUMMON_GUISES) lands named for it ("Spiritual Mace"); its art is that name's, read above
+      if ( flag.guise && flag.summonName ) {
+        changes.tokenUpdates.name = flag.summonName;
+        changes.actorUpdates.name = flag.summonName;
+        // its house size: the creature's and the token's footprint (dnd5e syncs a token to its creature's size)
+        const size = guiseRowOf(flag.itemName)?.size ?? null;
+        const squares = squaresOf(size);
+        if ( squares ) {
+          foundry.utils.setProperty(changes.actorUpdates, "system.traits.size", size);
+          Object.assign(changes.tokenUpdates, { width: squares, height: squares });
+        }
       }
       if ( look?.light ) foundry.utils.mergeObject(changes.tokenUpdates, { light: tokenLight(look.light) });
       if ( Number.isFinite(look?.alpha) ) changes.tokenUpdates.alpha = look.alpha;
@@ -482,6 +628,10 @@ async function landSummon(message) {
       const data = await activity.getTokenData({ actor, placement: { ...placement }, tokenUpdates: changes.tokenUpdates, actorUpdates: changes.actorUpdates });
       // shown like the table: the caster's nameplate and bar visibility, the HP bar
       Object.assign(data, tableLook(casterTokenOn(caster, scene), data));
+      // on the caster's side (every summon's text: "an ally to you and your allies"): a pack ships SECRET, which no
+      // emanation or targeting reads; a light's object keeps the pack's own
+      const casterSide = casterTokenOn(caster, scene)?.disposition;
+      if ( !lightRow && Number.isFinite(casterSide) && (casterSide !== CONST.TOKEN_DISPOSITIONS.SECRET) ) data.disposition = casterSide;
       tokensData.push(data);
     }
     // a new form for a companion waiting in the pocket waits there too: the token is kept, not drawn
@@ -497,7 +647,7 @@ async function landSummon(message) {
     // for a row there (the familiar), it joins and rolls its own.
     const combat = activeCombatFor(caster);
     if ( combat ) {
-      const own = listedNames(summonOwnInitiativeEntries()).has(lower(flag.itemName));
+      const own = listedNames(summonOwnInitiativeEntries()).has(lower(rulesName(flag.itemName)));
       const initiative = own ? null : seatInitiative(combat.getCombatantsByActor(caster)[0]?.initiative ?? null);
       const seated = await combat.createEmbeddedDocuments("Combatant", created.map(t => ({ tokenId: t.id, sceneId: scene.id, actorId: t.actorId, initiative })));
       if ( own && seated.length ) await combat.rollInitiative(seated.map(c => c.id));
@@ -547,8 +697,8 @@ async function landSummon(message) {
       }
     }
     // One at a time (SUMMON_SINGLES): the caster's earlier familiar goes as the new one lands.
-    replaced = replacedSummons(game.messages.contents.map(m => ({ id: m.id, flag: readFlag(m, SUMMON_FLAG) })),
-      { id: message.id, sourceUuid: flag.sourceUuid, itemName: flag.itemName }, listedNames(summonSingleEntries()));
+    replaced = replacedSummons(summonRecords(), { id: message.id, sourceUuid: flag.sourceUuid, itemName: rulesName(flag.itemName) },
+      listedNames(summonSingleEntries()));
   } catch(err) {
     console.error(`${TITLE} | The summon could not be landed — place the creature by hand.`, err);
     outcome = "failed";
@@ -669,10 +819,13 @@ listen("deleteActiveEffect", "summons", (effect, options) => {
 /* --- companions: a summon that stays (COMPANIONS, RULINGS *Summons*) ---------------------------- */
 
 /** The COMPANIONS row a spell answers to, by name, or null. */
-const companionOf = name => Object.entries(COMPANIONS).find(([k]) => lower(k) === lower(name ?? ""))?.[1] ?? null;
+const companionOf = name => Object.entries(COMPANIONS).find(([k]) => lower(k) === lower(rulesName(name) ?? ""))?.[1] ?? null;
 
-/** Every card's summon record, by message id. */
-const summonRecords = () => game.messages.contents.map(m => ({ id: m.id, flag: readFlag(m, SUMMON_FLAG) }));
+/** Every card's summon record, by message id, each under the name the tables know it by (a Wild Companion's is Find Familiar's). */
+const summonRecords = () => game.messages.contents.map(m => {
+  const flag = readFlag(m, SUMMON_FLAG);
+  return { id: m.id, flag: flag ? { ...flag, itemName: rulesName(flag.itemName) } : flag };
+});
 
 /** The live token a record landed, or null (in the pocket, dismissed, deleted by hand). */
 function liveToken(flag) {
@@ -852,7 +1005,7 @@ async function actCompanion(message) {
       await renameCompanionEffect(caster, companion, false);
       const combat = activeCombatFor(caster);
       if ( combat ) {
-        const own = listedNames(summonOwnInitiativeEntries()).has(lower(flag.itemName));
+        const own = listedNames(summonOwnInitiativeEntries()).has(lower(rulesName(flag.itemName)));
         const seated = await combat.createEmbeddedDocuments("Combatant", [{ tokenId: doc.id, sceneId: scene.id, actorId: doc.actorId,
           initiative: own ? null : seatInitiative(combat.getCombatantsByActor(caster)[0]?.initiative ?? null) }]);
         if ( own && seated.length ) await combat.rollInitiative(seated.map(c => c.id));

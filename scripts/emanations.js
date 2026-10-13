@@ -63,7 +63,7 @@ listenOnce("init", "emanations", () => {
         key: new F.StringField({ blank: false, label: "Emanation", hint: "The By the Books emanation row this area carries." }),
         source: new F.StringField({ nullable: true, initial: null, label: "Source token", hint: "The token the emanation originates from (uuid)." }),
         item: new F.StringField({ nullable: true, initial: null, label: "Source item", hint: "The feature or spell on the source's sheet (uuid)." }),
-        reach: new F.StringField({ initial: "helpful", choices: { helpful: "Allies and neutrals", harmful: "Enemies", all: "Every creature" }, label: "Reach" }),
+        reach: new F.StringField({ initial: "helpful", choices: { helpful: "Allies and neutrals", harmful: "Enemies", all: "Every creature", summoner: "The summoner alone" }, label: "Reach" }),
         scaling: new F.NumberField({ integer: true, min: 0, initial: 0, label: "Upcast levels" }),
         effect: new F.ObjectField({ nullable: true, initial: null, label: "Effect", hint: "The pack's effect with the source's numbers read in." })
       };
@@ -161,6 +161,12 @@ function holdersOf(regions) {
   return out;
 }
 
+/** The actor that summoned a token's creature (dnd5e's `flags.dnd5e.summon.origin`, the summoning item's uuid), or null. */
+function summonerOf(token) {
+  const origin = String(token?.actor?.getFlag?.("dnd5e", "summon")?.origin ?? "");
+  return origin.includes(".Item.") ? origin.split(".Item.")[0] : null;
+}
+
 /**
  * Apply the standing effect to every member, lift it from everyone else: one copy per aura across
  * all its regions (decide/emanations.js groupMembers). `gone` is a region being deleted.
@@ -199,7 +205,8 @@ async function reconcileAuraNow(group, gone) {
         inside.push({ tokenId: tok.id, actorKey: tok.actor.uuid, disposition: tok.disposition });
       }
       return { regionId: region.id, applies, kind: row?.kind ?? "feature", reach: sys?.reach ?? "helpful",
-        sourceTokenId: source?.id ?? null, sourceDisposition: source?.disposition ?? 1, inside };
+        sourceTokenId: source?.id ?? null, sourceDisposition: source?.disposition ?? 1, inside,
+        only: (sys?.reach === "summoner") ? summonerOf(source) : null };
     });
     const members = groupMembers(areas);
     for ( const [key, regionId] of members ) {

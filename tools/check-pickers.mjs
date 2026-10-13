@@ -24,8 +24,8 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 /** The machines that pick a creature: summons (and Find Familiar), Wild Shape and the polymorph spells. */
 export const PICKER_MACHINES = ["summons.js", "transforms.js"];
 
-/** gallery.js's exports a machine may import: the picker, the creature reader, the pool and its rule, the placement, the table's art. */
-const ALLOWED = new Set(["openPicker", "describeCreature", "poolFromPacks", "poolRuleOf", "pickSpots", "summonArt"]);
+/** gallery.js's exports a machine may import: the picker, the creature reader, the pool and its rule, the placement, the table's art (summons and forms). */
+const ALLOWED = new Set(["openPicker", "describeCreature", "poolFromPacks", "poolRuleOf", "pickSpots", "summonArt", "formArt"]);
 
 const FORBIDDEN = [
   [/\bopenMomentPopup\b/, "opens a popup of its own (a pick goes through gallery.js openPicker)"],

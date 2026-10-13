@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
+  drawnAlways,
+  drawsOnToken,
   allRows,
   changeSign,
   effectRows,
@@ -372,5 +374,31 @@ describe('a fighting style\'s face in the panel (user, 2026-09-26: "i only want 
     expect(panelGroups([senses]).flatMap(g => g.rows)[0].name).toBe(
       "Fighting Style: Blind Fighting"
     );
+  });
+});
+
+describe("drawn on the token by Foundry's rule (2026-10-13, Continual Flame's stone said no icon)", () => {
+  it("ALWAYS draws; CONDITIONAL draws only with a duration; NEVER never", () => {
+    expect(drawsOnToken({ showIcon: 2, temporary: false })).toBe(true);
+    expect(drawsOnToken({ showIcon: 1, temporary: true })).toBe(true);
+    expect(drawsOnToken({ showIcon: 1, temporary: false, statuses: ["bfEmanation"] })).toBe(false);
+    expect(drawsOnToken({ showIcon: 0, temporary: true })).toBe(false);
+  });
+  it("a fact with no showIcon reads the old way: temporary or a status", () => {
+    expect(drawsOnToken({ temporary: false, statuses: ["prone"] })).toBe(true);
+    expect(drawsOnToken({ temporary: false })).toBe(false);
+  });
+  it("the module's effects on a creature are drawn ALWAYS; a style's face, an item's transfer, a set showIcon are not", () => {
+    expect(drawnAlways({ onActor: true, moduleFlags: { summonEffect: "m1" } })).toBe(true);
+    expect(drawnAlways({ onActor: true, moduleFlags: { companion: "m1" } })).toBe(true);
+    expect(drawnAlways({ onActor: true, moduleFlags: { fightingStyle: { key: "x" } } })).toBe(
+      false
+    );
+    expect(drawnAlways({ onActor: true, transfer: true, moduleFlags: { gear: {} } })).toBe(false);
+    expect(drawnAlways({ onActor: false, moduleFlags: { gear: {} } })).toBe(false);
+    expect(drawnAlways({ onActor: true, showIconSet: true, moduleFlags: { gear: {} } })).toBe(
+      false
+    );
+    expect(drawnAlways({ onActor: true, moduleFlags: null })).toBe(false);
   });
 });

@@ -194,7 +194,17 @@ objection, and a spendable-actions surface was never the need.
   creature's list at once. Two client switches, one per family.
 - **What is listed is what is IN FORCE:** an active effect that is clocked, a condition, or one
   applied by a cast; never a worn item's transfer effect. Plus Temporary HP and Heroic
-  Inspiration, read off the sheet. A row the token cannot paint is tagged *no icon*. The hover
+  Inspiration, read off the sheet. A row the token cannot paint is tagged *no icon*, by Foundry's own
+  rule (`drawsOnToken`): `showIcon` ALWAYS, or CONDITIONAL (the default) while the effect has a duration;
+  a status alone draws nothing (2026-10-13).
+- **Every effect the module writes on a creature is drawn on its token** (2026-10-13, the user: Continual
+  Flame's stone "says no icon, but has one", then "do a pattern check"). Foundry draws a CONDITIONAL effect
+  only while it has a duration, and the module wrote its effects with the default: a companion, a summon
+  standing "until dispelled", a lit gear light, a light on a token, a Wild Shape form with no clock and an
+  aura's mark (whose status was meant to show it) never showed. `preCreateActiveEffect` (effect-view.js,
+  `drawnAlways`) sets ALWAYS on an effect carrying the module's flag on an actor, unless the writer set its
+  own; a fighting style's face (a worn passive) and an item's transfer effect are left alone. The active
+  GM's load marks the earlier ones the same way, once. The hover
   card and the bar's name panel add the marks the creature holds on others (not on the strip).
 - **The bearer's own standing aura is in force** (v1.42.0): a feature's emanation sits on its
   bearer as the pack's transfer effect, so the one creature radiating the aura was the one hidden.
@@ -3402,7 +3412,7 @@ nothing to the concentration effect (measured live 2026-10-10: a flagged token o
 Familiar).** Ruled in chat; built the same evening, sandbox only, no battery (the user: "we are still in test
 mode"):
 
-16. **Straight to the module's menu, every summon** (supersedes call 2's "the card posts a beat before the
+16. *(Superseded by calls 32 and 33, 2026-10-13: the other activities are hidden, and the system's dialog comes first.)* **Straight to the module's menu, every summon** (supersedes call 2's "the card posts a beat before the
    popup"). dnd5e's activity picker is skipped for an item with a summon activity (`renderActivityChoiceDialog`,
    gear-lights' way): Dancing Lights' Move Lights, Minor Illusion's and Silent Image's Study, Flaming Sphere's
    ram save stay on the sheet and on the placed creature's own sheet. The use opens the menu INSTEAD of the
@@ -3410,10 +3420,10 @@ mode"):
    dialog: a cancelled menu or a cancelled placement spends nothing. The record is stamped `placed` at birth
    off the menu's answer. A card still `asked` (a cast from before, or a profile the cast level dropped)
    keeps "Place the creature".
-17. **The slot is the menu's.** A leveled spell's menu reads "Cast with": every slot with one left at or above
+17. *(Superseded by call 33, 2026-10-13: the slot is the system's dialog's.)* **The slot is the menu's.** A leveled spell's menu reads "Cast with": every slot with one left at or above
    its level, lowest first and picked by default, then "As a ritual (no slot)" for a ritual (`castOptions`);
    one option asks nothing; none left refuses the cast with a warning. A cantrip asks none.
-18. **Ask before ending Concentration** (the user: "casting this will break concentration on xxx / proceed yes
+18. *(For a summon, the system's dialog asks it since call 33; the rest stands.)* **Ask before ending Concentration** (the user: "casting this will break concentration on xxx / proceed yes
    no"). The menu asks it first (`askConcentrationEnd`, shared.js), since dnd5e asks it only in the dialog the
    menu skips. Any other spell cast past the dialog (`configure: false`) that would end the caster's
    Concentration on ANOTHER spell asks the same on the caster's client and casts again on yes
@@ -3464,7 +3474,8 @@ mode"):
 29. **Scale by what the thing is** (the user: a familiar Crab as big as a square, the Floating Disk edge to
    edge). The table's art draws at scale 1: the books' Tiny beasts carry a texture scale of 2 to fill their
    ring, and turning the ring off kept the 2 (`artChanges`). A thing smaller than its square draws so
-   (`SUMMON_LOOKS` `scale`: the 3-ft disk at 0.6; a light's stone at 0.5).
+   (`SUMMON_LOOKS` `scale`: the 3-ft disk at 0.6). A light's stone (Light's Glowing Stone, Continual Flame's
+   Everburning Stone) is a Tiny token instead, half a square drawn whole (the user, 2026-10-13: "make the stone tiny").
 30. **A Summon spell's creature is named form, then type** (the user: "Tricksy Fey", "Putrid Undead"; `formName`):
    Air Beast, Clay Construct, Fire Dragon (the picked type), Mind Flayer Aberration, Ankylosaur Dinosaur. The
    token and its sheet wear it; the Summon Art keys stay the book's names.
@@ -3472,6 +3483,73 @@ mode"):
    Phantom Steed lands as "Phantom Steed", not the pack's "Riding Horse" (`SUMMON_ONE_FORM`); a steady light
    look puts out the creature's own flicker (the pack's Light object flames: the Glowing Stone washed white);
    a light's object is one 5-ft square even when the activity offers no size (Continual Flame's was Tiny).
+
+**The third sandbox pass (2026-10-13, the user on the BTB Test Mage, Wizard 5, every summon spell of levels 1 to 3).**
+Tried on Tenser's Floating Disk first ("that is much better"), then ruled for every summon:
+
+32. **A summon spell is one button** (supersedes call 16's "stay on the sheet"; the user: "it should just leave cast
+   spell button ... their attacks will be done from the summon itself"). A spell with a summon activity the module
+   takes hides its other activities on the caster's sheet: Flaming Sphere's ram save, Dancing Lights' Move Lights,
+   Minor Illusion's and Silent Image's Study. The placed creature does those from its own sheet. Hidden through
+   dnd5e's `Activity#isHidden` (patched once at `init`), which every list the system draws or uses reads
+   (`canUse`: the sheet, the activity picker, `Item5e#use`), so the spell's one activity is used straight, no
+   picker.
+33. **The system's Cast Spell dialog first, then the module's menu** (supersedes call 17 and the ruling of
+   2026-10-10 on where the questions are asked, "A: one popup before the card"; the user: "allow the first popup
+   dnd5e native, since its everywhere in the game ... then i dont have to reconstruct ritual, what level slot etc").
+   The use opens dnd5e's own dialog (the slot, the spend ticks, the Concentration it ends), its Creation section
+   hidden and switched off as before. Its answer is taken at `dnd5e.preActivityConsumption`, after the dialog and
+   before anything is spent: the use is vetoed there, the menu opens at the level the dialog picked (the forms'
+   stats at that level, no "Cast with" row), and Place casts again with the dialog's answer and no dialog. A
+   cancelled menu or a cancelled placement still spends nothing; a companion standing still opens its own menu
+   before any dialog. `castOptions` is gone. The menu no longer offers "As a ritual": the dialog's own "consume a
+   spell slot" tick, left off, is the ritual cast (the user: "thats ok there is the check box to not consume a
+   spell slot"); the menu then opens at the spell's own level.
+34. **A light's menu says Light** (Light, Continual Flame; the user: "find a word that works for both chars and
+   stones"). The button reads "Light", not "Place". With a token targeted the light goes on it and the object's
+   row is unpicked and greyed; picking "On an object" brings the row back, picked (the picker's `onlyWhen`).
+35. **Spiritual Weapon's weapon is picked** (the user: "give four choices: mace, maul, sword and scythe. if no art
+   override exists, use base game for each pick"). `SUMMON_GUISES`: the menu reads "The weapon" with one row per
+   guise, the one stat block in each; the creature lands named "Spiritual Mace" (Maul, Sword, Scythe), wearing
+   that name's Summon Art, else the book's own art. The Summon Art window lists the four as Spiritual Weapon's
+   creatures (Spiritual Weapon joins `ART_SPELLS`). The sandbox's table holds JB2A's Flaming Yellow mace, maul
+   and sword and the Spectral Purple scythe (token the animation, portrait its still).
+36. **A summon's attack line reads at the cast** (the user: "fix the language here so its not formula"):
+   `@flags.dnd5e.summon.level` and `.mod`, dnd5e's own stamp on the creature, are filled with the cast's
+   level and the caster's modifier, so Spiritual Weapon's reads "1d8 + 4" at level 2, "2d8 + 4" at 3.
+37. **The Summon Art window finds** (the user: "you need a search for the spells, and they should be arranged
+   alphabetically. or think of a better art search function"). The spells are a list on the left in
+   alphabetical order with a search that matches a spell's name or any of its creatures' ("owl" finds Find
+   Familiar), each with its count of art set. Each creature row has **Find art**: every Actor compendium
+   searched by name, words in any order (JB2A's actors included), the token art playing; a pick fills the
+   row's token (the actor's token art) and portrait (its image).
+38. **Spiritual Weapon lands Medium** (the user: "i know its not the rules, but make the spiritual weapons size med
+   (occupying the whole square)"): `SUMMON_GUISES` `size`, the creature's size and its token's footprint, the
+   placement's ghost the same size and in the guise's own art (it followed the pointer in the book's art).
+39. **Wild Companion is Find Familiar** (the user: "it is the find familiar spell ... it should always disappear on
+   a long rest"). `SUMMON_AS`: the feature is read as the spell everywhere a table names it, so it is a companion
+   with the pocket, the recall within 30 ft and the companion menu; it rolls its own Initiative; one familiar at a
+   time, so a Wild Companion and a Find Familiar replace each other; it wears Find Familiar's Summon Art unless
+   it has its own. Placed within 10 ft (the spell's range; the feature's activity carries none). Fey, as the
+   pack's activity already allows no other type. It is dismissed when its caster finishes a Long Rest (the
+   resting client asks it at `dnd5e.restCompleted`). The pack ships two summon activities, a spell slot and a
+   Wild Shape use: the system's dialog opens on the first, and its Consumption gains a second line built as a copy
+   of the system's own, "Consume Wild Shape use? (n remaining)", the two mutually exclusive (the user: "another
+   line with a mutually exclusive check"); the ticked way is the one Place casts with. Spending nothing until
+   placed stands.
+40. **Conjure Animals' animals are picked** (the spell: "you choose the spirits' animal form, such as wolves,
+   serpents, or birds"): `SUMMON_GUISES`, "The animals", the book's three, landing as "Spectral Wolves" (Serpents,
+   Birds) in that name's Summon Art. Summon Beast and Conjure Animals join `ART_SPELLS`; the sandbox carries
+   generated art for both (Summon Beast: one natural beast per environment with glowing primal blue runes, the
+   user's call; the packs: a spectral group each).
+41. **Conjure Animals' pack carries its two emanations** (the user: "the conjure animals token should have an
+   emanation with the str save and the damage"). The PHB's Conjured Animals actor ships both as features, so they
+   are two `EMANATIONS` feature rows on the summoned token: **Pack Damage**, harmful, 10 ft, a Dexterity save on
+   entering or ending a turn within it, once per turn (the pack moving onto a creature is its entry); **Grant
+   Save Advantage**, 5 ft, the pack's "Strength Save Advantage" effect on the conjurer alone (a new reach,
+   `summoner`: the actor dnd5e's `flags.dnd5e.summon.origin` names). **A summoned creature takes its caster's
+   disposition** (every summon's text: "an ally to you and your allies"): the packs ship SECRET, which no
+   emanation or targeting reads; a light's object keeps the pack's own.
 
 ## Rests end the short effects (2026-10-12)
 
@@ -3586,6 +3664,21 @@ shows "Wild Shape — Wolf · 1 h" with Revert on its fold, the card "Tamsin is 
 form-end card; use again with three known → the pool open, the pick learned, the card saying so; the Wolf to 0 HP →
 it reverts on its own; a Long Rest → "You know these forms", the swap, the confirmation with OK; the Sorcerer's
 Polymorph transform activity at a targeted Dummy → a Giant Frog, its temp HP to 0 → it reverts.
+
+**The known forms only** (2026-10-13, the user: "wildshape is way too long it should just have the lists not rule
+regurgitation. it should only ever show the 1-x known shapes the druid knows. if none are known, the screen should
+state so and tell the player to long rest to study their forms"). A row with a known-forms list (Wild Shape) shows
+its known forms and nothing else: no pool, no locked line, no rule text (the item's own, a click away on its card).
+With none known the window says "You know no forms yet. Finish a Long Rest to study your forms." and offers only
+Close; a form is learned at the Long Rest's swap card, never at a use. The pool stays for the polymorph spells and
+the GM's change. A Tiny beast's flat damage reads "1 piercing", never "1d0 + 1".
+
+**Wild Shape Art** (2026-10-13, the user: "you'll need another custom art for wildshapes, next the summons custom
+art button in settings. keeping the same shape"). A second settings button opens the Summon Art window's twin
+(one window made from a spec, summon-art.js): the beasts by CR band on the left, Find art, folder matching, a token
+and a portrait per beast (`formArt`, keyed by beast name). The known-form rows wear it, and the form wears it when it
+lands: the sheet's portrait and every token of it. The sandbox's table starts from the familiar art (the same beasts
+by name); a giant or close variant of an animal reuses that animal's art (the user: "dont make another crab").
 
 ## Rulings the code carried
 

@@ -11,7 +11,7 @@
  * window's table) is read here, so the row, the ghost and the landing show the same picture.
  */
 import { S, TITLE, answersHere, setting } from "./core.js";
-import { bfCard, esc, ruleLine } from "./decide/present.js";
+import { artTag, bfCard, esc, ruleLine } from "./decide/present.js";
 import { openMomentPopup } from "./ui.js";
 import { galleryRows, crLabel } from "./decide/gallery.js";
 import { footprintsOverlap, spotVerdict } from "./decide/summons.js";
@@ -82,15 +82,43 @@ export function summonArt(spell, creature) {
   try { return artFor(setting(S.summonArt), spell, creature); } catch { return { token: null, portrait: null }; }
 }
 
+/** The table's own art for a Wild Shape form, by beast name (the Wild Shape Art window), each null when unset. */
+export function formArt(creature) {
+  try { return artFor(setting(S.formArt), FORM_ART_KEY, creature); } catch { return { token: null, portrait: null }; }
+}
+
+/** The one key the Wild Shape Art table keeps its forms under (every form is a beast by name). */
+export const FORM_ART_KEY = "wild shape";
+
+/**
+ * A summon's formula at its cast: `@flags.dnd5e.summon.level` and `.mod` (dnd5e's own stamp on the creature,
+ * `SummonActivity#getChanges`) filled with the cast's, a bracketed sum worked out, the rest simplified, so
+ * "(@flags.dnd5e.summon.level - 1)d8 + @flags.dnd5e.summon.mod" reads "1d8 + 4". Unchanged without a cast.
+ * @param {string} formula
+ * @param {{ level: number, mod: number }|null} summon
+ */
+function atCast(formula, summon) {
+  if ( !summon || !String(formula).includes("@") ) return formula;
+  try {
+    const filled = Roll.replaceFormulaData(formula, { flags: { dnd5e: { summon } }, summon }, { missing: "0" });
+    const summed = filled.replace(/\(([\d\s+\-*/]+)\)/g, (_m, sum) => String(Roll.safeEval(sum)));
+    return globalThis.dnd5e?.dice?.simplifyRollFormula?.(summed, { preserveFlavor: true }) ?? summed;
+  } catch { return formula; }
+}
+
+/** An attack's line: its name, then each damage part's dice and types, at the cast when one is given. */
+const attackLine = ({ name, parts }, summon = null) =>
+  `${name}${parts.length ? ` · ${parts.map(p => `${atCast(p.formula, summon)} ${p.types}`.trim()).join(", ")}` : ""}`;
+
 /** A creature's lines for a row: AC, HP, CR, size, speeds, its attacks with their dice, its senses and traits; blank when unknown. */
 function summaryOf(actor) {
-  if ( !actor?.system ) return { ac: null, hp: null, cr: null, size: "", speed: "", attacks: [], traits: [] };
+  if ( !actor?.system ) return { ac: null, hp: null, cr: null, size: "", speed: "", attacks: [], attackParts: [], traits: [] };
   const sys = actor.system;
   const move = sys.attributes?.movement ?? {};
   const units = move.units ?? "ft";
   const speed = ["walk", "fly", "swim", "climb", "burrow"].filter(k => Number(move[k]) > 0)
     .map(k => (k === "walk") ? `${move[k]} ${units}` : `${k} ${move[k]}`).join(", ");
-  const attacks = [];
+  const attackParts = [];
   // the key abilities: a special sense first (Blindsight 60 ft), then the traits that are not actions
   const senses = sys.attributes?.senses ?? {};
   const ranges = senses.ranges ?? senses;
@@ -101,21 +129,25 @@ function summaryOf(actor) {
     const acts = [...(item.system?.activities ?? [])];
     const attack = acts.find(a => a.type === "attack");
     if ( attack ) {
-      const parts = (attack.damage?.parts ?? []).map(p => p.custom?.enabled ? p.custom.formula
-        : `${p.number ?? 1}d${p.denomination ?? 6}${p.bonus ? ` + ${p.bonus}` : ""} ${[...(p.types ?? [])].join("/")}`.trim());   // ⚠ prepared types are a Set
-      attacks.push(`${item.name}${parts.length ? ` · ${parts.join(", ")}` : ""}`);
+      // ⚠ prepared types are a Set
+      // a flat part (no die: a Tiny beast's 1 piercing) reads as its bonus alone, never "1d0 + 1"
+      const dice = p => (Number(p.denomination) > 0) ? `${Number(p.number) || 1}d${p.denomination}${p.bonus ? ` + ${p.bonus}` : ""}` : String(p.bonus || "0");
+      const parts = (attack.damage?.parts ?? []).map(p => ({ formula: p.custom?.enabled ? p.custom.formula : dice(p),
+        types: p.custom?.enabled ? "" : [...(p.types ?? [])].join("/") }));
+      attackParts.push({ name: item.name, parts });
     } else if ( (item.type === "feat") && !acts.length ) traits.push(item.name);
   }
   const size = CONFIG.DND5E?.actorSizes?.[sys.traits?.size]?.label ?? sys.traits?.size ?? "";
   return { ac: sys.attributes?.ac?.value ?? null, hp: sys.attributes?.hp?.max ?? null, cr: sys.details?.cr ?? null, size, speed,
-    attacks: attacks.slice(0, 3), traits: traits.slice(0, 3) };
+    attacks: attackParts.slice(0, 3).map(a => attackLine(a)), attackParts: attackParts.slice(0, 3), traits: traits.slice(0, 3) };
 }
 
 /**
  * A creature as a row: its art and summary read once (a compendium read, no permission), the name the
  * caller gives or the creature's own. Blank when it cannot be read; the row keeps its name.
  * @param {string|null} uuid
- * @param {{ label?: string, img?: string|null }} [fallback]
+ * @param {{ label?: string, img?: string|null, summon?: { level: number, mod: number }|null }} [fallback]
+ *   `summon` the cast's level and modifier: the attack lines read at the cast
  * @returns {Promise<{ label: string, img: string|null, summary: object }>}
  */
 export async function describeCreature(uuid, fallback = {}) {
@@ -126,8 +158,9 @@ export async function describeCreature(uuid, fallback = {}) {
     if ( actor ) {
       out.label ||= actor.name;
       out.img = actor.prototypeToken?.texture?.src ?? actor.img ?? out.img;
-      out.summary = SUMMARIES.get(uuid) ?? summaryOf(actor);
-      SUMMARIES.set(uuid, out.summary);
+      const summary = SUMMARIES.get(uuid) ?? summaryOf(actor);
+      SUMMARIES.set(uuid, summary);
+      out.summary = fallback.summon ? { ...summary, attacks: (summary.attackParts ?? []).map(a => attackLine(a, fallback.summon)) } : summary;
     }
   } catch { /* the row keeps its name */ }
   return out;
@@ -160,7 +193,7 @@ function rightOf(summary, tags = []) {
 function rowHTML(row, { field, multi = false }) {
   const s = row.summary ?? {};
   const line = [s.size, s.speed, ...(s.attacks ?? [])].filter(Boolean).join(" · ");
-  const art = row.img ? `<img src="${esc(row.img)}" alt="" style="width:${ART}px;height:${ART}px;object-fit:cover;border-radius:3px;border:1px solid var(--color-border-dark,#0006);">`
+  const art = row.img ? artTag(row.img, `width:${ART}px;height:${ART}px;object-fit:cover;border-radius:3px;border:1px solid var(--color-border-dark,#0006);`)
     : `<span style="display:inline-block;width:${ART}px;height:${ART}px;border-radius:3px;background:rgba(0,0,0,0.15);"></span>`;
   const pick = field ? `<input type="${multi ? "checkbox" : "radio"}" name="${esc(field)}" value="${esc(row.value)}" ${row.checked ? "checked" : ""} ${row.locked ? "disabled" : ""} style="margin:0;">` : "<span></span>";
   return `<label data-bf-form style="display:grid;grid-template-columns:auto ${ART}px minmax(0,1fr) auto;gap:0.5rem;align-items:center;padding:0.3rem 0.45rem;border:1px solid var(--color-border-dark,#0006);border-radius:3px;margin-bottom:0.25rem;${field && !row.locked ? "cursor:pointer;" : ""}${row.checked ? `background:${PICKED};` : ""}${row.locked ? "opacity:0.45;" : ""}">
@@ -184,7 +217,10 @@ const poolRow = r => ({ value: r.uuid, label: r.name, img: r.img ?? null, summar
 
 /**
  * One section's HTML. The kinds:
- *   { head?, rows, field?, multi?, max? }     rows: { value, label, img, summary, checked?, locked?, tags? }
+ *   { head?, rows, field?, multi?, max?, onlyWhen? }   rows: { value, label, img, summary, checked?, locked?, tags? };
+ *                                             `onlyWhen: { field, value }` the rows stand only while that pill field
+ *                                             holds that value: else unpicked, greyed and unpickable (a light's
+ *                                             object while the light goes on a token)
  *   { head?, pool, field, multi?, max?, locked? }  a searchable pool (poolFromPacks rows); `locked` a line: folded, unpickable
  *   `max` (multi only) caps the ticks: a number, or `picks => number` read again on every change; a tick
  *   past it unticks the field's earlier ones, so the newest pick always stands
@@ -205,7 +241,10 @@ function sectionHTML(sec) {
     if ( sec.locked ) return `<details style="margin-top:0.4rem;"><summary style="cursor:pointer;opacity:0.8;">${esc(sec.locked)} · <span style="color:rgb(222,120,40);">show them</span></summary>${headHTML(sec.head)}${list}</details>`;
     return `${headHTML(sec.head)}${list}`;
   }
-  if ( sec.rows ) return `${headHTML(sec.head)}${sec.rows.length ? sec.rows.map(r => rowHTML(r, { field: sec.field, multi: sec.multi })).join("") : "<em>none yet</em>"}`;
+  if ( sec.rows ) {
+    const rows = `${headHTML(sec.head)}${sec.rows.length ? sec.rows.map(r => rowHTML(r, { field: sec.field, multi: sec.multi })).join("") : "<em>none yet</em>"}`;
+    return sec.onlyWhen ? `<div data-bf-only-field="${esc(sec.onlyWhen.field)}" data-bf-only-value="${esc(sec.onlyWhen.value)}">${rows}</div>` : rows;
+  }
   return "";
 }
 
@@ -247,7 +286,24 @@ function wirePicker(root, sections) {
       if ( input && !input.disabled ) row.style.background = input.checked ? PICKED : "";
     }
   };
-  root.addEventListener("change", event => { cap(event); tint(); });
+  // `onlyWhen` rows: standing while their pill holds the value, else unpicked and greyed; picked again (the
+  // first, when none is) as they come back
+  const gate = () => {
+    for ( const box of root.querySelectorAll("[data-bf-only-field]") ) {
+      const on = root.querySelector(`input[name="${box.dataset.bfOnlyField}"]:checked`)?.value === box.dataset.bfOnlyValue;
+      const inputs = [...box.querySelectorAll("[data-bf-form] input")];
+      for ( const input of inputs ) {
+        input.disabled = !on;
+        if ( !on ) input.checked = false;
+        const row = input.closest("[data-bf-form]");
+        if ( row ) { row.style.opacity = on ? "" : "0.45"; row.style.cursor = on ? "pointer" : "not-allowed"; if ( !on ) row.style.background = ""; }
+      }
+      if ( on && inputs.length && !inputs.some(i => i.checked) ) inputs[0].checked = true;
+    }
+  };
+  gate();
+  tint();
+  root.addEventListener("change", event => { cap(event); gate(); tint(); });
 }
 
 /**
@@ -327,16 +383,18 @@ async function ghostSprite(src, w, h) {
  * here; the elect makes the creature at the squares. Empty when cancelled.
  * @param {{ originToken: TokenDocument|null, actorUuid: string, count: number, rangeFt: number|null, label: string, seen?: boolean, img?: string|null }} facts
  *   `seen` false drops the sight check (a familiar called back needs only an unoccupied space in reach);
- *   `img` the ghost's art when the table sets its own (`summonArt`), else the creature's token art
+ *   `img` the ghost's art when the table sets its own (`summonArt`), else the creature's token art; `squares`
+ *   the footprint in grid squares when the landing sets its own (a house size), else the creature's
  * @returns {Promise<Array<{ x: number, y: number, elevation: number, rotation: number, level: string|null }>>}
  */
-export async function pickSpots({ originToken, actorUuid, count, rangeFt, label, seen = true, img = null }) {
+export async function pickSpots({ originToken, actorUuid, count, rangeFt, label, seen = true, img = null, squares = null }) {
   if ( !canvas?.ready ) throw new Error("the canvas is not ready");
   const actor = await fromUuid(actorUuid);
   const proto = actor?.prototypeToken;
   if ( !proto ) throw new Error(`no creature at ${actorUuid}`);
   const grid = canvas.grid;
-  const cells = { w: Math.max(Number(proto.width) || 1, 0.5), h: Math.max(Number(proto.height) || 1, 0.5) };
+  const cells = (Number(squares) > 0) ? { w: Number(squares), h: Number(squares) }
+    : { w: Math.max(Number(proto.width) || 1, 0.5), h: Math.max(Number(proto.height) || 1, 0.5) };
   const w = cells.w * grid.sizeX;
   const h = cells.h * grid.sizeY;
   const want = Math.max(1, Number(count) || 1);

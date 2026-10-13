@@ -218,15 +218,6 @@ export function endOfForm(ends, { hpValue = null, tempValue = null, tempBefore =
 }
 
 /**
- * The gallery's locked line under the Known Forms: how many more the pool holds at this rule.
- * @param {{ more: number, capLabel: string }} facts
- */
-export function lockedLine({ more, capLabel }) {
-  const n = Math.max(0, Number(more) || 0);
-  return `${n} more form${n === 1 ? "" : "s"} in the pool${capLabel ? ` at ${capLabel}` : ""} · locked until a Long Rest`;
-}
-
-/**
  * The card's title once the form landed, or after it ended.
  * @param {{ who: string, form: string, ended?: { why: string }|null, failed?: boolean }} facts
  */

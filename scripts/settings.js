@@ -128,6 +128,11 @@ listenOnce("init", "settings", () => {
     hint: "A token and a portrait per summoned creature, by spell then creature name.",
     scope: "world", config: false, type: Object, default: {}
   });
+  game.settings.register(MODULE_ID, S.formArt, {
+    name: "Wild Shape Art",
+    hint: "A token and a portrait per Wild Shape form, by beast name.",
+    scope: "world", config: false, type: Object, default: {}
+  });
 
   // Registries READ-ONLY for the suites (ARCHITECTURE §6), as live readers. ⚠ `volleyRegistry` is
   // absent on purpose: the suites mutate it, and volley-registry.js exposes it.

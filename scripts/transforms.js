@@ -15,11 +15,11 @@ import { MODULE_ID, readFlag, TITLE, isActiveGM, queueFlagWrite, canAnswerFor, a
 import { cardActivity, lower, resolveUuid, featureNamed } from "./lookup.js";
 import { TRANSFORMS, transformEntries, listedNames, tableIndex } from "./decide/registry.js";
 import { poolRuleOf, capOfTarget, knownSlotsOf, knownHolderOf, knownState, learnedList, restKnownList, transformRecord,
-  pickedAnswer, formEffectData, endOfForm, lockedLine, formTitle, articleOf } from "./decide/transforms.js";
+  pickedAnswer, formEffectData, endOfForm, formTitle, articleOf } from "./decide/transforms.js";
 import { galleryRows, crLabel } from "./decide/gallery.js";
 import { bfCard, esc, popupKey } from "./decide/present.js";
 import { targetsOf } from "./decide/card.js";
-import { describeCreature, openPicker, poolFromPacks } from "./gallery.js";
+import { describeCreature, formArt, openPicker, poolFromPacks } from "./gallery.js";
 import { isPartyMember } from "./shared.js";
 import { momentButton, registerRelay, registerResumable, shownMoments, acknowledgeMoment, momentAcknowledged } from "./ui.js";
 import { SURFACES } from "./surfaces.js";
@@ -144,17 +144,18 @@ const poolRowFor = (pool, k) => pool.find(r => r.uuid === k.uuid) ?? pool.find(r
 async function knownRow(pool, k, { checked = false, locked = false, tags = [] } = {}) {
   const row = poolRowFor(pool, k);
   const described = await describeCreature(row?.uuid ?? k.uuid, { label: k.name ?? row?.name ?? "", img: row?.img ?? k.img ?? null });
-  return { value: k.uuid, ...described, checked, locked, tags };
+  // the table's own art for the form (the Wild Shape Art window), else the book's
+  return { value: k.uuid, ...described, img: formArt(described.label || k.name).token ?? described.img, checked, locked, tags };
 }
 
 /** The cap as the card says it: "CR ¼ or lower" (null for an open pool). */
 const capLabelOf = rule => (rule?.crMax === null || rule?.crMax === undefined) ? "" : `CR ${crLabel(rule.crMax)} or lower`;
 
 /**
- * The gallery's sections for a record: the Known Forms (each described, the last one marked, one above
- * the cap locked) and the pool — open under a known-forms list with a slot free (the pick learns into
- * it) or with no list at all; locked behind a line and a link when the list is full (RULINGS *Wild
- * Shape and the polymorph spells*).
+ * The gallery's sections for a record: the Known Forms alone (each described, the last one marked, one
+ * above the cap locked), learned at the Long Rest, none known saying so (RULINGS *Wild Shape and the
+ * polymorph spells*); with no known-forms list (the polymorph spells), or for the GM's change,
+ * the pool. `none` when the list is empty.
  */
 async function gallerySections(flag, pool, { field, gm = false }) {
   const rule = poolRuleOf(flag.profile ?? {}, { targetCap: flag.targetCap });
@@ -162,7 +163,6 @@ async function gallerySections(flag, pool, { field, gm = false }) {
   const known = flag.known ?? [];
   const slots = Number(flag.slots) || 0;
   const sections = [];
-  const state = knownState({ known, slots });
   if ( slots > 0 ) {
     const rows = [];
     for ( const k of known ) {
@@ -172,15 +172,14 @@ async function gallerySections(flag, pool, { field, gm = false }) {
       rows.push(await knownRow(pool, k, { checked: last && !overCap, locked: overCap,
         tags: [last ? "last used" : null, overCap ? "above your cap" : null].filter(Boolean) }));
     }
-    sections.push({ head: `Your known forms · ${known.length} of ${slots} · one swap per Long Rest`, field, rows });
-    if ( state.open ) sections.push({ note: `${state.open} slot${state.open === 1 ? "" : "s"} open — a form picked from the pool below is learned into one at this use.` });
+    if ( rows.length ) sections.push({ head: `Your known forms · ${known.length} of ${slots}`, field, rows });
+    else sections.push({ note: "You know no forms yet. Finish a Long Rest to study your forms." });
   }
   const rest = allowed.filter(r => !known.some(k => k.uuid === r.uuid));
   const capLabel = capLabelOf(rule);
-  const open = gm || !(slots > 0) || (state.state === "open");
-  if ( open ) sections.push({ head: (slots > 0) ? "Fill the open slot from the pool" : "The form", field, pool: rest });
-  else sections.push({ head: "The pool", field, pool: rest, locked: lockedLine({ more: rest.length, capLabel }) });
-  return { sections, rule, allowed, capLabel };
+  // a known-forms list shows only its forms: the pool is the Long Rest's (and the GM's change)
+  if ( gm || !(slots > 0) ) sections.push({ head: (slots > 0) ? "The pool" : "The form", field, pool: rest });
+  return { sections, rule, allowed, capLabel, none: (slots > 0) && !known.length && !gm };
 }
 
 /** The pool for a record: every visible pack's creatures of the profile's types, uncapped (the known forms are matched in it). */
@@ -209,15 +208,16 @@ async function showFormPopup(message) {
   const user = resolveUuid(flag.sourceUuid);
   if ( !user ) return;
   const pool = await poolFor(flag);
-  const { sections, capLabel } = await gallerySections(flag, pool, { field: "bf-form-pick" });
+  const { sections, capLabel, none } = await gallerySections(flag, pool, { field: "bf-form-pick" });
   const row = TRANSFORMS[flag.key];
   const who = flag.self ? "you" : flag.targets.map(t => t.name).join(", ");
-  if ( row?.rule ) sections.push({ rule: row.rule });
+  // the lists only: the rule text is the item's own, a click away on its card (a known-forms list asks none)
+  if ( row?.rule && !(Number(flag.slots) > 0) ) sections.push({ rule: row.rule });
   await openPicker(message, TRANSFORM_FLAG, user, { by: flag.askedBy ?? null,
     title: `${flag.itemName} — ${flag.sourceName}`, icon: "fa-solid fa-paw", width: 500,
     card: { eyebrow: "Transform", title: flag.itemName, subtitle: [capLabel, flag.self ? null : `on ${who}`].filter(Boolean).join(" · ") },
-    sections, needs: [{ field: "bf-form-pick", why: "pick a form first" }],
-    buttons: [
+    sections, needs: none ? [] : [{ field: "bf-form-pick", why: "pick a form first" }],
+    buttons: none ? [{ action: "cancel", label: "Close", default: true }] : [
       { action: "become", label: flag.self ? "Become the form" : "Transform", default: true, checks: true, submit: picks => {
         const pick = pickOf(picks.one("bf-form-pick"), pool, flag.known);
         const learn = !(flag.known ?? []).some(k => k.uuid === pick.uuid);
@@ -278,6 +278,21 @@ const originalOf = actor => (actor?.isPolymorphed && !actor.isToken) ? (game.act
 const formEffectOn = actor => [...(actor?.effects ?? [])].find(e => !!readFlag(e, FORM_FLAG)) ?? null;
 
 /**
+ * The table's own art for a form (the Wild Shape Art window) on what came out of the transform: the sheet's
+ * portrait, and the token's texture on every token of it (a linked character's placed tokens; an unlinked
+ * token its own). The book's art stays where the table sets none.
+ */
+async function wearFormArt(landed, formName) {
+  const art = formArt(formName);
+  if ( !art.token && !art.portrait ) return;
+  if ( art.portrait ) await landed.update({ img: art.portrait });
+  if ( !art.token ) return;
+  const tokens = landed.isToken ? [landed.token].filter(Boolean) : landed.getActiveTokens(false, true);
+  for ( const t of tokens ) await t.update({ "texture.src": art.token });
+  if ( !landed.isToken ) await landed.update({ "prototypeToken.texture.src": art.token });
+}
+
+/**
  * One creature into the form: a standing form of ours reverted first ("until you use Wild Shape
  * again"), then dnd5e's own `transformInto` with the activity's own settings, then the form effect on
  * what came out. Returns the transformed actor's facts.
@@ -292,6 +307,7 @@ async function transformOne(subject, source, { activity, settings, flag, pick, m
   await target.transformInto(source, settings, { renderSheet: false });
   const landed = target.isToken ? target : (game.actors.find(a => !before.has(a.id) && (a.getFlag("dnd5e", "originalActor") === target.id)) ?? null);
   if ( !landed ) throw new Error(`${target.name} was not transformed`);
+  await wearFormArt(landed, pick.name);
   const row = TRANSFORMS[flag.key];
   const caster = resolveUuid(flag.sourceUuid);
   const concentration = (row.clock === "concentration") ? concentrationFor(caster, flag) : null;

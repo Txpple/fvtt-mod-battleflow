@@ -568,28 +568,6 @@ describe("the menu before the cast — the sizes, the slot, the standing effect,
     expect(s.sizesInOrder(["huge", "odd", "tiny"], ORDER)).toEqual(["tiny", "huge", "odd"]);
     expect(s.sizesInOrder(null, ORDER)).toEqual([]);
   });
-  const slots = [
-    { key: "spell1", level: 1, value: 0, max: 4, type: "spell", label: "1st Level" },
-    { key: "spell2", level: 2, value: 3, max: 3, type: "spell", label: "2nd Level" },
-    { key: "spell3", level: 3, value: 2, max: 2, type: "spell", label: "3rd Level" },
-    { key: "pact", level: 2, value: 1, max: 2, type: "pact", label: "Pact Slot" },
-    { key: "spell9", level: 9, value: 0, max: 0, type: "spell", label: "9th Level" }
-  ];
-  it("a leveled spell offers every slot with one left at or above its level, lowest first, then the ritual", () => {
-    const opts = s.castOptions(slots, { level: 1, ritual: true, spendsSlot: true });
-    expect(opts.map(o => o.value)).toEqual(["pact", "spell2", "spell3", "ritual"]);
-    expect(opts.at(-1)).toMatchObject({ ritual: true, level: 1 });
-    expect(opts[1].label).toBe("2nd Level (3 left)");
-  });
-  it("a cantrip or a use that spends no slot offers nothing; the caster's rule can bar a slot type", () => {
-    expect(s.castOptions(slots, { level: 0, spendsSlot: true })).toEqual([]);
-    expect(s.castOptions(slots, { level: 2, spendsSlot: false })).toEqual([]);
-    expect(
-      s
-        .castOptions(slots, { level: 2, spendsSlot: true, allowed: x => x.type !== "pact" })
-        .map(o => o.value)
-    ).toEqual(["spell2", "spell3"]);
-  });
   it("the standing effect is the spell's name, the creature's added when it says more", () => {
     expect(s.summonEffectName({ itemName: "Mage Hand", creatureName: "Mage Hand" })).toBe(
       "Mage Hand"
@@ -651,6 +629,50 @@ describe("tokenLight — a steady look puts the creature's own flicker out", () 
   it("Light's look has no animation: the token's is set to none", () => {
     expect(s.tokenLight({ bright: 20, dim: 40, look: reg.SPELL_LOOKS.light }).animation).toEqual({
       type: null
+    });
+  });
+});
+
+describe("guises — Spiritual Weapon's weapon (2026-10-13)", () => {
+  const base = {
+    sourceUuid: "A",
+    sourceName: "Cleric",
+    itemUuid: "I",
+    itemName: "Spiritual Weapon",
+    activityUuid: "X",
+    level: 2,
+    profiles: [{ id: "p1", uuid: "Compendium.x.y.Actor.sw", label: "Spiritual Weapon" }],
+    choice: null,
+    sceneId: "S"
+  };
+  const placements = [{ x: 100, y: 200 }];
+  it("the table's four guises, each named Spiritual ⟨guise⟩", () => {
+    expect(s.guisesOf(reg.SUMMON_GUISES["Spiritual Weapon"]).map(g => g.name)).toEqual([
+      "Spiritual Mace",
+      "Spiritual Maul",
+      "Spiritual Sword",
+      "Spiritual Scythe"
+    ]);
+    expect(s.guisesOf(null)).toEqual([]);
+  });
+  it("the answer must pick one of the record's guises, and the creature is named for it", () => {
+    const record = s.summonRecord({
+      ...base,
+      guises: s.guisesOf(reg.SUMMON_GUISES["Spiritual Weapon"])
+    });
+    expect(s.placedAnswer(record, { guise: "Scythe", placements })).toMatchObject({
+      guise: "Scythe",
+      summonName: "Spiritual Scythe"
+    });
+    expect(s.placedAnswer(record, { guise: "Spear", placements })).toBeNull();
+    expect(s.placedAnswer(record, { placements })).toBeNull();
+  });
+  it("a spell with no guises keeps its record and its name", () => {
+    const record = s.summonRecord(base);
+    expect(record.guises).toBeNull();
+    expect(s.placedAnswer(record, { placements })).toMatchObject({
+      guise: null,
+      summonName: "Spiritual Weapon"
     });
   });
 });

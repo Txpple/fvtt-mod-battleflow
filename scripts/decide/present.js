@@ -685,6 +685,17 @@ const attr = s => String(s ?? "").replace(/&/g, "&amp;").replace(/"/g, "&quot;")
 export const esc = s => String(s ?? "").replace(/[&<>"]/g,
   c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 
+/** A video file by its extension (an animated token: JB2A's `.webm`). */
+export const isVideo = src => /\.(webm|mp4|m4v|ogv|ogg)(\?.*)?$/i.test(String(src ?? ""));
+
+/**
+ * A row's or a thumbnail's art: an `<img>`, or a muted looping `<video>` for a video file, which an
+ * `<img>` cannot draw. `style` and `extra` (attributes) land on either tag as given.
+ */
+export const artTag = (src, style, extra = "") => isVideo(src)
+  ? `<video src="${esc(src)}" autoplay muted loop playsinline ${extra} style="${style}"></video>`
+  : `<img src="${esc(src)}" alt="" ${extra} style="${style}">`;
+
 /** THE PANE: the hovered row's rule quote, the first by default. */
 export function rescuePaneHTML(quotes = []) {
   if ( !quotes.length ) return "";

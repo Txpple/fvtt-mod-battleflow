@@ -117,16 +117,29 @@ export function formNeeds({ profiles, choice, mode = null, creatureTypes = null,
  * @param {string[]} [facts.creatureTypes]   the types the activity offers (more than one is asked)
  * @param {string[]} [facts.creatureSizes]   the sizes the activity offers (more than one is asked)
  * @param {number|null} [facts.rangeFt]      the spell's range in feet; null places anywhere the caster can see
+ * @param {Array<{ guise: string, name: string }>|null} [facts.guises]  the SUMMON_GUISES row's guises (`guisesOf`), or null
  */
 export function summonRecord({ sourceUuid, sourceName, itemUuid, itemName, activityUuid, level, profiles, choice, concentrationId, sceneId,
-  mode = null, creatureTypes = [], creatureSizes = [], rangeFt = null }) {
+  mode = null, creatureTypes = [], creatureSizes = [], rangeFt = null, guises = null }) {
   return {
     status: "asked", sourceUuid, sourceName, itemUuid, itemName, activityUuid,
     level: Number(level) || 0, profiles: [...(profiles ?? [])], choice: choice ?? null,
     concentrationId: concentrationId ?? null, sceneId: sceneId ?? null,
     mode: mode ?? null, creatureTypes: [...(creatureTypes ?? [])], creatureSizes: [...(creatureSizes ?? [])],
-    rangeFt: Number.isFinite(Number(rangeFt)) && (rangeFt !== null) ? Number(rangeFt) : null, askedAt: Date.now()
+    rangeFt: Number.isFinite(Number(rangeFt)) && (rangeFt !== null) ? Number(rangeFt) : null,
+    guises: guises?.length ? guises.map(g => ({ guise: g.guise, name: g.name })) : null, askedAt: Date.now()
   };
+}
+
+/**
+ * A SUMMON_GUISES row's guises as the menu and the record carry them: `{ guise, name }`, the name with
+ * `{guise}` filled ("Spiritual Mace"). Empty for no row.
+ * @param {{ name: string, guises: string[] }|null|undefined} row
+ * @returns {Array<{ guise: string, name: string }>}
+ */
+export function guisesOf(row) {
+  const name = String(row?.name ?? "{guise}");
+  return (row?.guises ?? []).map(g => ({ guise: g, name: name.replace("{guise}", g) }));
 }
 
 /**
@@ -179,7 +192,7 @@ export function rangeFeet(range) {
  * @param {object} record
  * @param {{ profileId: string|null, pick?: { uuid: string, name: string, img?: string|null }|null, choice?: string|null,
  *   placements: Array<{ x: number, y: number, elevation?: number, rotation?: number, level?: string|null }>,
- *   count: number, sceneId: string|null, creatureSize?: string|null, creatureType?: string|null, intoPocket?: boolean }} answer
+ *   count: number, sceneId: string|null, creatureSize?: string|null, creatureType?: string|null, intoPocket?: boolean, guise?: string|null }} answer
  * @param {Record<string, { options: string[] }>} table  SUMMON_CHOICES
  */
 export function placedAnswer(record, answer, table) {
@@ -198,13 +211,17 @@ export function placedAnswer(record, answer, table) {
     if ( !row?.options?.includes(answer?.choice ?? "") ) return null;
     picked = answer.choice;
   }
+  // a guise the spell offers (SUMMON_GUISES): the creature lands named for it
+  const guise = record.guises?.length ? (record.guises.find(g => g.guise === answer?.guise) ?? null) : null;
+  if ( record.guises?.length && !guise ) return null;
   const placements = (answer?.placements ?? []).filter(p => Number.isFinite(Number(p?.x)) && Number.isFinite(Number(p?.y)))
     .map(p => ({ x: Number(p.x), y: Number(p.y), elevation: Number(p.elevation) || 0, rotation: Number(p.rotation) || 0, level: p.level ?? null }));
   if ( !placements.length ) return null;
   return {
     status: "placed", profileId: profile.id, profileName: profile.name || profile.label || answer?.pick?.name || "",
     summonUuid: (needsPool ? answer?.pick?.uuid : profile.uuid) ?? null,
-    summonName: (needsPool ? answer?.pick?.name : null) || profile.label || profile.name || "",
+    summonName: guise?.name || (needsPool ? answer?.pick?.name : null) || profile.label || profile.name || "",
+    guise: guise?.guise ?? null,
     picked, placements, count: Math.max(1, Number(answer?.count) || placements.length),
     sceneId: answer?.sceneId ?? record.sceneId ?? null,
     creatureSize: size.value, creatureType: type.value,
@@ -306,26 +323,6 @@ export function replacedSummons(records, current, singles) {
 export function sizesInOrder(sizes, order) {
   const rank = s => { const i = (order ?? []).indexOf(s); return (i < 0) ? Number.MAX_SAFE_INTEGER : i; };
   return [...(sizes ?? [])].map((s, i) => ({ s, i })).sort((a, b) => (rank(a.s) - rank(b.s)) || (a.i - b.i)).map(x => x.s);
-}
-
-/**
- * How a leveled spell may be cast, for the menu's "Cast with": every slot the caster holds with one left
- * at or above the spell's level (a pact slot by its own level), lowest first, then the ritual when the
- * spell is one (no slot spent). Empty for a cantrip or a spell that spends no slot. The first option is
- * the one picked by default.
- * @param {Array<{ key: string, level: number, value: number, max: number, type?: string|null, label?: string }>} slots
- * @param {{ level: number, ritual?: boolean, spendsSlot: boolean, allowed?: (slot: { type?: string|null }) => boolean }} spell
- * @returns {Array<{ value: string, label: string, level: number, ritual: boolean }>}
- */
-export function castOptions(slots, { level, ritual = false, spendsSlot, allowed = () => true }) {
-  if ( !spendsSlot || !(Number(level) > 0) ) return [];
-  const min = Number(level);
-  const out = (slots ?? [])
-    .filter(s => (Number(s.max) > 0) && (Number(s.value) > 0) && (Number(s.level) >= min) && !!s.type && allowed(s))
-    .sort((a, b) => (Number(a.level) - Number(b.level)) || String(a.key).localeCompare(String(b.key)))
-    .map(s => ({ value: s.key, label: `${s.label || `Level ${s.level}`} (${s.value} left)`, level: Number(s.level), ritual: false }));
-  if ( ritual ) out.push({ value: "ritual", label: "As a ritual (no slot)", level: min, ritual: true });
-  return out;
 }
 
 /**

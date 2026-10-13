@@ -5,9 +5,9 @@
  * the ONE interactive surface, whose chip folds offer Remove, Disable or Clear to an owner.
  * ⚠ It writes nothing of its own: a fold's click goes through the platform's own permission.
  */
-import { MODULE_ID, readFlag, S, setting } from "./core.js";
+import { MODULE_ID, TITLE, isActiveGM, readFlag, S, setting } from "./core.js";
 import { CHIP_FLAG } from "./decide/chips.js";
-import { allRows, everyRow, marksHeldBy, panelGroups, rowAction } from "./decide/effect-view.js";
+import { allRows, drawnAlways, drawsOnToken, everyRow, marksHeldBy, panelGroups, rowAction } from "./decide/effect-view.js";
 import { EMANATIONS, RANGE_FEATS, answers, tableIndex } from "./decide/registry.js";
 import { measuredCoverBetween } from "./geometry.js";
 import { emanationEntries, listedNames } from "./decide/registry.js";
@@ -77,7 +77,7 @@ function factOf(effect) {
   const style = styleOf(effect);
   return {
     id: effect.id, name: effect.name, img: effect.img ?? null,
-    active: effect.active === true, temporary: effect.isTemporary === true,
+    active: effect.active === true, temporary: effect.isTemporary === true, showIcon: effect.showIcon ?? null,
     disabled: effect.disabled === true,
     worn: ((effect.parent instanceof Item) && (effect.transfer === true)) || !!style,
     style: !!style, ...(style?.feat ? { feat: true } : {}), detail: style?.detail ?? null, styleFeat: styleFeatOf(effect),
@@ -433,6 +433,34 @@ function redrawBar() {
   if ( barTimer ) clearTimeout(barTimer);
   barTimer = setTimeout(() => { barTimer = null; try { drawBar(); } catch(err) { console.error(`${MODULE_ID} | effect view (bar) failed.`, err); } }, 50);
 }
+
+/* --- drawn on the token: every effect the module writes on a creature (RULINGS *The effect view*) ------- */
+
+// ⚠ Foundry draws an effect whose `showIcon` is CONDITIONAL, its default, only while it has a duration: a
+// companion, a summon standing "until dispelled", a lit lantern or an aura's mark never showed on the token.
+listen("preCreateActiveEffect", "effect-view", (effect, data) => {
+  try {
+    const onActor = effect.parent instanceof Actor;
+    if ( !drawnAlways({ onActor, transfer: data?.transfer === true, showIconSet: (data?.showIcon !== undefined) && (data?.showIcon !== null),
+      moduleFlags: data?.flags?.[MODULE_ID] ?? null }) ) return;
+    effect.updateSource({ showIcon: CONST.ACTIVE_EFFECT_SHOW_ICON.ALWAYS });
+  } catch(err) { console.warn(`${TITLE} | Could not mark an effect to show on the token.`, err); }
+});
+
+// The effects written before that, once, on the active GM's load: the module's own, not drawn, drawn ALWAYS.
+listen("ready", "effect-view", () => {
+  if ( !isActiveGM() ) return;
+  void (async () => {
+    const actors = [...game.actors, ...game.scenes.contents.flatMap(s => s.tokens.contents.filter(t => !t.actorLink && t.actor).map(t => t.actor))];
+    for ( const actor of actors ) {
+      const writes = actor.effects.contents.filter(e => !drawsOnToken({ showIcon: e.showIcon, temporary: e.isTemporary })
+        && (e.showIcon === CONST.ACTIVE_EFFECT_SHOW_ICON.CONDITIONAL)
+        && drawnAlways({ onActor: true, transfer: e.transfer === true, moduleFlags: e.flags?.[MODULE_ID] ?? null }))
+        .map(e => ({ _id: e.id, showIcon: CONST.ACTIVE_EFFECT_SHOW_ICON.ALWAYS }));
+      if ( writes.length ) await actor.updateEmbeddedDocuments("ActiveEffect", writes);
+    }
+  })().catch(err => console.warn(`${TITLE} | Could not mark the earlier effects to show on the token.`, err));
+});
 
 listen("canvasReady", "effect-view", redrawBar);
 listen("controlToken", "effect-view", redrawBar);

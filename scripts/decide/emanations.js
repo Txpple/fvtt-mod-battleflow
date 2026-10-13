@@ -9,14 +9,15 @@ export const DISPOSITION = Object.freeze({ SECRET: -2, HOSTILE: -1, NEUTRAL: 0, 
 
 /**
  * Does this REACH touch the creature? Helpful: own side + neutrals; harmful: the other side. Never SECRET.
- * @param {"helpful"|"harmful"|"all"} reach
+ * "summoner" reads as helpful here; the area's `only` narrows it to the one creature (`groupMembers`).
+ * @param {"helpful"|"harmful"|"all"|"summoner"} reach
  * @param {number} sourceDisposition
  * @param {number} targetDisposition
  */
 export function reachAdmits(reach, sourceDisposition, targetDisposition) {
   if ( (targetDisposition === DISPOSITION.SECRET) || (sourceDisposition === DISPOSITION.SECRET) ) return false;
   if ( reach === "all" ) return true;
-  if ( reach === "helpful" ) return (targetDisposition === sourceDisposition) || (targetDisposition === DISPOSITION.NEUTRAL);
+  if ( (reach === "helpful") || (reach === "summoner") ) return (targetDisposition === sourceDisposition) || (targetDisposition === DISPOSITION.NEUTRAL);
   if ( reach === "harmful" ) {
     if ( sourceDisposition === DISPOSITION.NEUTRAL ) return targetDisposition !== DISPOSITION.NEUTRAL;
     return targetDisposition === -sourceDisposition;
@@ -208,8 +209,8 @@ export function emanationGroup(itemUuid, key, regionId) {
 /**
  * Who wears one aura's effect, and from which region (the first that admits it; pass the likeliest
  * first). A feature's bearer never wears its own ring (its transfer effect is on the sheet); a spell's caster does.
- * @param {Array<{ regionId: string, applies: boolean, kind: string, reach: "helpful"|"harmful",
- *   sourceTokenId: string|null, sourceDisposition: number,
+ * @param {Array<{ regionId: string, applies: boolean, kind: string, reach: "helpful"|"harmful"|"all"|"summoner",
+ *   sourceTokenId: string|null, sourceDisposition: number, only?: string|null,
  *   inside: Array<{ tokenId: string, actorKey: string, disposition: number }> }>} areas
  * @returns {Map<string, string>}   actor key → the region whose copy it wears
  */
@@ -221,6 +222,8 @@ export function groupMembers(areas) {
       if ( !t?.actorKey || out.has(t.actorKey) ) continue;
       if ( a.sourceTokenId && (t.tokenId === a.sourceTokenId) && (a.kind !== "spell") ) continue;
       if ( !reachAdmits(a.reach, a.sourceDisposition, t.disposition) ) continue;
+      // a "summoner" reach: the one creature that summoned the bearer (Conjure Animals' Strength save Advantage)
+      if ( (a.reach === "summoner") && (t.actorKey !== a.only) ) continue;
       out.set(t.actorKey, a.regionId);
     }
   }

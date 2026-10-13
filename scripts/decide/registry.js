@@ -1433,7 +1433,8 @@ export const MANEUVER_FEATURE_NAMES = new Set([
  *              the caster drags it, the platform raises enter for whoever it now covers; ends with the
  *              concentration). An `area` row's activity may be plain DAMAGE (Cloud of Daggers): no save,
  *              the trigger rolls it on the caster and applies it, receipted
- *   reach      "helpful" (allies and neutrals) | "harmful" (enemies) | "all"
+ *   reach      "helpful" (allies and neutrals) | "harmful" (enemies) | "all" | "summoner" (only the creature that
+ *              summoned the bearer: Conjure Animals' Strength save Advantage for the conjurer)
  *   range      null: the activity's size · a formula read off the SOURCE's roll data — ⚠ never a number for
  *              a class-scaled feature (N1) · "weaponReach": the held weapon's (10 with Reach, else 5)
  *   effect     the pack's effect by name, its changes RESOLVED against the source (else each member adds
@@ -1638,6 +1639,15 @@ export const EMANATIONS = Object.freeze({
   // THE GM'S SIDE, the waiting rows (RULINGS *The Monster Manual — the waiting rows built*). The bearer's turn-end
   // pulse (Inner Radiance's shape): "at the end of each of its turns, each creature in the Emanation takes…" — the
   // damage activity carries the Emanation, rolled once on the bearer, landed on everyone inside.
+  // Conjure Animals' pack (RULINGS *Summons*, call 41): the pack's own two features, on the summoned token.
+  "Pack Damage": Object.freeze({ kind: "feature", reach: "harmful", range: "10", effect: null, incapacitated: false,
+    trigger: Object.freeze({ on: Object.freeze(["enter", "turnEnd"]), oncePerTurn: true }),
+    caveat: "\"you can force\" reads as every enemy the pack reaches; the pack moving onto a creature is its entry",
+    rule: Object.freeze({ item: "Conjure Animals", uuid: "Compendium.dnd-players-handbook.spells.Item.phbsplConjureAni" }),
+    from: "Conjure Animals (the pack)" }),
+  "Grant Save Advantage": Object.freeze({ kind: "feature", reach: "summoner", range: "5", effect: "Strength Save Advantage", incapacitated: false,
+    rule: Object.freeze({ item: "Conjure Animals", uuid: "Compendium.dnd-players-handbook.spells.Item.phbsplConjureAni" }),
+    from: "Conjure Animals (the pack)" }),
   "Fire Aura": Object.freeze({ kind: "feature", reach: "harmful", range: null, effect: null, incapacitated: false,
     pulse: Object.freeze({ on: "sourceTurnEnd", activity: null }),
     caveat: "\"of the bearer's choice\" reads as its enemies; a friend inside is spared — the table's",
@@ -4170,13 +4180,15 @@ export const SUMMON_SINGLES = Object.freeze({
  */
 export const SUMMON_LIGHTS = Object.freeze({
   "Light": Object.freeze({
-    object: Object.freeze({ name: "Glowing Stone", img: "icons/commodities/stone/geode-raw-white.webp", scale: 0.5 }),
-    size: "sm", bright: 20, dim: 40, look: SPELL_LOOKS.light,
+    // a Tiny stone, half a square, drawn whole (RULINGS *Summons*, call 29)
+    object: Object.freeze({ name: "Glowing Stone", img: "icons/commodities/stone/geode-raw-white.webp" }),
+    size: "tiny", bright: 20, dim: 40, look: SPELL_LOOKS.light,
     rule: Object.freeze({ item: "Light", uuid: "Compendium.dnd-players-handbook.spells.Item.phbsplLight00000" })
   }),
   "Continual Flame": Object.freeze({
-    object: Object.freeze({ name: "Everburning Stone", img: "icons/commodities/stone/ore-chunk-copper-orange.webp", scale: 0.5 }),
-    size: "sm", bright: 20, dim: 40, look: SPELL_LOOKS.continualFlame,
+    // a Tiny stone, as Light's (RULINGS *Summons*, call 29)
+    object: Object.freeze({ name: "Everburning Stone", img: "icons/commodities/stone/ore-chunk-copper-orange.webp" }),
+    size: "tiny", bright: 20, dim: 40, look: SPELL_LOOKS.continualFlame,
     rule: Object.freeze({ item: "Continual Flame", uuid: "Compendium.dnd-players-handbook.spells.Item.phbsplContinualF" })
   })
 });
@@ -4192,6 +4204,22 @@ export const SUMMON_ONE_FORM = Object.freeze({
   // the pack's steed is its Riding Horse: it lands named for what it is
   "Phantom Steed": Object.freeze({ name: "Phantom Steed", from: "Phantom Steed",
     rule: Object.freeze({ item: "Phantom Steed", uuid: "Compendium.dnd-players-handbook.spells.Item.phbsplPhantomSte" }) })
+});
+
+/**
+ * SUMMON GUISES (summons.js): a spell whose one creature takes a look the caster picks (`ask`), the stat
+ * block the same for every pick. The menu offers one row per guise; the creature lands named `name` with
+ * `{guise}` filled, wearing that name's Summon Art (else the book's own art). The Summon Art window lists
+ * each guise as its own creature (RULINGS *Summons*, call 35). `size` a house size the creature lands at, its
+ * token filling that footprint (the placement's ghost too), whatever the book's.
+ */
+export const SUMMON_GUISES = Object.freeze({
+  // Medium, the whole square, against the book's Tiny (a house call, RULINGS *Summons*, call 38)
+  "Spiritual Weapon": Object.freeze({ ask: "The weapon", name: "Spiritual {guise}", guises: Object.freeze(["Mace", "Maul", "Sword", "Scythe"]), size: "med",
+    rule: Object.freeze({ item: "Spiritual Weapon", uuid: "Compendium.dnd-players-handbook.spells.Item.phbsplSpiritualW" }) }),
+  // "you choose the spirits' animal form, such as wolves, serpents, or birds" (the book's three, RULINGS *Summons*, call 40)
+  "Conjure Animals": Object.freeze({ ask: "The animals", name: "Spectral {guise}", guises: Object.freeze(["Wolves", "Serpents", "Birds"]),
+    rule: Object.freeze({ item: "Conjure Animals", uuid: "Compendium.dnd-players-handbook.spells.Item.phbsplConjureAni" }) })
 });
 
 /**
@@ -4245,6 +4273,18 @@ export const COMPANIONS = Object.freeze({
     says: "As a Magic action, you can temporarily dismiss the familiar to a pocket dimension. Alternatively, you can dismiss it forever. As a Magic action while it is temporarily dismissed, you can cause it to reappear in an unoccupied space within 30 feet of you.",
     rule: Object.freeze({ item: "Find Familiar", uuid: "Compendium.dnd-players-handbook.spells.Item.phbsplFindFamili" })
   })
+});
+
+/**
+ * SUMMONS AS (summons.js): a feature that casts a summon spell, read as that spell everywhere a table names
+ * it (`as`): its companion, its seat, one at a time with the spell's own. `rangeFt` the spell's range when the
+ * feature's activity carries none; `longRest` it disappears when its caster finishes a Long Rest; `says` the
+ * feature's own sentence (RULINGS *Summons*, call 39).
+ */
+export const SUMMON_AS = Object.freeze({
+  "Wild Companion": Object.freeze({ as: "Find Familiar", rangeFt: 10, longRest: true,
+    says: "As a Magic action, you can expend a spell slot or a use of Wild Shape to cast the Find Familiar spell without Material components. When you cast the spell in this way, the familiar is Fey and disappears when you finish a Long Rest.",
+    rule: Object.freeze({ item: "Wild Companion", uuid: "Compendium.dnd-players-handbook.classes.Item.phbdrdWildCompan" }) })
 });
 
 /**

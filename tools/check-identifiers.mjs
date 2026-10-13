@@ -21,6 +21,8 @@ const NOT_CONTENT = new Map([
   ["Attack and Save Disadvantage", "Ravenloft's Howl; not in the installed packs"],
   ["Cursed (Path to the Grave)", "Ravenloft's Path to the Grave; not in the installed packs"],
   ["Power of the Wilds: Lion", "the module-MADE member effect of the Lion's ring (EMANATIONS `made`): the pack ships no effect for it"],
+  ["Pack Damage", "embedded on the PHB's Conjured Animals actor (Conjure Animals' pack); the snapshot reads Item packs only"],
+  ["Grant Save Advantage", "embedded on the PHB's Conjured Animals actor (Conjure Animals' pack); the snapshot reads Item packs only"],
   ["Unerring Strike", "a BENEFIT of Living Legend (SAVE_SUCCEEDS `feature`): the D20_FOLDS entry names the row, the row names the item"]
 ]);
 

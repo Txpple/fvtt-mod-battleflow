@@ -45,6 +45,36 @@ export const MARKER_STATUSES = Object.freeze(["bfEmanation"]);
  * @property {boolean} noIcon
  */
 
+/** Foundry's `ActiveEffect#showIcon` values (CONST.ACTIVE_EFFECT_SHOW_ICON). */
+const SHOW_ICON = Object.freeze({ NEVER: 0, CONDITIONAL: 1, ALWAYS: 2 });
+
+/**
+ * Whether the token draws the effect, by Foundry's own rule (Token#_drawEffects): `showIcon` ALWAYS, or
+ * CONDITIONAL (the default) while the effect has a duration. A condition is drawn because the system creates
+ * it ALWAYS, not because it is a condition. A fact with no `showIcon` reads the old way: temporary or a status.
+ * @param {{ showIcon?: number|null, temporary?: boolean, statuses?: string[] }} fact
+ */
+export function drawsOnToken(fact) {
+  const show = fact?.showIcon;
+  if ( (show === null) || (show === undefined) ) return (fact?.temporary === true) || !!(fact?.statuses ?? []).length;
+  return (show === SHOW_ICON.ALWAYS) || ((show === SHOW_ICON.CONDITIONAL) && (fact.temporary === true));
+}
+
+/** The module's flags that mark a fighting style's face: worn passives, never drawn on the token. */
+const STYLE_KEYS = Object.freeze(["fightingStyle", "fightingStyleTakenOver"]);
+
+/**
+ * Whether an effect By the Books writes on a creature is drawn ALWAYS (RULINGS *The effect view*): one on an
+ * actor (not an item's transfer), carrying the module's flag, and no fighting style's face. The caller's own
+ * `showIcon` stands. Foundry draws a CONDITIONAL effect only while it has a duration, so a companion, a summon
+ * standing "until dispelled", a lit lantern or an aura's mark would otherwise never show on the token.
+ * @param {{ onActor: boolean, transfer?: boolean, showIconSet?: boolean, moduleFlags?: object|null }} facts
+ */
+export function drawnAlways({ onActor, transfer = false, showIconSet = false, moduleFlags = null }) {
+  if ( !onActor || transfer || showIconSet || !moduleFlags || (typeof moduleFlags !== "object") ) return false;
+  return !STYLE_KEYS.some(k => k in moduleFlags);
+}
+
 /** Listed: ACTIVE and clocked, a condition, or applied; never a worn passive, except the bearer's
  * own aura (the floor marks everyone in the ring but the bearer). */
 export function listed(fact) {
@@ -133,7 +163,7 @@ function rowOf(f) {
     name: (f.style && f.feat) ? f.name : f.style ? `Fighting Style: ${f.name}` : f.styleFeat ? `Fighting Style: ${f.styleFeat}` : f.name,
     img: f.img ?? null, tone: toneOf(f), clock: f.clock ?? "",
     ...(f.style ? { style: true, why: f.detail ?? "" } : {}),
-    noIcon: f.temporary !== true && !(f.statuses ?? []).length
+    noIcon: !drawsOnToken(f)
   };
 }
 

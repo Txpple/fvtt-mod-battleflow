@@ -231,7 +231,8 @@ describe("the EMANATIONS table (decide/registry.js)", () => {
     for (const [name, row] of Object.entries(reg.EMANATIONS)) {
       expect(reg.EMANATION_KINDS.has(row.kind), name).toBe(true);
       // `all` (the Aasimar walk, 2026-09-25): Inner Radiance's "each creature within 10 feet".
-      expect(["helpful", "harmful", "all"], name).toContain(row.reach);
+      // `summoner` (2026-10-13): Conjure Animals' pack grants its Advantage to the conjurer alone
+      expect(["helpful", "harmful", "all", "summoner"], name).toContain(row.reach);
       if (row.pulse) expect(row.effect, name).toBeNull();
       expectPointer(row.rule, name);
       // The second slice (2026-09-05) admits rows that apply NOTHING — a barrier, a notice.
@@ -544,5 +545,29 @@ describe("the band-B rows (Session 0 stage B5, 2026-09-30): the alert's turn end
       "Aura of Devotion"
     ])
       expectPointer(t[k].rule);
+  });
+});
+
+describe("a summoner reach admits the one creature that summoned the bearer (2026-10-13, Conjure Animals)", () => {
+  it("only the conjurer wears the pack's Strength save Advantage, an ally beside them does not", async () => {
+    const em = await import("../scripts/decide/emanations.js");
+    const inside = [
+      { tokenId: "c", actorKey: "Actor.conjurer", disposition: 1 },
+      { tokenId: "a", actorKey: "Actor.ally", disposition: 1 },
+      { tokenId: "p", actorKey: "Scene.s.Token.p.Actor.x", disposition: 1 }
+    ];
+    const out = em.groupMembers([
+      {
+        regionId: "r",
+        applies: true,
+        kind: "feature",
+        reach: "summoner",
+        sourceTokenId: "p",
+        sourceDisposition: 1,
+        only: "Actor.conjurer",
+        inside
+      }
+    ]);
+    expect([...out.keys()]).toEqual(["Actor.conjurer"]);
   });
 });
