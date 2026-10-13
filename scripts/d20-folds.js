@@ -23,6 +23,7 @@ import { offerDamageRoll, registerMissWait, rollDamageForAttack } from "./auto-d
 import { activityUuidOf, originData, targetsOf } from "./decide/card.js";
 import { listen } from "./dispatch.js";
 import { esc } from "./decide/present.js";
+import { dieMaxOf, foldCanReach } from "./decide/rescue-hit.js";
 
 /** Per-kind views onto `RESCUE_KINDS`: one copy of each quoted string, shared with the rescue view. */
 const kindTable = pick => Object.fromEntries(
@@ -319,6 +320,15 @@ const REROLL_KINDS = new Set(["heroic", "seeking", "advantage", "reroll"]);
 /** The kinds whose contribution is the VERDICT — nothing rolled, nothing added. */
 const VERDICT_KINDS = new Set(["succeed"]);
 
+/** The roll's own d20, as it stands. */
+const naturalOf = roll => Number(roll?.d20?.total ?? roll?.dice?.[0]?.total ?? Number.NaN);
+
+/** The offers whose best outcome still reaches the target (decide/rescue-hit.js foldCanReach): a die too small for the gap,
+ * or a new d20 that cannot get there, is not offered; with no target known every offer stands. */
+const reaching = (offers, roll) => offers.filter(o => foldCanReach({
+  shape: VERDICT_KINDS.has(o.kind) ? "verdict" : REROLL_KINDS.has(o.kind) ? "reroll" : "die",
+  dieMax: dieMaxOf(o.dieFormula), bonus: o.bonus ?? null }, roll));
+
 /** Warn once per distinct cause. */
 const warned = new Set();
 function warnOnce(key, message) {
@@ -418,6 +428,9 @@ function attackFoldFor(subject, message, roll) {
   if ( !snapshot.length || hitTargets(message).length ) return null;  // clean misses only
   const judged = snapshot.filter(t => (t.ac !== null) && (t.ac !== undefined));
   if ( !judged.length ) return null;                                  // null AC — humans have it
+  // only what could still turn the miss on the easiest target into a hit
+  offers = reaching(offers, { total: roll.total, kept: naturalOf(roll), target: Math.min(...judged.map(t => Number(t.ac))) });
+  if ( !offers.length ) return null;
   return { attacker, offers, judged, spell };
 }
 registerMissWait((subject, message, roll) => !!attackFoldFor(subject, message, roll));
@@ -560,7 +573,9 @@ async function offerFoldOnSave(rollMessage, card, uuid, total, dc, by = null) {
     const ability = rollMessage.system?.ability ?? null;
     // The demand the save answers (the DMG's Scarab reads its school and its caster's type).
     const demand = readFlag(card, "saves")?.demand ?? null;
-    const offers = availableFolds(actor, "save", [], { ability, demand });
+    // only what could still lift the save to the DC
+    const offers = reaching(availableFolds(actor, "save", [], { ability, demand }),
+      { total, kept: naturalOf(rollMessage.rolls?.[0]), target: dc });
     if ( !offers.length ) return false;
 
     const window = decisionWindow();
@@ -735,7 +750,11 @@ async function resolveFold(message, answer) {
       : foldedRoll(baseRoll, folds);
 
     // The re-offer, excluded by NAME: spending Ambush must not hide Tactical Mind, its kind-mate.
-    const remaining = availableFolds(actor, flag.testKind, spends.map(s => s.name ?? s.kind), { skill: flag.skill ?? null, spell: !!flag.spell, ability: flag.ability ?? null });
+    // only what could still win from where the roll now stands (the easiest target still missed, or the DC)
+    const missed = (flag.testKind === "attack") ? (flag.targets ?? []).filter(t => foldedVerdict(t, baseRoll, folds) !== "hit").map(t => Number(t.ac)).filter(Number.isFinite) : [];
+    const target = (flag.testKind === "attack") ? (missed.length ? Math.min(...missed) : null) : (Number.isFinite(flag.dc) ? flag.dc : null);
+    const remaining = reaching(availableFolds(actor, flag.testKind, spends.map(s => s.name ?? s.kind), { skill: flag.skill ?? null, spell: !!flag.spell, ability: flag.ability ?? null }),
+      { total: composed.total, kept: null, target });
     const stillFailing = isStillFailing(flag, composed, baseRoll, folds);
     const reoffer = remaining.length && stillFailing;
     const succeeded = folds.some(f => f.verdict === "saved");

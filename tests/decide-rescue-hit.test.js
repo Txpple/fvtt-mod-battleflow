@@ -520,3 +520,28 @@ describe("the bystander's bend (Q2, option A) — the margin gate and the two ne
     expect(reg.INTERRUPT_ROLLS["Cutting Words"].damage).toBe(true);
   });
 });
+
+describe("foldCanReach — offered only when it can still win", () => {
+  it("a die must close the gap: a d8 cannot lift 5 to DC 14, it can lift 7", async () => {
+    const r = await import("../scripts/decide/rescue-hit.js");
+    expect(r.foldCanReach({ shape: "die", dieMax: 8 }, { total: 5, target: 14 })).toBe(false);
+    expect(r.foldCanReach({ shape: "die", dieMax: 8 }, { total: 6, target: 14 })).toBe(true);
+    expect(
+      r.foldCanReach({ shape: "die", dieMax: r.dieMaxOf("1d8") }, { total: 7, target: 14 })
+    ).toBe(true);
+  });
+  it("a new d20 must reach with a 20: the roll's modifier counts, and a reroll's bonus", async () => {
+    const r = await import("../scripts/decide/rescue-hit.js");
+    expect(r.foldCanReach({ shape: "reroll" }, { total: 5, kept: 3, target: 23 })).toBe(false);
+    expect(r.foldCanReach({ shape: "reroll" }, { total: 5, kept: 3, target: 22 })).toBe(true);
+    expect(r.foldCanReach({ shape: "reroll", bonus: 2 }, { total: 5, kept: 3, target: 24 })).toBe(
+      true
+    );
+  });
+  it("a verdict always can; with no target known, or a die it cannot read, it is offered", async () => {
+    const r = await import("../scripts/decide/rescue-hit.js");
+    expect(r.foldCanReach({ shape: "verdict" }, { total: 1, target: 30 })).toBe(true);
+    expect(r.foldCanReach({ shape: "die", dieMax: 4 }, { total: 1, target: null })).toBe(true);
+    expect(r.foldCanReach({ shape: "die", dieMax: null }, { total: 1, target: 30 })).toBe(true);
+  });
+});

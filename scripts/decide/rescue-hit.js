@@ -90,6 +90,26 @@ export function dieMaxOf(formula) {
 }
 
 /**
+ * CAN THIS FOLD STILL WIN? A fold is offered only when its best outcome reaches the target: a die's largest face added
+ * (Bardic Inspiration's d8 cannot close a 9-point gap), a natural 20 on a new d20 plus the roll's modifier and any
+ * bonus, a verdict always. With no target known (a plain check), or a size it cannot read, it is offered.
+ * @param {{shape: "die"|"reroll"|"verdict", dieMax?: number|null, bonus?: number|null}} fold
+ * @param {{total: number, kept?: number|null, target?: number|null}} roll
+ * @returns {boolean}
+ */
+export function foldCanReach({ shape, dieMax = null, bonus = null }, { total, kept = null, target = null }) {
+  if ( !Number.isFinite(Number(target)) || !Number.isFinite(Number(total)) ) return true;
+  if ( shape === "verdict" ) return true;
+  if ( shape === "reroll" ) {
+    if ( !Number.isFinite(Number(kept)) ) return true;
+    return (20 + (Number(total) - Number(kept)) + (Number(bonus) || 0)) >= Number(target);
+  }
+  const max = Number(dieMax);
+  if ( !(max > 0) ) return true;
+  return (Number(total) + max) >= Number(target);
+}
+
+/**
  * A roll bent by a die or a flat number already rolled: the d20 stands, its own crit and fumble with it.
  * @param {{kept: number, total: number, add: number, critAt?: number, fumbleAt?: number}} args
  */
