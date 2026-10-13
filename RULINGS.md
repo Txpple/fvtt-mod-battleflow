@@ -724,6 +724,14 @@ Interrupt list (`Name:roll`). `hold/answer.js`, `hold/lookup.js`, `decide/rescue
 - **Known gaps** (DESIGN §8): Warding Flare protects its owner only; the attacker's own rescues are
   not re-offered after a bent miss.
 
+- **An offer that cannot win is not made** (2026-10-13, the user: "no i dont want offers if they cant win ...
+  just like shield"). A d20 fold is offered only when its best outcome reaches the target, as Shield is offered only
+  when its +5 turns the hit: a die's largest face added (a Bardic Inspiration d8 never offered 9 short), a natural 20
+  plus the roll's modifier for a reroll, a verdict always. The target is the module's own number: the easiest AC an
+  attack missed, a demanded save's DC; a plain check (Tactical Mind's) has none, so its offers stand. The re-offer
+  after a spend asks again from where the roll then stands. `decide/rescue-hit.js` `foldCanReach`, `d20-folds.js`;
+  `tests/decide-rescue-hit.test.js`.
+
 ## Savage Attacker (2026-09-24, off `prototypes/slice-a.html`)
 
 **A popup on the weapon hit asks ONE thing — use it on THIS hit? — and on yes the higher set
