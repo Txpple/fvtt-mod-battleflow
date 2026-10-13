@@ -62,12 +62,13 @@ export function artFor(table, spell, creature) {
  * dynamic ring off, and the portrait as the actor's image (the token's delta, or the actor itself when
  * linked). Empty when the table sets nothing; the compendium's art stands.
  * ⚠ The books' tokens wear a dynamic ring, which draws the ring's own subject art over `texture.src`:
- * with the ring left on, the table's token never showed (the sandbox, a Raven).
+ * with the ring left on, the table's token never showed (the sandbox, a Raven). The texture's scale goes to 1
+ * with it: a Tiny beast's ring token draws its subject at 2, which made a familiar's own art two squares wide.
  * @param {{ token: string|null, portrait: string|null }} art
- * @returns {{ tokenUpdates: { texture?: { src: string }, ring?: { enabled: boolean } }, actorUpdates: { img?: string } }}
+ * @returns {{ tokenUpdates: { texture?: { src: string, scaleX: number, scaleY: number }, ring?: { enabled: boolean } }, actorUpdates: { img?: string } }}
  */
 export function artChanges({ token, portrait }) {
-  return { tokenUpdates: token ? { texture: { src: token }, ring: { enabled: false } } : {}, actorUpdates: portrait ? { img: portrait } : {} };
+  return { tokenUpdates: token ? { texture: { src: token, scaleX: 1, scaleY: 1 }, ring: { enabled: false } } : {}, actorUpdates: portrait ? { img: portrait } : {} };
 }
 
 /**

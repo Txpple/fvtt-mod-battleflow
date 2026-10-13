@@ -630,3 +630,19 @@ describe("the menu before the cast — the sizes, the slot, the standing effect,
     expect(singles.has("minor illusion") && singles.has("light")).toBe(true);
   });
 });
+
+describe("formName — a Summon spell's form, then its type", () => {
+  it("two words where the form is one word", () => {
+    expect(s.formName("Summon Fey", "Tricksy Fey Spirit")).toBe("Tricksy Fey");
+    expect(s.formName("Summon Undead", "Putrid Spirit")).toBe("Putrid Undead");
+    expect(s.formName("Summon Beast", "Bestial Air Spirit")).toBe("Air Beast");
+    expect(s.formName("Summon Construct", "Clay Construct Spirit")).toBe("Clay Construct");
+    expect(s.formName("Summon Dinosaur", "Spirit Ankylosaur")).toBe("Ankylosaur Dinosaur");
+    expect(s.formName("Summon Aberration", "Mind Flayer Spirit")).toBe("Mind Flayer Aberration");
+  });
+  it("the dragon by its picked type; any other spell, or no form left, is null", () => {
+    expect(s.formName("Summon Dragon", "Draconic Spirit", "Fire")).toBe("Fire Dragon");
+    expect(s.formName("Summon Dragon", "Draconic Spirit")).toBeNull();
+    expect(s.formName("Find Familiar", "Owl")).toBeNull();
+  });
+});

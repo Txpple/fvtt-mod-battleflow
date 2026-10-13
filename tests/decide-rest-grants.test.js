@@ -30,23 +30,28 @@ describe("effectSeconds — an effect's length off Foundry 14's duration", () =>
 
 describe("restEnds — what a rest ends", () => {
   const effects = [
-    { id: "conc", concentration: true, duration: { value: 1, units: "minutes" } },
+    { id: "conc", concentration: ["conc"], duration: { value: 1, units: "minutes" } },
     { id: "hand", duration: { value: 1, units: "minutes" } },
     { id: "hour", duration: { value: 1, units: "hours" } },
     { id: "eight", duration: { value: 8, units: "hours" } },
     { id: "day", duration: { value: 24, units: "hours" } },
     { id: "mark", duration: {} }
   ];
-  it("a Short Rest keeps Concentration and ends what lasts an hour or less", () => {
-    expect(r.restEnds(effects, "short")).toEqual({ end: ["hand", "hour"], concentration: false });
+  it("a Short Rest ends what lasts an hour or less, Concentration included; a longer Concentration stands", () => {
+    expect(r.restEnds(effects, "short")).toEqual({
+      end: ["hand", "hour"],
+      concentration: ["conc"]
+    });
+    const long = [{ id: "c8", concentration: ["conc"], duration: { value: 8, units: "hours" } }];
+    expect(r.restEnds(long, "short")).toEqual({ end: [], concentration: [] });
   });
   it("a Long Rest ends Concentration and what lasts 8 hours or less", () => {
     expect(r.restEnds(effects, "long")).toEqual({
       end: ["hand", "hour", "eight"],
-      concentration: true
+      concentration: ["conc"]
     });
   });
   it("another rest type ends nothing", () => {
-    expect(r.restEnds(effects, "other")).toEqual({ end: [], concentration: false });
+    expect(r.restEnds(effects, "other")).toEqual({ end: [], concentration: [] });
   });
 });

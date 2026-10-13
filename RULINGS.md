@@ -3461,6 +3461,13 @@ mode"):
    Summon Undead, Conjure Constructs (`ART_SPELLS`). A one-form spell lists its one form (Major Image). The
    sandbox's table was filled with generated art (worlds/…/assets/summons/), a token for every creature and a
    portrait for every true creature; an object's portrait is its token.
+29. **Scale by what the thing is** (the user: a familiar Crab as big as a square, the Floating Disk edge to
+   edge). The table's art draws at scale 1: the books' Tiny beasts carry a texture scale of 2 to fill their
+   ring, and turning the ring off kept the 2 (`artChanges`). A thing smaller than its square draws so
+   (`SUMMON_LOOKS` `scale`: the 3-ft disk at 0.6; a light's stone at 0.5).
+30. **A Summon spell's creature is named form, then type** (the user: "Tricksy Fey", "Putrid Undead"; `formName`):
+   Air Beast, Clay Construct, Fire Dragon (the picked type), Mind Flayer Aberration, Ankylosaur Dinosaur. The
+   token and its sheet wear it; the Summon Art keys stay the book's names.
 
 ## Rests end the short effects (2026-10-12)
 
@@ -3470,7 +3477,9 @@ Built in rest-grants.js over `decide/rest-grants.js` `restEnds`, on the resting 
 
 - **A Long Rest** ends Concentration through the system (`endConcentration`, so what depends on it goes too, a
   Concentration summon with it) and deletes every effect on the rester lasting 8 hours or less.
-- **A Short Rest** keeps Concentration and deletes every effect lasting 1 hour or less.
+- **A Short Rest** deletes every effect lasting 1 hour or less, and ends Concentration on a spell of 1 hour or
+  less (the user, correcting the first build: "you can keep conc thru a short rest if your spell is over an
+  hour; duration is duration regardless, and a short rest is always 1 hr").
 - **The length is the effect's whole duration**, not what is left: `value` in `units` (a round or a turn 6
   seconds); an `expiry` alone counts as short when it is a combat or turn event, as the rest's own length when
   it is a rest event. An effect with no duration stands: a feature's mark, a companion's effect, a lit torch

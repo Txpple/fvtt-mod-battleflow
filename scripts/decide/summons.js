@@ -362,6 +362,27 @@ export function tokenLight(row) {
   return out;
 }
 
+/**
+ * A Summon spell's creature named by its form, then its type: two words where the form is one ("Tricksy
+ * Fey", "Putrid Undead", "Air Beast", "Clay Construct", "Fire Dragon"). The type is the spell's ("Summon
+ * Fey" → Fey); the form is the creature's name without "Spirit", "Bestial" and the type itself; a creature
+ * the spell names by a picked type (the Draconic Spirit) takes the pick. Null for any other spell, or when
+ * no form is left.
+ * @param {string|null|undefined} spellName
+ * @param {string|null|undefined} creatureName  the book's name ("Tricksy Fey Spirit")
+ * @param {string|null} [picked]                the spell's own choice, as its label ("Fire")
+ * @returns {string|null}
+ */
+export function formName(spellName, creatureName, picked = null) {
+  const m = /^Summon\s+(.+)$/i.exec(String(spellName ?? "").trim());
+  if ( !m ) return null;
+  const type = (m[1] ?? "").trim();
+  const drop = new Set(["spirit", "bestial", "draconic", ...type.toLowerCase().split(/\s+/)]);
+  const form = picked ? String(picked).trim()
+    : String(creatureName ?? "").split(/\s+/).filter(w => w && !drop.has(w.toLowerCase())).join(" ");
+  return form ? `${form} ${type}` : null;
+}
+
 /* --- companions: a summon that stays (COMPANIONS) ------------------------------------------------ */
 
 /**

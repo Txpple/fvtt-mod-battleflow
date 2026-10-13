@@ -64,22 +64,24 @@ export function effectSeconds(duration) {
 }
 
 /**
- * What a rest ends on the rester (RULINGS *Rests end the short effects*): a Long Rest ends Concentration and every effect
- * lasting 8 hours or less; a Short Rest keeps Concentration and ends every effect lasting 1 hour or
- * less. A Concentration effect is never in `end`: the caller ends Concentration through the system,
- * whose cascade takes what depends on it. An effect with no duration stands.
+ * What a rest ends on the rester (RULINGS *Rests end the short effects*): every effect lasting no longer
+ * than the rest (a Short Rest 1 hour, a Long Rest 8), Concentration or not, and on a Long Rest every
+ * Concentration. Duration is duration regardless: Concentration outlasts a Short Rest only on a spell of
+ * over an hour. A Concentration effect is never in `end` but in `concentration`: the caller ends it through
+ * the system, whose cascade takes what depends on it. An effect with no duration stands.
  * @param {Array<{ id: string, concentration?: boolean, duration?: { value?: number|null, units?: string|null, expiry?: string|null }|null }>} effects
  * @param {"short"|"long"|string} type
- * @returns {{ end: string[], concentration: boolean }}
+ * @returns {{ end: string[], concentration: string[] }}
  */
 export function restEnds(effects, type) {
   const reach = REST_REACH[/** @type {"short"|"long"} */ (type)];
-  if ( !reach ) return { end: [], concentration: false };
+  if ( !reach ) return { end: [], concentration: [] };
   const end = [];
-  let concentration = false;
+  const concentration = [];
   for ( const e of effects ?? [] ) {
-    if ( e?.concentration ) { if ( type === "long" ) concentration = true; continue; }
-    if ( effectSeconds(e?.duration) <= reach ) end.push(e.id);
+    const within = effectSeconds(e?.duration) <= reach;
+    if ( e?.concentration ) { if ( (type === "long") || within ) concentration.push(e.id); }
+    else if ( within ) end.push(e.id);
   }
   return { end, concentration };
 }

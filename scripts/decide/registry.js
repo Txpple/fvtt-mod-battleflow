@@ -4165,17 +4165,17 @@ export const SUMMON_SINGLES = Object.freeze({
  * SUMMON LIGHTS (summons.js): a spell that lights what the caster touches, which dnd5e ships as a summon
  * of a "Light" object. The cast asks where the light goes: ON A TOKEN (the targeted creature's token, the
  * TOKEN_LIGHTS row of the same name) or ON AN OBJECT (a token placed for the thing touched, `object` its
- * name and art, carrying `light`; `size` its one size, a 5-ft square, never asked). `look` the light's
+ * name, art and `scale` in its square, carrying `light`; `size` its one size, a 5-ft square, never asked). `look` the light's
  * colour and flicker (SPELL_LOOKS).
  */
 export const SUMMON_LIGHTS = Object.freeze({
   "Light": Object.freeze({
-    object: Object.freeze({ name: "Glowing Stone", img: "icons/commodities/stone/geode-raw-white.webp" }),
+    object: Object.freeze({ name: "Glowing Stone", img: "icons/commodities/stone/geode-raw-white.webp", scale: 0.5 }),
     size: "sm", bright: 20, dim: 40, look: SPELL_LOOKS.light,
     rule: Object.freeze({ item: "Light", uuid: "Compendium.dnd-players-handbook.spells.Item.phbsplLight00000" })
   }),
   "Continual Flame": Object.freeze({
-    object: Object.freeze({ name: "Everburning Stone", img: "icons/commodities/stone/ore-chunk-copper-orange.webp" }),
+    object: Object.freeze({ name: "Everburning Stone", img: "icons/commodities/stone/ore-chunk-copper-orange.webp", scale: 0.5 }),
     size: "sm", bright: 20, dim: 40, look: SPELL_LOOKS.continualFlame,
     rule: Object.freeze({ item: "Continual Flame", uuid: "Compendium.dnd-players-handbook.spells.Item.phbsplContinualF" })
   })
@@ -4206,6 +4206,7 @@ export const SUMMON_COMMANDS = Object.freeze({
  * SUMMON LOOKS (summons.js): how a summoned creature's token is drawn, by the creature's name, folded into
  * dnd5e's own changes as it lands. `light` the token's light (radii in feet, `dim` the OUTER radius, and a
  * SPELL_LOOKS look), where the pack ships one the spell's text does not say; `alpha` the token's opacity;
+ * `scale` the art's scale in its square, for a thing smaller than its footprint (a 3-ft disk in a 5-ft square);
  * `seen` the creature's Invisible condition is switched off on the token, so the table can see it (the
  * faded token says what the condition said);
  * `spell` the spell that summons it, when the creature's name is no pack item's.
@@ -4218,6 +4219,8 @@ export const SUMMON_LOOKS = Object.freeze({
   // An invisible servant: drawn half seen, so the table can find and move it (RULINGS *Summons*).
   // ⚠ The pack's servant carries Invisible, which Foundry draws for no one without See Invisibility, its owner included.
   "Unseen Servant": Object.freeze({ alpha: 0.5, seen: true }),
+  // "a circular, horizontal plane of force, 3 feet in diameter": 3 ft of a 5-ft square.
+  "Floating Disk": Object.freeze({ spell: "Tenser's Floating Disk", scale: 0.6 }),
   // Clairvoyance's sensor: the same, for the same reason.
   "Invisible Sensor": Object.freeze({ spell: "Clairvoyance", alpha: 0.5, seen: true })
 });

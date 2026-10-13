@@ -115,9 +115,9 @@ listen("dnd5e.renderChatMessage", "rest-grants", (message, html) => {
 
 const ENDED_FLAG = "restEnded";
 
-// On the resting client: a Long Rest ends Concentration (the system's own end, its dependents with it) and
-// every effect lasting 8 hours or less; a Short Rest keeps Concentration and ends every effect lasting an
-// hour or less. A summon standing on such an effect is dismissed with it (summons.js); an effect with no
+// On the resting client: a rest ends every effect lasting no longer than it (a Short Rest an hour, a Long
+// Rest 8), Concentration included (the system's own end, its dependents with it), and a Long Rest every
+// Concentration. A summon standing on such an effect is dismissed with it (summons.js); an effect with no
 // duration (a feature's mark, a companion, a lit torch) stands. The rest card names what ended.
 listen("dnd5e.restCompleted", "rest-grants", (actor, result, config) => {
   try {
@@ -135,12 +135,12 @@ async function endAtRest(actor, type, message) {
     concentration: !!e.statuses?.has?.("concentrating"), duration: e._source?.duration ?? null }));
   const { end, concentration } = restEnds(effects, type);
   const ended = [];
-  if ( concentration ) {
-    const names = effects.filter(e => e.concentration).map(e => e.name);
-    if ( names.length ) {
-      await actor.endConcentration();
-      ended.push(...names);
-    }
+  for ( const id of concentration ) {
+    const effect = actor.effects.get(id);
+    if ( !effect ) continue;
+    const name = effect.name;
+    await actor.endConcentration(effect);
+    ended.push(name);
   }
   const live = end.filter(id => actor.effects.has(id));
   if ( live.length ) {
@@ -164,7 +164,7 @@ listen("dnd5e.renderChatMessage", "rest-grants", (message, html) => {
     line.setAttribute("data-bf-rest-ended", "");
     line.innerHTML = bfCard({ eyebrow: (f.type === "long") ? "Long Rest" : "Short Rest", tone: "neutral",
       title: `ended: ${f.ended.join(", ")}`,
-      subtitle: (f.type === "long") ? "Concentration and every effect of 8 hours or less" : "every effect of 1 hour or less; Concentration kept" });
+      subtitle: (f.type === "long") ? "Concentration and every effect of 8 hours or less" : "every effect of 1 hour or less, Concentration included" });
     host.appendChild(line);
   } catch(err) {
     console.error(`${TITLE} | The rest's ended line failed to draw.`, err);

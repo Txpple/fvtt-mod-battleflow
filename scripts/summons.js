@@ -19,7 +19,7 @@ import { cardActivity, lower, resolveUuid } from "./lookup.js";
 import { COMPANIONS, SUMMON_CHOICES, SUMMON_COMMANDS, SUMMON_LIGHTS, SUMMON_LOOKS, SUMMON_ONE_FORM, summonChoiceEntries, summonOwnInitiativeEntries, summonSingleEntries, listedNames } from "./decide/registry.js";
 import { profileRows, choiceRowKey, formNeeds, poolPicks, summonRecord, placedAnswer, narrowedActivities, resistanceEffectData,
   ownershipGrant, seatInitiative, rangeFeet, replacedSummons, companionEffectName, currentCompanion, companionMenu, companionAsk,
-  carriedItemIds, sizesInOrder, castOptions, summonEffectName, tokenLight } from "./decide/summons.js";
+  carriedItemIds, sizesInOrder, castOptions, summonEffectName, tokenLight, formName } from "./decide/summons.js";
 import { bfCard, esc, popupKey } from "./decide/present.js";
 import { artChanges } from "./decide/summon-art.js";
 import { concentrationIdOf } from "./decide/card.js";
@@ -465,6 +465,12 @@ async function landSummon(message) {
       }
       foundry.utils.mergeObject(changes.tokenUpdates, art.tokenUpdates);
       Object.assign(changes.actorUpdates, art.actorUpdates);
+      // a thing smaller than its square draws so (SUMMON_LOOKS `scale`, a light's object)
+      const scale = Number(lightRow?.object?.scale ?? look?.scale);
+      if ( Number.isFinite(scale) && (scale > 0) ) foundry.utils.mergeObject(changes.tokenUpdates, { texture: { scaleX: scale, scaleY: scale } });
+      // a Summon spell's form is named form-then-type ("Tricksy Fey", "Putrid Undead"; the dragon by its picked type)
+      const formed = formName(flag.itemName, creatureName, flag.picked ? (CONFIG.DND5E?.damageTypes?.[flag.picked]?.label ?? flag.picked) : null);
+      if ( formed ) { changes.tokenUpdates.name = formed; changes.actorUpdates.name = formed; }
       const narrowed = (row && flag.picked) ? narrowingUpdate(actor, row, flag.picked) : null;
       if ( narrowed ) {
         // ⚠ A token delta's item entry is merged as nested data; a dotted key would be stored as a literal key.
