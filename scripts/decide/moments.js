@@ -877,6 +877,7 @@ export const STATE_KEYS = Object.freeze({
   metamagicType: "the type Transmuted Spell set on the damage roll; the metamagic record on the card is the resolve",
   companion: "an ActiveEffect flag on a companion's OWNER — the message id of the summon card it names (summons.js); the effect is a marker, the card's record holds the companion",
   companionEnd: "a delete option, not a flag — the elect's own removal of a companion's effect, which the owner's removal prompt lets pass (summons.js)",
+  restEnded: "a rest card's line — what the rest ended on the rester (rest-grants.js); the deletions are the system's own, nothing is published",
   summonEffect: "an ActiveEffect flag on the caster of a summon without Concentration — the message id of the summon card; removing the effect asks the dismissal, the card's record is the resolve (summons.js)",
   summonEnd: "a delete option, not a flag — the elect's own removal of a summon's standing effect, which asks no second dismissal (summons.js)",
   lightOn: "a use option, not a flag — where the summon menu put a light spell (token or object), read by summons.js and token-lights.js at the use",

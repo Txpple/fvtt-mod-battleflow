@@ -12,7 +12,7 @@ import { CAST_RIDERS, REST_GRANTS, TURN_GRANTS } from "./decide/registry.js";
 import { distribution } from "./decide/cast-riders.js";
 import { coatSaveAbility } from "./decide/chips.js";
 import { riderPartFormula } from "./decide/clock.js";
-import { holdsTemp, mealStanding } from "./decide/rest-grants.js";
+import { holdsTemp, mealStanding, restEnds } from "./decide/rest-grants.js";
 import { SURFACES } from "./surfaces.js";
 import { nearestFeet, tokenOfActor } from "./geometry.js";
 import { effectSourceOf, isPartyMember } from "./shared.js";
@@ -108,6 +108,66 @@ listen("dnd5e.renderChatMessage", "rest-grants", (message, html) => {
     }
   } catch(err) {
     console.error(`${TITLE} | Rest block line failed to draw.`, err);
+  }
+});
+
+/* --- what a rest ends (RULINGS *Rests end the short effects*) ------------------------------------------ */
+
+const ENDED_FLAG = "restEnded";
+
+// On the resting client: a Long Rest ends Concentration (the system's own end, its dependents with it) and
+// every effect lasting 8 hours or less; a Short Rest keeps Concentration and ends every effect lasting an
+// hour or less. A summon standing on such an effect is dismissed with it (summons.js); an effect with no
+// duration (a feature's mark, a companion, a lit torch) stands. The rest card names what ended.
+listen("dnd5e.restCompleted", "rest-grants", (actor, result, config) => {
+  try {
+    const type = result?.type ?? config?.type;
+    if ( !(actor instanceof Actor) || !actor.isOwner || ((type !== "short") && (type !== "long")) ) return;
+    void endAtRest(actor, type, result?.message ?? null)
+      .catch(err => console.error(`${TITLE} | Could not end the rest's short effects — delete them by hand.`, err));
+  } catch(err) {
+    console.error(`${TITLE} | Could not end the rest's short effects — delete them by hand.`, err);
+  }
+});
+
+async function endAtRest(actor, type, message) {
+  const effects = actor.effects.contents.map(e => ({ id: e.id, name: e.name,
+    concentration: !!e.statuses?.has?.("concentrating"), duration: e._source?.duration ?? null }));
+  const { end, concentration } = restEnds(effects, type);
+  const ended = [];
+  if ( concentration ) {
+    const names = effects.filter(e => e.concentration).map(e => e.name);
+    if ( names.length ) {
+      await actor.endConcentration();
+      ended.push(...names);
+    }
+  }
+  const live = end.filter(id => actor.effects.has(id));
+  if ( live.length ) {
+    const names = live.map(id => actor.effects.get(id)?.name).filter(Boolean);
+    await actor.deleteEmbeddedDocuments("ActiveEffect", live).catch(err => {
+      if ( live.some(id => actor.effects.has(id)) ) throw err;   // another client's removal won the race: no error
+    });
+    ended.push(...names);
+  }
+  if ( ended.length && message?.isOwner ) await message.setFlag(MODULE_ID, ENDED_FLAG, { actorName: actor.name, type, ended });
+}
+
+listen("dnd5e.renderChatMessage", "rest-grants", (message, html) => {
+  try {
+    const f = readFlag(message, ENDED_FLAG);
+    if ( !f?.ended?.length ) return;
+    const root = html instanceof HTMLElement ? html : html?.[0];
+    const host = root?.querySelector(SURFACES.messageContent);
+    if ( !host || host.querySelector("[data-bf-rest-ended]") ) return;
+    const line = document.createElement("div");
+    line.setAttribute("data-bf-rest-ended", "");
+    line.innerHTML = bfCard({ eyebrow: (f.type === "long") ? "Long Rest" : "Short Rest", tone: "neutral",
+      title: `ended: ${f.ended.join(", ")}`,
+      subtitle: (f.type === "long") ? "Concentration and every effect of 8 hours or less" : "every effect of 1 hour or less; Concentration kept" });
+    host.appendChild(line);
+  } catch(err) {
+    console.error(`${TITLE} | The rest's ended line failed to draw.`, err);
   }
 });
 

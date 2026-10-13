@@ -3447,6 +3447,25 @@ mode"):
    core blew out the whole bright radius white on the sandbox: "too large"). The Unseen Servant lands
    at half opacity with its Invisible condition switched off on the token (`seen`): Foundry draws an invisible
    token for no one without See Invisibility, its owner included, so the servant could not be found at all.
+   Clairvoyance's Invisible Sensor gets the same.
+
+## Rests end the short effects (2026-10-12)
+
+**The user's rule, on the sandbox: "long rest should remove anything with concentration, it should also remove
+anything with a duration 8 hr or less; short rest should keep concentration, but remove anything 1 hr or less."**
+Built in rest-grants.js over `decide/rest-grants.js` `restEnds`, on the resting client at `dnd5e.restCompleted`:
+
+- **A Long Rest** ends Concentration through the system (`endConcentration`, so what depends on it goes too, a
+  Concentration summon with it) and deletes every effect on the rester lasting 8 hours or less.
+- **A Short Rest** keeps Concentration and deletes every effect lasting 1 hour or less.
+- **The length is the effect's whole duration**, not what is left: `value` in `units` (a round or a turn 6
+  seconds); an `expiry` alone counts as short when it is a combat or turn event, as the rest's own length when
+  it is a rest event. An effect with no duration stands: a feature's mark, a companion's effect, a lit torch
+  (gear lights have their own Long Rest).
+- **A summon standing on its effect** (Mage Hand, Unseen Servant, …) is dismissed when the rest removes it.
+- **The rest card says what ended**: "ended: Mage Hand, Bless" under the rest.
+- Only the rester's own effects: a spell's effect on another creature ends with that creature's rest, or with
+  the caster's Concentration.
 
 ## Wild Shape and the polymorph spells (2026-10-11, issue #2)
 

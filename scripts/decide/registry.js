@@ -4196,7 +4196,9 @@ export const SUMMON_LOOKS = Object.freeze({
   "Flaming Sphere": Object.freeze({ light: Object.freeze({ bright: 20, dim: 40, look: SPELL_LOOKS.flamingSphere }) }),
   // An invisible servant: drawn half seen, so the table can find and move it (RULINGS *Summons*).
   // ⚠ The pack's servant carries Invisible, which Foundry draws for no one without See Invisibility, its owner included.
-  "Unseen Servant": Object.freeze({ alpha: 0.5, seen: true })
+  "Unseen Servant": Object.freeze({ alpha: 0.5, seen: true }),
+  // Clairvoyance's sensor: the same, for the same reason.
+  "Invisible Sensor": Object.freeze({ spell: "Clairvoyance", alpha: 0.5, seen: true })
 });
 
 /**
