@@ -4185,6 +4185,8 @@ export const SUMMON_LIGHTS = Object.freeze({
  * SUMMON LOOKS (summons.js): how a summoned creature's token is drawn, by the creature's name, folded into
  * dnd5e's own changes as it lands. `light` the token's light (radii in feet, `dim` the OUTER radius, and a
  * SPELL_LOOKS look), where the pack ships one the spell's text does not say; `alpha` the token's opacity;
+ * `seen` the creature's Invisible condition is switched off on the token, so the table can see it (the
+ * faded token says what the condition said);
  * `spell` the spell that summons it, when the creature's name is no pack item's.
  */
 export const SUMMON_LOOKS = Object.freeze({
@@ -4193,7 +4195,8 @@ export const SUMMON_LOOKS = Object.freeze({
   // "The sphere sheds Bright Light in a 20-foot radius and Dim Light for an additional 20 feet" (the pack ships 0.25 ft).
   "Flaming Sphere": Object.freeze({ light: Object.freeze({ bright: 20, dim: 40, look: SPELL_LOOKS.flamingSphere }) }),
   // An invisible servant: drawn half seen, so the table can find and move it (RULINGS *Summons*).
-  "Unseen Servant": Object.freeze({ alpha: 0.5 })
+  // ⚠ The pack's servant carries Invisible, which Foundry draws for no one without See Invisibility, its owner included.
+  "Unseen Servant": Object.freeze({ alpha: 0.5, seen: true })
 });
 
 /**

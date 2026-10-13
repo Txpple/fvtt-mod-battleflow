@@ -414,6 +414,15 @@ async function landSummon(message) {
       }
       if ( look?.light ) foundry.utils.mergeObject(changes.tokenUpdates, { light: tokenLight(look.light) });
       if ( Number.isFinite(look?.alpha) ) changes.tokenUpdates.alpha = look.alpha;
+      // `seen`: the creature's Invisible condition switched off on this token (its delta), the base actor untouched
+      if ( look?.seen ) {
+        changes.actorUpdates.effects ??= [];
+        for ( const e of actor.effects.filter(x => x.statuses?.has?.("invisible") && !x.disabled) ) {
+          const have = changes.actorUpdates.effects.find(x => x._id === e.id);
+          if ( have ) have.disabled = true;
+          else changes.actorUpdates.effects.push({ ...e.toObject(), disabled: true });
+        }
+      }
       foundry.utils.mergeObject(changes.tokenUpdates, art.tokenUpdates);
       Object.assign(changes.actorUpdates, art.actorUpdates);
       const narrowed = (row && flag.picked) ? narrowingUpdate(actor, row, flag.picked) : null;
