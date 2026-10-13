@@ -79,16 +79,28 @@ export function bfCard({ img, eyebrow, title, subtitle, lines = [], tone = "neut
 }
 
 /**
- * The book's text at a pointer, drawn OPEN: only inside the rule tick, or a pane whose one job is the quote
- * (the rescue pane). A pointer (`{ item, uuid?, benefit? }` or `{ page, key, benefit? }`) is markup
- * rule-text.js fills from the book; a string (a record written before pointers) is quoted.
+ * The book's text at a pointer, drawn OPEN: only inside the rule tick. A pointer (`{ item, uuid?, benefit? }` or `{ page, key, benefit? }`) is markup
+ * rule-text.js fills from the book; a string (a text read before pointers) is quoted, its first paragraph only and
+ * scrubbed of the sheet's unfilled references (`@scale.bard.inspiration.die`).
  * @param {object|string|null|undefined} rule
  */
 function ruleQuote(rule) {
   if ( rule && (typeof rule === "object") ) {
     return `<div data-bf-rule="${refAttr(rule)}" style="font-style:italic;"></div>`;
   }
-  return rule ? `<em>“${rule}”</em>` : "";
+  return rule ? `<em>“${scrubRule(rule)}”</em>` : "";
+}
+
+/**
+ * A rule text cut to what a reader needs: its first paragraph of rule (a prerequisite line, a "Repeatable." note
+ * and a Foundry note are not the rule), with the sheet's unfilled references gone ("(currently, @scale…)").
+ * @param {string} text
+ * @returns {string}
+ */
+export function scrubRule(text) {
+  const paragraphs = String(text ?? "").split(/\n\s*\n/).map(p => p.trim()).filter(Boolean);
+  const first = paragraphs.find(p => !/^(prerequisites?|repeatable|foundry note)\b/i.test(p)) ?? paragraphs[0] ?? "";
+  return first.replace(/\s*\((?:currently,?\s*)?@[\w.]+\)/gi, "").replace(/@[\w.]+/g, "").replace(/\s{2,}/g, " ").trim();
 }
 
 /** The rule tick's own line: closed, one small word and an arrow. */
@@ -718,8 +730,8 @@ export function rescuePaneHTML(quotes = []) {
   const panes = quotes.map((q, i) => `
     <div data-bf-rescue-quote="${attr(q.key)}"
          style="grid-area:1 / 1;${i ? "visibility:hidden;" : ""}">
-      <strong>${esc(q.label)}</strong> ${ruleQuote(q.text)}
-      ${q.detail ? `<div style="margin-top:0.25rem;opacity:0.75;">${q.detail}</div>` : ""}
+      <div><strong>${esc(q.label)}</strong>${q.detail ? `<span style="opacity:0.75;"> — ${q.detail}</span>` : ""}</div>
+      ${ruleLine(q.text)}
     </div>`).join("");
   return `
   <div data-bf-rescue-pane style="display:grid;margin:0.45rem 0 0.15rem;padding:0.35rem 0.5rem;

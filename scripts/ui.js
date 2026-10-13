@@ -508,7 +508,7 @@ export function registerOfferPart(part) {
   offerParts.push(part);
 }
 
-// THE RESCUE REGISTRY: several sources ask one roll "what do you burn?"; ONE window concatenates
+// THE RESCUE REGISTRY: several sources offer to rescue one roll; ONE window concatenates
 // their slices and routes each press back to its source.
 
 /** flag key → { isPending, subject, view, answer } */
@@ -624,7 +624,7 @@ async function drawRescueWindow(message, { recall = false } = {}) {
   const content = bfCard({
     img: view.subject?.img ?? null,
     eyebrow: "Rescue the roll", tone: "pending",
-    title: view.verdictKnown ? "This roll is short — what do you burn?" : "What do you burn?",
+    title: view.verdictKnown ? "This roll falls short. Spend a feature to rescue it?" : "Spend a feature to rescue the roll?",
     subtitle: view.subject?.name ?? "",
     lines: view.headerLines
   })

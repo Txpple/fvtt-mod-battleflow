@@ -81,12 +81,15 @@ async function readText(ref) {
       const lead = leadOf(p);
       return !!lead && ((lead === want) || lead.startsWith(`${want} (`));
     });
-    if ( paragraph ) return paragraph.outerHTML;
+    if ( paragraph ) return unfilled(paragraph.outerHTML);
     console.warn(`${TITLE} | "${ref.benefit}" is no paragraph of ${doc.name}; the fold shows its first paragraph.`);
   }
   const first = [...box.querySelectorAll("p")].find(isRule);
-  return first ? first.outerHTML : (box.innerHTML.trim() || null);
+  return unfilled(first ? first.outerHTML : box.innerHTML.trim()) || null;
 }
+
+/** The sheet's references enrichment could not fill ("(currently, @scale.bard.inspiration.die)"), gone. */
+const unfilled = html => String(html ?? "").replace(/\s*\((?:currently,?\s*)?@[\w.]+\)/gi, "").replace(/@[\w.]+/g, "");
 
 /** Leads that open no rule: a prerequisite line, the "Repeatable." note, the pack's own Foundry note. */
 const NOT_RULE = /^(prerequisites?\b|repeatable\b|foundry note\b)/i;

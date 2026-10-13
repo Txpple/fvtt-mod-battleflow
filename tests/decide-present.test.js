@@ -863,3 +863,20 @@ describe("the rule from the book — a pointer in the markup", () => {
     expect(html).toContain("the rule ▸");
   });
 });
+
+describe("scrubRule — a string rule cut to what a reader needs", () => {
+  it("keeps the first paragraph of rule and drops the sheet's unfilled references", async () => {
+    const p = await import("../scripts/decide/present.js");
+    expect(
+      p.scrubRule(
+        "Prerequisite: Level 2+ Warlock\n\nYou push the creature 10 feet.\n\nRepeatable. Again."
+      )
+    ).toBe("You push the creature 10 feet.");
+    expect(p.scrubRule("Your die starts as a d6 (currently, @scale.bard.inspiration.die).")).toBe(
+      "Your die starts as a d6."
+    );
+    expect(p.ruleLine("A d6 (currently, @scale.bard.inspiration.die).")).toContain(
+      "<em>“A d6.”</em>"
+    );
+  });
+});

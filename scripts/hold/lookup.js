@@ -400,8 +400,10 @@ export function rescueRowsNow(actor, target, roll) {
   return stamped.map(r => {
     const now = (r.kind === "roll") ? (fresh.get(r.key) ?? { ...r, off: "no longer on the sheet", tag: "no longer on the sheet" }) : r;
     const rollKey = Object.keys(INTERRUPT_ROLLS).find(k => lower(k) === lower(r.key));
+    // the reaction's own item as a pointer: the fold reads its first paragraph, enriched, from the book
+    const item = rollKey ? null : reactionItem(actor, r.key, (r.key === target.reaction) ? target : {});
     const rule = rollKey ? INTERRUPT_ROLLS[rollKey].rule
-      : plainRule(reactionItem(actor, r.key, (r.key === target.reaction) ? target : {})?.system?.description?.value ?? "");
+      : item ? { item: item.name, uuid: item.uuid } : plainRule("");
     return { ...now, rule };
   });
 }

@@ -7,7 +7,7 @@
 //   - the rule's markup is written in ONE file, decide/present.js: the pointer (`data-bf-rule`), the fold
 //     (`data-bf-rule-fold`) and its tick ("the rule ▸") appear nowhere else in scripts/;
 //   - present.js's open quote (`ruleQuote`) is not exported, and is called only by the fold builders
-//     (`ruleLine`, `foldedRuleHTML`) and the rescue pane (`rescuePaneHTML`, whose one job is the quote);
+//     (`ruleLine`, `foldedRuleHTML`): no pane draws the book open, the rescue pane included;
 //   - a book text is enriched only by rule-text.js, the one reader (`enrichHTML(` nowhere else): a card
 //     that enriched an item's description drew it open, whole.
 // A deliberate exception carries `// rule-fold: <why>` on its line or the line above.
@@ -17,7 +17,7 @@ import { jsFiles, SCRIPTS, toPosix } from "./check-layers.mjs";
 
 const PRESENT = "decide/present.js";
 const READER = "rule-text.js";
-const OPEN_CALLERS = new Set(["ruleLine", "foldedRuleHTML", "rescuePaneHTML"]);
+const OPEN_CALLERS = new Set(["ruleLine", "foldedRuleHTML"]);
 
 const failures = [];
 const fail = (file, line, why) => failures.push(`FAIL ${file}:${line} — ${why}`);
@@ -58,4 +58,4 @@ if (failures.length) {
   console.log(`\n${failures.length} rule-tick failure(s). A rule is the book's text under the tick (decide/present.js ruleLine); DESIGN *Cards*.`);
   process.exit(1);
 }
-console.log(`PASS every rule reaches the page under the tick (${files} files): its markup in present.js alone, the open quote in its builders and the rescue pane, the book enriched by rule-text.js alone.`);
+console.log(`PASS every rule reaches the page under the tick (${files} files): its markup in present.js alone, the open quote in its fold builders alone, the book enriched by rule-text.js alone.`);

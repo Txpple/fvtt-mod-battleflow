@@ -10,6 +10,7 @@ import { CARD, TARGETS_KEY, activityTypeOf, activityUuidOf, castLevelOn, isCard,
 import { targetDescriptorOf, dispositionStyle } from "./shared.js";
 import { cardActivity, cardItem, featureNamed, lower, profileEffectSync } from "./lookup.js";
 import { listen } from "./dispatch.js";
+import { SURFACES } from "./surfaces.js";
 
 /** A reaction's or a spell's row means a spell or a monster's feature, never armor of the same name. */
 const SPELL_ROW_TYPES = ["spell", "feat"];
@@ -154,6 +155,15 @@ listen("preCreateChatMessage", "polish", doc => {
   if ( castApplyQualifies(doc) && doc.system?.effects?.length ) {
     doc.updateSource({ flags: { [MODULE_ID]: { castApply: castPayload(doc) } } });
   }
+});
+
+// A card says what happened, not the whole spell (DESIGN *Cards*): the item's description is folded under the
+// header's chevron on every card, whatever the client's own Collapse Item Cards setting; the chevron opens it.
+listen("dnd5e.renderChatMessage", "polish", (_message, html) => {
+  const description = html?.querySelector?.(SURFACES.cardDescription);
+  if ( !description || description.classList.contains("collapsed") ) return;
+  description.classList.add("collapsed");
+  html.querySelector(SURFACES.cardHeader)?.classList.add("collapsed");
 });
 
 // Hide the cards' action buttons: a second, manual path that forks the machine; Refund Resource stays.

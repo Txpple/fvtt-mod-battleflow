@@ -25,6 +25,8 @@ export const SURFACES = Object.freeze({
   /** The LIVE item's name; a swing's own label is drawn here (hew.js). */
   cardHeaderTitle: ".card-header .name-stacked .title",
   cardHeader: ".card-header",
+  /** The card's item description, folded under its header's chevron (the system's own toggle). */
+  cardDescription: ".card-description.collapsible",
   cardActivityRow: ".activities li.activity[data-activity-uuid]",
   /** The usage card's effects tray: the system's manual path to land every effect the activity carries. */
   effectTray: "effect-application",
@@ -52,6 +54,7 @@ export const SURFACE_SOURCES = Object.freeze({
   dialogFooter: { where: "dnd5e", file: "dnd5e.mjs", proof: 'class ActivityUsageDialog extends Dialog5e' },
   cardHeaderTitle: { where: "dnd5e", file: "templates/chat/parts/card-header.hbs", proof: '<span class="title">{{ item.name }}</span>' },
   cardHeader: { where: "dnd5e", file: "templates/chat/parts/card-header.hbs", proof: '<section class="card-header no-description">' },
+  cardDescription: { where: "dnd5e", file: "templates/chat/parts/card-face.hbs", proof: '<section class="card-description collapsible">' },
   cardActivityRow: { where: "dnd5e", file: "templates/chat/parts/card-activities.hbs", proof: '<li class="activity flexrow item-tooltip" data-activity-uuid="{{ uuid }}"' },
   effectTray: { where: "dnd5e", file: "templates/chat/usage-card.hbs", proof: '<effect-application class="dnd5e2">' },
   activityChoice: { where: "dnd5e", file: "templates/activity/activity-choices.hbs", proof: '<button type="button" data-action="choose" data-activity-id="{{ id }}">' },

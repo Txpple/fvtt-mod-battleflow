@@ -79,6 +79,12 @@
       "proof": "<section class=\"card-header no-description\">",
       "found": true
     },
+    "cardDescription": {
+      "where": "dnd5e",
+      "file": "templates/chat/parts/card-face.hbs",
+      "proof": "<section class=\"card-description collapsible\">",
+      "found": true
+    },
     "cardActivityRow": {
       "where": "dnd5e",
       "file": "templates/chat/parts/card-activities.hbs",

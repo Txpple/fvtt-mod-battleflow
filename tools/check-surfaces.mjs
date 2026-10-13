@@ -50,6 +50,7 @@ const FRAGMENTS = {
   dialogFooter: [".form-footer"],
   cardHeaderTitle: [".name-stacked .title"],
   cardHeader: [".card-header"],
+  cardDescription: [".card-description"],
   cardActivityRow: ["li.activity[data-activity-uuid]"],
   effectTray: ["effect-application"],
   activityChoice: ['data-action="choose"'],

@@ -469,7 +469,7 @@ Each was a user ruling, and each has a table finding behind it.
      `hitOfferStep`. This orders ONE hit's own consequences; the cross-machine modal sequence
      stays parked (BACKLOG *The modal sequence*).
    - **The one exception: several moments about ONE ROLL present as ONE WINDOW** (the rescue
-     view — *this roll is short by N; what do you burn?*). `registerRescue` merges the VIEW while
+     view — *this roll is short by N; spend a feature to rescue it?*). `registerRescue` merges the VIEW while
      the flags stay separate (R2), so it costs no wire format. Moments about different rolls, or
      different questions about one roll, still staircase: the test is whether one answer could
      serve them — a rescue window has one Pass, and it answers every source.
