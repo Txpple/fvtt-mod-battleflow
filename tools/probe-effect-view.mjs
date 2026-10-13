@@ -79,7 +79,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     // two effects the sheet lists: a status (Prone, paints an icon) and a timed buff (Bless, no icon)
     made = await vanguard.createEmbeddedDocuments("ActiveEffect", [
       { name: "Bless", img: "icons/svg/upgrade.svg", duration: { seconds: 60 }, changes: [] },
-      { name: "Prone", img: "icons/svg/falling.svg", statuses: ["prone"], changes: [] }
+      // showIcon ALWAYS, as the token's own condition toggle writes it: a status alone draws nothing (Foundry's rule)
+      { name: "Prone", img: "icons/svg/falling.svg", statuses: ["prone"], showIcon: CONST.ACTIVE_EFFECT_SHOW_ICON.ALWAYS, changes: [] }
     ]);
     // ⚠ By NAME, never by index: the created documents do not come back in the order asked for. In 5
     // of 14 runs (2026-10-10..12) Prone came first, §4 deleted Prone instead of Bless and §4/§6/§6c

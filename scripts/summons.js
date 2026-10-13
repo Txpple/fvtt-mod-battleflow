@@ -150,6 +150,9 @@ listen("dnd5e.preUseActivity", "summons", (activity, usageConfig, dialogConfig) 
 listen("dnd5e.preActivityConsumption", "summons", (activity, usageConfig) => {
   try {
     if ( !takes(activity) || planned.has(activity.uuid) || !activity.actor?.isOwner ) return;
+    // a use sent to its card (`[MODULE_ID].toCard`: a macro, an automation, the live suites) skips the window: the card
+    // posts its record asked and its own "Place the creature" answers it
+    if ( usageConfig?.[MODULE_ID]?.toCard ) return;
     // another way ticked in the dialog (Wild Companion's Wild Shape use): Place casts with that activity, its own spend
     const way = paidWith.get(activity.uuid);
     paidWith.delete(activity.uuid);

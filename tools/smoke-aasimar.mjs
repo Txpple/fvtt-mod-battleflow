@@ -376,8 +376,16 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     if (want(7)) {
       const act = light.system.activities.contents[0];
       const lightActorsBefore = scene.tokens.filter(t => /^Light/.test(t.name)).length;
+      // every summon spell answers in By the Books' window (RULINGS *Summons*, calls 32-34): a token targeted, its pill
+      // is picked and the button reads "Light" — press it, as the player does
+      const pressLight = async () => {
+        const btn = await waitFor(() => [...document.querySelectorAll('button[data-action="place"]')].find(b => /^\s*Light\s*$/.test(b.textContent ?? '')) ?? null, 6000);
+        btn?.click();
+        return !!btn;
+      };
       target(victimToken);
       await use(act);
+      await pressLight();
       const onVictim = await waitFor(() => victim.effects.find(e => e.getFlag(MOD, 'tokenLight')?.key === 'Light') ?? null, 8000);
       const vl = await waitFor(() => (lightOf(victimDoc).bright === 20) ? lightOf(victimDoc) : null, 5000);
       ok('7a. the targeted token wears "Light" and sheds 20 ft Bright, 40 ft Dim', !!onVictim && !!vl && (vl.dim === 40),
@@ -386,6 +394,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       ok('7b. cast at a token, nothing is summoned', scene.tokens.filter(t => /^Light/.test(t.name)).length === lightActorsBefore, '');
       target(allyToken);
       await use(act);
+      await pressLight();
       const onAlly = await waitFor(() => ally.effects.find(e => e.getFlag(MOD, 'tokenLight')?.key === 'Light') ?? null, 8000);
       const out = await waitFor(() => !victim.effects.some(e => e.getFlag(MOD, 'tokenLight')?.key === 'Light'), 5000);
       ok('7c. cast again at the ally: the ally is lit and the victim\'s light is out ("the spell ends if you cast it again")', !!onAlly && out,

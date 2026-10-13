@@ -787,9 +787,12 @@ const out = await f.evaluate(async ({ sections, titles, extra }) => {
           if (a.system.attributes.hp.value < a.system.attributes.hp.max) await a.update({ 'system.attributes.hp.value': a.system.attributes.hp.max });
           for (const e of a.effects.filter(e => e.statuses?.has?.('dead') || e.statuses?.has?.('bloodied'))) await e.delete().catch(() => {});
         }
+        // no Concentration standing from an earlier section: a cast past the dialog that would end it asks first (RULINGS *Summons*, call 18)
+        // ⚠ ending it deletes the spell's area too (the system's own cascade), a beat later: wait it out, then sweep what is left
+        for (const a of [sorcTok.actor ?? sorc]) if (a.concentration?.effects?.size) { await a.endConcentration().catch(() => {}); await sleep(400); }
         const slowAct = spellAct('Slow')?.uuid;
         const old = scene.regions.filter(r => slowAct && (r.getFlag('dnd5e', 'activity') === slowAct)).map(r => r.id);
-        if (old.length) await scene.deleteEmbeddedDocuments('Region', old);
+        if (old.length) await scene.deleteEmbeddedDocuments('Region', old.filter(id => scene.regions.get(id))).catch(() => {});
         await sleep(300);
       };
       try {

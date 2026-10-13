@@ -107,7 +107,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   const castSummon = async (item, { consume = false } = {}) => {
     const activity = item.system.activities.getByType('summon')[0];
     const before = tokensBefore();
-    const result = await activity.use({ consume: { spellSlot: consume }, create: { measuredTemplate: false } }, { configure: false }, { create: true });
+    // sent to its card (RULINGS *Summons*, call 33): the record posts asked, answered below as the card's popup would
+    const result = await activity.use({ consume: { spellSlot: consume }, create: { measuredTemplate: false }, [MOD]: { toCard: true } }, { configure: false }, { create: true });
     const message = result?.message instanceof ChatMessage ? result.message : null;
     if (message) madeMessages.push(message);
     const flag = await waitFor(() => message?.getFlag(MOD, 'summon')?.status === 'asked' ? message.getFlag(MOD, 'summon') : null, 6000);
@@ -168,6 +169,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       }
     }
     if (want(3)) {
+      // no Concentration standing from §1: a cast past the dialog that would end it asks first (RULINGS *Summons*, call 18)
+      if (caster.concentration?.effects?.size) { await caster.endConcentration().catch(() => {}); await sleep(400); }
       const dragonItem = await lend('Summon Dragon');
       const { message, flag } = await castSummon(dragonItem);
       ok('§3 the dragon\'s record asks the choice', flag?.choice === 'Summon Dragon' && flag.profiles?.length === 1, JSON.stringify({ choice: flag?.choice, n: flag?.profiles?.length }));
@@ -199,6 +202,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const menu = game.settings.menus.get(`${MOD}.summonArtMenu`);
       const win = menu ? new menu.type() : null;
       if (win) await win.render(true);
+      // the window opens on the first spell alphabetically: Find Familiar is picked from its list
+      (await waitFor(() => win?.element?.querySelector('[data-bf-art-pick-spell="Find Familiar"]'), 20000))?.click();
       const owlRow = await waitFor(() => win?.element?.querySelector('[data-bf-art-row="owl"]'), 20000);
       ok('§7 the window lists the Owl for Find Familiar', !!owlRow, `menu=${!!menu} rows=${win?.element?.querySelectorAll('[data-bf-art-row]').length ?? 0}`);
       if (win) await win.close();
@@ -243,6 +248,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const win = new menu.type();
       try {
         await win.render(true);
+        (await waitFor(() => win.element?.querySelector('[data-bf-art-pick-spell="Find Familiar"]'), 20000))?.click();
         await waitFor(() => win.element?.querySelector('[data-bf-art-row="owl"]'), 20000);
         const folder = win.element.querySelector('[data-bf-art-folder]');
         folder.value = 'art/fam';

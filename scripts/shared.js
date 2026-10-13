@@ -564,7 +564,11 @@ export function concentrationEnding(activity) {
   const effects = actor.concentration?.effects;
   const limit = Number(actor.system?.attributes?.concentration?.limit ?? 0);
   if ( !limit || !effects?.size || (effects.size < limit) ) return null;
-  const same = effects.find(e => { const d = e.flags?.dnd5e?.item?.data ?? {}; return (d === activity.id) || (d?._id === activity.id); }) ?? null;
+  // the same spell's own concentration: dnd5e stamps the effect with the ITEM (`flags.dnd5e.item.id` / `.uuid`, and
+  // `origin`), its `data` only for an item off the sheet; matching the activity's id there never matched (3.4.1)
+  const item = activity.item;
+  const same = effects.find(e => { const f = e.flags?.dnd5e?.item ?? {};
+    return (!!item?.id && (f.id === item.id)) || (!!item?.uuid && ((f.uuid === item.uuid) || (e.origin === item.uuid))) || (!!item?.id && (f.data?._id === item.id)); }) ?? null;
   const effect = same ?? effects.first?.() ?? [...effects][0] ?? null;
   if ( !effect ) return null;
   let name = effect.name;

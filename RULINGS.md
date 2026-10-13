@@ -3502,7 +3502,9 @@ Tried on Tenser's Floating Disk first ("that is much better"), then ruled for ev
    before anything is spent: the use is vetoed there, the menu opens at the level the dialog picked (the forms'
    stats at that level, no "Cast with" row), and Place casts again with the dialog's answer and no dialog. A
    cancelled menu or a cancelled placement still spends nothing; a companion standing still opens its own menu
-   before any dialog. `castOptions` is gone. The menu no longer offers "As a ritual": the dialog's own "consume a
+   before any dialog. A use carrying `{ "fvtt-mod-bythebooks": { toCard: true } }` (a macro, an automation, the
+   live suites) skips the window: the cast is spent and its card posts the record asked, answered by the card's
+   own "Place the creature". `castOptions` is gone. The menu no longer offers "As a ritual": the dialog's own "consume a
    spell slot" tick, left off, is the ritual cast (the user: "thats ok there is the check box to not consume a
    spell slot"); the menu then opens at the spell's own level.
 34. **A light's menu says Light** (Light, Continual Flame; the user: "find a word that works for both chars and

@@ -98,10 +98,12 @@ export const FORM_ART_KEY = "wild shape";
  * @param {{ level: number, mod: number }|null} summon
  */
 function atCast(formula, summon) {
-  if ( !summon || !String(formula).includes("@") ) return formula;
+  if ( !summon || !/@flags\.dnd5e\.summon\.(level|mod)\b/.test(String(formula)) ) return formula;
   try {
-    const filled = Roll.replaceFormulaData(formula, { flags: { dnd5e: { summon } }, summon }, { missing: "0" });
+    // only the cast's two numbers: the creature's own terms (@mod, @prof) stay as the sheet reads them
+    const filled = String(formula).replace(/@flags\.dnd5e\.summon\.(level|mod)\b/g, (_m, k) => String(Number(summon[k]) || 0));
     const summed = filled.replace(/\(([\d\s+\-*/]+)\)/g, (_m, sum) => String(Roll.safeEval(sum)));
+    if ( summed.includes("@") ) return summed;
     return globalThis.dnd5e?.dice?.simplifyRollFormula?.(summed, { preserveFlavor: true }) ?? summed;
   } catch { return formula; }
 }

@@ -13,7 +13,7 @@ import { announcePlan, connectSuite, finish, sectionArg, sectionPlan } from './h
 
 // THE COVERAGE MAP (tools/coverage-map.mjs) — ⚠ NEVER import a suite; the map is parsed.
 export const COVERS = [
-  'transforms.js'    // §1 the intercept and the record, §2 the landing and the clock, §3 Revert, §4 0 HP ends it, §5 Polymorph on a target and the temp HP, §6 the Long Rest swap, §7 an open slot learned at the use, §8 Concentration's end
+  'transforms.js'    // §1 the intercept and the record, §2 the landing and the clock, §3 Revert, §4 0 HP ends it, §5 Polymorph on a target and the temp HP, §6 the Long Rest swap, §7 the known forms only, an open slot or none, §8 Concentration's end
 ];
 
 const SECTIONS = {
@@ -23,7 +23,7 @@ const SECTIONS = {
   4: 'ZERO: the Wolf form at 0 Hit Points reverts on its own (the row\'s `zero`), the record ended "dropped to 0 Hit Points"',
   5: 'POLYMORPH: the Sorcerer\'s Polymorph transform activity used at the targeted Dummy records the Dummy (cap from its CR) and lands it as a Giant Frog with the beast\'s HP as temp HP; the temp HP taken to 0 ends the form',
   6: 'THE REST: a Long Rest posts the formSwap ask; the swap lands Wolf → Brown Bear on the item\'s known forms with the confirmation; the open slots are filled from the answer',
-  7: 'THE OPEN SLOT: with three known forms, a pick from the pool is learned into the fourth slot at the use and the card says so',
+  7: 'THE KNOWN FORMS ONLY: with three known the window shows those three and no pool (a form is learned at the Long Rest); with none it says to finish a Long Rest and offers only Close',
   8: 'CONCENTRATION: with the Sorcerer concentrating on Polymorph, the Dummy\'s form effect depends on that effect; ending Concentration takes the form effect with it (dnd5e\'s dependents registry) and the Dummy reverts, the record ended "Concentration ended"'
 };
 const DEPENDS = { 3: [2], 4: [2], 7: [1], 8: [5] };
@@ -159,27 +159,28 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         JSON.stringify({ status: flag?.status, profile: flag?.profile, slots: flag?.slots, known: flag?.known?.map(k => k.name) }));
       ok('§1 the record aims at the druid alone', flag?.self === true && flag.targets?.length === 1 && flag.targets[0].uuid === druid.uuid, JSON.stringify(flag?.targets));
       const popup = await waitFor(() => dialogs().find(a => /Your known forms/.test(a.element?.textContent ?? '')) ?? null, 6000);
-      // ⚠ The one picker draws a locked pool's rows too, folded under its line with their picks disabled:
-      // the known forms are the ENABLED picks, and nothing under the line can be ticked.
+      // the known forms and nothing else: no pool, no locked line, no rule text (RULINGS *Wild Shape*, 2026-10-13)
       const picks = popup ? [...popup.element.querySelectorAll('input[name="bf-form-pick"]')] : [];
-      const enabled = picks.filter(i => !i.disabled).length;
-      const lockedRows = popup ? [...popup.element.querySelectorAll('details input[name="bf-form-pick"]')] : [];
-      ok('§1 the popup: the known forms as rows, the pool locked behind its line', !!popup && (enabled === 4) && lockedRows.length > 0 && lockedRows.every(i => i.disabled) && /more forms in the pool/.test(popup.element.textContent),
-        `popup=${!!popup} enabled=${enabled} locked=${lockedRows.length} lockedAllDisabled=${lockedRows.every(i => i.disabled)} text=${popup?.element?.textContent?.replace(/\s+/g, ' ').slice(0, 200)}`);
+      ok('§1 the popup: the four known forms as rows and nothing else — no pool, no rule text', !!popup && (picks.length === 4) && picks.every(i => !i.disabled)
+        && !popup.element.querySelector('details') && !/in the pool/.test(popup.element.textContent),
+        `popup=${!!popup} picks=${picks.length} text=${popup?.element?.textContent?.replace(/\s+/g, ' ').slice(0, 200)}`);
       if (popup) { try { await popup.close(); } catch { /* gone */ } }
       if (want(7)) {
-        // three known: the fourth is learned at the use
+        // three known: the window shows the three and no pool — a form is learned at the Long Rest, never at a use
         await wildShape.setFlag(MOD, 'knownForms', [wolf, rat, horse].map(asKnown));
-        const second = await useTransform(wildShape);
-        const p2 = await waitFor(() => dialogs().find(a => /Fill the open slot/.test(a.element?.textContent ?? '')) ?? null, 6000);
-        ok('§7 with a slot open the popup offers the pool to learn from', !!p2 && (p2.element.querySelectorAll('input[name="bf-form-pick"]').length > 4), `popup=${!!p2} picks=${p2?.element?.querySelectorAll('input[name="bf-form-pick"]').length}`);
+        await useTransform(wildShape);
+        const p2 = await waitFor(() => dialogs().find(a => /Your known forms/.test(a.element?.textContent ?? '')) ?? null, 6000);
+        const picks2 = p2 ? [...p2.element.querySelectorAll('input[name="bf-form-pick"]')] : [];
+        ok('§7 with a slot open the window shows the three known forms and no pool to learn from', !!p2 && (picks2.length === 3) && !/Fill the open slot|in the pool/.test(p2.element.textContent), `popup=${!!p2} picks=${picks2.length}`);
         if (p2) { try { await p2.close(); } catch { /* gone */ } }
-        const landed = await answer(second.message, asKnown(spider), { learn: true });
-        ok('§7 the pick is learned into the slot and the form landed', landed?.outcome === 'landed' && landed.learned?.name === 'Spider' && (wildShape.getFlag(MOD, 'knownForms') ?? []).some(k => k.name === 'Spider'), JSON.stringify({ outcome: landed?.outcome, learned: landed?.learned, known: wildShape.getFlag(MOD, 'knownForms')?.map(k => k.name) }));
-        const row = await waitFor(() => rowUnder(second.message.id), 6000);
-        ok('§7 the card says the form was learned', /Spider learned as a known form/.test(row?.textContent ?? ''), (row?.textContent ?? '').replace(/\s+/g, ' ').trim().slice(0, 160));
-        await api.askRevert(second.message);
-        await waitFor(() => second.message.getFlag(MOD, 'transform')?.ended ? true : null, 15000);
+        // none known: the window says so and offers only Close
+        await wildShape.setFlag(MOD, 'knownForms', []);
+        await useTransform(wildShape);
+        const p3 = await waitFor(() => dialogs().find(a => /You know no forms yet/.test(a.element?.textContent ?? '')) ?? null, 6000);
+        const buttons3 = p3 ? [...p3.element.querySelectorAll('button[data-action]')].map(b => b.dataset.action).filter(a => !['close', 'toggleControls'].includes(a)) : [];
+        ok('§7 with none known it says "Finish a Long Rest to study your forms" and offers only Close', !!p3 && /Finish a Long Rest to study your forms/.test(p3.element.textContent)
+          && !p3.element.querySelector('input[name="bf-form-pick"]') && (buttons3.join() === 'cancel'), `popup=${!!p3} buttons=${buttons3.join()}`);
+        if (p3) { try { await p3.close(); } catch { /* gone */ } }
         await revertAll();
         await wildShape.setFlag(MOD, 'knownForms', [wolf, rat, horse, spider].map(asKnown));
       }
