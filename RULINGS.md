@@ -3443,7 +3443,8 @@ mode"):
    drew over `texture.src`, so a familiar landed in the book's art with the table's set (the Raven).
 25. **How the lights look** (`SPELL_LOOKS`, `SUMMON_LOOKS`): Light a steady warm white with a soft edge;
    Continual Flame a flame's flicker; a Dancing Light a torch-size flicker, 10 ft Dim; the Flaming Sphere 20 ft
-   Bright and 20 more Dim as its text says (the pack ships 0.25 ft) with a fire core. The Unseen Servant lands
+   Bright and 20 more Dim as its text says (the pack ships 0.25 ft), a torch's flicker with no core (a `flame`
+   core blew out the whole bright radius white on the sandbox: "too large"). The Unseen Servant lands
    at half opacity with its Invisible condition switched off on the token (`seen`): Foundry draws an invisible
    token for no one without See Invisibility, its owner included, so the servant could not be found at all.
 

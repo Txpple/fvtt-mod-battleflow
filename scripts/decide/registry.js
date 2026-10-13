@@ -1907,8 +1907,8 @@ export const EFFECT_CHOICES = Object.freeze({
 /**
  * How a spell's light looks on the token: a token light's own fields, as GEAR_LOOKS' are. Light is a
  * steady glow, coloured as the caster likes (warm white unless the table recolours it); Continual Flame
- * "looks like a regular flame"; a Dancing Light is a torch-size light; the Flaming Sphere a ball of fire,
- * whose `flame` core is wanted (its token has no art for the core to cover).
+ * "looks like a regular flame"; a Dancing Light is a torch-size light; the Flaming Sphere a ball of fire
+ * that flickers with no core (`flame`'s white core blew out 20 ft of the map on the sandbox).
  */
 export const SPELL_LOOKS = Object.freeze({
   light: Object.freeze({ color: "#fff1d6", alpha: 0.3, luminosity: 0.45, attenuation: 0.8 }),
@@ -1916,8 +1916,8 @@ export const SPELL_LOOKS = Object.freeze({
     animation: Object.freeze({ type: "torch", speed: 3, intensity: 4 }) }),
   dancingLight: Object.freeze({ color: "#ffcf7a", alpha: 0.35, luminosity: 0.4, attenuation: 0.85,
     animation: Object.freeze({ type: "torch", speed: 3, intensity: 3 }) }),
-  flamingSphere: Object.freeze({ color: "#ff7a1a", alpha: 0.5, luminosity: 0.5, attenuation: 0.75,
-    animation: Object.freeze({ type: "flame", speed: 4, intensity: 6 }) })
+  flamingSphere: Object.freeze({ color: "#ff6a1a", alpha: 0.4, luminosity: 0.4, attenuation: 0.85,
+    animation: Object.freeze({ type: "torch", speed: 5, intensity: 5 }) })
 });
 
 /**
