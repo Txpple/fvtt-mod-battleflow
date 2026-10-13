@@ -4165,17 +4165,18 @@ export const SUMMON_SINGLES = Object.freeze({
  * SUMMON LIGHTS (summons.js): a spell that lights what the caster touches, which dnd5e ships as a summon
  * of a "Light" object. The cast asks where the light goes: ON A TOKEN (the targeted creature's token, the
  * TOKEN_LIGHTS row of the same name) or ON AN OBJECT (a token placed for the thing touched, `object` its
- * name and art, carrying `light`). `look` the light's colour and flicker (SPELL_LOOKS).
+ * name and art, carrying `light`; `size` its one size, a 5-ft square, never asked). `look` the light's
+ * colour and flicker (SPELL_LOOKS).
  */
 export const SUMMON_LIGHTS = Object.freeze({
   "Light": Object.freeze({
     object: Object.freeze({ name: "Glowing Stone", img: "icons/commodities/stone/geode-raw-white.webp" }),
-    bright: 20, dim: 40, look: SPELL_LOOKS.light,
+    size: "sm", bright: 20, dim: 40, look: SPELL_LOOKS.light,
     rule: Object.freeze({ item: "Light", uuid: "Compendium.dnd-players-handbook.spells.Item.phbsplLight00000" })
   }),
   "Continual Flame": Object.freeze({
     object: Object.freeze({ name: "Everburning Stone", img: "icons/commodities/stone/ore-chunk-copper-orange.webp" }),
-    bright: 20, dim: 40, look: SPELL_LOOKS.continualFlame,
+    size: "sm", bright: 20, dim: 40, look: SPELL_LOOKS.continualFlame,
     rule: Object.freeze({ item: "Continual Flame", uuid: "Compendium.dnd-players-handbook.spells.Item.phbsplContinualF" })
   })
 });

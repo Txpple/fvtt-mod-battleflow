@@ -217,7 +217,8 @@ async function askSummon(key, facts, { cast = [], light = null } = {}, onAnswer)
   if ( !caster ) return;
   const types = facts.creatureTypes ?? [];
   const sizes = facts.creatureSizes ?? [];
-  const needs = formNeeds({ profiles: facts.profiles, choice: facts.choice, mode: facts.mode, creatureTypes: types, creatureSizes: sizes });
+  // a light's object asks no size: one 5-ft square (`light.size`), whatever the spell allows (RULINGS *Summons*)
+  const needs = formNeeds({ profiles: facts.profiles, choice: facts.choice, mode: facts.mode, creatureTypes: types, creatureSizes: light ? [] : sizes });
   const poolProfile = facts.profiles.find(p => poolPicks(p, facts.mode)) ?? null;
   // the table's own token art over the compendium's (the Summon Art window), on the rows and the ghost alike
   const tokenArt = (name, img) => summonArt(facts.itemName, name).token ?? img ?? null;
@@ -237,7 +238,7 @@ async function askSummon(key, facts, { cast = [], light = null } = {}, onAnswer)
   else if ( (facts.profiles.length === 1) && !needs.pool ) sections.push({ field: "bf-summon-profile", rows: [profileRow(facts.profiles[0], true)] });
   if ( needs.pool ) sections.push({ field: "bf-summon-pick", pool });
   if ( needs.type ) sections.push({ head: "Its creature type", field: "bf-summon-type", pills: types.map(t => ({ value: t, label: CONFIG.DND5E?.creatureTypes?.[t]?.label ?? t })) });
-  if ( needs.size ) sections.push({ head: light ? "The object's size" : "Its size", field: "bf-summon-size", pills: sizes.map(s => ({ value: s, label: CONFIG.DND5E?.actorSizes?.[s]?.label ?? s })) });
+  if ( needs.size ) sections.push({ head: "Its size", field: "bf-summon-size", pills: sizes.map(s => ({ value: s, label: CONFIG.DND5E?.actorSizes?.[s]?.label ?? s })) });
   if ( choiceRow ) {
     sections.push({ head: choiceRow.ask, field: "bf-summon-choice", pills: choiceRow.options.map(o => ({ value: o, label: CONFIG.DND5E?.damageTypes?.[o]?.label ?? o })) });
     sections.push({ rule: choiceRow.rule });
@@ -249,14 +250,11 @@ async function askSummon(key, facts, { cast = [], light = null } = {}, onAnswer)
   const asked = [
     needs.pool ? { field: "bf-summon-pick", why: "pick the creature first" } : null,
     needs.type ? { field: "bf-summon-type", why: "pick its creature type first" } : null,
-    (needs.size && !light) ? { field: "bf-summon-size", why: "pick its size first" } : null,
+    needs.size ? { field: "bf-summon-size", why: "pick its size first" } : null,
     choiceRow ? { field: "bf-summon-choice", why: `pick ${lower(choiceRow.ask)} first` } : null
   ].filter(Boolean);
-  // the light's two ways: a token must be targeted; an object needs its size
-  const validate = light ? picks => {
-    if ( picks.one("bf-light-on") === "token" ) return game.user.targets?.size ? null : "target the token first, then press Place";
-    return (needs.size && !picks.one("bf-summon-size")) ? "pick the object's size first" : null;
-  } : null;
+  // the light's token way needs a token targeted (the pill is greyed without one; this is the belt)
+  const validate = light ? picks => ((picks.one("bf-light-on") === "token") && !game.user.targets?.size) ? "target the token first, then press Place" : null : null;
   await openPicker({ id: key }, SUMMON_FLAG, caster, {
     title: `${facts.itemName} — ${facts.sourceName}`, icon: "fa-solid fa-spaghetti-monster-flying", width: 480, by: facts.askedBy ?? game.user.id,
     card: { eyebrow: light ? "Light" : "Summon", title: facts.itemName, subtitle: facts.level ? `level ${facts.level}` : "" },
@@ -283,7 +281,7 @@ async function askSummon(key, facts, { cast = [], light = null } = {}, onAnswer)
             await onAnswer({ profileId: profile.id, pick: pickRow ? { uuid: pickRow.uuid, name: pickRow.name, img: pickRow.img } : null,
               choice: picks.one("bf-summon-choice"), placements, count, intoPocket, slot, lightOn,
               sceneId: (inPlace ? replacing.placement.sceneId : null) ?? canvas.scene?.id ?? facts.sceneId ?? null,
-              creatureSize: needs.size ? creatureSize : (sizes[0] ?? null), creatureType: needs.type ? creatureType : (types[0] ?? null) });
+              creatureSize: light ? (sizes.includes(light.size) ? light.size : (sizes[0] ?? null)) : needs.size ? creatureSize : (sizes[0] ?? null), creatureType: needs.type ? creatureType : (types[0] ?? null) });
           } catch(err) {
             console.error(`${TITLE} | The summon could not be placed — place the creature by hand.`, err);
             ui.notifications?.error(`${TITLE}: the summon could not be placed (${err?.message ?? err}).`);

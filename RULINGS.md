@@ -3432,7 +3432,9 @@ mode"):
    targeted"). The PHB ships both as a summon of a "Light" object. The menu asks where the light goes
    (`SUMMON_LIGHTS`): **On a token** (the targeted token, pre-picked when one is; token-lights.js lands it as
    before; refused until a token is targeted) or **On an object** (a token placed for the thing touched:
-   "Glowing Stone" for Light, "Everburning Stone" for Continual Flame, Large or smaller, the size asked).
+   "Glowing Stone" for Light, "Everburning Stone" for Continual Flame). The object's size is never asked: one
+   5-ft square, Small (the user bends the rule's "Large or smaller"; `SUMMON_LIGHTS` `size`). With no token
+   targeted, "On a token" is greyed out.
    Light ends when cast again either way (SUMMON_SINGLES, and token-lights' `recast` for the token).
 22. **Sizes read smallest first** (`sizesInOrder`): the pack ships Light's as Small, Medium, Large, Tiny.
 23. **Recast ends it**: Mage Hand, Minor Illusion and Light join SUMMON_SINGLES (their own text).
