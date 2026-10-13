@@ -16,7 +16,7 @@
  */
 import { MODULE_ID, readFlag, TITLE, activeCombatFor, isActiveGM, queueFlagWrite, answersHere, statContext } from "./core.js";
 import { cardActivity, lower, resolveUuid } from "./lookup.js";
-import { COMPANIONS, SUMMON_CHOICES, SUMMON_LIGHTS, SUMMON_LOOKS, summonChoiceEntries, summonOwnInitiativeEntries, summonSingleEntries, listedNames } from "./decide/registry.js";
+import { COMPANIONS, SUMMON_CHOICES, SUMMON_COMMANDS, SUMMON_LIGHTS, SUMMON_LOOKS, SUMMON_ONE_FORM, summonChoiceEntries, summonOwnInitiativeEntries, summonSingleEntries, listedNames } from "./decide/registry.js";
 import { profileRows, choiceRowKey, formNeeds, poolPicks, summonRecord, placedAnswer, narrowedActivities, resistanceEffectData,
   ownershipGrant, seatInitiative, rangeFeet, replacedSummons, companionEffectName, currentCompanion, companionMenu, companionAsk,
   carriedItemIds, sizesInOrder, castOptions, summonEffectName, tokenLight } from "./decide/summons.js";
@@ -38,6 +38,9 @@ const takes = activity => (activity?.type === "summon") && !!activity.availableP
 
 /** The SUMMON_LIGHTS row a spell answers to, by name, or null. */
 const lightRowOf = name => Object.entries(SUMMON_LIGHTS).find(([k]) => lower(k) === lower(name ?? ""))?.[1] ?? null;
+
+/** The SUMMON_ONE_FORM row a spell answers to, by name, or null. */
+const oneFormOf = name => Object.entries(SUMMON_ONE_FORM).find(([k]) => lower(k) === lower(name ?? ""))?.[1] ?? null;
 
 /** The SUMMON_LOOKS row a creature answers to, by name, or null. */
 const lookOf = name => Object.entries(SUMMON_LOOKS).find(([k]) => lower(k) === lower(name ?? ""))?.[1] ?? null;
@@ -117,6 +120,14 @@ async function describeProfile(row) {
   return { ...row, ...(await describeCreature(row.uuid, { label: row.name || "" })) };
 }
 
+/** A SUMMON_ONE_FORM spell's profiles narrowed to its one form, named as the spell names it; others as they are. */
+function oneForm(itemName, rows) {
+  const row = oneFormOf(itemName);
+  if ( !row ) return rows;
+  const pick = rows.find(r => lower(r.label || r.name) === lower(row.from)) ?? rows[0];
+  return pick ? [{ ...pick, label: row.name }] : rows;
+}
+
 /** The sizes the activity offers, smallest first (the system's own order). */
 const sizesOf = activity => sizesInOrder([...(activity.creatureSizes ?? [])], Object.keys(CONFIG.DND5E?.actorSizes ?? {}));
 
@@ -127,7 +138,7 @@ async function castFacts(activity, level) {
   return {
     sourceUuid: actor.uuid, sourceName: tok?.name ?? actor.name,
     itemUuid: activity.item.uuid, itemName: activity.item.name, activityUuid: activity.uuid,
-    level, profiles: await Promise.all(profileRows(activity.profiles.map(p => p.toObject?.() ?? p), level).map(describeProfile)),
+    level, profiles: oneForm(activity.item.name, await Promise.all(profileRows(activity.profiles.map(p => p.toObject?.() ?? p), level).map(describeProfile))),
     choice: choiceRowKey(SUMMON_CHOICES, activity.item.name, listed()),
     sceneId: tok?.parent?.id ?? canvas.scene?.id ?? null,
     mode: activity.summon?.mode ?? null, creatureTypes: [...(activity.creatureTypes ?? [])],
@@ -366,6 +377,30 @@ function narrowingUpdate(actor, row, type) {
   return parts ? { _id: item.id, ...parts } : null;
 }
 
+/**
+ * SUMMON_COMMANDS: the creature's command feature split into one at-will spell per option, each carrying
+ * that one activity as it landed (the caster's DC, the cast level's dice), so the owner casts it from the
+ * sheet with no activity picker. The feature goes.
+ */
+async function splitCommands(actor, row, spell) {
+  const item = actor?.items?.find(i => lower(i.name) === lower(row.item)) ?? null;
+  if ( !item ) return;
+  const source = item.toObject();
+  const spells = Object.values(source.system?.activities ?? {}).map(a => ({
+    name: a.name || item.name, type: "spell", img: a.img || spell?.img || item.img,
+    system: {
+      description: { value: source.system?.description?.value ?? "" },
+      level: Number(spell?.system?.level) || 0, school: spell?.system?.school ?? "", method: "atwill", prepared: 0,
+      activation: { ...(a.activation ?? {}) }, range: { ...(a.range ?? {}) }, target: foundry.utils.deepClone(a.target ?? {}),
+      properties: [], activities: { [a._id]: { ...a, consumption: { ...(a.consumption ?? {}), spellSlot: false } } }
+    },
+    flags: { [MODULE_ID]: { commandOf: spell?.name ?? null } }
+  }));
+  if ( !spells.length ) return;
+  await actor.createEmbeddedDocuments("Item", spells);
+  await actor.deleteEmbeddedDocuments("Item", [item.id]);
+}
+
 async function landSummon(message) {
   let claimed = false;
   await queueFlagWrite(message, SUMMON_FLAG, current => {
@@ -412,6 +447,11 @@ async function landSummon(message) {
         changes.actorUpdates.name = lightRow.object.name;
         changes.actorUpdates.img = lightRow.object.img;
       }
+      const single = oneFormOf(flag.itemName);
+      if ( single ) {
+        changes.tokenUpdates.name = single.name;
+        changes.actorUpdates.name = single.name;
+      }
       if ( look?.light ) foundry.utils.mergeObject(changes.tokenUpdates, { light: tokenLight(look.light) });
       if ( Number.isFinite(look?.alpha) ) changes.tokenUpdates.alpha = look.alpha;
       // `seen`: the creature's Invisible condition switched off on this token (its delta), the base actor untouched
@@ -440,6 +480,8 @@ async function landSummon(message) {
     // a new form for a companion waiting in the pocket waits there too: the token is kept, not drawn
     const created = flag.intoPocket ? [] : await scene.createEmbeddedDocuments("Token", tokensData, { dnd5e: { autoRollNPCHP: "no" } });
     for ( const t of created ) landed.push({ tokenId: t.id, sceneId: scene.id, tokenUuid: t.uuid, actorUuid: t.actor?.uuid ?? null, name: t.name });
+    const commands = Object.entries(SUMMON_COMMANDS).find(([k]) => lower(k) === lower(flag.itemName))?.[1] ?? null;
+    if ( commands ) for ( const t of created ) await splitCommands(t.actor, commands, activity.item);
     Hooks.callAll("dnd5e.postSummon", activity, profile, created, options);
     // The caster's players own what they summoned.
     const grant = ownershipGrant(caster.ownership ?? {}, actor.ownership ?? {});

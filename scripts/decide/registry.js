@@ -4182,6 +4182,27 @@ export const SUMMON_LIGHTS = Object.freeze({
 });
 
 /**
+ * SUMMON ONE FORM (summons.js): a spell whose pack splits one thing into forms the text never asks for. The
+ * menu offers no form: the `from` profile's creature lands, named `name` (Major Image is one image of
+ * every sense at once; the pack ships Illusory Creature, Object and Phenomenon as three).
+ */
+export const SUMMON_ONE_FORM = Object.freeze({
+  "Major Image": Object.freeze({ name: "Major Image", from: "Illusory Creature",
+    rule: Object.freeze({ item: "Major Image", uuid: "Compendium.dnd-players-handbook.spells.Item.phbsplMajorImage" }) })
+});
+
+/**
+ * SUMMON COMMANDS (summons.js): a summoned creature whose one feature holds the options the caster
+ * commands (`item`). On landing, each option becomes its own at-will spell on the creature, named for
+ * the option, so its owner casts it straight from the sheet; the feature goes. The DC and the dice are
+ * the landing's own (dnd5e's `match` and the cast level's bonuses).
+ */
+export const SUMMON_COMMANDS = Object.freeze({
+  "Conjure Constructs": Object.freeze({ item: "Command",
+    rule: Object.freeze({ item: "Conjure Constructs", uuid: "Compendium.dnd-heroes-faerun.options.Item.hofConjureConstr" }) })
+});
+
+/**
  * SUMMON LOOKS (summons.js): how a summoned creature's token is drawn, by the creature's name, folded into
  * dnd5e's own changes as it lands. `light` the token's light (radii in feet, `dim` the OUTER radius, and a
  * SPELL_LOOKS look), where the pack ships one the spell's text does not say; `alpha` the token's opacity;

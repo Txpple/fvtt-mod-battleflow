@@ -3448,6 +3448,13 @@ mode"):
    at half opacity with its Invisible condition switched off on the token (`seen`): Foundry draws an invisible
    token for no one without See Invisibility, its owner included, so the servant could not be found at all.
    Clairvoyance's Invisible Sensor gets the same.
+26. **Major Image is one image** (the user: "it includes all senses, no need to pick creature, object or sound").
+   `SUMMON_ONE_FORM`: the menu offers no form; the pack's Illusory Creature lands, named "Major Image"; its
+   size is still asked.
+27. **A summon's commands are spells on it** (the user: "conjure constructs should be given items that allow the
+   owner to cast them as if spells, for each option of the command"). `SUMMON_COMMANDS`: on landing, Conjure
+   Constructs' "Command" feature becomes two at-will spells on the spirits, Clockwork Force and Orderly Ward,
+   each its one activity as it landed (the caster's DC, the cast level's extra die); the feature goes.
 
 ## Rests end the short effects (2026-10-12)
 
