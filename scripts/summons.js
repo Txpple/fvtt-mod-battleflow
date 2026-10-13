@@ -15,8 +15,8 @@
  * elect made, and the concentration effect's end asks it.
  */
 import { MODULE_ID, readFlag, TITLE, activeCombatFor, isActiveGM, queueFlagWrite, answersHere, statContext } from "./core.js";
-import { cardActivity, lower, resolveUuid } from "./lookup.js";
-import { COMPANIONS, SUMMON_AS, SUMMON_CHOICES, SUMMON_COMMANDS, SUMMON_GUISES, SUMMON_LIGHTS, SUMMON_LOOKS, SUMMON_ONE_FORM, summonChoiceEntries, summonOwnInitiativeEntries, summonSingleEntries, listedNames } from "./decide/registry.js";
+import { activityNamed, cardActivity, featureNamed, lower, resolveUuid } from "./lookup.js";
+import { COMPANIONS, SUMMON_AS, SUMMON_CHOICES, SUMMON_COMMANDS, SUMMON_EXTRAS, SUMMON_GUISES, SUMMON_LIGHTS, SUMMON_LOOKS, SUMMON_ONE_FORM, summonChoiceEntries, summonOwnInitiativeEntries, summonSingleEntries, listedNames } from "./decide/registry.js";
 import { profileRows, choiceRowKey, formNeeds, poolPicks, summonRecord, placedAnswer, narrowedActivities, resistanceEffectData,
   ownershipGrant, seatInitiative, rangeFeet, replacedSummons, companionEffectName, currentCompanion, companionMenu, companionAsk,
   carriedItemIds, sizesInOrder, summonEffectName, tokenLight, formName, guisesOf } from "./decide/summons.js";
@@ -33,8 +33,13 @@ import { listen, listenOnce } from "./dispatch.js";
 const SUMMON_FLAG = "summon";
 const listed = () => listedNames(summonChoiceEntries());
 
+/** A SUMMON_EXTRAS row's own activity (Pact of the Chain's Expanded Options): its forms are a tab of the item's
+ * summon, never a use of their own. */
+const isExtraActivity = activity => Object.entries(SUMMON_EXTRAS).some(([key, row]) =>
+  (lower(activity?.item?.name) === lower(key)) && (lower(activity?.name) === lower(row.activity)));
+
 /** A summon activity the module takes off the system's hands: one with a profile the cast may use. */
-const takes = activity => (activity?.type === "summon") && !!activity.availableProfiles?.length;
+const takes = activity => (activity?.type === "summon") && !!activity.availableProfiles?.length && !isExtraActivity(activity);
 
 /** The SUMMON_LIGHTS row a spell answers to, by name, or null. */
 const lightRowOf = name => Object.entries(SUMMON_LIGHTS).find(([k]) => lower(k) === lower(name ?? ""))?.[1] ?? null;
@@ -118,6 +123,12 @@ listen("renderActivityChoiceDialog", "summons", (app, element) => {
 // menu instead (COMPANIONS). The cast the menu makes runs with no dialog and the system's placement off.
 listen("dnd5e.preUseActivity", "summons", (activity, usageConfig, dialogConfig) => {
   try {
+    // the extra forms' own activity used from the sheet: the item's summon opens, the forms on their tab
+    if ( isExtraActivity(activity) ) {
+      const main = summonActivityOf(activity.item);
+      if ( main ) { void main.use(); return false; }
+      return;
+    }
     if ( !takes(activity) ) return;
     // The usage dialog's Creation section (Place Summons, the system's own selects) is hidden as well as
     // switched off: ticked, it would start dnd5e's placement beside the module's (RULINGS *Summons*).
@@ -309,9 +320,32 @@ async function castFacts(activity, level) {
     choice: choiceRowKey(SUMMON_CHOICES, activity.item.name, listed()),
     sceneId: tok?.parent?.id ?? canvas.scene?.id ?? null,
     mode: activity.summon?.mode ?? null, creatureTypes: [...(activity.creatureTypes ?? [])],
-    creatureSizes: sizesOf(activity), rangeFt: asRowOf(activity.item.name)?.rangeFt ?? rangeFeet(activity.range),
-    guises: guisesOf(guiseRowOf(activity.item.name))
+    creatureSizes: sizesOf(activity), rangeFt: asRowOf(activity.item.name)?.rangeFt ?? companionOf(activity.item.name)?.rangeFt ?? rangeFeet(activity.range),
+    guises: guisesOf(guiseRowOf(activity.item.name)),
+    extras: await extrasOf(activity, level)
   };
+}
+
+/**
+ * The extra forms a cast offers (SUMMON_EXTRAS): for each row whose spell this is, the forms of the feature's
+ * activity — the caster's feature for the spell, the item itself for the feature's own cast — described as rows.
+ */
+async function extrasOf(activity, level) {
+  const actor = activity?.actor;
+  const item = activity?.item;
+  if ( !actor || !item ) return [];
+  const out = [];
+  for ( const [key, row] of Object.entries(SUMMON_EXTRAS) ) {
+    if ( lower(rulesName(item.name)) !== lower(row.spell) ) continue;
+    const feature = (lower(item.name) === lower(key)) ? item : featureNamed(actor, key);
+    const source = feature ? activityNamed(feature, row.activity) : null;
+    if ( !source ) continue;
+    const rows = profileRows(source.profiles.map(p => p.toObject?.() ?? p), level).filter(r => r.uuid);
+    // read at the cast, as the spell's own rows are: the cast's level and the caster's modifier in each attack line
+    const summon = { level: Number(level) || 0, mod: Number(activity.getRollData?.()?.mod) || 0 };
+    out.push({ key, tab: row.tab, rows: await Promise.all(rows.map(r => describeProfile(r, summon))) });
+  }
+  return out;
 }
 
 async function stampRecord(activity, message, answer) {
@@ -409,8 +443,19 @@ async function askSummon(key, facts, { light = null } = {}, onAnswer) {
   // a light's object stands only while the light goes on an object: with a token targeted it is unpicked and greyed
   else if ( (facts.profiles.length === 1) && !needs.pool && !guises.length ) sections.push({ field: "bf-summon-profile", rows: [profileRow(facts.profiles[0], true)],
     onlyWhen: light ? { field: "bf-light-on", value: "object" } : undefined });
-  if ( needs.pool ) sections.push({ field: "bf-summon-pick", pool });
-  if ( needs.type ) sections.push({ head: "Its creature type", field: "bf-summon-type", pills: types.map(t => ({ value: t, label: CONFIG.DND5E?.creatureTypes?.[t]?.label ?? t })) });
+  // the extra forms a feature adds (SUMMON_EXTRAS: Pact of the Chain's): a tab each beside the spell's own, one pick
+  // across the tabs; the spell's type question below them answers for whichever form is picked
+  const extras = (needs.pool ? (facts.extras ?? []) : []).map(x => ({ ...x, rows: x.rows.map(r => ({ uuid: r.uuid, name: r.label || r.name,
+    img: tokenArt(r.label || r.name, r.img), summary: r.summary ?? null, extra: x.key })) }));
+  const extraRows = extras.flatMap(x => x.rows);
+  const typeSection = needs.type ? { head: "Its creature type", field: "bf-summon-type", pills: types.map(t => ({ value: t, label: CONFIG.DND5E?.creatureTypes?.[t]?.label ?? t })) } : null;
+  if ( extras.length ) {
+    sections.push({ tabs: [
+      { label: rulesName(facts.itemName), sections: [{ field: "bf-summon-pick", pool }] },
+      ...extras.map(x => ({ label: x.tab, sections: [{ field: "bf-summon-pick", rows: x.rows.map(r => ({ value: r.uuid, label: r.name, img: r.img, summary: r.summary })) }] }))
+    ] });
+  } else if ( needs.pool ) sections.push({ field: "bf-summon-pick", pool });
+  if ( typeSection ) sections.push(typeSection);
   if ( needs.size ) sections.push({ head: "Its size", field: "bf-summon-size", pills: sizes.map(s => ({ value: s, label: CONFIG.DND5E?.actorSizes?.[s]?.label ?? s })) });
   if ( choiceRow ) {
     sections.push({ head: choiceRow.ask, field: "bf-summon-choice", pills: choiceRow.options.map(o => ({ value: o, label: CONFIG.DND5E?.damageTypes?.[o]?.label ?? o })) });
@@ -434,7 +479,7 @@ async function askSummon(key, facts, { light = null } = {}, onAnswer) {
     buttons: [
       { action: "place", label: light ? "Light" : "Place", default: true, checks: true, submit: picks => {
         const profile = facts.profiles.find(p => p.id === picks.one("bf-summon-profile")) ?? facts.profiles[0];
-        const pickRow = pool.find(r => r.uuid === picks.one("bf-summon-pick")) ?? null;
+        const pickRow = pool.find(r => r.uuid === picks.one("bf-summon-pick")) ?? extraRows.find(r => r.uuid === picks.one("bf-summon-pick")) ?? null;
         const creatureType = picks.one("bf-summon-type");
         const creatureSize = picks.one("bf-summon-size");
         const lightOn = light ? (picks.one("bf-light-on") ?? "object") : null;
@@ -455,7 +500,8 @@ async function askSummon(key, facts, { light = null } = {}, onAnswer) {
             await onAnswer({ profileId: profile.id, pick: pickRow ? { uuid: pickRow.uuid, name: pickRow.name, img: pickRow.img } : null,
               choice: picks.one("bf-summon-choice"), guise: picks.one("bf-summon-guise"), placements, count, intoPocket, lightOn,
               sceneId: (inPlace ? replacing.placement.sceneId : null) ?? canvas.scene?.id ?? facts.sceneId ?? null,
-              creatureSize: light ? (sizes.includes(light.size) ? light.size : (sizes[0] ?? null)) : needs.size ? creatureSize : (sizes[0] ?? null), creatureType: needs.type ? creatureType : (types[0] ?? null) });
+              creatureSize: light ? (sizes.includes(light.size) ? light.size : (sizes[0] ?? null)) : needs.size ? creatureSize : (sizes[0] ?? null),
+              creatureType: needs.type ? creatureType : (types[0] ?? null) });
           } catch(err) {
             console.error(`${TITLE} | The summon could not be placed — place the creature by hand.`, err);
             ui.notifications?.error(`${TITLE}: the summon could not be placed (${err?.message ?? err}).`);
@@ -602,6 +648,9 @@ async function landSummon(message) {
           Object.assign(changes.tokenUpdates, { width: squares, height: squares });
         }
       }
+      // a creature turns to face where it moves (a pack ships many with the rotation locked); a thing (a light's
+      // stone, the Floating Disk) keeps its facing
+      if ( !lightRow && !Number.isFinite(Number(look?.scale)) ) changes.tokenUpdates.lockRotation = false;
       if ( look?.light ) foundry.utils.mergeObject(changes.tokenUpdates, { light: tokenLight(look.light) });
       if ( Number.isFinite(look?.alpha) ) changes.tokenUpdates.alpha = look.alpha;
       // `seen`: the creature's Invisible condition switched off on this token (its delta), the base actor untouched

@@ -32,7 +32,8 @@ export const ART_SPELLS = Object.freeze([
   Object.freeze({ name: "Conjure Constructs", uuid: "Compendium.dnd-heroes-faerun.options.Item.hofConjureConstr" }),
   Object.freeze({ name: "Spiritual Weapon", uuid: "Compendium.dnd-players-handbook.spells.Item.phbsplSpiritualW" }),
   Object.freeze({ name: "Summon Beast", uuid: "Compendium.dnd-players-handbook.spells.Item.phbsplSummonBeas" }),
-  Object.freeze({ name: "Conjure Animals", uuid: "Compendium.dnd-players-handbook.spells.Item.phbsplConjureAni" })
+  Object.freeze({ name: "Conjure Animals", uuid: "Compendium.dnd-players-handbook.spells.Item.phbsplConjureAni" }),
+  Object.freeze({ name: "Vestige Companion", uuid: "Compendium.dnd-arcana-unleashed.subclasses.Item.aunVestigeCompan" })
 ]);
 
 /** The file types a folder match reads as art. */

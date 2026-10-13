@@ -79,15 +79,30 @@ export function bfCard({ img, eyebrow, title, subtitle, lines = [], tone = "neut
 }
 
 /**
- * The rule as a card line. A pointer (`{ item, uuid?, benefit? }` or `{ page, key, benefit? }`) is
- * markup rule-text.js fills from the book; a string (a record written before pointers) is quoted.
+ * The book's text at a pointer, drawn OPEN: only inside the rule tick, or a pane whose one job is the quote
+ * (the rescue pane). A pointer (`{ item, uuid?, benefit? }` or `{ page, key, benefit? }`) is markup
+ * rule-text.js fills from the book; a string (a record written before pointers) is quoted.
  * @param {object|string|null|undefined} rule
  */
-export function ruleLine(rule) {
+function ruleQuote(rule) {
   if ( rule && (typeof rule === "object") ) {
     return `<div data-bf-rule="${refAttr(rule)}" style="font-style:italic;"></div>`;
   }
   return rule ? `<em>“${rule}”</em>` : "";
+}
+
+/** The rule tick's own line: closed, one small word and an arrow. */
+const TICK = '<summary style="cursor:pointer;list-style:none;opacity:0.75;font-size:var(--font-size-11,11px);">the rule ▸</summary>';
+
+/**
+ * THE RULE TICK (DESIGN *Cards*): a rule on a card or a popup is the book's text under a CLOSED fold, never
+ * text drawn open — one line of what happened above it, nothing of the book's outside it. A fold whose
+ * pointer reads as no text goes. `tools/check-rule-folds.mjs` keeps every rule here.
+ * @param {object|string|null|undefined} rule
+ */
+export function ruleLine(rule) {
+  if ( !rule ) return "";
+  return `<details data-bf-rule-fold style="margin-top:0.25rem;font-size:var(--font-size-12,12px);line-height:1.45;opacity:0.85;">${TICK}${ruleQuote(rule)}</details>`;
 }
 
 /** A pointer as an attribute value. @param {object} rule */
@@ -228,8 +243,7 @@ export function forgoBoxHTML({ name, rule, checked = false, off = null, says = "
 /** A rule under a closed fold; a fold whose pointer reads as no text goes. @param {object|string|null|undefined} rule */
 export function foldedRuleHTML(rule) {
   if ( !rule ) return "";
-  return `<details data-bf-rule-fold style="grid-column:1 / -1;font-size:var(--font-size-12,12px);line-height:1.45;opacity:0.85;">
-          <summary style="cursor:pointer;list-style:none;opacity:0.75;font-size:var(--font-size-11,11px);">the rule ▸</summary>${ruleLine(rule)}</details>`;
+  return `<details data-bf-rule-fold style="grid-column:1 / -1;font-size:var(--font-size-12,12px);line-height:1.45;opacity:0.85;">${TICK}${ruleQuote(rule)}</details>`;
 }
 
 /**
@@ -704,7 +718,7 @@ export function rescuePaneHTML(quotes = []) {
   const panes = quotes.map((q, i) => `
     <div data-bf-rescue-quote="${attr(q.key)}"
          style="grid-area:1 / 1;${i ? "visibility:hidden;" : ""}">
-      <strong>${esc(q.label)}</strong> ${ruleLine(q.text)}
+      <strong>${esc(q.label)}</strong> ${ruleQuote(q.text)}
       ${q.detail ? `<div style="margin-top:0.25rem;opacity:0.75;">${q.detail}</div>` : ""}
     </div>`).join("");
   return `

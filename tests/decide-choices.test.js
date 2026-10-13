@@ -20,6 +20,7 @@ describe("the table", () => {
   it("names Fire Shield with its two shields, a question and the rule — no amounts", () => {
     expect(Object.keys(reg.EFFECT_CHOICES)).toEqual([
       "Fire Shield",
+      "Hex",
       "Starry Form",
       "Rage of the Wilds",
       "Power of the Wilds" // C1
@@ -30,6 +31,50 @@ describe("the table", () => {
     expectPointer(row.rule);
     expect(row.rule.item).toBe("Fire Shield");
     expect(JSON.stringify({ ...row, rule: "" })).not.toMatch(/\d+d\d+/);
+  });
+});
+
+describe("Hex", () => {
+  const row = () => reg.EFFECT_CHOICES.Hex;
+  it("asks for one of the six abilities, the picked effect drawn and told as the row says — no amounts", () => {
+    expect(row().effects).toHaveLength(6);
+    expect(c.effectChoiceFor(row(), ["Hexed Wisdom", "Hexed Strength", "Hexed Charisma"])).toEqual([
+      "Hexed Strength",
+      "Hexed Wisdom",
+      "Hexed Charisma"
+    ]);
+    expect(row().img).toMatch(/\.webp$/);
+    expect(row().says).toMatch(/Disadvantage/);
+    expect(JSON.stringify({ ...row(), rule: "" })).not.toMatch(/\d+d\d+/);
+    expectPointer(row().rule);
+  });
+  it("lands only the picked ability's effect", () => {
+    const names = row().effects.slice();
+    expect(c.effectsAfterChoice(names, { options: names, chosen: "Hexed Dexterity" })).toEqual([
+      "Hexed Dexterity"
+    ]);
+    expect(c.effectsAfterChoice(names, { options: names, chosen: null })).toBeNull();
+  });
+  it("names its cast and its move for the system's picker", () => {
+    expect(reg.MARK_USES.hex).toMatchObject({
+      cast: "Place Curse",
+      move: "Curse New Creature",
+      castLabel: "Cast Hex",
+      moveLabel: "Move Hex"
+    });
+  });
+});
+
+describe("slotHours — Concentration's longer clock at a higher slot", () => {
+  it("Hex: 1 hour's base below level 2, then 4, 8 and 24 hours; Hunter's Mark from level 3", () => {
+    const hex = reg.SLOT_DURATIONS.Hex;
+    expect(c.slotHours(hex, 1)).toBeNull();
+    expect(c.slotHours(hex, 2)).toBe(4);
+    expect(c.slotHours(hex, 3)).toBe(8);
+    expect(c.slotHours(hex, 4)).toBe(8);
+    expect(c.slotHours(hex, 5)).toBe(24);
+    expect(c.slotHours(reg.SLOT_DURATIONS["Hunter's Mark"], 2)).toBeNull();
+    expect(c.slotHours(reg.SLOT_DURATIONS["Hunter's Mark"], 3)).toBe(8);
   });
 });
 

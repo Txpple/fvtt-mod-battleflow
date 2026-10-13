@@ -1889,11 +1889,19 @@ export const DAMAGE_SHIELDS = Object.freeze({
  *   chip      the pick is kept as a form chip on the caster (`formChip`) for the rows that read it (Chalice)
  *   on        the item whose USE asks; the row is keyed by the FEATURE the bearer must hold (Rage of the Wilds
  *             at the Rage): the trigger's own effects land at once, never waiting; `use` — the pick uses the
- *             feature's activity of that name, whose own card lands its own effect (Bear, Wolf) */
+ *             feature's activity of that name, whose own card lands its own effect (Bear, Wolf)
+ *   img, says the picked effect lands drawn with this icon and told with this sentence (Hex) */
 export const EFFECT_CHOICES = Object.freeze({
   "Fire Shield": Object.freeze({ effects: Object.freeze(["Warm Shield", "Chill Shield"]), ask: "A warm shield or a chill shield?",
     rule: Object.freeze({ item: "Fire Shield", uuid: "Compendium.dnd-players-handbook.spells.Item.phbsplFireShield" }),
     from: "PHB, level 4 (10 minutes)" }),
+  // The pack lands all six "Hexed <Ability>" on every cast and move: only the chosen ability's lands, and it is the mark the
+  // rider reads too (one effect: the check's Disadvantage and the hit's Necrotic), drawn as `img` and told as `says`.
+  "Hex": Object.freeze({ effects: Object.freeze(["Hexed Strength", "Hexed Dexterity", "Hexed Constitution", "Hexed Intelligence", "Hexed Wisdom", "Hexed Charisma"]),
+    ask: "Which ability does the curse fall on?", img: "icons/magic/perception/eye-tendrils-web-purple.webp",
+    says: "Cursed by Hex: Disadvantage on ability checks with the chosen ability, and the caster's every hit on it deals Hex's extra Necrotic damage.",
+    rule: Object.freeze({ item: "Hex", uuid: "Compendium.dnd-players-handbook.spells.Item.phbsplHex0000000" }),
+    from: "PHB, level 1 (Concentration, 1 hour)" }),
   // The pack lands Starry Form AND Dragon Form on every use: Dragon Form only with its pick.
   "Starry Form": Object.freeze({ picks: Object.freeze(["Archer", "Chalice", "Dragon"]), activity: "Consume Wild Shape",
     lands: Object.freeze({ Dragon: Object.freeze(["Dragon Form", "Dragon Form (Twinkling)"]) }), chip: true,
@@ -4118,6 +4126,24 @@ export const D20_FOLDS = Object.freeze([
 export const RIDERS = Object.freeze(["hunters-mark", "hex", "great-old-one-hex"].map(name => Object.freeze({ name })));
 /** Which of the attacker's own features replaces a mark's damage, by identifier. */
 export const RIDER_UPGRADES = Object.freeze([Object.freeze({ feature: "foe-slayer", rider: "hunters-mark" })]);
+/**
+ * A spell whose Concentration lasts longer with a higher slot (its "Using a Higher-Level Spell Slot"), by name:
+ * `[lowest slot level, hours]` steps, the highest the cast reaches standing. dnd5e lands the base duration at
+ * every level; the cast's effects and the caster's Concentration take the step's (cast.js).
+ */
+export const SLOT_DURATIONS = Object.freeze({
+  "Hex": Object.freeze([Object.freeze([2, 4]), Object.freeze([3, 8]), Object.freeze([5, 24])]),
+  "Hunter's Mark": Object.freeze([Object.freeze([3, 8]), Object.freeze([5, 24])])
+});
+/**
+ * A mark spell's uses in the system's activity picker, by identifier: `cast` the pack's activity that spends the
+ * slot and `move` the one that moves the mark (no slot, no dialog, the caster's standing Concentration kept), each
+ * drawn as its `label`; the rider's own damage activity is not offered (it rides the hit).
+ */
+export const MARK_USES = Object.freeze({
+  "hex": Object.freeze({ cast: "Place Curse", move: "Curse New Creature", castLabel: "Cast Hex", moveLabel: "Move Hex" }),
+  "hunters-mark": Object.freeze({ cast: "Mark Creature", move: "Move Mark", castLabel: "Cast Hunter's Mark", moveLabel: "Move Hunter's Mark" })
+});
 
 /** The kind lists and the closed set each one's kinds come from, for tools/check-registry.mjs. */
 export const KIND_LISTS = Object.freeze({
@@ -4156,6 +4182,10 @@ export const SUMMON_SINGLES = Object.freeze({
   "Find Familiar": Object.freeze({
     says: "You can't have more than one familiar at a time. If you cast this spell while you have a familiar, you instead cause it to adopt a new eligible form.",
     rule: Object.freeze({ item: "Find Familiar", uuid: "Compendium.dnd-players-handbook.spells.Item.phbsplFindFamili" })
+  }),
+  "Vestige Companion": Object.freeze({
+    says: "Whenever you finish a Long Rest, you can summon the vestige in a new form. If the vestige is already manifested from this feature, its form changes to the new one.",
+    rule: Object.freeze({ item: "Vestige Companion", uuid: "Compendium.dnd-arcana-unleashed.subclasses.Item.aunVestigeCompan" })
   }),
   "Mage Hand": Object.freeze({
     says: "The hand vanishes if it is ever more than 30 feet away from you or if you cast this spell again.",
@@ -4263,8 +4293,9 @@ export const SUMMON_LOOKS = Object.freeze({
  * or call it back, dismiss it forever, or cast for a new form (which takes the old one's place: in its
  * space, or in the pocket). `noun` the effect's word; `pocket` it can wait in a pocket dimension,
  * `recallFt` the reach of its return (an unoccupied space, no sight needed); `says` the book's sentence;
- * `brief` the cast menu's one line under the creature (the spell's full text is a click away on its card).
- * Primal Companion, Vestige Companion and Find Steed join when their text is ruled.
+ * `brief` the cast menu's one line under the creature (the spell's full text is a click away on its card);
+ * `rangeFt` where it first appears, when the use's own range says none (the Vestige's "Self": the familiar's 10 ft).
+ * Primal Companion and Find Steed join when their text is ruled.
  */
 export const COMPANIONS = Object.freeze({
   "Find Familiar": Object.freeze({
@@ -4272,6 +4303,14 @@ export const COMPANIONS = Object.freeze({
     brief: "A Magic action puts it away into its pocket dimension or calls it back within 30 ft; casting the spell again gives it a new form.",
     says: "As a Magic action, you can temporarily dismiss the familiar to a pocket dimension. Alternatively, you can dismiss it forever. As a Magic action while it is temporarily dismissed, you can cause it to reappear in an unoccupied space within 30 feet of you.",
     rule: Object.freeze({ item: "Find Familiar", uuid: "Compendium.dnd-players-handbook.spells.Item.phbsplFindFamili" })
+  }),
+  // the Vestige Patron's vestige: the familiar's pocket, its reach and its 10-ft arrival;
+  // it acts on the warlock's turn, so it is seated after the warlock (no SUMMON_OWN_INITIATIVE row)
+  "Vestige Companion": Object.freeze({
+    noun: "Vestige", pocket: true, recallFt: 30, rangeFt: 10,
+    brief: "A Magic action puts it away into its pocket dimension or calls it back within 30 ft; the 1-minute rite again gives it a new form.",
+    says: "As a Magic action, you can temporarily dismiss the vestige to a pocket dimension. As a Magic action while it is temporarily dismissed, you can cause the vestige to reappear in an unoccupied space within 30 feet of you.",
+    rule: Object.freeze({ item: "Vestige Companion", uuid: "Compendium.dnd-arcana-unleashed.subclasses.Item.aunVestigeCompan" })
   })
 });
 
@@ -4282,9 +4321,25 @@ export const COMPANIONS = Object.freeze({
  * feature's own sentence (RULINGS *Summons*, call 39).
  */
 export const SUMMON_AS = Object.freeze({
+  // "You learn the Find Familiar spell and can cast it as a Magic action without expending a spell slot"
+  "Pact of the Chain": Object.freeze({ as: "Find Familiar", rangeFt: 10,
+    says: "You learn the Find Familiar spell and can cast it as a Magic action without expending a spell slot.",
+    rule: Object.freeze({ item: "Pact of the Chain", uuid: "Compendium.dnd-players-handbook.classes.Item.phbinvPactChain0" }) }),
   "Wild Companion": Object.freeze({ as: "Find Familiar", rangeFt: 10, longRest: true,
     says: "As a Magic action, you can expend a spell slot or a use of Wild Shape to cast the Find Familiar spell without Material components. When you cast the spell in this way, the familiar is Fey and disappears when you finish a Long Rest.",
     rule: Object.freeze({ item: "Wild Companion", uuid: "Compendium.dnd-players-handbook.classes.Item.phbdrdWildCompan" }) })
+});
+
+/**
+ * SUMMON EXTRAS (summons.js): a feature that adds forms to a summon spell, offered on a tab of their own beside
+ * the spell's (`tab` its label) whenever its bearer casts the spell (`spell`, read through SUMMON_AS), or uses
+ * the feature's own cast. The forms are the profiles of the feature's activity named `activity`; the spell's
+ * creature type is asked of every form, its own and the extras alike.
+ */
+export const SUMMON_EXTRAS = Object.freeze({
+  "Pact of the Chain": Object.freeze({ spell: "Find Familiar", activity: "Find Familiar (Expanded Options)", tab: "Pact of the Chain",
+    says: "When you cast the spell, you choose one of the normal forms for your familiar or one of the special forms.",
+    rule: Object.freeze({ item: "Pact of the Chain", uuid: "Compendium.dnd-players-handbook.classes.Item.phbinvPactChain0" }) })
 });
 
 /**

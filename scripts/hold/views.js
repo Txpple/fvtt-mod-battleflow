@@ -373,14 +373,8 @@ async function holdPopupContent(target, roll, actor, hold) {
   const subtitle = [target.name, item?.system?.activation?.type === "reaction" ? "Reaction" : null]
     .filter(Boolean).join(" · ");
 
-  const editor = foundry.applications?.ux?.TextEditor?.implementation ?? globalThis.TextEditor;
-  let description = "";
-  try {
-    description = await editor.enrichHTML(item?.system?.description?.value ?? "",
-      { rollData: actor?.getRollData?.() ?? {}, secrets: false });
-  } catch {
-    description = item?.system?.description?.value ?? "";
-  }
+  // the reaction's own text, under the rule tick (DESIGN *Cards*): read from the item it is
+  const rule = item ? { item: item.name, uuid: item.uuid } : null;
 
   const spell = hold?.trigger === "spell";
   const reveal = spell ? null : revealDetail(target, roll, actor);
@@ -413,9 +407,7 @@ async function holdPopupContent(target, roll, actor, hold) {
   </div>
   ${holdBarHTML(hold)}
   <div style="padding:0.6rem 0.1rem;">${situation}</div>
-  ${description ? `<div style="max-height:11rem;overflow-y:auto;padding:0.5rem 0.6rem;
-       border-radius:4px;background:rgba(0,0,0,0.05);font-size:var(--font-size-13,13px);
-       line-height:1.5;">${description}</div>` : ""}`;
+  ${ruleLine(rule)}`;
 }
 
 /**

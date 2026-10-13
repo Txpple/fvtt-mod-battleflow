@@ -84,6 +84,24 @@
       "file": "templates/chat/parts/card-activities.hbs",
       "proof": "<li class=\"activity flexrow item-tooltip\" data-activity-uuid=\"{{ uuid }}\"",
       "found": true
+    },
+    "effectTray": {
+      "where": "dnd5e",
+      "file": "templates/chat/usage-card.hbs",
+      "proof": "<effect-application class=\"dnd5e2\">",
+      "found": true
+    },
+    "activityChoice": {
+      "where": "dnd5e",
+      "file": "templates/activity/activity-choices.hbs",
+      "proof": "<button type=\"button\" data-action=\"choose\" data-activity-id=\"{{ id }}\">",
+      "found": true
+    },
+    "activityChoiceName": {
+      "where": "dnd5e",
+      "file": "templates/activity/activity-choices.hbs",
+      "proof": "<span class=\"name\">{{ name }}</span>",
+      "found": true
     }
   }
 }

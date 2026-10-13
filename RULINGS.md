@@ -520,6 +520,23 @@ card's button reopening it, the elect applying the one effect chosen. No clock. 
 `EFFECT_CHOICES`, the Effect Choices list; `smoke-cast`. Not this family: Bait and Switch's fan
 (the maneuver machine's) and an activity whose effects all stand at once (Bless, the auras).
 
+**Hex is an effect choice, and its move is a move** (2026-10-13, the user: "model more after hunters mark --- Cast
+Hex / Move Hex as the two options ... apply just that ability debuff plus the damage rider debuff ... move needs to
+work and not take a spell slot"). The pack lands all six "Hexed <Ability>" on every cast and move; the row asks the
+ability and lands one, drawn with its own icon and told as the curse (`img`, `says`): that one effect is also
+the mark the rider reads, so the hit's Necrotic and the check's Disadvantage are one effect. **The pick is the
+caster's** (the popup's subject is the card's actor, the first target only for a self cast): a curse on a foe was
+the GM's to answer before. The buttons drop a word every option shares ("Strength", not "Hexed Strength").
+`MARK_USES` (Hex, Hunter's Mark): the system's picker offers the cast and the move as "Cast Hex" / "Move Hex",
+never the rider's own damage activity; the move skips the system's dialog and spends no slot, joins the caster's
+standing Concentration on the spell (its effect hangs on it) and lifts the earlier mark from whoever wore it.
+`hit-riders.js`, `cast.js`. **The higher slot's longer Concentration** (the user: "its only doing 1 hour tho its
+upcast to lvl 3"): `SLOT_DURATIONS` — Hex 4 hours at level 2, 8 at 3–4, 24 at 5+; Hunter's Mark 8 at 3–4, 24 at
+5+ — on the curse and on the caster's Concentration; a move takes the standing Concentration's clock. **The pick is
+the picker's** (the user: "radio buttons and a 'Apply' or something button"): every effect choice is radios in an
+even grid, Apply and Not now, the rule under its tick; the card keeps the pick and the tick, and the system's
+Effects tray (every alternative with an Apply) is gone from it (DESIGN *Cards*).
+
 ## A listed reaction cast freestanding (2026-09-06)
 
 **A reaction on the Interrupts list, cast with no hold waiting on the caster, self-aims like any
@@ -3552,6 +3569,35 @@ Tried on Tenser's Floating Disk first ("that is much better"), then ruled for ev
    `summoner`: the actor dnd5e's `flags.dnd5e.summon.origin` names). **A summoned creature takes its caster's
    disposition** (every summon's text: "an ally to you and your allies"): the packs ship SECRET, which no
    emanation or targeting reads; a light's object keeps the pack's own.
+
+**The warlock pass (2026-10-13, the user on the BTB Test Warlock, Warlock 5, Vestige Patron, Pact of the Chain).**
+
+42. **The Vestige is a companion like the familiar** (the user: "vestige is modeled best after find familiar ...
+   including the pocket dimension"; "vestige has the same ranges as familiar"). Vestige Companion is a `COMPANIONS`
+   row: the effect on the warlock ("Vestige: Undead Vestige Companion"), the menu on a second use (put it away, call
+   it back within 30 ft, dismiss forever, Summon a new form, which takes the old one's place or waits in the pocket),
+   and it first appears within 10 ft (`rangeFt`, a new field: the pack's activity says Self). One at a time
+   (`SUMMON_SINGLES`). It acts on the warlock's turn, so it is seated after the warlock, not on its own Initiative.
+   The pack's profiles are its three forms, each carrying its own Divine Power bonus action (Healing Touch, Fiendish
+   Swap, Cursed Invocation) and Vestige's Strike; dnd5e's own summon bonuses give the warlock-scaled AC, Hit Points,
+   attack and damage (measured: Warlock 5, Charisma +4: AC 17, 24 HP, +7, 1d6 + 7). The Celestial form's pack data
+   has no creature type, no Pact Bond effect and is Medium where the others are Small: vendor bugs, Errata's.
+   Generated art for the three forms (a runed halo round a cracked mask, a burning sigil in smoke, a sigil-etched
+   skull), in the Summon Art window under Vestige Companion.
+43. **Pact of the Chain's forms are a tab of the familiar's menu** (the user: "i would not bundle it with the list of
+   normal familiars, but make it separate (like a tab or something if possible?)"). `SUMMON_EXTRAS`: when a warlock
+   holding Pact of the Chain casts Find Familiar, or uses the feature's own cast (a `SUMMON_AS` row: it is Find
+   Familiar, no slot), the menu has two tabs, Find Familiar's pool and Pact of the Chain's eight forms, one pick
+   across them. An extra form keeps its own creature type (the familiar's Celestial, Fey or Fiend is asked of the
+   pool alone; an Imp lands a Fiend). The feature's Expanded Options activity is never a use of its own: used from
+   the sheet it opens the feature's menu. The picker gained a `tabs` section kind (`gallery.js`). Generated art
+   for seven forms (the Skeleton wears Animate Dead's), in the Summon Art window under Find Familiar. **Every form
+   takes the familiar's Celestial, Fey or Fiend** (the user: "shoudn't pact of chain have fey/fiend/etc too?"): the
+   type question stands under the tabs and answers for the form picked; the tab carries the forms alone, no rule
+   text, each attack line read at the cast.
+44. **A summoned creature turns to face where it moves** (the user: "all summons ... need to turn their facing
+   when icon is moved"): every landing unlocks the token's rotation; a thing (a light's stone, the Floating Disk)
+   keeps its facing.
 
 ## Rests end the short effects (2026-10-12)
 

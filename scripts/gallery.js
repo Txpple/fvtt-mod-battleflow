@@ -100,7 +100,7 @@ export const FORM_ART_KEY = "wild shape";
 function atCast(formula, summon) {
   if ( !summon || !/@flags\.dnd5e\.summon\.(level|mod)\b/.test(String(formula)) ) return formula;
   try {
-    // only the cast's two numbers: the creature's own terms (@mod, @prof) stay as the sheet reads them
+    // only the cast's two numbers: the creature's own @mod is already its number (summaryOf); @prof stays as the sheet reads it
     const filled = String(formula).replace(/@flags\.dnd5e\.summon\.(level|mod)\b/g, (_m, k) => String(Number(summon[k]) || 0));
     const summed = filled.replace(/\(([\d\s+\-*/]+)\)/g, (_m, sum) => String(Roll.safeEval(sum)));
     if ( summed.includes("@") ) return summed;
@@ -133,7 +133,11 @@ function summaryOf(actor) {
     if ( attack ) {
       // ⚠ prepared types are a Set
       // a flat part (no die: a Tiny beast's 1 piercing) reads as its bonus alone, never "1d0 + 1"
-      const dice = p => (Number(p.denomination) > 0) ? `${Number(p.number) || 1}d${p.denomination}${p.bonus ? ` + ${p.bonus}` : ""}` : String(p.bonus || "0");
+      // the creature's own modifier read as its number ("1d4 + @mod" is "1d4 + 2"): the attack's ability, on its own sheet
+      const mod = Number(sys.abilities?.[attack.ability]?.mod);
+      const own = b => Number.isFinite(mod) ? String(b).replace(/@mod\b/g, String(mod)) : String(b);
+      const plus = b => { const t = own(b).trim(); return t.startsWith("-") ? ` - ${t.slice(1).trim()}` : ` + ${t}`; };
+      const dice = p => (Number(p.denomination) > 0) ? `${Number(p.number) || 1}d${p.denomination}${p.bonus ? plus(p.bonus) : ""}` : own(p.bonus || "0");
       const parts = (attack.damage?.parts ?? []).map(p => ({ formula: p.custom?.enabled ? p.custom.formula : dice(p),
         types: p.custom?.enabled ? "" : [...(p.types ?? [])].join("/") }));
       attackParts.push({ name: item.name, parts });
@@ -226,16 +230,20 @@ const poolRow = r => ({ value: r.uuid, label: r.name, img: r.img ?? null, summar
  *   { head?, pool, field, multi?, max?, locked? }  a searchable pool (poolFromPacks rows); `locked` a line: folded, unpickable
  *   `max` (multi only) caps the ticks: a number, or `picks => number` read again on every change; a tick
  *   past it unticks the field's earlier ones, so the newest pick always stands
- *   { head, pills, field }                    pills: { value, label, checked?, locked? }; nothing pre-picked unless a pill says
- *                                             so; a `locked` pill is greyed and cannot be picked
+ *   { head, pills, field, columns? }          pills: { value, label, checked?, locked? }; nothing pre-picked unless a pill says
+ *                                             so; a `locked` pill is greyed and cannot be picked; `columns` lays them out
+ *                                             as an even grid of that many, each the same width
  *   { note }                                  a quiet line
  *   { rule }                                  the book's rule line
+ *   { tabs: [{ label, sections }] }           a strip of tabs, one panel of sections each, the first shown; a field
+ *                                             may run across the panels (one pick from any tab)
  */
 function sectionHTML(sec) {
+  if ( sec.tabs ) return tabsHTML(sec.tabs);
   if ( sec.note ) return `<div style="opacity:0.75;font-size:var(--font-size-11,11px);margin:0.2rem 0;">${esc(sec.note)}</div>`;
   if ( sec.rule ) return ruleLine(sec.rule);
-  if ( sec.pills ) return `${headHTML(sec.head)}<div style="display:flex;flex-wrap:wrap;gap:0.3rem;margin:0.3rem 0;">${sec.pills.map(o =>
-    `<label style="display:inline-flex;align-items:center;gap:0.3rem;padding:0.15rem 0.5rem;border:1px solid var(--color-border-dark,#0006);border-radius:12px;${o.locked ? "opacity:0.45;cursor:not-allowed;" : "cursor:pointer;"}"><input type="radio" name="${esc(sec.field)}" value="${esc(o.value)}" ${(o.checked && !o.locked) ? "checked" : ""} ${o.locked ? "disabled" : ""} style="margin:0;">${esc(o.label)}</label>`).join("")}</div>`;
+  if ( sec.pills ) return `${headHTML(sec.head)}<div style="${sec.columns ? `display:grid;grid-template-columns:repeat(${Number(sec.columns) || 1},1fr);` : "display:flex;flex-wrap:wrap;"}gap:0.3rem;margin:0.3rem 0;">${sec.pills.map(o =>
+    `<label style="display:inline-flex;align-items:center;gap:0.3rem;padding:0.15rem 0.5rem;${sec.columns ? "justify-content:flex-start;" : ""}border:1px solid var(--color-border-dark,#0006);border-radius:12px;${o.locked ? "opacity:0.45;cursor:not-allowed;" : "cursor:pointer;"}"><input type="radio" name="${esc(sec.field)}" value="${esc(o.value)}" ${(o.checked && !o.locked) ? "checked" : ""} ${o.locked ? "disabled" : ""} style="margin:0;">${esc(o.label)}</label>`).join("")}</div>`;
   if ( sec.pool ) {
     const rows = sec.pool.map(r => rowHTML(poolRow({ ...r, locked: r.locked || !!sec.locked }), { field: sec.field, multi: sec.multi }));
     const list = `<input type="search" name="bf-gallery-search" placeholder="Search by name" style="width:100%;margin:0.3rem 0;">
@@ -250,6 +258,19 @@ function sectionHTML(sec) {
   return "";
 }
 
+/** A tab strip and its panels (the `tabs` kind): the first tab shown, the others drawn hidden. */
+function tabsHTML(tabs) {
+  const strip = tabs.map((t, i) => `<button type="button" data-bf-tab="${i}" style="flex:0 0 auto;width:auto;margin:0;padding:0.2rem 0.7rem;border-radius:3px 3px 0 0;line-height:1.4;${tabStyle(i === 0)}">${esc(t.label)}</button>`).join("");
+  const panels = tabs.map((t, i) => `<div data-bf-panel="${i}" style="${i ? "display:none;" : ""}">${(t.sections ?? []).map(sectionHTML).join("")}</div>`).join("");
+  return `<div data-bf-tabs><div style="display:flex;gap:0.25rem;margin:0.4rem 0 0.3rem;border-bottom:1px solid var(--color-border-dark,#0006);">${strip}</div>${panels}</div>`;
+}
+
+/** A tab's look: the open one tinted as a pick is, the others quiet. */
+const tabStyle = open => open ? `background:${PICKED};font-weight:bold;opacity:1;` : "background:transparent;font-weight:normal;opacity:0.7;";
+
+/** The sections a description holds, a `tabs` section's panels opened out. */
+const flatSections = sections => sections.flatMap(s => s.tabs ? s.tabs.flatMap(t => flatSections(t.sections ?? [])) : [s]);
+
 /**
  * The answer read off the form: `one(field)` the picked value or null, `all(field)` every ticked value.
  * @param {HTMLFormElement|null} form
@@ -262,7 +283,15 @@ function readPicks(form) {
 /** The live parts once the dialog stands: the search, the caps on the ticks, the picked row's tint. */
 function wirePicker(root, sections) {
   if ( !root?.querySelectorAll ) return;
-  const capped = sections.filter(s => s.multi && s.field && (s.max !== undefined));
+  const capped = flatSections(sections).filter(s => s.multi && s.field && (s.max !== undefined));
+  // a tab shows its panel and hides its siblings'; the picks stand whichever panel shows
+  for ( const box of root.querySelectorAll("[data-bf-tabs]") ) {
+    for ( const tab of box.querySelectorAll("[data-bf-tab]") ) tab.addEventListener("click", event => {
+      event.preventDefault();
+      for ( const other of box.querySelectorAll("[data-bf-tab]") ) other.setAttribute("style", other.getAttribute("style").replace(/background:[^;]*;font-weight:[^;]*;opacity:[^;]*;/, tabStyle(other === tab)));
+      for ( const panel of box.querySelectorAll("[data-bf-panel]") ) panel.style.display = (panel.dataset.bfPanel === tab.dataset.bfTab) ? "" : "none";
+    });
+  }
   const cap = event => {
     const picks = readPicks(root.querySelector("form") ?? root);
     for ( const s of capped ) {

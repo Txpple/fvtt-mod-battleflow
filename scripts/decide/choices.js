@@ -16,6 +16,17 @@ export function effectChoiceFor(row, effectNames) {
   return (options.length >= 2) ? options : null;
 }
 
+/** The hours a SLOT_DURATIONS row gives a cast at this slot level, or null below its first step.
+ * @param {ReadonlyArray<readonly [number, number]>|null|undefined} steps
+ * @param {number|null|undefined} level
+ * @returns {number|null} */
+export function slotHours(steps, level) {
+  const lv = Number(level) || 0;
+  let hours = null;
+  for ( const [min, h] of steps ?? [] ) if ( lv >= min ) hours = h;
+  return hours;
+}
+
 /** The non-alternatives plus the pick; null while pending — a pick not among the options is pending.
  * @param {string[]} effectNames
  * @param {{options?: string[], chosen?: string|null}|null|undefined} choice

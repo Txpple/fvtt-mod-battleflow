@@ -178,6 +178,31 @@ describe("summonRecord and placedAnswer — the record and the answer folded in"
       )
     ).toBeNull();
   });
+  it("a familiar's type is asked of every form it lands, Pact of the Chain's Imp too", () => {
+    const r = {
+      ...record(),
+      itemName: "Find Familiar",
+      choice: null,
+      mode: "cr",
+      creatureTypes: ["celestial", "fey", "fiend"],
+      profiles: [{ id: "cr0", name: "CR 0 Beast", uuid: null, count: "1", cr: "0", types: [] }]
+    };
+    const imp = { uuid: "Compendium.phb.actors.Actor.imp", name: "Imp" };
+    expect(
+      s.placedAnswer(
+        r,
+        { profileId: "cr0", pick: imp, placements: place, count: 1 },
+        reg.SUMMON_CHOICES
+      )
+    ).toBeNull();
+    expect(
+      s.placedAnswer(
+        r,
+        { profileId: "cr0", pick: imp, creatureType: "fey", placements: place, count: 1 },
+        reg.SUMMON_CHOICES
+      )
+    ).toMatchObject({ summonUuid: imp.uuid, summonName: "Imp", creatureType: "fey" });
+  });
   it("several profiles need the one picked, and it must be one of the record's; a pool profile needs the pick", () => {
     const r = { ...record(), choice: null, profiles: s.profileRows(fey, 3) };
     expect(

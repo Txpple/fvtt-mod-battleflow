@@ -10,7 +10,7 @@
 import { MODULE_ID, S, TITLE, setting } from "./core.js";
 import { artTag, esc } from "./decide/present.js";
 import { ART_SPELLS, artKey, cleanTable, fillBlanks, matchFiles } from "./decide/summon-art.js";
-import { SUMMON_GUISES, SUMMON_ONE_FORM } from "./decide/registry.js";
+import { SUMMON_EXTRAS, SUMMON_GUISES, SUMMON_ONE_FORM } from "./decide/registry.js";
 import { guisesOf, poolPicks } from "./decide/summons.js";
 import { FORM_ART_KEY, describeCreature, listRowHTML, poolFromPacks, poolRuleOf } from "./gallery.js";
 import { crLabel } from "./decide/gallery.js";
@@ -53,6 +53,17 @@ async function creaturesOf(spell) {
       if ( poolPicks(profile, mode) ) for ( const r of await poolFromPacks(poolRuleOf(profile)) ) add(r.name, r.img, r.summary);
       else if ( profile.uuid ) {
         const d = await describeCreature(profile.uuid, { label: profile.name || "" });
+        add(d.label, d.img, d.summary);
+      }
+    }
+    // the forms a feature adds to the spell (SUMMON_EXTRAS: Pact of the Chain's), keyed under the spell as they land
+    for ( const extra of Object.values(SUMMON_EXTRAS).filter(x => artKey(x.spell) === artKey(spell.name)) ) {
+      const feature = await fromUuid(extra.rule.uuid).catch(() => null);
+      const source = [...(feature?.system?.activities ?? [])].find(a => artKey(a.name) === artKey(extra.activity)) ?? null;
+      for ( const raw of source?.profiles ?? [] ) {
+        const p = raw.toObject?.() ?? raw;
+        if ( !p.uuid ) continue;
+        const d = await describeCreature(p.uuid, { label: p.name || "" });
         add(d.label, d.img, d.summary);
       }
     }

@@ -3,13 +3,14 @@
  * damage roll, on the attacker's client, instead of a separate damage press after every hit.
  */
 import { TITLE } from "./core.js";
-import { resolveUuid } from "./lookup.js";
-import { riderEntries, riderUpgradeEntries } from "./decide/registry.js";
+import { lower, resolveUuid } from "./lookup.js";
+import { MARK_USES, riderEntries, riderUpgradeEntries } from "./decide/registry.js";
 import { riderKey } from "./decide/eligible.js";
 import { effectSourceOf, hitTargets } from "./shared.js";
 import { bfCard } from "./decide/present.js";
 import { CARD, isCard, originIdInData } from "./decide/card.js";
 import { listen } from "./dispatch.js";
+import { SURFACES } from "./surfaces.js";
 
 // The mark's owner is found by origin alone: mark → its source ITEM → that item's ACTOR (two rangers can
 // mark one creature). ⚠ Crit doubling is free: `preRollDamage` fires before `options.isCritical` is
@@ -26,11 +27,13 @@ function riderUpgrade(identifier, attacker) {
   return null;
 }
 
+/** A mark's own damage activity: a damage with no activation (it rides the hit, it is never used). */
+const isRiderDamage = a => (a?.type === "damage") && !!a.activation?.override && !a.activation?.type;
+
 /** A mark source's damage parts, read off its no-activation damage activity — never transcribed. */
 function riderParts(item) {
   const activities = item.system?.activities ?? [];
-  const bonus = [...activities].find(a =>
-    (a.type === "damage") && a.activation?.override && !a.activation?.type);
+  const bonus = [...activities].find(isRiderDamage);
   return (bonus?.damage?.parts ?? []).map(p => ({
     formula: p.custom?.enabled ? p.custom.formula : `${p.number ?? 1}d${p.denomination}`,
     type: Array.from(p.types ?? [])[0] ?? null
@@ -114,3 +117,35 @@ listen("dnd5e.preRollDamage", "hit-riders", (config, _dialog, message) => {
   }
 });
 
+
+/* --- a mark spell's uses (MARK_USES): the picker offers the cast and the move, the move asks nothing ------ */
+
+/** The MARK_USES row of an item, by identifier, or null. */
+const markUsesOf = item => MARK_USES[item?.system?.identifier ?? ""] ?? null;
+
+// The system's picker lists the rider's damage activity beside the cast and the move: it rides the hit, so it
+// is not offered; the two that are read "Cast Hex" and "Move Hex".
+listen("renderActivityChoiceDialog", "hit-riders", (app, element) => {
+  try {
+    const item = app?.item;
+    const uses = markUsesOf(item);
+    if ( !uses || !element?.querySelectorAll ) return;
+    for ( const button of element.querySelectorAll(SURFACES.activityChoice) ) {
+      const activity = item.system.activities.get(button.dataset.activityId);
+      if ( !activity ) continue;
+      if ( isRiderDamage(activity) ) { (button.closest("li") ?? button).remove(); continue; }
+      const label = (lower(activity.name) === lower(uses.cast)) ? uses.castLabel : (lower(activity.name) === lower(uses.move)) ? uses.moveLabel : null;
+      const name = label ? button.querySelector(SURFACES.activityChoiceName) : null;
+      if ( name ) name.textContent = label;
+    }
+  } catch(err) { console.warn(`${TITLE} | Could not label the mark's uses — pick from the system's list.`, err); }
+});
+
+// The move spends no slot and begins no Concentration: the system's dialog (a slot select, nothing to answer) is skipped.
+listen("dnd5e.preUseActivity", "hit-riders", (activity, usageConfig, dialogConfig) => {
+  const uses = markUsesOf(activity?.item);
+  if ( !uses || (lower(activity.name) !== lower(uses.move)) ) return;
+  usageConfig.consume ??= {};
+  usageConfig.consume.spellSlot = false;
+  if ( dialogConfig ) dialogConfig.configure = false;
+});

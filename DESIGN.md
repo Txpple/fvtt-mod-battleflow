@@ -206,6 +206,30 @@ Every automated application stamps what it did — prior values, deltas, created
 the causing message, and offers a revert. Every invisible state change gets a table-facing line.
 An icon vanishing must never be a mystery; a wrong-target hit must never need surgery.
 
+### Cards — what happened, then the rule tick (2026-10-13)
+
+**A card or a popup says what happened in one line, and the book's text sits under the rule tick, closed.**
+The shape, every time: the eyebrow (the machine and the feature), the title (the moment: the pick, the
+hit, the push), at most one line of what the table needs (who, how much, what is left), the controls,
+then the tick, "the rule ▸", folding the feature's own paragraph. Nothing of the book's above the tick,
+beside it or below it; no spell description repeated; a prerequisite line, a "Repeatable." note or a
+Foundry note is not the rule and is not shown. A pick is radios and one button (Apply, Place), with Not
+now beside it, laid out evenly: never a wall of buttons.
+
+- **Where it lives:** `decide/present.js` `ruleLine` IS the tick (and `foldedRuleHTML`, the same for a
+  grid row); the open quote is that file's own (`ruleQuote`), drawn only inside the fold and by the
+  rescue pane, whose one job is the quote. `rule-text.js` reads the paragraph a row names, else the
+  text's first paragraph of rule.
+- **The gate:** `tools/check-rule-folds.mjs` in `npm run verify`: the rule's markup outside
+  present.js, a hand-written tick, the open quote anywhere else, or a book text enriched outside
+  rule-text.js fails the build. An exception names itself (`// rule-fold: <why>`).
+- **Why it is a rule:** the user's words, three passes running: too much text, "not following the
+  standard card protocol". Before the gate, 94 call sites drew a rule open and a hold popup printed the
+  reaction's whole text; each new card copied the one beside it.
+- **The system's own card** is the system's: a tray the module replaced (an effect choice's Effects
+  tray, every alternative with an Apply) is removed on the cards the module drives. The system's
+  description fold follows the table's own setting (dnd5e's *Collapse Item Cards in Chat*).
+
 ---
 
 ## 6. The feature rulings

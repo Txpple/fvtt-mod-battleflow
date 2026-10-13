@@ -81,9 +81,13 @@ describe("bfCard — the house card", () => {
   });
 });
 
-describe("ruleLine — the verbatim quote's dress", () => {
-  it("wraps the caller's words in curly quotes and italics, and adds nothing else", () => {
-    expect(p.ruleLine("You can use your reaction")).toBe("<em>“You can use your reaction”</em>");
+describe("ruleLine — the rule tick (DESIGN *Cards*)", () => {
+  it("is a CLOSED fold under its tick, the caller's words quoted inside it — never text drawn open", () => {
+    const html = p.ruleLine("You can use your reaction");
+    expect(html.startsWith("<details data-bf-rule-fold")).toBe(true);
+    expect(html).not.toContain("<details data-bf-rule-fold open");
+    expect(html).toContain("the rule ▸");
+    expect(html).toContain("<em>“You can use your reaction”</em></details>");
   });
 });
 
@@ -756,7 +760,7 @@ describe("sneakBoxHTML — the choice beside the roll (user rulings 2026-09-02)"
     expect(html).not.toContain("once per turn</div>");
     expect(html).toContain("<details data-bf-rule");
     expect(html).not.toContain("<details data-bf-rule open");
-    expect(html).toContain(p.ruleLine(view.rule));
+    expect(html).toContain("<em>“Once per turn, you can deal an extra 1d6 damage”</em></details>");
   });
   it("used this turn: no tick, the reason on its own full-width line", () => {
     const html = p.sneakBoxHTML({
@@ -836,17 +840,18 @@ describe("modeTagHTML — the save gate's fourth answer", () => {
 });
 
 describe("the rule from the book — a pointer in the markup", () => {
-  it("ruleLine carries a pointer for rule-text.js to fill, and quotes a string", async () => {
+  it("ruleLine folds a pointer for rule-text.js to fill, and quotes a string", async () => {
     const p = await import("../scripts/decide/present.js");
     const html = p.ruleLine({
       item: "Mage Slayer",
       uuid: "Compendium.x.y.Item.z",
       benefit: "Guarded Mind"
     });
+    expect(html).toContain("<details data-bf-rule-fold");
     expect(html).toContain('data-bf-rule="');
     expect(html).toContain("&quot;benefit&quot;:&quot;Guarded Mind&quot;");
     expect(html).not.toContain("“");
-    expect(p.ruleLine("Written before pointers.")).toBe("<em>“Written before pointers.”</em>");
+    expect(p.ruleLine("Written before pointers.")).toContain("<em>“Written before pointers.”</em>");
     expect(p.ruleLine(null)).toBe("");
   });
 

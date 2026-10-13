@@ -2,7 +2,8 @@
  * By the Books — SPINE (ARCHITECTURE.md §7): the rule text, read from the book (RULINGS *The rule fold
  * reads the book*). A row points at its content — `{ item, uuid?, benefit? }`, or `{ page, key,
  * benefit? }` for dnd5e's rules pages (`page` "condition" | "mastery" | "rule") — and this reads that content,
- * enriched: the paragraph whose bold lead is the row's `benefit`, else the whole text. Nothing here
+ * enriched: the paragraph whose bold lead is the row's `benefit`, else the text's first paragraph of rule (a
+ * prerequisite line, a "Repeatable." note and a Foundry note are not the rule). Nothing here
  * is copied from a book; a text the packs do not carry is no text.
  * The markup (decide/present.js `ruleLine`, `foldedRuleHTML`) carries the pointer; one observer fills
  * every pointer that reaches the page, on cards, popups and sheets alike.
@@ -81,9 +82,20 @@ async function readText(ref) {
       return !!lead && ((lead === want) || lead.startsWith(`${want} (`));
     });
     if ( paragraph ) return paragraph.outerHTML;
-    console.warn(`${TITLE} | "${ref.benefit}" is no paragraph of ${doc.name}; the fold shows the whole text.`);
+    console.warn(`${TITLE} | "${ref.benefit}" is no paragraph of ${doc.name}; the fold shows its first paragraph.`);
   }
-  return box.innerHTML.trim() || null;
+  const first = [...box.querySelectorAll("p")].find(isRule);
+  return first ? first.outerHTML : (box.innerHTML.trim() || null);
+}
+
+/** Leads that open no rule: a prerequisite line, the "Repeatable." note, the pack's own Foundry note. */
+const NOT_RULE = /^(prerequisites?\b|repeatable\b|foundry note\b)/i;
+
+/** A paragraph that states the rule: some text, not a prerequisite line or a note, not inside an aside. */
+function isRule(p) {
+  const text = p.textContent.replace(/\s+/g, " ").trim();
+  if ( text.length < 2 || NOT_RULE.test(text) ) return false;
+  return !p.closest("aside, .fvtt.advice, .notable, blockquote");
 }
 
 /**
