@@ -43,6 +43,12 @@ describe("foldRise - a d20 fold whose number changed", () => {
       { was: "3", label: "17", up: true }
     ]);
   });
+  it("a stored face (Portent): the face itself, then the d20 turning over to it", () => {
+    expect(foldRise({ mode: "set", oldFace: 14, newFace: 3, on: "Actor.r" }).chips).toEqual([
+      { label: "3", up: true },
+      { was: "14", label: "3", up: true }
+    ]);
+  });
   it("Lucky's second d20: the higher gold, the other struck; a tie keeps the first", () => {
     expect(foldRise({ mode: "advantage", oldFace: 6, newFace: 15, on: "Actor.r" }).chips).toEqual([
       { label: "6", drop: true },
@@ -130,6 +136,29 @@ describe("a reaction that modifies a roll - the reductions, Shield, a fold's die
       drift: { to: "Actor.ally", label: "−10" }
     });
     expect(reductionRise({ roll: d10(5, 2), from: "Actor.me" }).drift.to).toBe("Actor.me");
+    // The share known: a landing over the protected, the modifier beside 5 turning into 2.
+    const cut = reductionRise({
+      roll: { total: 3, terms: [] },
+      from: "Actor.bard",
+      to: "Actor.ally",
+      amount: 5
+    });
+    expect(cut.land).toEqual({
+      on: "Actor.ally",
+      chips: [
+        { label: "−3", flat: true },
+        { label: "2", was: "5", up: true }
+      ]
+    });
+    expect(
+      reductionRise({
+        roll: { total: 7, terms: [] },
+        from: "Actor.bard",
+        to: "Actor.ally",
+        amount: 5
+      }).land.chips[1]
+    ).toEqual({ label: "0", was: "5", up: true });
+    expect(reductionRise({ roll: d10(5, 2), from: "Actor.me" }).land).toBeUndefined();
     expect(reductionRise({ roll: { total: 0, terms: [] }, from: "Actor.me" })).toBeNull();
   });
   it("Shield: +5 AC; a bonus the sheet cannot state draws nothing", async () => {

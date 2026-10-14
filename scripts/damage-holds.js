@@ -290,6 +290,9 @@ function foldAnswer(current, { answer, reduceBy = 0, poolSpend = null, who = nul
   Object.assign(current, { status: "resolved", answer, reduceBy: Number(reduceBy) || 0, poolSpend, answeredAt: Date.now() });
 }
 
+/** What lands after the reduction, " — 5 → 2"; nothing when the share is unknown. */
+const landedLine = (amount, by) => Number.isFinite(Number(amount)) ? ` — ${Number(amount)} → ${Math.max(0, Number(amount) - (Number(by) || 0))}` : "";
+
 /** Cast: the roll in the open, the use and the Reaction spent HERE (their dice), the number folded or relayed. */
 async function answerHold(message, answer, who = null) {
   if ( answering.has(message.id) ) return;
@@ -317,7 +320,7 @@ async function answerHold(message, answer, who = null) {
         // half's receipts (hold/answer.js `bystanderReaction`), the number folded here.
         try {
           const roll = await new Roll(String(mine.formula)).evaluate();
-          const rise = reductionRise({ roll: roll.toJSON(), from: actor.uuid, to: flag.target?.uuid ?? null });
+          const rise = reductionRise({ roll: roll.toJSON(), from: actor.uuid, to: flag.target?.uuid ?? null, amount: flag.amount });
           await roll.toMessage({ speaker: ChatMessage.getSpeaker({ actor }), flavor: `${key} — off ${flag.target?.name ?? "the"}'s damage`,
             ...(rise ? { flags: { [MODULE_ID]: { diceRise: rise } } } : {}) });
           reduceBy = Math.max(0, Number(roll.total) || 0);
@@ -348,7 +351,7 @@ async function answerHold(message, answer, who = null) {
         try {
           const roll = await new Roll(Roll.replaceFormulaData(String(mine.formula), actor.getRollData())).evaluate();
           // A reaction that modifies a roll: the dice rise off the reducer toward the protected.
-          const rise = reductionRise({ roll: roll.toJSON(), from: actor.uuid, to: flag.target?.uuid ?? null });
+          const rise = reductionRise({ roll: roll.toJSON(), from: actor.uuid, to: flag.target?.uuid ?? null, amount: flag.amount });
           await roll.toMessage({ speaker: ChatMessage.getSpeaker({ actor }), flavor: `${flag.label ?? flag.reaction} — the die, plus the modifier`,
             ...(rise ? { flags: { [MODULE_ID]: { diceRise: rise } } } : {}) });
           reduceBy = Math.max(0, Number(roll.total) || 0);
@@ -368,7 +371,7 @@ async function answerHold(message, answer, who = null) {
       speaker: ChatMessage.getSpeaker({ actor }),
       content: bfCard({ img: actor?.items.get(mine.itemId)?.img ?? null, eyebrow: `Reaction — ${flag.label ?? flag.reaction}`,
         tone: (answer === "cast") ? "good" : "neutral",
-        title: (answer === "cast") ? `${flag.label ?? flag.reaction} — ${name} reduces the damage${guard ? ` to ${flag.target?.name}` : ""} by ${reduceBy}`
+        title: (answer === "cast") ? `${flag.label ?? flag.reaction} — ${name} reduces the damage${guard ? ` to ${flag.target?.name}` : ""} by ${reduceBy}${landedLine(flag.amount, reduceBy)}`
           : guard ? `${name} lets it land` : `${name} takes it` }),
       flags: { [MODULE_ID]: { damageHoldAnswer: { messageId: message.id, answer, reduceBy, poolSpend, ...(who ? { who } : {}) } } }
     });
@@ -521,7 +524,7 @@ async function showPopup(message) {
 function holdLine(flag) {
   const guarded = !!flag.guards?.length;
   const to = guarded ? ` to ${flag.target?.name}` : "";
-  if ( flag.answer === "cast" ) return `${flag.label ?? flag.reaction} — ${flag.actorName} reduces the damage${to} by ${flag.reduceBy}`;
+  if ( flag.answer === "cast" ) return `${flag.label ?? flag.reaction} — ${flag.actorName} reduces the damage${to} by ${flag.reduceBy}${landedLine(flag.amount, flag.reduceBy)}`;
   if ( flag.answer === "pass" ) return `${guarded ? flag.target?.name : flag.actorName} takes the damage${flag.timedOut ? " (timer)" : ""}`;
   if ( guarded ) return `${flag.guards.filter(g => !g.passed).map(g => `${g.reaction ?? flag.label ?? flag.reaction} (${g.actorName})`).join(" or ")} may reduce ${flag.amount} damage${to}; it waits for the answer`;
   return `${flag.label ?? flag.reaction} — ${flag.actorName} may reduce ${flag.amount} damage; it waits for the answer`;

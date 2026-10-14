@@ -151,6 +151,8 @@ listen("createChatMessage", "dice-rise", message => {
     const from = tokenForUuid(rise.on);
     riseDice(from, rise.chips ?? []);
     if ( rise.drift?.label ) setTimeout(() => driftChip(from, tokenForUuid(rise.drift.to ?? rise.on), rise.drift.label), 900);
+    // The landing: the drift starts at 900 and arrives 900 later; the share turns over where it lands.
+    if ( rise.land?.chips?.length ) setTimeout(() => riseDice(tokenForUuid(rise.land.on ?? rise.on), rise.land.chips), 1900);
   } catch(err) {
     console.warn(`${TITLE} | the dice could not draw.`, err);
   }

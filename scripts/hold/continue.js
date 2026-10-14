@@ -15,6 +15,9 @@ import { damageAfterHold } from "../auto-damage.js";
 import { joinEffectReceipt } from "../decide/receipt.js";
 import { bfCard, popupKey, spendPhrase, esc } from "../decide/present.js";
 import { flashBend, livePopups, waitForWrite } from "../ui.js";
+import { foldRise } from "../decide/dice-chips.js";
+import { riseDice } from "../dice-rise.js";
+import { tokenForUuid } from "../geometry.js";
 import { reactionItem, hasReactionEffect, applyReactionEffect, reactionACArrived, reactionImg, duplicatesOf, attackFactsOf, recoilKey } from "./lookup.js";
 import { duplicateOutcome, duplicateWords } from "../decide/duplicates.js";
 import { disarmHoldTimer } from "./clock.js";
@@ -34,15 +37,17 @@ listen("updateChatMessage", "hold/continue", message => {
   void continueHold(message);
 });
 
-/** A stored face that replaced the attacker's d20 (Portent, `bent.how === "set"`): the banner, once per target, every screen. */
+/** A stored face that replaced the attacker's d20 (Portent, `bent.how === "set"`): the banner, once per target, every
+ * screen, and over the attacker the face, then the d20 turning over to it (dice-rise.js). */
 function flashSetBends(message, hold) {
   for ( const target of (hold.targets ?? []) ) {
     const b = target.bent;
     if ( (b?.how !== "set") || !target.guardedBy ) continue;
-    const attacker = message.getAssociatedActor?.()?.name ?? "The attacker";
-    flashBend(`${message.id}|${target.uuid}`, { key: target.rescue ?? target.reaction ?? "Portent", by: target.guardedBy.name ?? "The diviner",
-      roller: attacker, test: `attack at ${target.name}`, first: b.first, stood: b.stood, firstTotal: b.firstTotal, total: b.total,
+    const roller = message.getAssociatedActor?.() ?? null;
+    const drawn = flashBend(`${message.id}|${target.uuid}`, { key: target.rescue ?? target.reaction ?? "Portent", by: target.guardedBy.name ?? "The diviner",
+      roller: roller?.name ?? "The attacker", test: `attack at ${target.name}`, first: b.first, stood: b.stood, firstTotal: b.firstTotal, total: b.total,
       verdict: target.verdict ? String(target.verdict).toUpperCase() : null });
+    if ( drawn && roller?.uuid ) riseDice(tokenForUuid(roller.uuid), foldRise({ mode: "set", oldFace: b.first, newFace: b.stood, on: roller.uuid })?.chips ?? []);
   }
 }
 

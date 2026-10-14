@@ -16,6 +16,7 @@ import { nearestFeet, tokenForUuid } from "./geometry.js";
 import { poolOf, poolUsesOf, reactionSpent, spendReaction, spendPoolUses, bystanderMuted, muteBystander, muteScopesFor, STORED_FLAG, spendStoredFace, storedChipOf, storedFacesUsable, withTargets } from "./shared.js";
 import { facesThatTurn, setOutcome } from "./decide/stored-dice.js";
 import { foldRise } from "./decide/dice-chips.js";
+import { riseDice } from "./dice-rise.js";
 import { armAskTimer, cardRow, flashBend, livePopups, openMomentPopup, registerRelay, registerWithhold, resumeWithheld, shownMoments } from "./ui.js";
 import { listen } from "./dispatch.js";
 
@@ -365,12 +366,14 @@ listen("updateChatMessage", "bystanders", message => {
   const flag = readFlag(message, KEY);
   if ( !flag ) return;
   closeAnswered(message, flag);
-  // A stored face that replaced the d20 (Portent): the banner on every screen, once (ui.js `flashBend`).
+  // A stored face that replaced the d20 (Portent): the banner on every screen, once (ui.js `flashBend`), and over
+  // the roller the face, then the d20 turning over to it (dice-rise.js).
   if ( (flag.answer === "roll") && (flag.bent?.how === "set") ) {
     const b = flag.bent;
     const verdict = Number.isFinite(flag.dc) ? ((Number(b.total) >= Number(flag.dc)) ? "SUCCESS" : "FAILURE") : null;
-    flashBend(message.id, { key: flag.rescue ?? "Portent", by: flag.byName ?? "The diviner", roller: flag.rollerName ?? "The roller",
+    const drawn = flashBend(message.id, { key: flag.rescue ?? "Portent", by: flag.byName ?? "The diviner", roller: flag.rollerName ?? "The roller",
       test: TEST_WORD[flag.testKind] ?? "roll", first: b.first, stood: b.stood, firstTotal: b.firstTotal, total: b.total, verdict });
+    if ( drawn && flag.rollerUuid ) riseDice(tokenForUuid(flag.rollerUuid), foldRise({ mode: "set", oldFace: b.first, newFace: b.stood, on: flag.rollerUuid })?.chips ?? []);
   }
   if ( (flag.status !== "resolved") || !flag.resume || flag.resumed || !keepsMessage(message) ) return;
   if ( resuming.has(message.id) ) return;

@@ -249,13 +249,15 @@ listenOnce("init", "ui", () => {
  * THE BEND BANNER (RULINGS *The asks widened*): when a stored face replaces ANOTHER creature's d20
  * (Portent on a bystander's attack, save or check), every screen flashes it — "⟨diviner⟩'s Portent bends reality!",
  * the roll before and after, the verdict. A view of the resolved flag, drawn once per client (`flashedBends`); the
- * resource flash's seat and fade (resources.js), stacked under any banner already up.
+ * resource flash's seat and fade (resources.js), stacked under any banner already up. True when it drew (the
+ * caller raises the dice beside it), false when this client had flashed it already.
  * @param {{key: string, by: string, roller: string, test: string, first: number, stood: number, firstTotal: number,
  *   total: number, verdict: string|null}} bend
+ * @returns {boolean}
  */
 const flashedBends = new Set();
 export function flashBend(id, { key, by, roller, test, first, stood, firstTotal, total, verdict }) {
-  if ( flashedBends.has(id) ) return;
+  if ( flashedBends.has(id) ) return false;
   flashedBends.add(id);
   const stack = document.querySelectorAll(".bf-resource-banner, .bf-bend-banner").length;
   const banner = document.createElement("div");
@@ -272,6 +274,7 @@ export function flashBend(id, { key, by, roller, test, first, stood, firstTotal,
   document.body.appendChild(banner);
   setTimeout(() => (banner.style.opacity = "0"), 5000);
   setTimeout(() => banner.remove(), 6200);
+  return true;
 }
 
 export function momentButton(label, onClick, style = {}) {
