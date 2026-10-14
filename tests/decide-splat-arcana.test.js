@@ -367,6 +367,29 @@ describe("the bestiary and the bends", () => {
       expect(reg.EFFECT_KEYS, key).toContain(key);
     }
   });
+  it("Familiar Friend (2026-10-14): Helpful Friend a buy on a proficient skill with the familiar within 5 ft; Fortified Familiar a summon boon off the feat's own change", () => {
+    const buy = reg.ADVANTAGE_BUYS["Familiar Friend"];
+    expect(buy).toMatchObject({
+      uses: true,
+      point: "use",
+      activity: "Helpful Friend",
+      tests: ["check"],
+      skills: "proficient",
+      near: { companion: "Find Familiar", feet: 5 }
+    });
+    expectPointer(buy.rule);
+    expect(buy.rule.uuid).toMatch(ARCANA);
+    expect(reg.COMPANIONS[buy.near.companion]).toBeTruthy();
+    const boon = reg.SUMMON_BOONS["Familiar Friend"];
+    expect(boon).toMatchObject({
+      spell: "Find Familiar",
+      change: "activities[summon].bonuses.hp",
+      lands: "hp"
+    });
+    expectPointer(boon.rule);
+    expect(boon.rule.uuid).toMatch(ARCANA);
+    expect(reg.COMPANIONS[boon.spell]).toBeTruthy();
+  });
   it("every Arcana row's pointer names the book; no new kind — the tripwire stands", () => {
     let pointers = 0;
     for (const table of Object.values(reg)) {

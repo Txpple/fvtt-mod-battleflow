@@ -598,6 +598,17 @@ The 6.0.5 → 6.0.6 diff is 16 files, no pack changed, read file by file:
 - **The battery:** 49/49 suites, 2019/2019 checks, settings clean, hook coverage 65/65 names
   (411/411 registrations), 89m 38s, on the local sandbox (Foundry 14.368, dnd5e 6.0.6).
 
+### A transferred enchantment change keyed to an activity is inert on the actor (2026-10-14, Familiar Friend)
+
+Arcana Unleashed's Familiar Friend carries "Fortified Familiar" as an `enchantment` effect, `transfer: true`, one change
+`activities[summon].bonuses.hp = 2 * @details.level`. dnd5e routes an `activities[...]` or `system.activities.` change to
+`ActiveEffect5e#applyActivity` only when the model being prepared is an **Item** (`active-effect.mjs` `applyChange`), and an
+item applies only its OWN effects (`item.mjs` `allApplicableEffects`: `effect.applicableType === "Item"`). A transferred
+copy lands on the actor, where the key names nothing, so the spell's summon activity keeps `bonuses.hp: ""` and a landed
+familiar gets no Hit Points. The pack's intent is read by By the Books instead: `SUMMON_BOONS` names the change and the elect
+lands it at the landing (RULINGS *Summons*, call 46); the vendor bug is an Errata issue. The same shape will mislead
+wherever a feat tries to reach a spell's activity through a transferred effect.
+
 ### "Creatures of your choice" in an area: the pack flags half of them (2026-09-24, a play session's Slow)
 
 dnd5e models a caster's choice inside an area as `target.affects.choice`. Read off the 2024 PHB

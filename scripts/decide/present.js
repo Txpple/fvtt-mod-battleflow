@@ -212,12 +212,14 @@ export function sneakBoxHTML({ dice, rule, checked = false, used = null }) {
 
 /**
  * THE BUY BOX: the Sneak Attack box's shape for Advantage bought with an item's use
- * (`ADVANTAGE_BUYS`). No uses left: greyed, no tick.
- * @param {{name: string, point: string|null, left: number|null, rule: object|string|null, checked?: boolean, free?: boolean, says?: string}} view
+ * (`ADVANTAGE_BUYS`). No uses left, or `off` (why it cannot be ticked): greyed, no tick.
+ * @param {{name: string, point: string|null, left: number|null, rule: object|string|null, checked?: boolean, free?: boolean, says?: string, off?: string|null}} view
  */
-export function buyBoxHTML({ name, point, left, rule, checked = false, free = false, says = "" }) {
+export function buyBoxHTML({ name, point, left, rule, checked = false, free = false, says = "", off = null }) {
   // C1 — a FREE box (Versatile Trickster): no counter, nothing spent; `says` names the judgement that is the table's.
-  const out = !free && !(Number(left) > 0);
+  // `off` is why the box cannot be ticked (decide/reminders.js `buyOff`): an empty pool, or a companion out of reach.
+  const out = !!off || (!free && !(Number(left) > 0));
+  const why = off ?? `no ${point}s left`;
   const control = out ? "" : `<label style="display:flex;align-items:center;gap:0.4rem;white-space:nowrap;cursor:pointer;">
         <input type="checkbox" name="bf-buy" data-bf-buy-name="${attr(name)}" ${free ? "data-bf-free" : ""} ${checked ? "checked" : ""} style="margin:0;"> <span>Advantage</span></label>`;
   return `
@@ -227,7 +229,7 @@ export function buyBoxHTML({ name, point, left, rule, checked = false, free = fa
                   border-left:3px solid ${out ? TONE.neutral : TONE.pending};">
         <div style="font-weight:bold;">${attr(name)} — ${free ? `free${says ? ` · ${attr(says)}` : ""}` : `1 ${attr(point)} · ${Math.max(0, Number(left) || 0)} left`}</div>
         ${control}
-        ${out ? `<div style="grid-column:1 / -1;font-size:var(--font-size-11,11px);line-height:1.45;opacity:0.85;">no ${attr(point)}s left</div>` : ""}
+        ${out ? `<div style="grid-column:1 / -1;font-size:var(--font-size-11,11px);line-height:1.45;opacity:0.85;">${attr(why)}</div>` : ""}
         ${foldedRuleHTML(rule)}
       </div>`;
 }

@@ -1,6 +1,6 @@
 # Arcana Unleashed — the register
 
-> Generated 2026-10-02 by `tools/audit-splat-register.mjs arcana` from the OFFLINE corpus (`tools/scan-corpus-offline.mjs`, every pack of
+> Generated 2026-10-14 by `tools/audit-splat-register.mjs arcana` from the OFFLINE corpus (`tools/scan-corpus-offline.mjs`, every pack of
 > `dnd-arcana-unleashed`, 257 rows) joined with `scripts/decide/registry.js`, RULINGS' walk tables and bend registers, and the
 > drawing's hand verdicts ([drawings/splat-arcana.md](drawings/splat-arcana.md) *Register verdicts*). Never edited by hand: change the drawing or the code and re-run.
 >
@@ -11,7 +11,7 @@
 > mechanism; OUT — held out by a ruling, the reason in *Why not*. **Kind**: species · subclass (its feature, the subclass named) · option
 > (nothing grants it) · feat · spell · item · gift · monster (the bestiary's traits, actions and reactions, one row per name).
 
-**257 rows (46 subclasss · 15 options · 29 feats · 33 spells · 69 items · 65 monsters): 73 NATIVE · 38 MODULE · 0 ROW · 0 TABLE · 0 KIND · 97 TEXT · 26 OUT · 23 WAITS.**
+**257 rows (46 subclasss · 15 options · 29 feats · 33 spells · 69 items · 65 monsters): 73 NATIVE · 39 MODULE · 0 ROW · 0 TABLE · 0 KIND · 96 TEXT · 26 OUT · 23 WAITS.**
 
 | Kind | Row | Where | Families | In scope | Why not / how | Rule of cool / bend | Walked |
 | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -84,7 +84,7 @@
 | feat | **Arcane Safeguard** |  | temp-hp | TEXT | the Help action's Temporary Hit Points are the table's | — | — |
 | feat | **Arcane Undertaker** |  | — | NATIVE | the pack's effect and uses | — | — |
 | feat | **Arcane Warrior** |  | — | TEXT | no mechanism to play — the pack ships a paragraph | — | — |
-| feat | **Familiar Friend** |  | aura | TEXT | Helpful Friend is the Help action | — | — |
+| feat | **Familiar Friend** |  | aura | MODULE | `ADVANTAGE_BUYS`; `SUMMON_BOONS` — Helpful Friend `ADVANTAGE_BUYS` (`skills: "proficient"`, `near` the familiar within 5 ft); Fortified Familiar `SUMMON_BOONS` (the feat's own change, landed by the elect); Faithful Companion the pack's forward with its cause kept (RULINGS *Summons*, calls 45–47, 2026-10-14) | — | — |
 | feat | **Portal Jumper** |  | clock, resist | TEXT | a teleport paid in movement | — | — |
 | feat | **Transmuted Anatomy** |  | bend-save, reaction, movement | MODULE | `INTERRUPT_ROLLS` (hold/; RULINGS *The reaction hold*); `INTERRUPTS` (hold/; RULINGS *The reaction hold*) | — | — |
 | feat | **Boon of Erupting Spellpower** | level 19 | — | OUT | an epic boon — BACKLOG *The epic boons — every book's*; cast-triggered besides | — | — |

@@ -701,3 +701,113 @@ describe("guises — Spiritual Weapon's weapon (2026-10-13)", () => {
     });
   });
 });
+
+describe("the boons — a feature on the caster the pack could not land (SUMMON_BOONS, Familiar Friend)", () => {
+  const effects = [
+    {
+      disabled: false,
+      changes: [{ key: "activities[summon].bonuses.hp", value: "2 * @details.level" }]
+    }
+  ];
+  it("the formula is the feature's own enchantment change, read by its key; a disabled effect or another key gives none", () => {
+    expect(s.boonFormula(effects, "activities[summon].bonuses.hp")).toBe("2 * @details.level");
+    expect(s.boonFormula(effects, "activities[summon].bonuses.ac")).toBeNull();
+    expect(
+      s.boonFormula([{ ...effects[0], disabled: true }], "activities[summon].bonuses.hp")
+    ).toBeNull();
+    expect(
+      s.boonFormula(
+        [{ disabled: false, changes: [{ key: "activities[summon].bonuses.hp", value: "  " }] }],
+        "activities[summon].bonuses.hp"
+      )
+    ).toBeNull();
+    expect(s.boonFormula([], "activities[summon].bonuses.hp")).toBeNull();
+  });
+  it("the Hit Points land dnd5e's three ways: an unlinked creature takes them on its maximum and its current, on top of what stands", () => {
+    expect(
+      s.boonHpPlan({
+        total: 2,
+        hasClasses: false,
+        hardMax: true,
+        linked: false,
+        hp: { max: 1, value: 1 }
+      })
+    ).toEqual({
+      effect: null,
+      updates: { "system.attributes.hp.max": 3, "system.attributes.hp.value": 3 }
+    });
+    expect(
+      s.boonHpPlan({
+        total: 10,
+        hasClasses: false,
+        hardMax: true,
+        linked: true,
+        hp: { max: 1, value: 1 }
+      })
+    ).toEqual({
+      effect: { key: "system.attributes.hp.max" },
+      updates: {}
+    });
+    expect(
+      s.boonHpPlan({
+        total: 10,
+        hasClasses: true,
+        hardMax: false,
+        linked: true,
+        hp: { max: 20, value: 20 }
+      })
+    ).toEqual({
+      effect: { key: "system.attributes.hp.bonuses.overall" },
+      updates: {}
+    });
+    expect(
+      s.boonHpPlan({
+        total: 0,
+        hasClasses: false,
+        hardMax: true,
+        linked: false,
+        hp: { max: 1, value: 1 }
+      })
+    ).toEqual({
+      effect: null,
+      updates: {}
+    });
+  });
+  it("the row names the spell, the feature's change and where it lands, with its pointer", () => {
+    expect(reg.SUMMON_BOONS["Familiar Friend"]).toMatchObject({
+      spell: "Find Familiar",
+      benefit: "Fortified Familiar",
+      change: "activities[summon].bonuses.hp",
+      lands: "hp"
+    });
+    expect(Object.isFrozen(reg.SUMMON_BOONS["Familiar Friend"])).toBe(true);
+  });
+});
+
+describe("the replay's usage — what the dialog answered rides the cast again, the cause included (call 45)", () => {
+  it("the slot, the spend ticks, the Concentration and a forward's cause ride; an absent one is not written", () => {
+    const base = {
+      create: { summons: false },
+      "fvtt-mod-bythebooks": { concentrationAsked: true, lightOn: null }
+    };
+    expect(
+      s.castUsage(
+        {
+          spell: { slot: "spell1" },
+          consume: { spellSlot: false, resources: false },
+          cause: { activity: ".Activity.abc" }
+        },
+        base
+      )
+    ).toEqual({
+      ...base,
+      spell: { slot: "spell1" },
+      consume: { spellSlot: false, resources: false },
+      cause: { activity: ".Activity.abc" }
+    });
+    const bare = s.castUsage({}, base);
+    expect(bare).toEqual(base);
+    expect("cause" in bare).toBe(false);
+    expect(s.castUsage(null, base)).toEqual(base);
+  });
+});

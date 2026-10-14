@@ -1707,3 +1707,40 @@ describe("the range cancellers (the PHB feats, group 2, 2026-09-26)", () => {
     expect(r.acWithoutCover(14, 0)).toBe(14);
   });
 });
+
+describe("buyOff — why a buy box is greyed (Helpful Friend's familiar within 5 ft)", () => {
+  const row = { point: "use", near: { companion: "Find Familiar", feet: 5 } };
+  it("the pool first: no uses left greys any row", () => {
+    expect(r.buyOff({ point: "Luck Point" }, { left: 0 })).toBe("no Luck Points left");
+    expect(r.buyOff({ point: "Luck Point" }, { left: 2 })).toBeNull();
+    expect(
+      r.buyOff(row, { left: 0, companion: { state: "present", sameScene: true, distanceFt: 5 } })
+    ).toBe("no uses left");
+  });
+  it("the companion: in its pocket, on another scene, further than the feet, or unreadable — each its own reason", () => {
+    expect(r.buyOff(row, { left: 2, companion: null })).toBe("no familiar standing");
+    expect(
+      r.buyOff(row, { left: 2, companion: { state: "pocket", sameScene: false, distanceFt: null } })
+    ).toBe("your familiar is in its pocket dimension");
+    expect(
+      r.buyOff(row, {
+        left: 2,
+        companion: { state: "present", sameScene: false, distanceFt: null }
+      })
+    ).toBe("your familiar is not on this scene");
+    expect(
+      r.buyOff(row, { left: 2, companion: { state: "present", sameScene: true, distanceFt: null } })
+    ).toBe("your familiar's distance could not be read");
+    expect(
+      r.buyOff(row, { left: 2, companion: { state: "present", sameScene: true, distanceFt: 10 } })
+    ).toBe("your familiar is 10 ft away — within 5 feet only");
+  });
+  it("within the feet, the box is offered", () => {
+    expect(
+      r.buyOff(row, { left: 2, companion: { state: "present", sameScene: true, distanceFt: 5 } })
+    ).toBeNull();
+    expect(
+      r.buyOff(row, { left: 2, companion: { state: "present", sameScene: true, distanceFt: 0 } })
+    ).toBeNull();
+  });
+});

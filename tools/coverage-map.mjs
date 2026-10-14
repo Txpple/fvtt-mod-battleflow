@@ -80,6 +80,9 @@ export const ORDER = [
     name: "smoke-emanations", note: "the emanations — the Paladin's aura stands with its token, applies to allies inside, lifts on exit; Spirit Guardians adopted, its saves on enter and turn end",
     needs: ["fixture-suite"]
   },
+  // The Sorcerer's token standing (the seed above): the familiar lands beside it.
+  { name: "smoke-familiar", note: "Familiar Friend — the free cast's use spent through the summon's cause, the boon's Hit Points off the feat's own change, Helpful Friend's box offered within 5 ft / greyed beyond or in the pocket / absent off a proficient skill, the player's cast with Allow Summoning off",
+    needs: ["fixture-suite"] },
   // Both ride BTB Test Halfling (Lucky, Savage Attacker); the nearest seed above is theirs.
   {
     name: "smoke-rescue", note: "the `roll` interrupt — Lucky, Warding Flare, Shadowy Dodge bend the hit: the popup's rows, the second d20, the crit undone, all-spent skips",

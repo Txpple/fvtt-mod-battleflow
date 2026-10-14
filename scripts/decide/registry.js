@@ -408,6 +408,11 @@ export const REMINDER_KINDS = new Set(["vex", "sap", "prone", "condition", "rang
  *   forgo  true — the MIRROR (B3, Brutal Strike): the tick FORGOES the roll's Advantage (every Advantage source struck,
  *          the net Normal) and records `forgo` on the attack's reminder; nothing is spent; `ability` narrows the attack's
  *          ability ("str"); off when the attack has Disadvantage or no Advantage to forgo
+ *   skills "proficient" — a check with a skill the roller is proficient in, no other check (Helpful Friend); a tool, a
+ *          raw ability check or an unproficient skill shows no box
+ *   near   { companion, feet } — the roller's standing COMPANIONS creature of that spell must stand within `feet`
+ *          (Helpful Friend's familiar within 5 ft): none standing, no box; in its pocket, on another scene or further
+ *          away, the box greyed with the reason (RULINGS *Summons*, call 47)
  * ⚠ The 2014 Halfling "Lucky" shares the name with no uses — the lookup demands them.
  */
 export const ADVANTAGE_BUYS = Object.freeze({
@@ -429,7 +434,13 @@ export const ADVANTAGE_BUYS = Object.freeze({
   "Versatile Trickster": Object.freeze({ free: true, when: "cunning-strike", uses: false, point: null, activity: null,
     tests: Object.freeze(["attack"]), says: "the Mage Hand within 5 feet of the target — the table's",
     rule: Object.freeze({ item: "Versatile Trickster", uuid: "Compendium.dnd-players-handbook.classes.Item.phbrgeVersatileT" }),
-    from: "Rogue — Arcane Trickster 13" })
+    from: "Rogue — Arcane Trickster 13" }),
+  // Helpful Friend: "When you make an ability check using a skill in which you have proficiency while your familiar is
+  // within 5 feet of you, you gain Advantage on the check" — the feat's uses (@prof per Long Rest) are the pool.
+  "Familiar Friend": Object.freeze({ uses: true, point: "use", activity: "Helpful Friend",
+    tests: Object.freeze(["check"]), skills: "proficient", near: Object.freeze({ companion: "Find Familiar", feet: 5 }),
+    rule: Object.freeze({ item: "Familiar Friend", uuid: "Compendium.dnd-arcana-unleashed.feats.Item.aunFamiliarFri4q", benefit: "Helpful Friend" }),
+    from: "Origin feat (Arcana Unleashed)" })
 });
 
 /**
@@ -4328,6 +4339,23 @@ export const SUMMON_AS = Object.freeze({
   "Wild Companion": Object.freeze({ as: "Find Familiar", rangeFt: 10, longRest: true,
     says: "As a Magic action, you can expend a spell slot or a use of Wild Shape to cast the Find Familiar spell without Material components. When you cast the spell in this way, the familiar is Fey and disappears when you finish a Long Rest.",
     rule: Object.freeze({ item: "Wild Companion", uuid: "Compendium.dnd-players-handbook.classes.Item.phbdrdWildCompan" }) })
+});
+
+/**
+ * SUMMON BOONS (summons.js): a feature on the caster that changes what a summon spell lands, carried as the
+ * pack's own enchantment change on the feature (`transfer: true`, a key the system applies only from the spell's
+ * own effects, so on the sheet it does nothing — RULINGS *Summons*, call 46). The elect reads the change named
+ * `change` off the caster's feature and lands it as dnd5e's own summon bonus would: `hp` on the creature's Hit
+ * Point maximum and current Hit Points (the formula rolled on the caster's roll data). `spell` the spell it
+ * reaches, read through SUMMON_AS (Wild Companion's and Pact of the Chain's familiars are Find Familiar's).
+ * No amount here: the formula is the feature's (N1).
+ */
+export const SUMMON_BOONS = Object.freeze({
+  // "When you cast the Find Familiar spell, your familiar's Hit Point maximum and current Hit Points are increased by an
+  // amount equal to twice your character level" — the pack's "Fortified Familiar" enchantment, `2 * @details.level`.
+  "Familiar Friend": Object.freeze({ spell: "Find Familiar", benefit: "Fortified Familiar", change: "activities[summon].bonuses.hp", lands: "hp",
+    says: "When you cast the Find Familiar spell, your familiar's Hit Point maximum and current Hit Points are increased by an amount equal to twice your character level.",
+    rule: Object.freeze({ item: "Familiar Friend", uuid: "Compendium.dnd-arcana-unleashed.feats.Item.aunFamiliarFri4q", benefit: "Fortified Familiar" }) })
 });
 
 /**

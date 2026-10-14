@@ -451,3 +451,47 @@ export function carriedItemIds(items, baseItems) {
   const base = new Set(baseItems ?? []);
   return (items ?? []).filter(i => !base.has(i.id) && CARRIED.has(i.type)).map(i => i.id);
 }
+
+/**
+ * A SUMMON_BOONS row's formula, read off the caster's feature: the value of the enchantment change the row names
+ * (the pack's own `activities[summon].bonuses.hp`), on an enabled effect. Null when the feature carries none.
+ * @param {Array<{ disabled?: boolean, changes?: Array<{ key: string, value: string }> }>} effects  the feature's effects, plain
+ * @param {string} key   the change key the row names
+ * @returns {string|null}
+ */
+export function boonFormula(effects, key) {
+  for ( const e of effects ?? [] ) {
+    if ( e?.disabled ) continue;
+    const hit = (e.changes ?? []).find(c => (c?.key === key) && String(c.value ?? "").trim());
+    if ( hit ) return String(hit.value).trim();
+  }
+  return null;
+}
+
+/**
+ * Where a boon's Hit Points land on the creature — dnd5e's own three branches for a summon bonus (`SummonActivity#getChanges`):
+ * a creature with classes and no hard maximum takes an effect on `bonuses.overall`; a linked one an effect on `max`;
+ * an unlinked one (every familiar) the amount on both its maximum and its current Hit Points, as a fresh copy.
+ * @param {{ total: number, hasClasses: boolean, hardMax: boolean, linked: boolean, hp: { max: number, value: number } }} facts
+ * @returns {{ effect: { key: string }|null, updates: Record<string, number> }}
+ */
+export function boonHpPlan({ total, hasClasses, hardMax, linked, hp }) {
+  const n = Number(total) || 0;
+  if ( !n ) return { effect: null, updates: {} };
+  if ( hasClasses && !hardMax ) return { effect: { key: "system.attributes.hp.bonuses.overall" }, updates: {} };
+  if ( linked ) return { effect: { key: "system.attributes.hp.max" }, updates: {} };
+  return { effect: null, updates: { "system.attributes.hp.max": (Number(hp?.max) || 0) + n, "system.attributes.hp.value": (Number(hp?.value) || 0) + n } };
+}
+
+/**
+ * The replay's usage after the menu: what the system's dialog answered rides the cast again — the slot, the
+ * spend ticks, the Concentration it ends, and the CAUSE (a forward activity's free cast: Familiar Friend's
+ * "(free casting)", whose item use the system spends only when the cause rides; RULINGS *Summons*, call 45).
+ * @param {{ spell?: object, consume?: object, concentration?: object, cause?: object }} asked
+ * @param {object} base  the module's own keys
+ */
+export function castUsage(asked, base) {
+  const usage = { ...base };
+  for ( const key of ["spell", "consume", "concentration", "cause"] ) if ( asked?.[key] ) usage[key] = asked[key];
+  return usage;
+}

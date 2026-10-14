@@ -3607,6 +3607,43 @@ Tried on Tenser's Floating Disk first ("that is much better"), then ruled for ev
    when icon is moved"): every landing unlocks the token's rotation; a thing (a light's stone, the Floating Disk)
    keeps its facing.
 
+**The familiar's feat (2026-10-14, Familiar Friend, Arcana Unleashed; the user's go on the plan read off session zero's
+owl: greyed boxes, the Errata row, a patch).** Tychon's Find Familiar is the feat's grant: a "(free casting)" forward
+activity spending the spell's one use per Long Rest and no slot. Read off the mirror: the module had landed his owl
+before the session (the companion effect names a card no longer in the log; the Owl carries dnd5e's summon origin and
+Tom's ownership), at 1 HP; the session's cast card is dnd5e's own, ten seconds before an Arcana roll at Advantage. The
+calls:
+
+45. **A forward's free cast keeps its cause.** dnd5e spends the forward's item use only when the summon's use carries
+   `cause` (`mixin.mjs` `_prepareUsageConfig` / the consumption's linked activity). The replay after the menu dropped it
+   (`asked` carried the slot, the ticks and the Concentration), so the free cast was free every time; the standing
+   companion's Summon cast fresh, so a new form asked through the free cast spent a slot. Now `cause` rides `asked` into
+   the replay (`castUsage`) and the menu's Summon reuses the cause the cast arrived with; a cancelled menu still spends
+   nothing. Measured: `smoke-familiar` §1, §2, §8. **Session zero's premise — dnd5e's Allow Summoning off kept the owl
+   from placing — is not so**: the module never reads it (call 1), and §8 is the player test user's own free cast with
+   it off, the record stamped on their card. Tom's client had lost clicking and targeting that night (the gm-notes); the
+   path itself holds. Allow Summoning stays off on prod.
+46. **A boon on the caster lands at the landing** (Fortified Familiar). The pack carries the benefit as a transferred
+   enchantment change on the feat, `activities[summon].bonuses.hp = 2 * @details.level`, a key dnd5e applies only from
+   an item's OWN effects (`active-effect.mjs` `applyChange`, `item.mjs` `allApplicableEffects`); transferred to the actor
+   it does nothing, and Tychon's summon activity reads `bonuses.hp: ""`. `SUMMON_BOONS`: the elect reads the change the
+   row names off the caster's feature (`boonFormula`) and lands it as the system's own bonus would, dnd5e's three
+   branches (`boonHpPlan`: classes with no hard maximum, an effect on `bonuses.overall`; linked, an effect on `max`;
+   unlinked — every familiar — the amount on the maximum and the current), on top of the profile's own; the record
+   carries `boon` and the landed card says "+N HP (Fortified Familiar)". No amount in the table: the formula is the
+   feature's (N1). The row reaches Wild Companion's and Pact of the Chain's familiars through SUMMON_AS, as the text says
+   ("when you cast the Find Familiar spell"). An Errata issue names the pack's inert enchantment; no fix there — the rule
+   is this module's, and a fix would double it. Measured: §3 (Sorcerer 5: the Owl at 11/11).
+47. **Helpful Friend is a buy with two facets** (the user: greyed with the reason, never hidden). `ADVANTAGE_BUYS`
+   gained `skills: "proficient"` — a check with a skill the roller is proficient in; a tool, a raw ability check or an
+   unproficient skill shows no box (§6) — and `near: { companion, feet }`: the roller's standing companion of that spell,
+   read through the owner's marker effect to the card's record (`standingCompanion`, lookup.js; never a scan of the
+   log), within the feet of the roller's token (`nearestFeet`). No companion standing: no box. In the pocket, on another
+   scene or further away: the box stays, greyed with why (`buyOff`), the pool still shown (§5, §7). The press spends a
+   use through the buy's own path and the record names the feat (§4); the Long Rest refills the feat's own pool. A roll
+   that skips the dialog meets no box, as Lucky's. The register's verdict of 2026-10-02 ("Helpful Friend is the Help
+   action", TEXT) is replaced.
+
 ## Rests end the short effects (2026-10-12)
 
 **The user's rule, on the sandbox: "long rest should remove anything with concentration, it should also remove

@@ -71,7 +71,7 @@ text trips no combat family, NATIVE otherwise. `| **Row** | NATIVE / MODULE / RO
 | **Arcane Safeguard** | TEXT | the Help action's Temporary Hit Points are the table's |
 | **Arcane Undertaker** | NATIVE | the pack's effect and uses |
 | **Portal Jumper** | TEXT | a teleport paid in movement |
-| **Familiar Friend** | TEXT | Helpful Friend is the Help action |
+| **Familiar Friend** | MODULE | Helpful Friend `ADVANTAGE_BUYS` (`skills: "proficient"`, `near` the familiar within 5 ft); Fortified Familiar `SUMMON_BOONS` (the feat's own change, landed by the elect); Faithful Companion the pack's forward with its cause kept (RULINGS *Summons*, calls 45–47, 2026-10-14) |
 | **Divination Adept** | WAITS | Prescient Intervention gives Advantage or Disadvantage AFTER the roll — a `roll` bend that adds a second d20, its first customer |
 | **Elemental Familiar** | NATIVE | the summons and the pack's Energy Pulse save |
 | **Otherworldly Familiar** | NATIVE | the pack's effect |

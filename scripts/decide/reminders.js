@@ -670,6 +670,27 @@ export function forgoneSources(sources, name) {
   return (sources ?? []).map(s => (s.bend === "advantage") ? { ...s, bend: null, label: `${s.label} — forgone (${name})`, forgone: true } : s);
 }
 
+/**
+ * Why a buy box is off, or null: no uses left, or the row's companion (ADVANTAGE_BUYS `near`) not where the rule needs
+ * it — in its pocket dimension, on another scene, or further than `feet` away. A row with no `near` reads the pool alone.
+ * @param {{near?: {companion: string, feet: number}|null, point?: string|null}} row
+ * @param {{left?: number|null, companion?: {state: string, sameScene: boolean, distanceFt: number|null}|null}} facts
+ * @returns {string|null}
+ */
+export function buyOff(row, { left = null, companion = null } = {}) {
+  if ( (left !== null) && !(Number(left) > 0) ) return `no ${row?.point ?? "use"}s left`;
+  const near = row?.near ?? null;
+  if ( !near ) return null;
+  const noun = String(near.companion ?? "").toLowerCase().includes("familiar") ? "familiar" : "companion";
+  if ( !companion ) return `no ${noun} standing`;
+  if ( companion.state === "pocket" ) return `your ${noun} is in its pocket dimension`;
+  if ( !companion.sameScene ) return `your ${noun} is not on this scene`;
+  const d = (companion.distanceFt === null) || (companion.distanceFt === undefined) ? Number.NaN : Number(companion.distanceFt);
+  if ( !Number.isFinite(d) ) return `your ${noun}'s distance could not be read`;
+  if ( d > Number(near.feet) ) return `your ${noun} is ${d} ft away — within ${near.feet} feet only`;
+  return null;
+}
+
 /** Why the forgo box is off, or null: the attack must carry Advantage, no Disadvantage, and the row's ability.
  * @param {{ability?: string|null}} row
  * @param {{sources?: {bend?: string|null}[]}|null} gate

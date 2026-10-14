@@ -105,6 +105,11 @@ their own message and the *continuing client* folds it) and D2's **cross-client 
 (the GM's buzzer resolves a hold and the player's popup vanishes without anyone touching its
 DOM). It connects the player itself; just do not be logged in as the player test account.
 
+⚠ **`smoke-familiar` connects the player test identity too** (§8, like `smoke-twoclient`): the player's own free cast
+of Find Familiar with dnd5e's Allow Summoning switched OFF for the section and put back. It lends BTB Test Sorcerer (and the
+Mage, for §8) the Arcana Unleashed feat and the PHB spell reshaped as the feat grants it, and removes any copy by name on the
+way in and out — a killed run's copy would otherwise be the one the name lookup finds (2026-10-14).
+
 ⚠ **`smoke-nogm` is the one that connects NO GM AT ALL** (v1.27.0), and it is the only suite that
 can see the flow elect. Before v1.27.0 `isActiveGM()` was the sole gate on the payout chain, so a
 GM disconnect stopped By the Books dead with no chip, no card, no popup and **no error** — a failure

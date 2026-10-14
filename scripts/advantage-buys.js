@@ -7,13 +7,14 @@
  * ⚠ HOOK ORDER: imported AFTER reminders.js, so this re-nets the gate's record with the buy included.
  */
 import { MODULE_ID, readFlag, TITLE, statContext } from "./core.js";
-import { itemsNamed } from "./lookup.js";
+import { itemsNamed, standingCompanion } from "./lookup.js";
+import { nearestFeet, tokenOfActor } from "./geometry.js";
 import { reminderEntries } from "./decide/registry.js";
 import { DialogCarried, markDefaultButton } from "./ui.js";
 import { bfCard, buyBoxHTML, forgoBoxHTML, modeTagHTML, reminderFieldsetHTML } from "./decide/present.js";
 import { ADVANTAGE_BUYS } from "./decide/registry.js";
 import { rollModeOf } from "./decide/chips.js";
-import { REMINDER_FLAG, forgoOff, forgoneSources, netMode, reminderRecord, reminderSource } from "./decide/reminders.js";
+import { REMINDER_FLAG, buyOff, forgoOff, forgoneSources, netMode, reminderRecord, reminderSource } from "./decide/reminders.js";
 import { SURFACES } from "./surfaces.js";
 import { listen } from "./dispatch.js";
 
@@ -37,13 +38,31 @@ function cunningStrikeThisTurn(actor) {
   return false;
 }
 
-/** The rows this actor can buy on this kind of test — every held row, spent ones greyed (the box says why). */
-function buysFor(actor, testKind) {
+/** The roller's companion for a `near` row, as plain facts for `buyOff`: its state, whether it stands on this scene, and
+ * the feet between the two tokens (null when either has no token here). */
+function companionFacts(actor, near) {
+  const companion = standingCompanion(actor, near.companion);
+  if ( !companion ) return null;
+  const doc = companion.token;
+  const sameScene = !!doc && (doc.parent?.id === canvas.scene?.id);
+  const mine = tokenOfActor(actor);
+  const theirs = sameScene ? (canvas.tokens?.get(doc.id) ?? null) : null;
+  const distanceFt = (mine && theirs) ? nearestFeet(mine, theirs) : null;
+  return { state: companion.state, sameScene, distanceFt, name: companion.name };
+}
+
+/** The rows this actor can buy on this kind of test — every held row, spent ones greyed (the box says why).
+ * `skill` the check's skill key, for a `skills: "proficient"` row (none on a raw check or a tool: no box). */
+function buysFor(actor, testKind, { skill = null } = {}) {
   if ( !(actor instanceof Actor) ) return [];
   if ( !reminderEntries().some(e => e.kind === "buy") ) return [];
   const out = [];
   for ( const [name, row] of Object.entries(ADVANTAGE_BUYS) ) {
     if ( !row.tests.includes(testKind) ) continue;
+    // a proficient-skill row (Helpful Friend): a skill the roller is proficient in, or no box at all
+    if ( row.skills === "proficient" ) {
+      if ( !skill || !(Number(actor.system?.skills?.[skill]?.value) >= 1) ) continue;
+    }
     // ⚠ Uses demanded: the 2014 Halfling's "Lucky" trait shares the name and has none.
     const item = itemsNamed(actor, name, { types: ["feat"] })
       .find(i => !row.uses || (Number(i.system?.uses?.max) > 0));
@@ -57,16 +76,20 @@ function buysFor(actor, testKind) {
       out.push({ name, free: true, says: row.says ?? "", point: null, rule: row.rule, itemId: item.id, left: null, max: 0 });
       continue;
     }
-    out.push({ name, point: row.point, rule: row.rule, itemId: item.id,
-      left: row.uses ? Math.max(0, Number(item.system.uses.value ?? 0)) : null, max: Number(item.system?.uses?.max ?? 0) });
+    const left = row.uses ? Math.max(0, Number(item.system.uses.value ?? 0)) : null;
+    // a `near` row (Helpful Friend's familiar within 5 ft): no companion standing, no box; out of reach, the box greyed with why
+    const companion = row.near ? companionFacts(actor, row.near) : null;
+    if ( row.near && !companion ) continue;
+    const off = buyOff(row, { left, companion });
+    out.push({ name, point: row.point, rule: row.rule, itemId: item.id, left, max: Number(item.system?.uses?.max ?? 0), off });
   }
   return out;
 }
 
 /** Ride the dialog: one DialogCarried shared by the config, the rendered app and the record (ui.js). */
-function carry(config, dialog, actor, testKind, ability = null) {
+function carry(config, dialog, actor, testKind, ability = null, { skill = null } = {}) {
   if ( dialog?.configure === false ) return;                           // no dialog, no box
-  const rows = buysFor(actor, testKind);
+  const rows = buysFor(actor, testKind, { skill });
   if ( !rows.length ) return;
   const buy = new DialogCarried({ rows, armed: null, shown: false, net: null, testKind, actorUuid: actor.uuid, ability });
   dialog.options ??= {};
@@ -92,7 +115,7 @@ listen("dnd5e.preRollSavingThrow", "advantage-buys", (config, dialog) => {
 listen("dnd5e.preRollAbilityCheck", "advantage-buys", (config, dialog) => {
   try {
     const initiative = !!config?.hookNames?.includes?.("initiativeDialog");
-    carry(config, dialog, config?.subject, initiative ? "initiative" : "check");
+    carry(config, dialog, config?.subject, initiative ? "initiative" : "check", null, { skill: config?.skill ?? null });
   } catch(err) { console.error(`${TITLE} | Advantage buy (check) failed — rolling natively.`, err); }
 });
 
@@ -132,7 +155,7 @@ function drawBuy(app) {
     box.innerHTML = row.forgo
       ? forgoBoxHTML({ name: row.name, rule: row.rule, checked: buy.armed === row.name, off: forgoOff(row, gate, buy.ability ?? null), says: "the hit offers its effects",
         struck: (buy.armed === row.name) ? forgoneSources(gate?.sources ?? [], row.name).filter(s => s.forgone).map(s => s.label) : [] })
-      : buyBoxHTML({ name: row.name, point: row.point, left: row.left, rule: row.rule, checked: buy.armed === row.name, free: !!row.free, says: row.says ?? "" });
+      : buyBoxHTML({ name: row.name, point: row.point, left: row.left, rule: row.rule, checked: buy.armed === row.name, free: !!row.free, says: row.says ?? "", off: row.off ?? null });
     fieldset.appendChild(box.firstElementChild);
   }
   // One tick at a time — Advantage does not stack, so a second buy would only spend twice.

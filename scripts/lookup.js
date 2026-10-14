@@ -7,7 +7,8 @@
 import { CARD, activityUuidOf, isCard } from "./decide/card.js";
 import { EVASIONS, INTERRUPT_REDUCTIONS, INTERRUPT_ROLLS, SUPERIORITY_STAND_INS, answers, identifierOf, interruptEntries, matchOf } from "./decide/registry.js";
 import { d20Faces, d20ModeOf } from "./decide/rescue-hit.js";
-import { TITLE } from "./core.js";
+import { MODULE_ID, TITLE, readFlag } from "./core.js";
+import { SUMMON_AS } from "./decide/registry.js";
 
 export const lower = s => String(s ?? "").toLowerCase();
 
@@ -42,6 +43,33 @@ export function itemsNamed(actor, key, { types = null } = {}) {
 
 /** The item on this actor that answers the row, or null. */
 export const itemNamed = (actor, key, options) => itemsNamed(actor, key, options)[0] ?? null;
+
+/**
+ * The actor's standing companion of a spell (COMPANIONS, summons.js): read through the marker effect on its
+ * owner (`companion`: the cast card's id) to the card's record — never a scan of the log. The name is the
+ * spell's through SUMMON_AS (a Wild Companion's familiar is Find Familiar's). Null when none stands.
+ * @param {Actor|null|undefined} actor
+ * @param {string} spellName
+ * @returns {{ messageId: string, state: "present"|"pocket", name: string, token: TokenDocument|null }|null}
+ */
+export function standingCompanion(actor, spellName) {
+  const want = lower(spellName);
+  const asSpell = name => lower(Object.entries(SUMMON_AS).find(([k]) => lower(k) === lower(name))?.[1]?.as ?? name);
+  for ( const effect of actor?.effects ?? [] ) {
+    const id = effect.flags?.[MODULE_ID]?.companion ?? null;
+    if ( !id ) continue;
+    const flag = readFlag(game.messages.get(id), "summon");
+    const companion = flag?.companion ?? null;
+    if ( !companion || (companion.state === "gone") || flag.dismissAsked || flag.dismissed || (asSpell(flag.itemName) !== want) ) continue;
+    let token = null;
+    for ( const l of flag.landed ?? [] ) {
+      token = game.scenes.get(l.sceneId)?.tokens?.get(l.tokenId) ?? null;
+      if ( token ) break;
+    }
+    return { messageId: id, state: companion.state, name: companion.name ?? flag.summonName ?? "", token };
+  }
+  return null;
+}
 
 /** THE DMG — a magic item in use: equipped, and attuned where it requires attunement. */
 export const isWorn = item => !!item && (item.system?.equipped === true)

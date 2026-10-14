@@ -16,10 +16,10 @@
  */
 import { MODULE_ID, readFlag, TITLE, activeCombatFor, isActiveGM, queueFlagWrite, answersHere, statContext } from "./core.js";
 import { activityNamed, cardActivity, featureNamed, lower, resolveUuid } from "./lookup.js";
-import { COMPANIONS, SUMMON_AS, SUMMON_CHOICES, SUMMON_COMMANDS, SUMMON_EXTRAS, SUMMON_GUISES, SUMMON_LIGHTS, SUMMON_LOOKS, SUMMON_ONE_FORM, summonChoiceEntries, summonOwnInitiativeEntries, summonSingleEntries, listedNames } from "./decide/registry.js";
+import { COMPANIONS, SUMMON_AS, SUMMON_BOONS, SUMMON_CHOICES, SUMMON_COMMANDS, SUMMON_EXTRAS, SUMMON_GUISES, SUMMON_LIGHTS, SUMMON_LOOKS, SUMMON_ONE_FORM, summonChoiceEntries, summonOwnInitiativeEntries, summonSingleEntries, listedNames } from "./decide/registry.js";
 import { profileRows, choiceRowKey, formNeeds, poolPicks, summonRecord, placedAnswer, narrowedActivities, resistanceEffectData,
   ownershipGrant, seatInitiative, rangeFeet, replacedSummons, companionEffectName, currentCompanion, companionMenu, companionAsk,
-  carriedItemIds, sizesInOrder, summonEffectName, tokenLight, formName, guisesOf } from "./decide/summons.js";
+  carriedItemIds, sizesInOrder, summonEffectName, tokenLight, formName, guisesOf, boonFormula, boonHpPlan, castUsage } from "./decide/summons.js";
 import { bfCard, esc, popupKey } from "./decide/present.js";
 import { artChanges } from "./decide/summon-art.js";
 import { concentrationIdOf } from "./decide/card.js";
@@ -150,7 +150,8 @@ listen("dnd5e.preUseActivity", "summons", (activity, usageConfig, dialogConfig) 
       if ( needsGM(row) ) return false;
       const id = through ? null : currentCompanion(summonRecords(), activity.actor?.uuid ?? "", rulesName(activity.item.name));
       const message = id ? game.messages.get(id) : null;
-      if ( message ) { void showCompanionMenu(message, activity); return false; }
+      // the menu's Summon casts again with the cause this use arrived with (a forward's free cast: Familiar Friend)
+      if ( message ) { void showCompanionMenu(message, activity, usageConfig?.cause ? foundry.utils.deepClone(usageConfig.cause) : null); return false; }
     }
   } catch(err) { console.warn(`${TITLE} | Could not take the summon — the spell is cast as usual.`, err); }
 });
@@ -182,7 +183,9 @@ listen("dnd5e.preActivityConsumption", "summons", (activity, usageConfig) => {
     const asked = {
       spell: usageConfig.spell ? foundry.utils.deepClone(usageConfig.spell) : undefined,
       consume: usageConfig.consume ? foundry.utils.deepClone(usageConfig.consume) : undefined,
-      concentration: usageConfig.concentration ? foundry.utils.deepClone(usageConfig.concentration) : undefined
+      concentration: usageConfig.concentration ? foundry.utils.deepClone(usageConfig.concentration) : undefined,
+      // a forward activity's cast (Familiar Friend's "(free casting)"): its item use is spent by the system only when the cause rides
+      cause: usageConfig.cause ? foundry.utils.deepClone(usageConfig.cause) : undefined
     };
     void openCastMenu(live, asked, slotLevel ?? (Number(live.item.system?.level) || live.relevantLevel)).catch(err => {
       console.error(`${TITLE} | The summon menu failed — cast the spell again.`, err);
@@ -200,10 +203,7 @@ async function openCastMenu(activity, asked, level) {
   if ( was && game.messages.get(was) ) facts.replaces = replacesOf(game.messages.get(was));
   facts.askedBy = game.user.id;
   await askSummon(`cast-${activity.uuid}`, facts, { light: lightRowOf(item.name) }, async answer => {
-    const usage = { create: { summons: false }, [MODULE_ID]: { [CONCENTRATION_ASKED]: true, lightOn: answer.lightOn ?? null } };
-    if ( asked.spell ) usage.spell = asked.spell;
-    if ( asked.consume ) usage.consume = asked.consume;
-    if ( asked.concentration ) usage.concentration = asked.concentration;
+    const usage = castUsage(asked, { create: { summons: false }, [MODULE_ID]: { [CONCENTRATION_ASKED]: true, lightOn: answer.lightOn ?? null } });
     planned.set(activity.uuid, answer);
     try { await activity.use(usage, { configure: false }, {}); } finally { planned.delete(activity.uuid); }
   });
@@ -595,6 +595,7 @@ async function landSummon(message) {
   let outcome = "landed";
   let failure = null;
   let resistance = null;
+  let boonLanded = null;
   let replaced = [];
   let companion = null;
   let standing = null;
@@ -619,9 +620,12 @@ async function landSummon(message) {
     // a light's object (SUMMON_LIGHTS): the thing touched, named and drawn so, carrying the spell's light
     const lightRow = flag.light ? lightRowOf(flag.light) : null;
     const look = lookOf(creatureName);
+    const boon = boonOf(caster, flag.itemName);
     for ( const placement of flag.placements ?? [] ) {
       // dnd5e's own changes for the profile, per token (a formula may be dice).
       const changes = await activity.getChanges(actor, profile, options);
+      // a boon on the caster (SUMMON_BOONS, Fortified Familiar): the feature's own change, landed as the system's bonus would be
+      if ( boon ) boonLanded = await landBoon(changes, actor, caster, boon);
       if ( lightRow ) {
         // the row's size whatever the activity's sizes (Continual Flame's offers none): half a square for a Tiny
         // object (the light's stones), else one 5-ft square
@@ -761,6 +765,7 @@ async function landSummon(message) {
       current.landed = landed;
       if ( failure ) current.failure = failure;
       if ( resistance ) current.resistance = { effectId: resistance.effectId, effectName: resistance.effectName };
+      if ( boonLanded ) current.boon = boonLanded;
       if ( replaced.length ) current.replaced = replaced.length;
       if ( companion ) current.companion = companion;
       if ( standing ) current.standing = standing;
@@ -775,6 +780,35 @@ async function landSummon(message) {
         effects: [effectRecord({ id: resistance.effectId, name: resistance.effectName, img: resistance.effectImg, description: resistance.description }, statContext(flag.sourceUuid ?? null))] });
     });
   }
+}
+
+/** The SUMMON_BOONS row the caster holds for this spell, with the formula read off the feature's own enchantment change; null for none. */
+function boonOf(caster, itemName) {
+  for ( const [key, row] of Object.entries(SUMMON_BOONS) ) {
+    if ( lower(row.spell) !== lower(rulesName(itemName)) ) continue;
+    const feature = featureNamed(caster, key);
+    if ( !feature ) continue;
+    const formula = boonFormula([...(feature.effects ?? [])].map(e => ({ disabled: !!e.disabled, changes: (e.changes ?? []).map(c => ({ key: c.key, value: c.value })) })), row.change);
+    if ( formula ) return { key, row, formula, img: feature.img ?? null };
+  }
+  return null;
+}
+
+/** Land a boon's Hit Points on the creature's changes, dnd5e's own three ways (decide/summons.js `boonHpPlan`); the record's line. */
+async function landBoon(changes, actor, caster, boon) {
+  const roll = await new Roll(boon.formula, caster.getRollData?.() ?? {}).evaluate();
+  const total = Math.floor(Number(roll.total) || 0);
+  const hp = actor.system?.attributes?.hp ?? {};
+  // on top of what the profile's own bonus already set, for the day the pack's bonus works
+  const base = { max: Number(changes.actorUpdates?.["system.attributes.hp.max"] ?? hp.max) || 0, value: Number(changes.actorUpdates?.["system.attributes.hp.value"] ?? hp.value) || 0 };
+  const plan = boonHpPlan({ total, hasClasses: !foundry.utils.isEmpty(actor.classes), hardMax: !!actor._source?.system?.attributes?.hp?.max, linked: !!actor.prototypeToken?.actorLink, hp: base });
+  if ( plan.effect ) {
+    changes.actorUpdates.effects ??= [];
+    changes.actorUpdates.effects.push((new ActiveEffect.implementation({ name: boon.row.benefit, img: boon.img ?? undefined, disabled: false,
+      changes: [{ key: plan.effect.key, type: "add", value: total }] })).toObject());
+  }
+  Object.assign(changes.actorUpdates, plan.updates);
+  return { feature: boon.key, benefit: boon.row.benefit, hp: total };
 }
 
 /** Dismiss: the elect deletes what it made; concentration's dependents go with the effect, the rest by hand here. */
@@ -925,8 +959,9 @@ const MENU = {
   summon: { label: "Summon", hint: "cast the spell: a new form takes its place" }
 };
 
-/** The cast menu: the companion as it stands, and what can be done with it (the choices by its state). */
-async function showCompanionMenu(message, activity) {
+/** The cast menu: the companion as it stands, and what can be done with it (the choices by its state).
+ * `cause` the use's cause (a forward's free cast), which Summon's new cast carries again. */
+async function showCompanionMenu(message, activity, cause = null) {
   const flag = readFlag(message, SUMMON_FLAG);
   const row = companionOf(flag?.itemName);
   const caster = resolveUuid(flag?.sourceUuid);
@@ -945,7 +980,7 @@ async function showCompanionMenu(message, activity) {
       if ( placement ) await askCompanion(message, { kind: "recall", placement: { ...placement, sceneId: canvas.scene?.id ?? null } });
     },
     dismiss: () => askDismiss(message),
-    summon: () => { castThrough.add(activity.uuid); return activity.use(); }
+    summon: () => { castThrough.add(activity.uuid); return activity.use(cause ? { cause } : {}); }
   };
   await openPicker(message, "companionMenu", caster, {
     title: `${flag.itemName} — ${flag.sourceName}`, icon: "fa-solid fa-spaghetti-monster-flying", width: 440, by: game.user.id,
@@ -1177,7 +1212,7 @@ function drawSummon(message, html, flag) {
   } else {
     const kind = flag.creatureType ? (CONFIG.DND5E?.creatureTypes?.[flag.creatureType]?.label ?? flag.creatureType) : null;
     row.innerHTML = bfCard({ eyebrow: "Summon", tone: "good", title: `${names.join(", ") || what} — summoned`,
-      subtitle: [kind, flag.picked, flag.resistance ? `${flag.resistance.effectName} on ${flag.sourceName}` : null,
+      subtitle: [kind, flag.picked, flag.boon ? `+${flag.boon.hp} HP (${flag.boon.benefit})` : null, flag.resistance ? `${flag.resistance.effectName} on ${flag.sourceName}` : null,
         (flag.companion?.state === "pocket") ? "in its pocket dimension" : null,
         flag.replaced ? "the earlier one is dismissed" : null].filter(Boolean).join(" · ") });
     if ( (mine || game.user.isGM) && !flag.dismissAsked ) row.appendChild(momentButton("Dismiss", () => { void askDismiss(message); }, { margin: "0.25rem 0 0" }));

@@ -774,6 +774,35 @@ describe("sneakBoxHTML — the choice beside the roll (user rulings 2026-09-02)"
   });
 });
 
+describe("buyBoxHTML — a buy's box, and why it is off", () => {
+  const rule = {
+    item: "Familiar Friend",
+    uuid: "Compendium.dnd-arcana-unleashed.feats.Item.aunFamiliarFri4q",
+    benefit: "Helpful Friend"
+  };
+  it("offered: the pool and a tick", () => {
+    const html = p.buyBoxHTML({ name: "Familiar Friend", point: "use", left: 2, rule });
+    expect(html).toContain("Familiar Friend — 1 use · 2 left");
+    expect(html).toContain('name="bf-buy"');
+  });
+  it("an empty pool greys it with the pool's words; `off` greys it with its own reason, the pool still shown", () => {
+    const empty = p.buyBoxHTML({ name: "Familiar Friend", point: "use", left: 0, rule });
+    expect(empty).not.toContain('name="bf-buy"');
+    expect(empty).toContain("no uses left");
+    const far = p.buyBoxHTML({
+      name: "Familiar Friend",
+      point: "use",
+      left: 2,
+      rule,
+      off: "your familiar is 10 ft away — within 5 feet only"
+    });
+    expect(far).not.toContain('name="bf-buy"');
+    expect(far).toContain("your familiar is 10 ft away — within 5 feet only");
+    expect(far).toContain("2 left");
+    expect(far).not.toContain("no uses left");
+  });
+});
+
 describe("cunningMenuHTML — the rules fold like every other box (user walk 2026-09-02)", () => {
   it("each row is the name, the cost and a closed <details> — nothing else", () => {
     const html = p.cunningMenuHTML({

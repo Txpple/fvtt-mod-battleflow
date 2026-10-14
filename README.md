@@ -104,6 +104,9 @@ https://github.com/Txpple/fvtt-mod-bythebooks/releases/latest/download/module.js
   Familiar. The player places the creature on the map; the GM's client creates it, gives the
   player ownership, seats it right after the caster in the tracker, and ties it to the spell's
   concentration. No Create Token, no Create Actor, no Allow Summoning setting. Dismiss is a button.
+  A feat that reaches the familiar is kept: Familiar Friend's free cast spends its use and no slot,
+  its Fortified Familiar Hit Points land on the creature, and its Helpful Friend Advantage is a tick
+  in the skill dialog while the familiar stands within 5 feet (greyed, with the reason, when it does not).
   **Summon Art** (a button in the module's settings) gives each creature your own token and
   portrait, Find Familiar first; a folder of files named after the creatures fills it in one click.
 - **Wild Shape and Polymorph without the compendium browser.** Using Wild Shape opens one popup
