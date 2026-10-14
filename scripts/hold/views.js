@@ -6,7 +6,7 @@
 import { readFlag, TITLE, S, setting, canAnswerFor, isContinuingClient } from "../core.js";
 import { INTERRUPT_REDUCTIONS, INTERRUPT_ROLLS } from "../decide/registry.js";
 import { bfCard, popupKey, holdBarHTML, ruleLine, spendLine, spendPhrase, tickRowsHTML, esc } from "../decide/present.js";
-import { bentLines, d20ModeOf, dieMaxOf, futileGuardLine, guardRow, guardSign, liveRows, neutraliseOutcome, rescueTitle } from "../decide/rescue-hit.js";
+import { bentLines, d20ModeOf, dieMaxOf, futileGuardLine, guardRow, guardSign, liveRows, neededOnDieLine, neutraliseOutcome, rescueTitle } from "../decide/rescue-hit.js";
 import { duplicateWords } from "../decide/duplicates.js";
 import { muteScopesFor, poolOf, resolveAttackMessage } from "../shared.js";
 import { openMomentPopup, momentButton, scheduleBarSync, shownMoments } from "../ui.js";
@@ -270,7 +270,9 @@ function bystanderSituation(row, roll, ac, guard, miss = false) {
   if ( !reveal || !max ) return head;
   const minus = guardSign(guard, row) < 0;
   const what = /d/i.test(String(guard.die)) ? esc(guard.die) : `${minus ? "−" : "+"}${esc(guard.die)}`;
-  return `${head} A ${what} can turn it: ${roll.total} ${minus ? "−" : "+"} ${max} = ${minus ? roll.total - max : roll.total + max}.`;
+  // The face the die needs, in bold, so the player zeroes in (a real die only; a flat +10 has no face to need).
+  const needed = /d/i.test(String(guard.die)) ? neededOnDieLine({ total: Number(roll.total), against: Number(ac), dieMax: max, minus, die: String(guard.die) }) : "";
+  return `${head} A ${what} can turn it: ${roll.total} ${minus ? "−" : "+"} ${max} = ${minus ? roll.total - max : roll.total + max}.${needed ? ` ${needed}` : ""}`;
 }
 
 /** A BYSTANDER's popup (Cutting Words, Restore Balance): keyed like a guard's, three buttons — the third mutes. */

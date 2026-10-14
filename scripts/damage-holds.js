@@ -107,8 +107,11 @@ function interceptorsFor(defender, attacker, { attackDamage = true } = {}) {
  * creature on the DEFENDER's side within the row's feet of the ATTACKER (the creature making the damage roll), its
  * Reaction free, a use left — asked HERE, where the damage and the defender's Hit Points are known. A mute (shared.js
  * `bystanderMuted`) silences a trivial ask; an ask that can keep the defender ABOVE 0 Hit Points is always made
- * (`keepsUp`, decide/rescue-hit.js). A bystander the ATTACK hold already asked about this hit (the roll half, passed)
- * is not asked twice, unless it keeps up. An attack's damage only: a save's share has no attacker's roll to stand beside.
+ * (`keepsUp`, decide/rescue-hit.js). BOTH HALVES ASK (the table, 2026-10-14 evening): a bystander the ATTACK hold asked
+ * at the roll, who passed, is asked again here once the damage is known — the roll half's pass was "not at the roll",
+ * not "not this hit" (the one-ask rule it replaces had left the damage half to the down guard alone: with a +4 attack
+ * on AC 18 every hit sat inside the d8, so the roll half always asked first). The mutes are the brake. An attack's
+ * damage only: a save's share has no attacker's roll to stand beside.
  * @returns {{name: string, row: any, guards: object[]}|null}
  */
 function cuttersFor(defender, attacker, attack, amount) {
@@ -116,7 +119,6 @@ function cuttersFor(defender, attacker, attack, amount) {
   if ( !guarded || !from || !(Number(amount) > 0) ) return null;
   const side = guarded.document?.disposition;
   if ( ((side !== 1) && (side !== -1)) || (from.document?.disposition === side) ) return null;
-  const askedOnRoll = (readFlag(attack, "hold")?.targets ?? []).find(t => t.uuid === defender.uuid)?.guards ?? [];
   const hp = Number(defender.system?.attributes?.hp?.value ?? 0), temp = Number(defender.system?.attributes?.hp?.temp ?? 0);
   for ( const key of bystanderRows("attack") ) {
     const row = INTERRUPT_ROLLS[key];
@@ -138,7 +140,7 @@ function cuttersFor(defender, attacker, attack, amount) {
       const dieMax = dieMaxOf(die);
       if ( !dieMax ) continue;
       const keepsUp = reductionKeepsUp({ amount, hp, temp, dieMax });
-      if ( !keepsUp && (bystanderMuted(actor, key) || askedOnRoll.some(g => (g.uuid === actor.uuid) && (g.row === key))) ) continue;
+      if ( !keepsUp && bystanderMuted(actor, key) ) continue;
       guards.push({ actorUuid: actor.uuid, actorName: token.document?.name ?? actor.name, itemId: item.id, activityId: activity.id,
         formula: die, passed: false, reaction: key, bystander: true, ...(keepsUp ? { keepsUp: true } : {}) });
     }

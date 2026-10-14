@@ -9,7 +9,7 @@
  */
 import { MODULE_ID, readFlag, TITLE, queueFlagWrite, canAnswerFor, keepsMessage, statContext, decisionWindow } from "./core.js";
 import { INTERRUPT_ROLLS, STORED_DICE } from "./decide/registry.js";
-import { bystanderMatters, dieMaxOf, dieOutcome, guardSign, neutraliseOutcome, rerollOutcome, signFor } from "./decide/rescue-hit.js";
+import { bystanderMatters, dieMaxOf, dieOutcome, guardSign, neededOnDieLine, neutraliseOutcome, rerollOutcome, signFor } from "./decide/rescue-hit.js";
 import { bfCard, esc, holdBarHTML, popupKey, tickRowsHTML } from "./decide/present.js";
 import { activityNamed, featureNamed, resolveUuid, bystanderRows, bystanderDie, d20FactsOf, rerollD20 } from "./lookup.js";
 import { nearestFeet, tokenForUuid } from "./geometry.js";
@@ -420,8 +420,11 @@ function situation(flag, roll, guard, row) {
   }
   const max = Number(dieMaxOf(guard.die)) || 0;
   const minus = guardSign(guard, row) < 0;
+  // The face the die needs, in bold, so the player zeroes in (a real die against a known DC).
+  const needed = (Number.isFinite(flag.dc) && /d/i.test(String(guard.die)))
+    ? neededOnDieLine({ total: Number(roll?.total), against: flag.dc, dieMax: max, minus, die: String(guard.die) }) : "";
   return `${esc(flag.rollerName)}'s ${test}: <strong>${roll?.total}</strong>${vs}.`
-    + (Number.isFinite(flag.dc) ? ` A ${esc(guard.die)} can turn it: ${roll?.total} ${minus ? "−" : "+"} ${max} = ${minus ? roll.total - max : roll.total + max}.`
+    + (Number.isFinite(flag.dc) ? ` A ${esc(guard.die)} can turn it: ${roll?.total} ${minus ? "−" : "+"} ${max} = ${minus ? roll.total - max : roll.total + max}.${needed ? ` ${needed}` : ""}`
       : " No DC is known — the arithmetic goes on the card and the DM rules.");
 }
 

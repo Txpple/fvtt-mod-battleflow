@@ -441,6 +441,41 @@ describe("the bystander's bend (Q2, option A) — the margin gate and the two ne
     expect(r.dieMaxOf("2d4")).toBe(8);
     expect(r.dieMaxOf("+10")).toBe(10);
     expect(r.dieMaxOf("")).toBeNull();
+  });
+});
+
+describe("neededOnDie — the face a bystander's die needs (the user, 2026-10-14: the X in bold)", () => {
+  it("a minus die (Cutting Words) off a hit: the margin plus one; a hit by 2 needs a 3", () => {
+    expect(r.neededOnDie({ total: 16, against: 14, dieMax: 8, minus: true })).toBe(3);
+    expect(r.neededOnDie({ total: 14, against: 14, dieMax: 8, minus: true })).toBe(1); // a hit by 0: any face
+    expect(r.neededOnDie({ total: 21, against: 14, dieMax: 8, minus: true })).toBe(8); // a hit by 7: the top face alone
+    expect(r.neededOnDie({ total: 22, against: 14, dieMax: 8, minus: true })).toBeNull(); // a hit by 8: no face can
+  });
+  it("a plus die off a miss: the gap; a miss by 3 needs a 3", () => {
+    expect(r.neededOnDie({ total: 11, against: 14, dieMax: 6, minus: false })).toBe(3);
+    expect(r.neededOnDie({ total: 13, against: 14, dieMax: 6, minus: false })).toBe(1);
+    expect(r.neededOnDie({ total: 7, against: 14, dieMax: 6, minus: false })).toBeNull();
+  });
+  it("nothing to say without a target or a die size", () => {
+    expect(r.neededOnDie({ total: 16, against: null, dieMax: 8, minus: true })).toBeNull();
+    expect(r.neededOnDie({ total: 16, against: 14, dieMax: null, minus: true })).toBeNull();
+  });
+  it("the line: the number in bold, the article right, the edges said plainly", () => {
+    expect(r.neededOnDieLine({ total: 16, against: 14, dieMax: 8, minus: true, die: "1d8" })).toBe(
+      "You need a <strong>3</strong> or higher on the d8."
+    );
+    expect(
+      r.neededOnDieLine({ total: 24, against: 14, dieMax: 12, minus: true, die: "1d12" })
+    ).toBe("You need an <strong>11</strong> or higher on the d12.");
+    expect(r.neededOnDieLine({ total: 14, against: 14, dieMax: 8, minus: true, die: "1d8" })).toBe(
+      "Any roll on the d8 turns it."
+    );
+    expect(r.neededOnDieLine({ total: 21, against: 14, dieMax: 8, minus: true, die: "1d8" })).toBe(
+      "Only an <strong>8</strong> on the d8 turns it."
+    );
+    expect(r.neededOnDieLine({ total: 22, against: 14, dieMax: 8, minus: true, die: "1d8" })).toBe(
+      ""
+    );
     expect(r.dieMaxOf("1d8+@mod")).toBeNull();
   });
 

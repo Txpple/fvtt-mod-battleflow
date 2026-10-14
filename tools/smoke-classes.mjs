@@ -464,7 +464,9 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         !!pop && /Cutting Words/.test(textOf(pop?.element)) && /−d8/.test(textOf(pop?.element))
           && guards.some(g => (g.uuid === bard.uuid) && g.bystander && !g.quiet) && !guards.some(g => g.uuid === sorcerer.uuid),
         `pop=${!!pop} guards=${JSON.stringify(guards.map(g => [g.name, g.row, g.quiet ?? false]))}`);
-      ok('1b. the popup states the margin: "a d8 can turn it"', /can turn it/.test(textOf(pop?.element)), textOf(pop?.element).slice(0, 200));
+      ok('1b. the popup states the margin, "a d8 can turn it", and the face it needs: a hit by 2, "You need a 3 or higher on the d8"',
+        /can turn it/.test(textOf(pop?.element)) && /You need a 3 or higher on the d8/.test(textOf(pop?.element))
+          && /<strong>3<\/strong>/.test(pop?.element?.innerHTML ?? ''), textOf(pop?.element).slice(0, 240));
       faces([[5, 8]]);
       pickApply(pop);
       const t = await resolvedTarget(msg);

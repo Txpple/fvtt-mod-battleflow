@@ -90,6 +90,38 @@ export function dieMaxOf(formula) {
 }
 
 /**
+ * THE FACE A BYSTANDER NEEDS (the user, 2026-10-14: "you need an X or higher", the X in bold so the player zeroes in): the
+ * least face of the die that turns the verdict — a minus die (Cutting Words) turns a success when `total − n < against`,
+ * a plus die (Guided Strike's die, Combat Inspiration) turns a failure when `total + n ≥ against`. Clamped to 1 (any face
+ * does it); null when no face can (the gate never asks then), when the die has no size, or when the target is unknown.
+ * @param {{total: number, against: number|null, dieMax: number|null, minus: boolean}} args
+ * @returns {number|null}
+ */
+export function neededOnDie({ total, against, dieMax, minus }) {
+  const t = Number(total), a = Number(against), max = Number(dieMax);
+  if ( ![t, a, max].every(Number.isFinite) || (max < 1) ) return null;
+  const needed = Math.max(1, minus ? (t - a + 1) : (a - t));
+  return (needed <= max) ? needed : null;
+}
+
+/**
+ * The line that says it: "You need a <strong>4</strong> or higher on the d8." — "Any roll on the d8 turns it." when
+ * every face does, "Only an <strong>8</strong> on the d8 turns it." when the top face alone does. "" when nothing can
+ * be said (`neededOnDie` null).
+ * @param {{total: number, against: number|null, dieMax: number|null, minus: boolean, die: string}} args
+ * @returns {string}
+ */
+export function neededOnDieLine({ total, against, dieMax, minus, die }) {
+  const needed = neededOnDie({ total, against, dieMax, minus });
+  if ( needed === null ) return "";
+  const an = n => /^(8|11|18|8\d)$/.test(String(n)) ? "an" : "a";
+  const on = `on the ${String(die ?? "").replace(/^[+-]?1d/i, "d")}`;
+  if ( needed <= 1 ) return `Any roll ${on} turns it.`;
+  if ( needed >= Number(dieMax) ) return `Only ${an(needed)} <strong>${needed}</strong> ${on} turns it.`;
+  return `You need ${an(needed)} <strong>${needed}</strong> or higher ${on}.`;
+}
+
+/**
  * CAN THIS FOLD STILL WIN? A fold is offered only when its best outcome reaches the target: a die's largest face added
  * (Bardic Inspiration's d8 cannot close a 9-point gap), a natural 20 on a new d20 plus the roll's modifier and any
  * bonus, a verdict always. With no target known (a plain check), or a size it cannot read, it is offered.

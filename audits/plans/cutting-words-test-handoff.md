@@ -52,8 +52,8 @@ Write down: whose screen the window opened on, and whether the bar ran out befor
 3. Tick **Cut the damage** and Apply. The d8 lands in chat as "Cutting Words — off Kartor Bloodaxe's damage". The receipt on
    the damage card says "reduced by N". Kartor takes that much less. A Bardic Inspiration and Cecil's Reaction are spent.
 4. Do it again with a **Pass**: the damage lands whole, nothing spent.
-5. **One ask per hit.** If Robert was asked at the roll (section 1) and passed, the damage half does not ask him again for
-   that same hit, unless section 4 applies.
+5. **Both halves ask.** If Robert was asked at the roll (section 1) and passed, the damage half still asks him once the
+   damage is known: the pass at the roll was "not at the roll", not "not this hit". A mute (section 3) silences both.
 
 ## 3. The mutes
 
