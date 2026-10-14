@@ -1744,3 +1744,38 @@ describe("buyOff — why a buy box is greyed (Helpful Friend's familiar within 5
     ).toBeNull();
   });
 });
+
+describe("immunitySleepSource — Immunity to Exhaustion cannot be put to sleep (the 2024 Sleep's sentence)", () => {
+  it("a sleep demand against an Exhaustion-immune sheet is a `succeeds` source pointing at Sleep", () => {
+    const out = r.immunitySleepSource({
+      name: "Skeleton",
+      immunities: ["poisoned", "exhaustion"],
+      demand: { sleep: true }
+    });
+    expect(out).toMatchObject({
+      kind: "effect",
+      bend: null,
+      autoSucceed: true,
+      feature: "Immunity to Exhaustion"
+    });
+    expect(out.label).toBe("Skeleton — Immunity to Exhaustion (cannot be put to sleep)");
+    expect(out.detail).toMatchObject({ item: "Sleep" });
+    expect(r.saveGate([out]).net).toBe("succeeds");
+  });
+  it("no sleep in the demand, or no immunity on the sheet: nothing", () => {
+    expect(
+      r.immunitySleepSource({
+        name: "Skeleton",
+        immunities: ["exhaustion"],
+        demand: { sleep: false }
+      })
+    ).toBeNull();
+    expect(
+      r.immunitySleepSource({ name: "Skeleton", immunities: ["poisoned"], demand: { sleep: true } })
+    ).toBeNull();
+    expect(
+      r.immunitySleepSource({ name: "Skeleton", immunities: null, demand: { sleep: true } })
+    ).toBeNull();
+    expect(r.immunitySleepSource({})).toBeNull();
+  });
+});

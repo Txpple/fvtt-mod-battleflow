@@ -114,7 +114,7 @@ test is §1's three conditions; being in a fight is not one of them.
   Heroes of Faerûn, Ravenloft). The work is no longer paced by what the table meets next — it is
   paced by the books. **The one caveat: when the table needs something for itself, that jumps the
   queue.** Dogfooding stays the proof (a walk before a release), never the pacing.
-- **Batteries included: every machine is always on**, and a DM gets a few configs (twelve settings,
+- **Batteries included: every machine is always on**, and a DM gets a few configs (thirteen settings, one of them the only house rule, off by default,
   RULINGS *The settings*, and the Summon Art window, RULINGS *Summons*). A table that wants to configure everything wants midi. The shipped
   defaults are the registrations in `scripts/settings.js`; `tools/verify-settings.mjs` reads them.
 - **Every feature must be individually deletable** the day the system ships it natively. Being

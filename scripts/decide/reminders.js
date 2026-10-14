@@ -662,6 +662,18 @@ export function reminderRecord({ sources, net, mode, answeredAt }) {
   };
 }
 
+/** The 2024 Sleep's own rule: "Creatures that don't sleep, such as elves, or that have Immunity to the Exhaustion condition
+ * automatically succeed on saves against this spell." Trance is the EFFECT_BENDS row; this is the immunity half, read off
+ * the sheet's condition immunities against a demand marked `sleep` (decide/demand.js `putsToSleep`). Pure.
+ * @param {{name?: string, immunities?: Iterable<string>|null, demand?: {sleep?: boolean}|null}} facts
+ * @returns {object|null}  a `succeeds` source, or null */
+export function immunitySleepSource({ name = "You", immunities = null, demand = null } = {}) {
+  if ( !demand?.sleep || ![...(immunities ?? [])].map(s => String(s).toLowerCase()).includes("exhaustion") ) return null;
+  return { ...reminderSource("effect", null, `${name} — Immunity to Exhaustion (cannot be put to sleep)`, /** @type {any} */ (SLEEP_RULE)),
+    autoSucceed: true, feature: "Immunity to Exhaustion" };
+}
+const SLEEP_RULE = Object.freeze({ item: "Sleep", uuid: "Compendium.dnd-players-handbook.spells.Item.phbsplSleep00000" });
+
 /** THE FORGO (B3, Brutal Strike): every Advantage source struck — listed, no vote — so the net reads Normal; a
  * Disadvantage source stands (the tick is refused before this). Pure.
  * @param {{kind: string, bend: "advantage"|"disadvantage"|null, label: string}[]} sources

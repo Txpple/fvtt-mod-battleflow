@@ -174,7 +174,8 @@ export async function applyDamagesWithReceipt(receiptMessage, hits, damages, { n
       if ( !(actor instanceof Actor) || !actor.system.attributes?.hp ) continue;
       if ( !held && claimed(receiptMessage, target, actor, damages, { multiplier, ...(note ? { note } : {}) }) ) continue;
       const src = actor.system._source.attributes.hp;
-      const prior = { value: src.value, temp: src.temp, tempmax: src.tempmax };
+      // the Exhaustion rides the snapshot (GOING DOWN COSTS writes it in the damage's own update)
+      const prior = { value: src.value, temp: src.temp, tempmax: src.tempmax, exhaustion: Number(actor.system._source.attributes.exhaustion ?? 0) };
 
       // calculateDamage annotates WHY (a 9 that lands as 0); never recompute di/dr/dv by hand.
       // ⚠ It fires the calculate-damage hooks a second time.
@@ -183,7 +184,7 @@ export async function applyDamagesWithReceipt(receiptMessage, hits, damages, { n
       // The options object is read back: ward-pools.js writes what a ward took onto it.
       const applyOptions = { multiplier, isDelta: true, originatingMessage: receiptMessage, origin: receiptMessage };
       await actor.applyDamage(damages, applyOptions);
-      const after = actor.system._source.attributes.hp;
+      const after = { ...actor.system._source.attributes.hp, exhaustion: Number(actor.system._source.attributes.exhaustion ?? 0) };
       const ward = applyOptions.bfWard ?? null;
       // damage-rules.js's block and ignored Resistance.
       const block = calc?.bfArmorBlock;

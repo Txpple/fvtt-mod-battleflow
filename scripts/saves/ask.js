@@ -9,7 +9,7 @@ import { rollConfigFor } from "../shared.js";
 import { popupKey, bfCard, holdBarHTML } from "../decide/present.js";
 import { livePopups, adoptManagedPopup, DialogCarried, scheduleBarSync, armAskTimer, disarmAskTimer } from "../ui.js";
 import { SAVE_BENDS, EFFECT_BENDS } from "../decide/registry.js";
-import { saveGate, saveSources, effectSaveSources } from "../decide/reminders.js";
+import { saveGate, saveSources, effectSaveSources, immunitySleepSource } from "../decide/reminders.js";
 import { conditionEntries, effectEntries, reminderEntries } from "../decide/registry.js";
 import { foldSaveAnswer, foldSaveAutoFail, foldSaveAutoSucceed } from "./verdict.js";
 import { SURFACES } from "../surfaces.js";
@@ -162,13 +162,15 @@ function autoFailSources(actor, ability) {
   return saveGate(sources).autoFail ? sources : [];
 }
 
-/** A save that cannot FAIL (Trance): the roller's `succeeds` rows, read against THIS demand. */
+/** A save that cannot FAIL (Trance): the roller's `succeeds` rows, read against THIS demand — and the sheet's
+ * Immunity to Exhaustion against a sleep (the 2024 Sleep's own sentence), which no list gates. */
 function autoSucceedSources(actor, flag) {
-  if ( !reminderEntries().some(e => e.kind === "effect") ) return [];
-  return effectSaveSources({ effects: actor.effects.filter(e => !e.disabled).map(e => ({ id: e.id, name: e.name })),
+  const immune = immunitySleepSource({ name: actor.name, immunities: actor.system?.traits?.ci?.value ?? null, demand: flag.demand ?? null });
+  if ( !reminderEntries().some(e => e.kind === "effect") ) return immune ? [immune] : [];
+  return [...effectSaveSources({ effects: actor.effects.filter(e => !e.disabled).map(e => ({ id: e.id, name: e.name })),
     features: namesAnswering(actor.items.filter(i => i.type === "feat"), Object.keys(EFFECT_BENDS)),
     enabled: effectEntries().map(e => e.kind), table: EFFECT_BENDS, demand: flag.demand ?? null, name: actor.name })
-    .filter(s => s.autoSucceed);
+    .filter(s => s.autoSucceed), ...(immune ? [immune] : [])];
 }
 
 /** One owed save rolled with no dialog: a save the rules decide before the dice is recorded, not rolled;

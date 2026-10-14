@@ -1008,8 +1008,9 @@ dedupe on.
 
 ## 8. The settings surface
 
-Twelve settings (RULINGS *The settings*, *Open roll by default*): nine world configs for the DM,
-three per-client preferences. One more world key is kept out of the list: `summonArt`, the table's own
+Thirteen settings (RULINGS *The settings*, *Open roll by default*, *Session zero's combat*): ten world configs for
+the DM (one of them a house rule, Going Down Costs a Level of Exhaustion, off by default — the only setting that is
+not the book's), three per-client preferences. One more world key is kept out of the list: `summonArt`, the table's own
 token and portrait per summoned creature, edited only in its window behind a settings button
 ([summon-art.js](scripts/summon-art.js), RULINGS *Summons* call 15). Two of the nine, Roll Results Players See and Bloodied Shows on Every
 Token, own dnd5e's Visibility menu (`attackRollVisibility`, `challengeVisibility`, `bloodied`): the

@@ -15,7 +15,8 @@ import { announcePlan, connectSuite, finish, sectionArg, sectionPlan } from './h
 // THE COVERAGE MAP (tools/coverage-map.mjs) — ⚠ NEVER import a suite; the map is parsed.
 export const COVERS = [
   'turn-grants.js',         // §1 — Heroism's temp HP at the bearer's turn start, once per turn, receipted; §9 Regeneration — the feature row, the block read off the receipts
-  'repeat-saves.js',        // §2–§5 — the repeat at the turn end, on damage, as the action; the count; §8 the indigo ray's named save
+  'repeat-saves.js',        // §2–§5 — the repeat at the turn end, on damage, as the action; the count; §8 the indigo ray's named save; §10 Sleep's end on damage and the lifted Unconscious
+  'saves/ask.js',           // §10 — the cast's save that cannot fail: Immunity to Exhaustion against a sleep
   'damage-shares.js',       // §6 — Warding Bond's share to the caster, the reach, the end at 0 HP
   'heal-on-hit.js',         // §7 — Vampiric Touch's heal to the caster from the damage that landed
   'prismatic.js'            // §8 — Prismatic Spray's die per creature, a demand per ray, the type forced, the indigo effect landed
@@ -30,6 +31,7 @@ const SECTIONS = {
   6: 'THE HELD SPELLS — Warding Bond: the cast lands Bonded on the Victim; damage landing on it (from a card) is taken by the Cleric too — the same number (the bond\'s resistance already taken), a card, a receipt; 65 ft apart the card says the bond is out of reach and nothing is shared; the Cleric dropped to 0 by a share ends the bond (Bonded gone, the card says why)',
   7: 'Vampiric Touch: a hit (AC 1) lands its necrotic damage on the Victim; the Cleric regains HALF of what landed — a card, a receipt, the Hit Points up; the dealing card carries the once-latch',
   9: 'REGENERATION (the GM\'s side, 2026-09-28): the Victim lent the Monster Manual trait (its copy naming Acid or Fire as the block, 10 HP) regains 10 at its turn start — a card, a receipt, the Hit Points up; fire dealt to it (a receipt) since its last turn blocks the next turn start with a card saying why and no receipt; the turn after pays again; at 0 HP nothing is paid',
+  10: 'Sleep (2024): the cast fails the Victim — Sleeping (Incapacitated) lands; its turn END repeats: the failure locks it and presses Unconscious, the card says so; damage landing on it ENDS Sleeping outright and lifts the Unconscious with it, a settled card says why; with Immunity to Exhaustion on the sheet the cast\'s save cannot fail and nothing lands',
   8: 'Prismatic Spray: the cast\'s card is born with its demand CLOSED and the ray claim pending (no 12d6 at the cast); the cone placed over the Victim rolls a d8 (a 6: indigo) — a summary card and ONE demand against "Indigo Save (Con)", pinned; the cone region gone; the failed save lands Petrifying (Indigo) by the machine, receipted; the Victim\'s turn end repeats the INDIGO save (1 of 3 failures); a second cast with the d8 a 1 (red): the Cast\'s Dexterity demand with the 12d6 rolled as FIRE'
 };
 const DEPENDS = {};
@@ -128,7 +130,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       return null;
     };
     const spells = {};
-    for (const name of ['Heroism', 'Hold Person', "Tasha's Hideous Laughter", "Otto's Irresistible Dance", 'Flesh to Stone']) {
+    for (const name of ['Heroism', 'Hold Person', "Tasha's Hideous Laughter", "Otto's Irresistible Dance", 'Flesh to Stone', 'Sleep']) {
       spells[name] = await lend(name, 'spell');
       if (!spells[name]) return { fatal: `the PHB ships no "${name}" this box can find`, results, log, skips };
     }
@@ -283,6 +285,55 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       await sleep(800);
       ok('2g. with the effect gone, a turn end raises nothing', repeatCards().length === n0 + 2, `cards=${repeatCards().length}`);
       await endCombat();
+      await clearVictim();
+    }
+
+    // ================================================== 10. Sleep (2024)
+    if (want(10)) {
+      await healFull();
+      const cast = await castAt('Sleep', '-30');
+      const sleeping = await waitFor(() => effectNamed('Sleeping'), 8000);
+      ok('10a. Sleep fails the Victim: Sleeping (Incapacitated) stands, receipted on the cast card',
+        !!cast && !!sleeping && sleeping.statuses?.has?.('incapacitated') && !!cast?.getFlag(MOD, 'effectReceipt')?.targets?.some(t => t.effects?.some(e => e.id === sleeping.id)),
+        `cast=${!!cast} sleeping=${!!sleeping} statuses=${[...(sleeping?.statuses ?? [])].join(',')} outcome=${cast?.getFlag(MOD, 'saves')?.targets?.[0]?.outcome}`);
+      await startCombat();
+      const n0 = repeatCards().length;
+      await combat.nextTurn();   // the Victim's turn
+      await sleep(300);
+      await combat.nextTurn();   // the Victim's turn ENDS
+      const first = await settledRepeat(n0 + 1);
+      const r1 = first?.getFlag(MOD, 'repeatSave');
+      const count = await waitFor(() => effectNamed('Sleeping')?.getFlag(MOD, 'repeatCount')?.locked ? effectNamed('Sleeping').getFlag(MOD, 'repeatCount') : null, 8000);
+      await waitFor(() => victim.statuses.has('unconscious') ? true : null, 8000);
+      ok('10b. the failed repeat locks Sleeping and presses Unconscious; the count records the press; the card says so',
+        (r1?.says === 'Sleeping holds — the first failure: Unconscious') && !!count?.locked && (count?.pressed === 'unconscious') && victim.statuses.has('unconscious') && !!effectNamed('Sleeping'),
+        `says="${r1?.says}" count=${JSON.stringify(count)} unconscious=${victim.statuses.has('unconscious')}`);
+      await combat.nextTurn();   // the Cleric
+      await sleep(300);
+      await combat.nextTurn();   // the Victim
+      await sleep(300);
+      await combat.nextTurn();   // the Victim's turn ends again — locked: nothing asked
+      await sleep(800);
+      ok('10c. locked: the next turn end asks nothing', repeatCards().length === n0 + 1, `cards=${repeatCards().length}`);
+      await victim.applyDamage([{ value: 3, type: 'bludgeoning' }]);
+      const ended = await waitFor(() => repeatCards().find(m => m.getFlag(MOD, 'repeatSave')?.cause === 'damaged' && m.getFlag(MOD, 'repeatSave')?.ended) ?? null, 10000);
+      await waitFor(() => (!effectNamed('Sleeping') && !victim.statuses.has('unconscious')) ? true : null, 8000);
+      const sleepEntry = cast?.getFlag(MOD, 'effectReceipt')?.targets?.find(t => t.uuid === victim.uuid)?.effects?.find(e => e.id === sleeping?.id);
+      ok('10d. damage ENDS Sleeping outright (through the cast card\'s receipt) and lifts the Unconscious with it; a settled card says why',
+        !!ended && !effectNamed('Sleeping') && !victim.statuses.has('unconscious') && (sleepEntry?.reverted === true) && /Sleeping ends on .* it took damage \(Unconscious with it\)/.test(ended?.getFlag(MOD, 'repeatSave')?.says ?? ''),
+        `card=${!!ended} says="${ended?.getFlag(MOD, 'repeatSave')?.says}" sleeping=${!!effectNamed('Sleeping')} unconscious=${victim.statuses.has('unconscious')} reverted=${sleepEntry?.reverted}`);
+      await endCombat();
+      await clearVictim();
+      // the sentence's other half: Immunity to Exhaustion cannot be put to sleep
+      const ciBefore = foundry.utils.deepClone(victim.system._source.traits?.ci ?? { value: [], custom: '' });
+      await victim.update({ 'system.traits.ci.value': [...new Set([...(ciBefore.value ?? []), 'exhaustion'])] });
+      const cast2 = await castAt('Sleep', '-30');
+      await sleep(600);
+      const t2 = cast2?.getFlag(MOD, 'saves')?.targets?.[0];
+      ok('10e. with Immunity to Exhaustion the cast\'s save cannot fail: recorded a success, the source named, nothing lands',
+        (t2?.outcome === 'saved') && !effectNamed('Sleeping') && JSON.stringify(t2?.sources ?? t2 ?? {}).includes('Immunity to Exhaustion'),
+        `outcome=${t2?.outcome} sleeping=${!!effectNamed('Sleeping')} entry=${JSON.stringify(t2 && { outcome: t2.outcome, sources: t2.sources })}`);
+      await victim.update({ 'system.traits.ci': ciBefore });
       await clearVictim();
     }
 

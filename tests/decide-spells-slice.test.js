@@ -289,7 +289,8 @@ describe("REPEAT_SAVES — the table (Tier 2)", () => {
       "Petrifying Bite",
       "Petrifying Breath",
       "Petrifying Gaze",
-      "Prismatic Spray (Indigo)"
+      "Prismatic Spray (Indigo)",
+      "Sleep"
     ]);
   });
   it("the three chosen-area spells (Slow, Fear, Confusion) are rows here too — the repeat is a second row on the same spell", () => {
@@ -1191,5 +1192,68 @@ describe("DUPLICATES — the table and decide/duplicates.js (Tier 3)", () => {
         })
         .map(t => t.uuid)
     ).toEqual(["t2"]);
+  });
+});
+
+describe("Sleep (2024) — the repeat with two new facets (RULINGS *Session zero's combat*, 2026-10-14)", () => {
+  it("the row: Sleeping repeats at the turn end; one success ends it, one failure locks it and presses Unconscious; damage ends it outright, the Unconscious lifted with it", () => {
+    const row = reg.REPEAT_SAVES.Sleep;
+    expect(row).toMatchObject({
+      effect: "Sleeping",
+      count: { saves: 1, fails: 1, press: "unconscious" },
+      lifts: true
+    });
+    expect([...row.on]).toEqual(["turnEnd"]);
+    expect([...row.endsOn]).toEqual(["damaged"]);
+    expectPointer(row.rule);
+    expect(row.caveat).toMatch(/shake/);
+  });
+  it("repeatEnds reads the cause off `endsOn`; a row without it never ends outright", () => {
+    expect(rs.repeatEnds(reg.REPEAT_SAVES.Sleep, "damaged")).toBe(true);
+    expect(rs.repeatEnds(reg.REPEAT_SAVES.Sleep, "turnEnd")).toBe(false);
+    expect(rs.repeatEnds(reg.REPEAT_SAVES["Tasha's Hideous Laughter"], "damaged")).toBe(false);
+    expect(rs.repeatEnds(null, "damaged")).toBe(false);
+  });
+  it("the verdict on Sleep: a success ends it; a failure locks it and presses Unconscious", () => {
+    expect(rs.repeatVerdict(reg.REPEAT_SAVES.Sleep, "saved", null)).toMatchObject({
+      ends: true,
+      locks: false,
+      press: null
+    });
+    expect(rs.repeatVerdict(reg.REPEAT_SAVES.Sleep, "failed", null)).toMatchObject({
+      ends: false,
+      locks: true,
+      press: "unconscious",
+      says: "Sleeping holds — the first failure: Unconscious"
+    });
+  });
+  it("repeatLift: the pressed status recorded on the count goes with a `lifts` row's effect; Flesh to Stone's Petrified stays", () => {
+    expect(rs.repeatLift(reg.REPEAT_SAVES.Sleep, { pressed: "unconscious", locked: true })).toBe(
+      "unconscious"
+    );
+    expect(rs.repeatLift(reg.REPEAT_SAVES.Sleep, { locked: true })).toBeNull();
+    expect(
+      rs.repeatLift(reg.REPEAT_SAVES["Flesh to Stone"], { pressed: "petrified", locked: true })
+    ).toBeNull();
+    expect(rs.repeatLift(null, { pressed: "unconscious" })).toBeNull();
+  });
+  it("the end's words name the spell, the effect, the bearer, the cause and what went with it", () => {
+    expect(
+      rs.repeatEndWords({
+        effectName: "Sleeping",
+        bearer: "Grimlock",
+        cause: "damaged",
+        spell: "Sleep",
+        lifted: "unconscious"
+      })
+    ).toBe("Sleep — Sleeping ends on Grimlock: it took damage (Unconscious with it)");
+    expect(
+      rs.repeatEndWords({
+        effectName: "Sleeping",
+        bearer: "Grimlock",
+        cause: "damaged",
+        spell: "Sleep"
+      })
+    ).toBe("Sleep — Sleeping ends on Grimlock: it took damage");
   });
 });

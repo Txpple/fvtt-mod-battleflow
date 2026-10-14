@@ -10,7 +10,7 @@ import { MODULE_ID, readFlag, TITLE, drivesMomentFor, statContext, decisionWindo
 import { activityNamed, activityOfType, answersOrEnchanted, resolveUuid } from "./lookup.js";
 import { effectSourceOf, forceStatus } from "./shared.js";
 import { REPEAT_SAVES, repeatSaveEntries, listedNames } from "./decide/registry.js";
-import { repeatRowFor, repeatDue, repeatBend, repeatVerdict, needsFloat, repeatTitle } from "./decide/repeat-saves.js";
+import { repeatRowFor, repeatDue, repeatBend, repeatVerdict, needsFloat, repeatTitle, repeatEnds, repeatLift, repeatEndWords } from "./decide/repeat-saves.js";
 import { saveDemandData, saveTargetEntry } from "./decide/demand.js";
 import { bfCard, esc, ruleLine } from "./decide/present.js";
 import { momentButton } from "./ui.js";
@@ -90,6 +90,8 @@ listen("dnd5e.damageActor", "repeat-saves", (actor, changes) => {
     for ( const effect of actor.effects ) {
       const row = rowOf(effect);
       if ( !row ) continue;
+      // an `endsOn` row (Sleep): the damage ends the effect outright, no save
+      if ( repeatEnds(row, "damaged") ) { void endOutright(effect, row, "damaged"); continue; }
       const due = repeatDue(row, "damaged", { pending: pendingFor(effect) });
       if ( !due.due ) continue;
       void raiseRepeat(effect, row, "damaged", due.why);
@@ -98,6 +100,29 @@ listen("dnd5e.damageActor", "repeat-saves", (actor, changes) => {
     console.error(`${TITLE} | The repeated save could not be raised — ask for it by hand.`, err);
   }
 });
+
+/** An `endsOn` cause (Sleep's damage): the effect ends through the cast card's receipt, its pressed status with it
+ * on a `lifts` row, and a settled card says so. */
+async function endOutright(effect, row, cause) {
+  try {
+    const actor = effect.parent;
+    if ( !(actor instanceof Actor) || !canApplyTo(actor) ) return;
+    const lifted = repeatLift(row, readFlag(effect, COUNT_FLAG) ?? null);
+    const token = actor.token ?? actor.getActiveTokens?.(true, true)?.[0] ?? null;
+    const says = repeatEndWords({ effectName: effect.name, bearer: token?.name ?? actor.name, cause, spell: row.key, lifted });
+    await endEffect({ castCard: effect.system?.origin?.message ?? null }, actor, effect);
+    const item = row.item;
+    await ChatMessage.create({
+      speaker: ChatMessage.getSpeaker({ actor: item?.actor ?? actor }),
+      content: bfCard({ img: item?.img ?? null, eyebrow: "Repeated save", tone: "neutral", title: says, lines: [ruleLine(row.rule)] }),
+      flags: { [MODULE_ID]: { [REPEAT_FLAG]: { ...statContext(item?.actor?.uuid ?? null), key: row.key, cause, why: CAUSE_END,
+        effectUuid: effect.uuid, effectId: effect.id, effectName: effect.name, actorUuid: actor.uuid, settled: true, ended: true, outcome: null, says } } }
+    });
+  } catch(err) {
+    console.error(`${TITLE} | The effect could not be ended on damage — end it by hand.`, err);
+  }
+}
+const CAUSE_END = "ends on damage";
 
 /** The demand: the saves machine's flag on this file's card, pinned to the bearer, the row's bend riding. */
 async function raiseRepeat(effect, row, cause, why) {
@@ -207,7 +232,9 @@ async function settleRepeat(card) {
     else if ( !canApplyTo(actor) ) landed = " — no GM: end it by hand";
     else {
       if ( verdict.ends ) await endEffect(rep, actor, effect);
-      else if ( verdict.tally ) await effect.setFlag(MODULE_ID, COUNT_FLAG, { ...verdict.tally, ...(verdict.locks ? { locked: true } : {}) });
+      // the press is recorded on the count (`pressed`, by whom): a `lifts` row takes it off with the effect
+      else if ( verdict.tally ) await effect.setFlag(MODULE_ID, COUNT_FLAG, { ...verdict.tally, ...(verdict.locks ? { locked: true } : {}),
+        ...(verdict.press ? { pressed: verdict.press, pressedBy: flag.sourceUuid ?? null } : {}) });
       if ( verdict.press ) await forceStatus(actor, verdict.press, { origin: flag.sourceUuid ?? null });
     }
     await queueFlagWrite(card, REPEAT_FLAG, current => {
@@ -233,6 +260,23 @@ async function endEffect(rep, actor, effect) {
 }
 
 listen("updateChatMessage", "repeat-saves", message => { void settleRepeat(message); });
+
+/* --- the lift: a `lifts` row's pressed status goes with the effect, however it ended ----------------- */
+
+listen("deleteActiveEffect", "repeat-saves", effect => {
+  try {
+    const actor = effect.parent;
+    if ( !(actor instanceof Actor) || !drivesMomentFor(actor.uuid) ) return;
+    const row = rowOf(effect);
+    const count = readFlag(effect, COUNT_FLAG) ?? null;
+    const lift = row ? repeatLift(row, count) : null;
+    if ( !lift ) return;
+    // the one the press made (its origin the caster's), else the canonical status standing with no origin of its own
+    const pressed = actor.effects.find(e => e.statuses?.has?.(lift) && !e.disabled && (e.origin === (count?.pressedBy ?? null)))
+      ?? actor.effects.find(e => e.statuses?.has?.(lift) && !e.disabled && !e.origin) ?? null;
+    if ( pressed ) void pressed.delete().catch(err => console.warn(`${TITLE} | ${lift} could not be lifted with ${effect.name} — remove it by hand.`, err));
+  } catch(err) { console.warn(`${TITLE} | The ended effect's pressed status could not be lifted.`, err); }
+});
 
 /* --- the float, where the platform draws none (a bare effect: Confused) --------------------------- */
 

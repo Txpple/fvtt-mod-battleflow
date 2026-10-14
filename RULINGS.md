@@ -1421,7 +1421,8 @@ The user, 2026-09-27, ruling the draft list: *"this is fine for now"*, and agree
 calls. The vision behind it (DESIGN, the refactor's rulings of 2026-09-27): batteries included, a few configs for DMs;
 midi is the alternative for a table that wants to configure everything.
 
-- **Ten settings** (twelve since *Open roll by default*). For the DM: Decision Timer, Dramatic Beat,
+- **Ten settings** (twelve since *Open roll by default*; thirteen since *Session zero's combat*, 2026-10-14: Going Down
+  Costs a Level of Exhaustion, the one house rule, off by default). For the DM: Decision Timer, Dramatic Beat,
   Players Roll Their Own Saves, Concentration Checks Are Public, Hold Shows the Math, Optional
   Masteries, Resource Use Notices.
   For each player: Roll Your Own Damage, Effect Bar, Effect Cards on Hover and Alt.
@@ -3772,6 +3773,42 @@ art button in settings. keeping the same shape"). A second settings button opens
 and a portrait per beast (`formArt`, keyed by beast name). The known-form rows wear it, and the form wears it when it
 lands: the sheet's portrait and every token of it. The sandbox's table starts from the familiar art (the same beasts
 by name); a giant or close variant of an animal reuses that animal's art (the user: "dont make another crab").
+
+## Session zero's combat (2026-10-14)
+
+**The DM's notes from Echoes of Halruaa's session zero (2026-10-13), read against the 2024 rules and built on the user's
+go.** Four items; the fourth, Familiar Friend, is *Summons* calls 45–47.
+
+1. **Sleep (2024) is a `REPEAT_SAVES` row with two new facets.** The text: Incapacitated until the end of its next turn,
+   "at which point it must repeat the save. If the target fails the second save, the target has the Unconscious condition
+   for the duration. The spell ends on a target if it takes damage or someone within 5 feet of it takes an action to
+   shake it out." The first save is the cast's; the pack's Sleeping effect (Incapacitated, 1 minute) lands on the
+   failure. The row: `count: { saves: 1, fails: 1, press: "unconscious" }` — the turn-end repeat's success ends it, its
+   failure locks it (no more asking) and presses Unconscious; **`endsOn: ["damaged"]`** — damage landing on the sleeper
+   ends the effect outright, no save, through the cast card's receipt, a settled card saying why; **`lifts: true`** — the
+   status the press made (recorded on the effect's count as `pressed`, by whom) goes with the effect however it ends:
+   damage, the duration, a hand. Flesh to Stone's Petrified keeps standing (its caveat). The shake-awake is the table's:
+   the caveat says so on the card. At the table the repeats were rolled as Wisdom *checks*; the row makes them saves.
+   **The sentence's other half is data, not a list**: "Creatures that don't sleep, such as elves, or that have Immunity to
+   the Exhaustion condition automatically succeed" — Trance was the `succeeds` row; the Exhaustion immunity is read off
+   the sheet's condition immunities against a demand marked `sleep` (`immunitySleepSource`), gated by no list.
+2. **Healing up from 0 leaves the creature Prone — native, once dnd5e's Apply Downed is on.** The 2024 Unconscious
+   condition: "You have the Incapacitated and Prone conditions … When this condition ends, you remain Prone." dnd5e's
+   `unconscious` condition carries `riders: ["prone"]`; a rider is created as its own status effect (`collectRiders`),
+   NOT a dependent of the Unconscious, so dnd5e's `updateDowned` (Apply Downed Conditions, `autoApplyDowned`) puts
+   Unconscious and Prone on at 0 HP in combat and takes only its own Unconscious off when the Hit Points come back:
+   Prone stays, as written. Kartor's case needs the setting at **all** (prod had **none**: nothing was applied at
+   0, so nothing could remain). No module code; measured on the sandbox before the setting moved on prod.
+3. **Going down costs a level of Exhaustion — a SETTING, the one house rule** (the campaign's `house-rules.md`: each
+   time a creature is reduced to 0 Hit Points it gains one level, at the drop, not when healed; the sixth is death).
+   `Going Down Costs a Level of Exhaustion`, world, off by default: the module plays the book until a table says
+   otherwise, and a house rule is the one thing that earns a switch (ARCHITECTURE §8 rule 1 is about machines, not
+   rules). The seam is drop-to-one.js's `dnd5e.preApplyDamage`, registered after the holds: a creature held at 1
+   (Relentless Endurance, Death Ward, a winning save) pays nothing; the level is written IN THE DAMAGE'S OWN UPDATE
+   on the applying client (one write, no race), capped at the platform's 6, which dnd5e reads as Dead. The receipt's
+   snapshots carry the Exhaustion either side (`exhaustionChange`), the row says "Exhaustion 0 → 1", and Revert puts the
+   level back with the Hit Points (`revertPlan`). Every creature, as the user ruled (2026-10-14): a non-important NPC
+   dies at 0 under dnd5e and gains its level all the same, harmlessly.
 
 ## Rulings the code carried
 

@@ -1,8 +1,8 @@
 /**
- * By the Books — the twelve settings (ARCHITECTURE §8): nine world configs for the DM, three per-client
- * preferences; and one table kept out of the list, the summon art, edited in its own window
- * (summon-art.js). Everything else is the module itself and always on. Two of the nine own dnd5e's
- * Visibility menu, so a fresh world plays with the results on the table (issue #4).
+ * By the Books — the thirteen settings (ARCHITECTURE §8): ten world configs for the DM (one of them a house
+ * rule, off by default), three per-client preferences; and one table kept out of the list, the summon art,
+ * edited in its own window (summon-art.js). Everything else is the module itself and always on. Two of the
+ * ten own dnd5e's Visibility menu, so a fresh world plays with the results on the table (issue #4).
  */
 import { MODULE_ID, S, TITLE, isActiveGM, setting } from "./core.js";
 import { ROLL_RESULTS, bloodiedFor, visibilityWrites } from "./decide/visibility.js";
@@ -100,6 +100,13 @@ listenOnce("init", "settings", () => {
     hint: "On: the Bloodied marker shows on every token, enemies included, since abilities trigger on it. Off: friendly tokens only, dnd5e's own default. This overrides dnd5e's Visibility settings. The automation reads Hit Points either way.",
     scope: "world", config: true, type: Boolean, default: true,
     onChange: syncVisibility
+  });
+
+  // A HOUSE RULE, the one setting that is not the book's: off, the module plays the 2024 rules as written.
+  game.settings.register(MODULE_ID, S.goingDownCosts, {
+    name: "Going Down Costs a Level of Exhaustion",
+    hint: "A house rule, off by default. On: each time a creature drops to 0 Hit Points from damage it gains one level of Exhaustion, at the drop (not when it is healed), the sixth level being death as the 2024 rules say. Written in the same update as the damage and recorded on the damage receipt, so Revert takes it back.",
+    scope: "world", config: true, type: Boolean, default: false
   });
 
   // ⚠ Per-CLIENT and ON by default, or every new login starts wrong. Covers all three damage paths.

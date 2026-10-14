@@ -4,7 +4,7 @@
  */
 import { readFlag, TITLE, queueFlagWrite } from "./core.js";
 import { clearStatus } from "./shared.js";
-import { receiptAmounts, revertPlan, traitPhrase } from "./decide/receipt.js";
+import { exhaustionPhrase, receiptAmounts, revertPlan, traitPhrase } from "./decide/receipt.js";
 import { revertEffect } from "./effect-riders.js";
 import { SURFACES } from "./surfaces.js";
 import { listen } from "./dispatch.js";
@@ -81,7 +81,8 @@ listen("dnd5e.renderChatMessage", "receipts", (message, html) => {
       // A note (Graze) and the trait story share the reason slot, in that order.
       const phrases = [...(t.note ? [t.note] : []),
         ...(t.traits ?? []).map(x => traitPhrase({ ...x, label: typeLabel(x.type) }))
-          .filter(Boolean)];
+          .filter(Boolean),
+        ...(exhaustionPhrase(t) ? [exhaustionPhrase(t)] : [])];
       if ( phrases.length ) {
         const why = document.createElement("span");
         why.textContent = `${phrases.join(", ")} · `;

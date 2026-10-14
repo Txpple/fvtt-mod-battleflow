@@ -6,7 +6,8 @@ import { announcePlan, connectSuite, loadEnv, sectionPlan } from './harness.mjs'
 
 // The coverage map (tools/coverage-map.mjs) parses this; ⚠ never import a suite (it connects on evaluation).
 export const COVERS = [
-  'receipts.js',            // §4 / §4b / §4c — the revert row, clicked
+  'receipts.js',            // §4 / §4b / §4c — the revert row, clicked; §4d the drop's Exhaustion on the row and its revert
+  'drop-to-one.js',         // §4d — GOING DOWN COSTS: the level written in the damage's own update (the house-rule setting)
   'polish.js',              // §5b — the card always posts, the no-target gate
   'stats.js',               // §3b / §3c — the data-plane stamps, the death save's rollCtx
   // Nothing drives the rename's migration on purpose (a sandbox carries no legacy scope): it scans on
@@ -21,6 +22,7 @@ const SECTIONS = {
   4: 'revert via a real DOM click',
   '4b': 'the immunity receipt (rolled N, took 0, WHY)',
   '4c': 'revert a KILL — the flake, made deterministic',
+  '4d': 'GOING DOWN COSTS (the house-rule setting, on for the section): a hit dropping the Victim to 0 adds a level of Exhaustion in the damage\'s own update; the receipt row says "Exhaustion 0 → 1"; Revert takes the level back with the HP; off, a drop adds nothing',
   5: 'the miss test',
   '5b': 'polish gates: the card always posts + no-target',
   '5c': 'the attacker-side mode gate (NPC / PC / all)',
@@ -57,6 +59,7 @@ let priorSettings = null;
       reactionHold: game.settings.get(MOD, 'reactionHold'),
       effectRiders: game.settings.get(MOD, 'effectRiders'),
       masteryRiders: game.settings.get(MOD, 'masteryRiders'),
+      goingDownCosts: game.settings.get(MOD, 'goingDownCosts'),
     };
     await game.settings.set(MOD, 'autoDamage', 'all');
     await game.settings.set(MOD, 'autoApply', true);
@@ -736,6 +739,87 @@ if (want('4c')) {
     JSON.stringify(r.rejections ?? []));
 }
 
+// ---- 4d. GOING DOWN COSTS: the house-rule setting, the level in the damage's own update, the receipt, the revert
+if (want('4d')) {
+  const r = await f.evaluate(async ({ victimId, victimToken, attackerId, itemName }) => {
+    const MOD = 'fvtt-mod-bythebooks';
+    const base = game.actors.get(victimId);
+    const victim = canvas.tokens.get(victimToken).actor;
+    const attacker = game.actors.get(attackerId);
+    const priorHp = foundry.utils.deepClone(victim.system._source.attributes.hp);
+    const priorEx = Number(victim.system._source.attributes.exhaustion ?? 0);
+    const sleep = ms => new Promise(r => setTimeout(r, ms));
+    const drop = async () => {
+      await base.update({ 'system.attributes.ac.override': 1 });
+      await victim.update({ 'system.attributes.hp.value': 1, 'system.attributes.hp.temp': 0, 'system.attributes.exhaustion': 0 });
+      for (const e of victim.effects.filter(e => e.statuses.has('dead') || e.statuses.has('unconscious'))) { try { await e.delete(); } catch { /* gone */ } }
+      canvas.tokens.get(victimToken).setTarget(true, { releaseOthers: true });
+      const activity = attacker.items.getName(itemName).system.activities.find(a => a.type === 'attack');
+      const results = await activity.use({ subsequentActions: false }, { configure: false }, {});
+      const usageId = results?.message?.id ?? null;
+      if (!usageId) throw new Error('no usage message id');
+      const realPRNG = CONFIG.Dice.randomUniform;
+      CONFIG.Dice.randomUniform = () => 0.925;
+      try { await activity.rollAttack({ advantage: true }, { configure: false }, { data: { 'system.origin': usageId } }); }
+      finally { CONFIG.Dice.randomUniform = realPRNG; }
+      let damageMsg = null;
+      for (let i = 0; i < 40 && !damageMsg; i++) {
+        await sleep(250);
+        damageMsg = game.messages.contents.slice(-10).find(m => (m.type === 'damage') && (m._source.system?.origin === usageId) && m.getFlag(MOD, 'receipt'));
+      }
+      if (!damageMsg) throw new Error('no receipted damage message');
+      for (let i = 0; i < 20 && (victim.system.attributes.hp.value > 0); i++) await sleep(250);
+      return damageMsg;
+    };
+    try {
+      await game.settings.set(MOD, 'goingDownCosts', true);
+      const msg = await drop();
+      const entry = msg.getFlag(MOD, 'receipt')?.targets?.find(t => t.uuid === victim.uuid) ?? null;
+      const after = Number(victim.system._source.attributes.exhaustion ?? 0);
+      let rowText = '';
+      for (let i = 0; i < 20 && !rowText; i++) {
+        await sleep(250);
+        rowText = document.querySelector(`[data-message-id="${msg.id}"] .bythebooks-receipt`)?.textContent?.replace(/\s+/g, ' ') ?? '';
+        if (!/Exhaustion/.test(rowText)) rowText = '';
+      }
+      const button = document.querySelector(`[data-message-id="${msg.id}"] .bythebooks-receipt button`);
+      button?.click();
+      let reverted = null;
+      for (let i = 0; i < 40 && !reverted; i++) {
+        await sleep(250);
+        const flag = game.messages.get(msg.id)?.getFlag(MOD, 'receipt');
+        if (flag?.targets?.every(t => t.reverted)) reverted = flag;
+      }
+      await sleep(300);
+      const afterRevert = Number(victim.system._source.attributes.exhaustion ?? 0);
+      const hpAfterRevert = victim.system._source.attributes.hp.value;
+      // off: a drop adds nothing
+      await game.settings.set(MOD, 'goingDownCosts', false);
+      const msg2 = await drop();
+      const entry2 = msg2.getFlag(MOD, 'receipt')?.targets?.find(t => t.uuid === victim.uuid) ?? null;
+      const offLevel = Number(victim.system._source.attributes.exhaustion ?? 0);
+      return { ok: true, hp0: victim.system.attributes.hp.value, level: after, entry: entry?.exhaustion ?? null, rowText: rowText.slice(0, 160), button: !!button,
+        reverted: !!reverted, afterRevert, hpAfterRevert, offLevel, entry2: entry2?.exhaustion ?? null };
+    } catch (err) {
+      return { ok: false, why: `${err.message}\n${err.stack}` };
+    } finally {
+      try {
+        await game.settings.set(MOD, 'goingDownCosts', false);
+        await base.update({ 'system.attributes.ac.override': null });
+        await victim.update({ 'system.attributes.hp.value': priorHp.value, 'system.attributes.hp.temp': priorHp.temp, 'system.attributes.exhaustion': priorEx });
+        for (const e of victim.effects.filter(e => e.statuses.has('dead') || e.statuses.has('unconscious') || e.statuses.has('exhaustion'))) { try { await e.delete(); } catch { /* gone */ } }
+      } catch { /* best effort */ }
+    }
+  }, fx);
+  report('4d. the drop adds a level of Exhaustion in the damage\'s own update, recorded on the receipt entry',
+    r.ok && (r.level === 1) && (r.entry?.prior === 0) && (r.entry?.after === 1), r.ok ? `level=${r.level} entry=${JSON.stringify(r.entry)}` : r.why);
+  report('4d. the receipt row says "Exhaustion 0 → 1"', r.ok && /Exhaustion 0 → 1/.test(r.rowText), r.ok ? `row="${r.rowText}"` : r.why);
+  report('4d. Revert takes the level back with the HP', r.ok && r.reverted && (r.afterRevert === 0) && (r.hpAfterRevert === 1),
+    r.ok ? `reverted=${r.reverted} level=${r.afterRevert} hp=${r.hpAfterRevert}` : r.why);
+  report('4d. off: a drop adds nothing and the receipt carries no Exhaustion', r.ok && (r.offLevel === 0) && (r.entry2 === null),
+    r.ok ? `level=${r.offLevel} entry=${JSON.stringify(r.entry2)}` : r.why);
+}
+
 // ---- 5. the miss test
 if (want('5')) {
   const r = await f.evaluate(async ({ victimId, victimToken, attackerId, itemName }) => {
@@ -1315,6 +1399,7 @@ if (want('5e')) {
     await game.settings.set(MOD, 'reactionHold', prior?.reactionHold ?? false);
     await game.settings.set(MOD, 'effectRiders', prior?.effectRiders ?? false);
     await game.settings.set(MOD, 'masteryRiders', prior?.masteryRiders ?? false);
+    await game.settings.set(MOD, 'goingDownCosts', prior?.goingDownCosts ?? false);
     const testMessages = game.messages.filter(m => m.speaker?.alias?.startsWith('BTB Test'));
     await ChatMessage.deleteDocuments(testMessages.map(m => m.id));
     return {

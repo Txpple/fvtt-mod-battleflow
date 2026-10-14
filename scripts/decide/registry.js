@@ -3540,6 +3540,10 @@ export const REPEAT_TRIGGERS = new Set(["turnEnd", "damaged", "action"]);
  *   activity   the save activity by NAME, where the spell's first save activity is not the repeat's
  *              (Prismatic Spray's "Indigo Save (Con)" — the Cast is a Dexterity save)
  *   caveat     what the rule leaves to the table, said on the card
+ *   endsOn     the causes that END the effect outright instead of repeating its save (Sleep: "the spell ends on a
+ *              target if it takes damage") — the machine ends it through the cast card's receipt and says so
+ *   lifts      true — the status a `count.press` pressed goes with the effect when the effect ends (Sleep's
+ *              Unconscious "for the duration"); Flesh to Stone's Petrified stays, the table's (its `caveat`)
  * A MONSTER's own activity (the GM's side, RULINGS *The Monster Manual — the waiting rows built*): the same
  * row, keyed by the trait — the pack's effect on the target names the trait's activity as its origin, and
  * the trait's save activity is the repeat's. The pack ships no repeat.
@@ -3562,6 +3566,15 @@ export const REPEAT_SAVES = Object.freeze({
   "Tasha's Hideous Laughter": Object.freeze({ effect: "Uncontrollable Laughter", on: Object.freeze(["turnEnd", "damaged"]), advantage: "damaged",
     rule: Object.freeze({ item: "Tasha's Hideous Laughter", uuid: "Compendium.dnd-players-handbook.spells.Item.phbsplTashasHide" }),
     from: "Bard / Warlock / Wizard spell, level 1 (Concentration, 1 minute)" }),
+  // Sleep (2024): Incapacitated until the end of its next turn, then the save again — a success ends it, a failure is
+  // Unconscious for the duration (locked, no more saves); damage ends the spell on it, the Unconscious with it. The
+  // first save is the cast's (the pack's Sleeping effect lands on the failure); the shake-awake is the table's
+  // (RULINGS *Session zero's combat*).
+  "Sleep": Object.freeze({ effect: "Sleeping", on: Object.freeze(["turnEnd"]), count: Object.freeze({ saves: 1, fails: 1, press: "unconscious" }),
+    endsOn: Object.freeze(["damaged"]), lifts: true,
+    caveat: "a creature within 5 feet may use its action to shake the sleeper awake — the table removes the effect",
+    rule: Object.freeze({ item: "Sleep", uuid: "Compendium.dnd-players-handbook.spells.Item.phbsplSleep00000" }),
+    from: "Bard / Sorcerer / Wizard spell, level 1 (Concentration, 1 minute)" }),
   "Blindness/Deafness": Object.freeze({ effect: Object.freeze(["Blindness", "Deafness"]), on: Object.freeze(["turnEnd"]),
     rule: Object.freeze({ item: "Blindness/Deafness", uuid: "Compendium.dnd-players-handbook.spells.Item.phbsplBlindnessD" }),
     from: "Bard / Cleric / Sorcerer / Wizard spell, level 2 (1 minute)" }),

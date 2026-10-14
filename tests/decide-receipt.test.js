@@ -587,3 +587,65 @@ describe("revertableEffect — the effect twin", () => {
     expect(r.revertableEffect(undefined, "a", "e1")).toBe(null);
   });
 });
+
+describe("GOING DOWN COSTS — the drop's Exhaustion rides the receipt and its revert (2026-10-14)", () => {
+  const prior = { value: 7, temp: 0, tempmax: 0, exhaustion: 0 };
+  const after = { value: 0, temp: 0, tempmax: 0, exhaustion: 1 };
+  it("exhaustionChange reads the two snapshots; an older receipt without the field changes nothing", () => {
+    expect(r.exhaustionChange(prior, after)).toEqual({ prior: 0, after: 1 });
+    expect(r.exhaustionChange(prior, { ...after, exhaustion: 0 })).toBeNull();
+    expect(r.exhaustionChange({ value: 7, temp: 0 }, { value: 0, temp: 0 })).toBeNull();
+    expect(r.exhaustionChange(null, after)).toBeNull();
+  });
+  it("the entry carries `exhaustion` only when it moved", () => {
+    const entry = r.receiptEntry({
+      uuid: "Actor.k",
+      name: "Kartor",
+      prior,
+      after,
+      calc: null,
+      context: { combat: null, sourceUuid: null }
+    });
+    expect(entry.exhaustion).toEqual({ prior: 0, after: 1 });
+    const still = r.receiptEntry({
+      uuid: "Actor.k",
+      name: "Kartor",
+      prior,
+      after: { ...after, exhaustion: 0 },
+      calc: null,
+      context: { combat: null, sourceUuid: null }
+    });
+    expect("exhaustion" in still).toBe(false);
+  });
+  it("the revert restores the level with the Hit Points; a receipt without it restores HP alone", () => {
+    const entry = r.receiptEntry({
+      uuid: "Actor.k",
+      name: "Kartor",
+      prior,
+      after,
+      calc: null,
+      context: { combat: null, sourceUuid: null }
+    });
+    const plan = r.revertPlan({ targets: [entry] }, "Actor.k");
+    expect(plan.update["system.attributes.exhaustion"]).toBe(0);
+    expect(plan.update["system.attributes.hp.value"]).toBe(7);
+    const bare = r.receiptEntry({
+      uuid: "Actor.k",
+      name: "Kartor",
+      prior: { value: 7, temp: 0, tempmax: 0 },
+      after: { value: 0, temp: 0, tempmax: 0 },
+      calc: null,
+      context: { combat: null, sourceUuid: null }
+    });
+    expect(
+      "system.attributes.exhaustion" in r.revertPlan({ targets: [bare] }, "Actor.k").update
+    ).toBe(false);
+  });
+  it("the row's phrase, death at six", () => {
+    expect(r.exhaustionPhrase({ exhaustion: { prior: 0, after: 1 } })).toBe("Exhaustion 0 → 1");
+    expect(r.exhaustionPhrase({ exhaustion: { prior: 5, after: 6 } })).toBe(
+      "Exhaustion 5 → 6 (death)"
+    );
+    expect(r.exhaustionPhrase({})).toBeNull();
+  });
+});

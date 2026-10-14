@@ -41,6 +41,18 @@ export function traitReasons(calc, multiplier = 1) {
   return traits;
 }
 
+/**
+ * The Exhaustion a damage application changed (GOING DOWN COSTS, drop-to-one.js): `{ prior, after }` when the
+ * snapshots carry it and it moved, else null. A snapshot without it (an older receipt) changes nothing.
+ * @param {{exhaustion?: number}|null|undefined} prior
+ * @param {{exhaustion?: number}|null|undefined} after
+ */
+export function exhaustionChange(prior, after) {
+  const a = prior?.exhaustion, b = after?.exhaustion;
+  if ( (a === undefined) || (a === null) || (b === undefined) || (b === null) ) return null;
+  return (Number(a) === Number(b)) ? null : { prior: Number(a), after: Number(b) };
+}
+
 /** What the POOL did: the signed change in HP and temp HP. */
 export function hpDelta(prior, after) {
   return {
@@ -64,6 +76,8 @@ export function receiptEntry({ uuid, name, img = null, note, multiplier = 1, pri
     ...(multiplier !== 1 ? { multiplier } : {}),
     prior,
     delta: hpDelta(prior, after),
+    // GOING DOWN COSTS (a house-rule setting, drop-to-one.js): the Exhaustion the drop added, so the revert takes it back.
+    ...(exhaustionChange(prior, after) ? { exhaustion: exhaustionChange(prior, after) } : {}),
     taken: calc ? calc.amount : null,
     // POST-trait per part (rolls minus parts = lost to traits); healing parts arrive negated.
     parts: (calc || []).map(d => ({ type: d.type ?? null, amount: d.value ?? 0 })),
@@ -168,6 +182,13 @@ export function receiptAmounts(entry) {
   };
 }
 
+/** The drop's Exhaustion on the receipt row, in table English; null when the entry carries none. */
+export function exhaustionPhrase(entry) {
+  const x = entry?.exhaustion;
+  if ( !x ) return null;
+  return `Exhaustion ${x.prior} → ${x.after}${x.after >= 6 ? " (death)" : ""}`;
+}
+
 /** One receipt reason in table English. */
 export function traitPhrase({ type, outcome, label }) {
   const text = (label ?? type ?? "damage").toLowerCase();
@@ -195,7 +216,9 @@ export function revertPlan(receipt, uuid) {
     update: {
       "system.attributes.hp.value": entry.prior.value,
       "system.attributes.hp.temp": entry.prior.temp,
-      "system.attributes.hp.tempmax": entry.prior.tempmax
+      "system.attributes.hp.tempmax": entry.prior.tempmax,
+      // the drop's Exhaustion goes back with the Hit Points (GOING DOWN COSTS)
+      ...(entry.exhaustion ? { "system.attributes.exhaustion": entry.exhaustion.prior } : {})
     },
     clearDefeated: (entry.prior.value ?? 0) > 0,
     ward: entry.ward ?? null

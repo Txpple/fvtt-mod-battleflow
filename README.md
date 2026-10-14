@@ -40,7 +40,7 @@ walks, playing each rule at the table, are what remains.
 | The Dungeon Master's Guide: the crit riders and the enchanted weapons | Summons and Wild Shape ([#1](https://github.com/Txpple/fvtt-mod-bythebooks/issues/1), [#2](https://github.com/Txpple/fvtt-mod-bythebooks/issues/2)) |
 | The Monster Manual: Magic Resistance, Undead Fortitude, Regeneration, the auras, the reactions | The epic boons |
 | Heroes of Faerûn, Arcana Unleashed, Ravenloft: The Horrors Within | |
-| Twelve settings (nine for the world, three per player) and the Summon Art window; every feature always on | |
+| Thirteen settings (ten for the world, one of them a house rule off by default, three per player) and the Summon Art window; every feature always on | |
 
 Nothing is finished until it has been played. What is in works; what is not in yet is simply left
 to the table, the way vanilla dnd5e does.
@@ -155,7 +155,7 @@ against midi-qol.
 | | By the Books | midi-qol stack |
 | --- | --- | --- |
 | Install | one module | midi + DAE + premades + their dependencies |
-| Settings | twelve | hundreds |
+| Settings | thirteen | hundreds |
 | Homebrew hooks, macros, custom flags | none | extensive |
 | Coverage | the official 2024 books, growing | nearly everything, if you set it up |
 | Surviving a dnd5e update | public hooks only, nothing patched | waits for each module to catch up |
@@ -183,6 +183,7 @@ list. The full list and the reasons are in [DESIGN.md §4](DESIGN.md).
 | Resource Use Notices | world | Flash a notice when a player spends a limited-use ability. |
 | Roll Results Players See | world | What the public cards show players: results, AC and DC (the default), results only, nothing, or leave it to dnd5e. Overrides dnd5e's Visibility menu. |
 | Bloodied Shows on Every Token | world | The Bloodied marker on enemies too (the default), or friendly tokens only. Overrides dnd5e's Visibility menu. |
+| Going Down Costs a Level of Exhaustion | world | A house rule, off by default: a creature dropping to 0 Hit Points from damage gains a level of Exhaustion at the drop, on the damage receipt so Revert takes it back. |
 | Roll Your Own Damage | client | Ask before rolling your damage instead of rolling it for you. |
 | Effect Bar | client | The buff and debuff strip above the hotbar. |
 | Effect Cards on Hover and Alt | client | Effect cards beside any token you point at. |

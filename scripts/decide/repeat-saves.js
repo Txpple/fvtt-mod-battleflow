@@ -50,6 +50,32 @@ export function repeatDue(row, cause, { pending }) {
 const CAUSE_WHY = Object.freeze({ turnEnd: "at the end of its turn", damaged: "it took damage", action: "its action" });
 
 /**
+ * Does this cause END the effect outright, no save (a row's `endsOn` — Sleep: "the spell ends on a target if it takes damage")?
+ * @param {{endsOn?: readonly string[]}|null|undefined} row
+ * @param {"turnEnd"|"damaged"|"action"} cause
+ */
+export function repeatEnds(row, cause) {
+  return !!row?.endsOn?.includes(cause);
+}
+
+/**
+ * The status an ending effect takes with it: the one its `count.press` pressed (recorded on the effect's count
+ * flag), on a row that `lifts`; null otherwise (Flesh to Stone's Petrified stays).
+ * @param {{lifts?: boolean}|null|undefined} row
+ * @param {{pressed?: string|null}|null|undefined} count
+ * @returns {string|null}
+ */
+export function repeatLift(row, count) {
+  return (row?.lifts && count?.pressed) ? String(count.pressed) : null;
+}
+
+/** The card's words when a cause ends the effect outright (`endsOn`). */
+export function repeatEndWords({ effectName, bearer, cause, spell, lifted = null }) {
+  const why = CAUSE_WHY[cause] ?? cause;
+  return `${spell} — ${effectName} ends on ${bearer}: ${why}${lifted ? ` (${statusName(lifted)} with it)` : ""}`;
+}
+
+/**
  * The demand's OWN bend, when the row gives one trigger Advantage (Tasha's Hideous Laughter: damaged).
  * @param {{advantage?: string, rule?: object|string|null}} row
  * @param {string} cause
