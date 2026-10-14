@@ -472,7 +472,7 @@ Each was a user ruling, and each has a table finding behind it.
      view — *this roll is short by N; spend a feature to rescue it?*). `registerRescue` merges the VIEW while
      the flags stay separate (R2), so it costs no wire format. Moments about different rolls, or
      different questions about one roll, still staircase: the test is whether one answer could
-     serve them — a rescue window has one Pass, and it answers every source.
+     serve them — a rescue window has one "Accept the roll" (the `pass` action), and it answers every source.
 8. **The rule line is the book's.** A popup describing a feature shows that feature's own 2024
    text, read from the compendium at render time (N1; RULINGS *The rule fold reads the book*): a
    row's `rule` is a pointer (`{ item, uuid, benefit? }` or `{ page, key, benefit? }`), and

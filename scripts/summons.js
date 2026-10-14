@@ -169,6 +169,18 @@ listen("dnd5e.preActivityConsumption", "summons", (activity, usageConfig) => {
     const way = paidWith.get(activity.uuid);
     paidWith.delete(activity.uuid);
     const other = way ? liveActivity({ actor: activity.actor, item: activity.item, id: way }) : null;
+    // a forward ticked (the free cast): the same summon, cast again with the forward as its cause — the system spends
+    // the spell's use and no slot (call 45)
+    if ( other?.type === "forward" ) {
+      const live = liveActivity(activity) ?? activity;
+      const asked = { cause: { activity: other.relativeUUID }, consume: { spellSlot: false, resources: false },
+        concentration: usageConfig.concentration ? foundry.utils.deepClone(usageConfig.concentration) : undefined };
+      void openCastMenu(live, asked, Number(live.item.system?.level) || live.relevantLevel).catch(err => {
+        console.error(`${TITLE} | The summon menu failed — cast the spell again.`, err);
+        ui.notifications?.error(`${TITLE}: the summon menu could not open (${err?.message ?? err}).`);
+      });
+      return false;
+    }
     if ( other ) {
       void openCastMenu(other, {}, Number(other.item.system?.level) || other.relevantLevel).catch(err => {
         console.error(`${TITLE} | The summon menu failed — use it again.`, err);
@@ -211,8 +223,12 @@ async function openCastMenu(activity, asked, level) {
 
 /* --- a feature with more than one way to pay: one more line in the system's Consumption ------------ */
 
-/** The item's summon activities the module takes, when there are more than one (Wild Companion: a slot or Wild Shape). */
-const payWays = item => [...(item?.system?.activities ?? [])].filter(a => takes(a));
+/** A forward activity that casts the item's own summon with its own spend (Familiar Friend's "(free casting)"): a way to pay. */
+const forwardsTo = (item, a) => (a?.type === "forward") && takes(item?.system?.activities?.get?.(a.activity?.id));
+
+/** The item's ways to pay for its summon, when there are more than one: its summon activities (Wild Companion: a slot or
+ * Wild Shape) and a forward to the summon (Familiar Friend's "(free casting)": the spell's one use, no slot). */
+const payWays = item => [...(item?.system?.activities ?? [])].filter(a => takes(a) || forwardsTo(item, a));
 
 /** The way a use was switched to in its dialog, by the dialog's activity uuid: the other activity's id. */
 const paidWith = new Map();
@@ -222,7 +238,8 @@ function usesPoolOf(activity) {
   const target = activity?.consumption?.targets?.find?.(t => t.type === "itemUses") ?? null;
   if ( !target ) return null;
   const ref = String(target.target ?? "");
-  const item = activity.actor?.items?.get(ref) ?? activity.actor?.items?.find(i => (i._stats?.compendiumSource === ref)
+  // an empty target is the activity's own item (a forward spending the spell's uses)
+  const item = (ref ? null : activity.item) ?? activity.actor?.items?.get(ref) ?? activity.actor?.items?.find(i => (i._stats?.compendiumSource === ref)
     || (i.getFlag?.("dnd5e", "sourceId") === ref)) ?? null;
   return item ? { item, left: Number(item.system?.uses?.value) || 0, name: item.name } : null;
 }
@@ -243,7 +260,13 @@ listen("renderActivityUsageDialog", "summons", (app, element) => {
     if ( !own || !ownRow ) return;
     // ⚠ the dialog redraws itself on every change (the line is rebuilt each time): the pick lives in `paidWith`,
     // cleared only on the dialog's first draw, and every redraw ticks the line it names
-    if ( !app._bfPayDrawn ) { paidWith.delete(activity.uuid); app._bfPayDrawn = true; }
+    if ( !app._bfPayDrawn ) {
+      paidWith.delete(activity.uuid);
+      app._bfPayDrawn = true;
+      // a free cast with a use left is the default (Familiar Friend: "once without a spell slot"); a slot is the fallback
+      const free = others.find(w => (w.type === "forward") && ((usesPoolOf(w)?.left ?? 0) >= 1));
+      if ( free ) paidWith.set(activity.uuid, free.id);
+    }
     const picked = paidWith.get(activity.uuid) ?? null;
     if ( picked ) own.checked = false;
     const boxes = [own];
@@ -257,9 +280,15 @@ listen("renderActivityUsageDialog", "summons", (app, element) => {
       box.checked = (picked === way.id);
       if ( pool && (pool.left < 1) ) box.disabled = true;
       const label = row.querySelector("label");
-      if ( label ) label.textContent = `Consume ${pool ? `${pool.name} use` : (way.name || "the other way")}?`;
       const hint = row.querySelector(".hint");
-      if ( hint ) hint.textContent = pool ? `Spend 1 ${pool.name} use (${pool.left} remaining).` : "";
+      if ( way.type === "forward" ) {
+        // the forward's own words ("(free casting)"): the spell's use, no slot
+        if ( label ) label.textContent = `Cast for free — ${way.name || "the free cast"}?`;
+        if ( hint ) hint.textContent = pool ? `Spend 1 ${pool.name} use (${pool.left} remaining), no spell slot.` : "No spell slot.";
+      } else {
+        if ( label ) label.textContent = `Consume ${pool ? `${pool.name} use` : (way.name || "the other way")}?`;
+        if ( hint ) hint.textContent = pool ? `Spend 1 ${pool.name} use (${pool.left} remaining).` : "";
+      }
       ownRow.after(row);
       boxes.push(box);
     }

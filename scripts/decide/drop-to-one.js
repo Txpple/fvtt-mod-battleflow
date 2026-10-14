@@ -53,3 +53,26 @@ export function diedTitle({ row, name, count }) {
   const n = Number(count) || 0;
   return `${row} — ${name} dies: ${n === 0 ? "no creature in reach" : `${n} creature${n === 1 ? "" : "s"} save`}`;
 }
+
+/**
+ * THE DOWNED CONDITIONS OUT OF COMBAT: dnd5e's own mapping (`Actor5e#updateDowned`, its Apply Downed Conditions
+ * setting), which the system applies only to a creature in the active combat; the module applies the same outside it
+ * (RULINGS *Session zero's combat*, call 2). The status to press at 0 Hit Points, or null.
+ *   setting  none · deadOnly · npcs · all;  type  the actor type;  important  an NPC's trait;
+ *   failedDeathSaves  three failures;  isDead / isUnconscious  what already stands
+ * @param {{setting: string, type: string, important?: boolean|null, failedDeathSaves?: boolean, isDead?: boolean, isUnconscious?: boolean}} facts
+ * @returns {"dead"|"unconscious"|null}
+ */
+export function downedOutcome({ setting, type, important = false, failedDeathSaves = false, isDead = false, isUnconscious = false }) {
+  if ( !setting || (setting === "none") || isDead ) return null;
+  /** @type {"dead"|"unconscious"|null} */
+  let toApply = null;
+  if ( type === "npc" ) {
+    if ( !important ) toApply = "dead";
+    else if ( setting !== "deadOnly" ) toApply = failedDeathSaves ? "dead" : "unconscious";
+  } else if ( (type === "character") && (setting === "all") ) {
+    toApply = failedDeathSaves ? "dead" : "unconscious";
+  }
+  if ( !toApply || ((toApply === "unconscious") && isUnconscious) ) return null;
+  return toApply;
+}

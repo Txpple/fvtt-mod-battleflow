@@ -648,7 +648,8 @@ async function drawRescueWindow(message, { recall = false } = {}) {
     icon: "fa-solid fa-life-ring",
     content,
     buttons: [
-      { action: "pass", label: "Pass", default: true, callback: () => passEveryRescue(message) }
+      // the button accepts the roll as it stands: "Pass" read as passing on the roll itself (RULINGS *The maneuvers and the rescue window*)
+      { action: "pass", label: "Accept the roll", default: true, callback: () => passEveryRescue(message) }
     ]
   });
   if ( dialog?.element ) wireRescueWindow(dialog.element, message);

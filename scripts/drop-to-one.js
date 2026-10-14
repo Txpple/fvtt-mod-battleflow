@@ -21,7 +21,7 @@ import { applyDamagesWithReceipt } from "./auto-apply.js";
 import { applyActivityEffectsOnHit } from "./effect-riders.js";
 import { dropToOneEntries, listedNames } from "./decide/registry.js";
 import { DROP_TO_ONE } from "./decide/registry.js";
-import { dropSaveDc, dropSaveExempt, dropSaveTitle, diedTitle } from "./decide/drop-to-one.js";
+import { dropSaveDc, dropSaveExempt, dropSaveTitle, diedTitle, downedOutcome } from "./decide/drop-to-one.js";
 import { saveDemandData, saveTargetEntry } from "./decide/demand.js";
 import { bfCard, esc, holdBarHTML, popupKey, ruleLine } from "./decide/present.js";
 import { livePopups, openMomentPopup, momentButton, scheduleBarSync, shownMoments,
@@ -208,6 +208,33 @@ listen("dnd5e.preApplyDamage", "drop-to-one", (actor, amount, updates, _options)
     updates["system.attributes.exhaustion"] = Math.min(6, now + 1);
   } catch(err) {
     console.error(`${TITLE} | Going down costs failed — add the level of Exhaustion by hand.`, err);
+  }
+});
+
+// THE DOWNED CONDITIONS OUT OF COMBAT (RULINGS *Session zero's combat*, call 2): dnd5e's Apply Downed Conditions puts
+// Unconscious or Dead on a creature at 0 Hit Points only while it is in the active combat (`Actor5e#updateDowned`, "do not
+// auto-apply statuses outside of combat"), and takes its own back when the Hit Points return, in or out of combat. The
+// module applies the same mapping (`downedOutcome`) to a creature NOT in combat, on the updating client as the system
+// does, with the system's own `autoDowned` flag, so the system's removal on the heal is the one that ends it and the
+// Prone rider stays, as written. dnd5e's setting governs: at "none" nothing is applied.
+listen("updateActor", "drop-to-one", (actor, changes, _options, userId) => {
+  try {
+    if ( (userId !== game.user.id) || !(actor instanceof Actor) || !foundry.utils.hasProperty(changes, HP) ) return;
+    if ( (Number(actor.system?.attributes?.hp?.value ?? 1) > 0) || actor.inCombat ) return;
+    const conditions = actor.effects.filter(e => e.type === "condition" || e.statuses?.size);
+    const toApply = downedOutcome({ setting: game.settings.get("dnd5e", "autoApplyDowned"), type: actor.type,
+      important: !!actor.system?.traits?.important, failedDeathSaves: Number(actor.system?.attributes?.death?.failure ?? 0) >= 3,
+      isDead: conditions.some(e => e.statuses?.has?.("dead")), isUnconscious: conditions.some(e => e.statuses?.has?.("unconscious")) });
+    if ( !toApply ) return;
+    void (async () => {
+      const effect = await ActiveEffect.implementation.fromStatusEffect(toApply);
+      const flags = { dnd5e: { autoDowned: true } };
+      if ( toApply === "dead" ) flags.core = { overlay: true };
+      effect.updateSource({ flags });
+      await ActiveEffect.implementation.create(effect, { parent: actor, keepId: true });
+    })().catch(err => console.warn(`${TITLE} | The downed condition could not be applied out of combat — set it by hand.`, err));
+  } catch(err) {
+    console.error(`${TITLE} | The downed condition failed out of combat.`, err);
   }
 });
 

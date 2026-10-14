@@ -629,3 +629,25 @@ describe("SAVE_SUCCEEDS — Legendary Resistance is NOT a row: the platform ship
     );
   });
 });
+
+describe("downedOutcome — dnd5e's Apply Downed mapping, applied out of combat (RULINGS *Session zero's combat*, call 2)", () => {
+  it("at `all`, a character goes Unconscious, or Dead after three failed death saves; nothing when it already stands", () => {
+    expect(dr.downedOutcome({ setting: "all", type: "character" })).toBe("unconscious");
+    expect(dr.downedOutcome({ setting: "all", type: "character", failedDeathSaves: true })).toBe(
+      "dead"
+    );
+    expect(dr.downedOutcome({ setting: "all", type: "character", isUnconscious: true })).toBeNull();
+    expect(dr.downedOutcome({ setting: "all", type: "character", isDead: true })).toBeNull();
+  });
+  it("an NPC dies unless important; an important one goes Unconscious except at deadOnly; a character below `all` gets nothing", () => {
+    expect(dr.downedOutcome({ setting: "npcs", type: "npc" })).toBe("dead");
+    expect(dr.downedOutcome({ setting: "npcs", type: "npc", important: true })).toBe("unconscious");
+    expect(dr.downedOutcome({ setting: "deadOnly", type: "npc", important: true })).toBeNull();
+    expect(dr.downedOutcome({ setting: "deadOnly", type: "npc" })).toBe("dead");
+    expect(dr.downedOutcome({ setting: "npcs", type: "character" })).toBeNull();
+  });
+  it("at `none`, or unset, nothing", () => {
+    expect(dr.downedOutcome({ setting: "none", type: "character" })).toBeNull();
+    expect(dr.downedOutcome({ setting: null, type: "npc" })).toBeNull();
+  });
+});

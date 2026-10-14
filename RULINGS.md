@@ -3620,7 +3620,12 @@ calls:
    (`asked` carried the slot, the ticks and the Concentration), so the free cast was free every time; the standing
    companion's Summon cast fresh, so a new form asked through the free cast spent a slot. Now `cause` rides `asked` into
    the replay (`castUsage`) and the menu's Summon reuses the cause the cast arrived with; a cancelled menu still spends
-   nothing. Measured: `smoke-familiar` §1, §2, §8. **Session zero's premise — dnd5e's Allow Summoning off kept the owl
+   nothing. **Where the free cast is**: the spell's other activities are hidden on purpose (call 32: a summon spell is
+   one button), and that hid the forward too — Tychon's sheet showed Find Familiar with its 1/1 and no way to the free
+   cast. The forward is now a WAY TO PAY on the Cast dialog's Consumption (the Wild Companion precedent, call 39): a line
+   "Cast for free — (free casting)? Spend 1 Find Familiar use (1 remaining), no spell slot", ticked by default while a use
+   is left, the slot the fallback; ticked, Place casts with the forward as the cause. Measured: `smoke-familiar` §1, §2,
+   §8. **Session zero's premise — dnd5e's Allow Summoning off kept the owl
    from placing — is not so**: the module never reads it (call 1), and §8 is the player test user's own free cast with
    it off, the record stamped on their card. Tom's client had lost clicking and targeting that night (the gm-notes); the
    path itself holds. Allow Summoning stays off on prod.
@@ -3798,7 +3803,11 @@ go.** Four items; the fourth, Familiar Friend, is *Summons* calls 45–47.
    NOT a dependent of the Unconscious, so dnd5e's `updateDowned` (Apply Downed Conditions, `autoApplyDowned`) puts
    Unconscious and Prone on at 0 HP in combat and takes only its own Unconscious off when the Hit Points come back:
    Prone stays, as written. Kartor's case needs the setting at **all** (prod had **none**: nothing was applied at
-   0, so nothing could remain). No module code; measured on the sandbox before the setting moved on prod.
+   0, so nothing could remain). **And out of combat too** (the user, 2026-10-14, after a drop outside the tracker
+   applied nothing): dnd5e applies the downed conditions only to a combatant in the active combat; drop-to-one.js now
+   applies the system's own mapping (`downedOutcome`, dnd5e's setting governing, nothing at "none") to a creature NOT in
+   combat, on the updating client with the system's `autoDowned` flag, so the system's own removal on the heal ends it
+   and the Prone rider stays either way.
 3. **Going down costs a level of Exhaustion — a SETTING, the one house rule** (the campaign's `house-rules.md`: each
    time a creature is reduced to 0 Hit Points it gains one level, at the drop, not when healed; the sixth is death).
    `Going Down Costs a Level of Exhaustion`, world, off by default: the module plays the book until a table says
@@ -3853,6 +3862,7 @@ feature's own heading when that section is next recut.
 - A tactical fold's cards (Ambush, Tactical Assessment) wear the maneuver family's eyebrow ("Maneuver — <name>"), not the D20 Fold one.
 - In the rescue window (d20 folds + Precision), a spent or withdrawn row stays on screen greyed with its outcome on its face, a live row's button carries only the feature's name, and the die and cost are said in the single rule pane beside the hovered row's quote
 - A rescue on a raw ability check (no DC anywhere in dnd5e) states the arithmetic and says "ask your DM whether that lands" instead of a verdict, and the offer stands until a human passes; an initiative rescue states just the number
+- The rescue window's one button that spends nothing reads **Accept the roll**, never "Pass" (the user, 2026-10-14: a pass could mean passing on the roll itself); its action is still `pass`, and it answers every source
 - Precision Attack is offered only when the attack hit none of its targets; a mixed hit-and-miss swing gets no offer, since one damage roll serves every target
 - When Precision Attack turns a miss into a hit after Graze already paid on the miss, the card announces the conflict and nothing is unwound
 
