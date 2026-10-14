@@ -8,7 +8,7 @@ import { isTextOnlyFeature } from "../decide/eligible.js";
 import { interruptEntries } from "../decide/registry.js";
 import { joinEffectReceipt } from "../decide/receipt.js";
 import { bfCard } from "../decide/present.js";
-import { reductionRise } from "../decide/dice-chips.js";
+import { bendRise, reductionRise } from "../decide/dice-chips.js";
 import { INTERRUPT_MULTIPLIERS, INTERRUPT_ROLLS, answers, tableIndex } from "../decide/registry.js";
 import { d20Faces, d20ModeOf, dieOutcome, disadvantageOutcome, guardSign, needsSecondD20, neutraliseOutcome, rescueSpendText } from "../decide/rescue-hit.js";
 import { lower, holdsFor, activityNamed, bystanderDie, d20FactsOf, meleeOptions, preferredMeleeOption, featureNamed } from "../lookup.js";
@@ -378,16 +378,20 @@ export async function bystanderReaction(attackMessage, target, guard, { face = n
   let bent = null;
   if ( row.bend === "die" ) {
     const formula = guard.die ?? bystanderDie(actor, row);
-    let n = 0;
+    let n = 0, die = null;
     try {
-      const die = await new Roll(String(formula)).evaluate();
-      await die.toMessage({ speaker: ChatMessage.getSpeaker({ actor }), flavor: `${key} — off the attack at ${target.name}` });
+      die = await new Roll(String(formula)).evaluate();
       n = Math.max(0, Number(die.total) || 0);
     } catch(err) {
       console.error(`${TITLE} | ${key}'s die could not be rolled — bend the roll by hand.`, err);
     }
     bent = dieOutcome({ kept: Number(facts.kept), total: Number(roll.total), add: guardSign(guard, row) * n,
       critAt: facts.critAt, fumbleAt: facts.fumbleAt });
+    // The dice over the ROLLER, whose attack it is: the modifier, then the total as rolled turning over to the bent total.
+    const rise = bendRise({ add: bent.add, oldTotal: bent.firstTotal, newTotal: bent.total, on: attackMessage.getAssociatedActor?.()?.uuid ?? null });
+    if ( die ) await die.toMessage({ speaker: ChatMessage.getSpeaker({ actor }), flavor: `${key} — off the attack at ${target.name}`,
+      ...(rise ? { flags: { [MODULE_ID]: { diceRise: rise } } } : {}) })
+      .catch(err => console.warn(`${TITLE} | ${key}'s die could not be posted.`, err));
   } else if ( row.bend === "neutralise" ) {
     bent = neutraliseOutcome({ mode: facts.mode, kept: Number(facts.kept), plain: facts.plain, total: Number(roll.total),
       critAt: facts.critAt, fumbleAt: facts.fumbleAt, faces: facts.faces });

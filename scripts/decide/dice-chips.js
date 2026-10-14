@@ -53,6 +53,19 @@ export function reductionRise({ roll, from, to = null, amount = null }) {
 }
 
 /**
+ * A bystander's die off ANOTHER creature's roll (Cutting Words' roll half, Guided Strike): over the ROLLER, the
+ * modifier, then a beat later the total as rolled turning over to the bent total ("−5", then "19" → "14").
+ * @param {{add: number, oldTotal: number, newTotal: number, on: string}} args
+ * @returns {{on: string, chips: object[]}|null}
+ */
+export function bendRise({ add, oldTotal, newTotal, on }) {
+  const n = Number(add);
+  if ( !on || !Number.isFinite(n) || !n || !Number.isFinite(Number(oldTotal)) || !Number.isFinite(Number(newTotal)) ) return null;
+  return { on, chips: [{ label: `${n < 0 ? "−" : "+"}${Math.abs(n)}`, flat: true, up: true },
+    { was: String(oldTotal), label: String(newTotal), up: true, after: 700 }] };
+}
+
+/**
  * A per-die reroll, each die turning over.
  * @param {{done: {old: number, new: number}[], on: string}} args
  * @returns {{on: string, chips: object[]}|null}

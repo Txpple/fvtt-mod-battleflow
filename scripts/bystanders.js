@@ -15,7 +15,7 @@ import { activityNamed, featureNamed, resolveUuid, bystanderRows, bystanderDie, 
 import { nearestFeet, tokenForUuid } from "./geometry.js";
 import { poolOf, poolUsesOf, reactionSpent, spendReaction, spendPoolUses, bystanderMuted, muteBystander, muteScopesFor, STORED_FLAG, spendStoredFace, storedChipOf, storedFacesUsable, withTargets } from "./shared.js";
 import { facesThatTurn, setOutcome } from "./decide/stored-dice.js";
-import { foldRise } from "./decide/dice-chips.js";
+import { bendRise, foldRise } from "./decide/dice-chips.js";
 import { riseDice } from "./dice-rise.js";
 import { armAskTimer, cardRow, flashBend, livePopups, openMomentPopup, registerRelay, registerWithhold, resumeWithheld, shownMoments } from "./ui.js";
 import { listen } from "./dispatch.js";
@@ -346,15 +346,19 @@ async function bystanderAnswer(message, guard, choice, face = null) {
     bent = rerollOutcome({ kept: Number(facts.kept), total: Number(roll.total), newKept: Number(newFacts.kept), newTotal,
       critAt: 99, fumbleAt: 0, faces: newFacts.faces });
   } else {
-    let n = 0;
+    let n = 0, die = null;
     try {
-      const die = await new Roll(String(guard.die)).evaluate();
-      await die.toMessage({ speaker: ChatMessage.getSpeaker({ actor }), flavor: `${guard.row} — on ${flag.rollerName}'s ${TEST_WORD[flag.testKind] ?? "roll"}` });
+      die = await new Roll(String(guard.die)).evaluate();
       n = Math.max(0, Number(die.total) || 0);
     } catch(err) {
       console.error(`${TITLE} | ${guard.row}'s die could not be rolled — bend the roll by hand.`, err);
     }
     bent = dieOutcome({ kept: Number(facts.kept), total: Number(roll.total), add: guardSign(guard, row) * n, critAt: 99, fumbleAt: 0 });
+    // The dice over the ROLLER, whose check it is: the modifier, then the total as rolled turning over to the bent total.
+    const rise = bendRise({ add: bent.add, oldTotal: bent.firstTotal, newTotal: bent.total, on: flag.rollerUuid ?? null });
+    if ( die ) await die.toMessage({ speaker: ChatMessage.getSpeaker({ actor }), flavor: `${guard.row} — on ${flag.rollerName}'s ${TEST_WORD[flag.testKind] ?? "roll"}`,
+      ...(rise ? { flags: { [MODULE_ID]: { diceRise: rise } } } : {}) })
+      .catch(err => console.warn(`${TITLE} | ${guard.row}'s die could not be posted.`, err));
   }
   return sendAnswer(message, { ...base, answer: "roll", bent, poolSpend }, actor);
 }

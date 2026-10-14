@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { eitherRise, foldRise, rerollRise } from "../scripts/decide/dice-chips.js";
+import { bendRise, eitherRise, foldRise, rerollRise } from "../scripts/decide/dice-chips.js";
 
 // the dice that rise, scoped to "dice number changes" (the user, 2026-09-26)
 
@@ -42,6 +42,14 @@ describe("foldRise - a d20 fold whose number changed", () => {
     expect(foldRise({ mode: "reroll", oldFace: 3, newFace: 17, on: "Actor.r" }).chips).toEqual([
       { was: "3", label: "17", up: true }
     ]);
+  });
+  it("a bystander's die off the roll (Cutting Words): the modifier, then the total turning over", () => {
+    expect(bendRise({ add: -5, oldTotal: 19, newTotal: 14, on: "Actor.r" }).chips).toEqual([
+      { label: "−5", flat: true, up: true },
+      { was: "19", label: "14", up: true, after: 700 }
+    ]);
+    expect(bendRise({ add: 0, oldTotal: 19, newTotal: 19, on: "Actor.r" })).toBeNull();
+    expect(bendRise({ add: -5, oldTotal: 19, newTotal: 14, on: null })).toBeNull();
   });
   it("a stored face (Portent): the face itself, then the d20 turning over to it", () => {
     expect(foldRise({ mode: "set", oldFace: 14, newFace: 3, on: "Actor.r" }).chips).toEqual([
