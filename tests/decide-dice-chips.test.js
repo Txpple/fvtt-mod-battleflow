@@ -136,17 +136,17 @@ describe("a reaction that modifies a roll - the reductions, Shield, a fold's die
       drift: { to: "Actor.ally", label: "−10" }
     });
     expect(reductionRise({ roll: d10(5, 2), from: "Actor.me" }).drift.to).toBe("Actor.me");
-    // The share known: a landing over the protected, the modifier beside 5 turning into 2.
+    // The share known: everything over the protected alone, the modifier, then 5 turning into 2.
     const cut = reductionRise({
       roll: { total: 3, terms: [] },
       from: "Actor.bard",
       to: "Actor.ally",
       amount: 5
     });
-    expect(cut.land).toEqual({
+    expect(cut).toEqual({
       on: "Actor.ally",
       chips: [
-        { label: "−3", flat: true },
+        { label: "−3", flat: true, up: true },
         { label: "2", was: "5", up: true, after: 700 }
       ]
     });
@@ -156,9 +156,8 @@ describe("a reaction that modifies a roll - the reductions, Shield, a fold's die
         from: "Actor.bard",
         to: "Actor.ally",
         amount: 5
-      }).land.chips[1]
+      }).chips[1]
     ).toEqual({ label: "0", was: "5", up: true, after: 700 });
-    expect(reductionRise({ roll: d10(5, 2), from: "Actor.me" }).land).toBeUndefined();
     expect(reductionRise({ roll: { total: 0, terms: [] }, from: "Actor.me" })).toBeNull();
   });
   it("Shield: +5 AC; a bonus the sheet cannot state draws nothing", async () => {

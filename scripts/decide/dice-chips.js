@@ -34,21 +34,22 @@ export function rollChips(roll, cap = 8) {
 }
 
 /**
- * A reduction (Interception, Cutting Words' damage half): chips over the reducer, the reduction drifting to the
- * protected — and, with the share known (`amount`), a LANDING over the protected once the drift arrives: the
- * modifier, then a beat later a chip that shows the damage as rolled and turns over to what lands ("−3", then "5" → "2").
+ * A reduction. With the share known (`amount`: Interception, Cutting Words' damage half) everything draws over the
+ * ONE whose damage it is: the modifier, then a beat later a chip that shows the damage as rolled and turns over to
+ * what lands ("−3", then "5" → "2"); nothing over the reducer. Without it (Parry): the dice over the reducer, the
+ * reduction drifting to the protected.
  * @param {{roll: object, from: string, to?: string|null, amount?: number|null}} args   actor uuids; the share
- * @returns {{on: string, chips: object[], drift: {to: string, label: string}, land?: {on: string, chips: object[]}}|null}
+ * @returns {{on: string, chips: object[], drift?: {to: string, label: string}}|null}
  */
 export function reductionRise({ roll, from, to = null, amount = null }) {
   const total = Math.max(0, Number(roll?.total) || 0);
   if ( !from || !total ) return null;
-  const rise = { on: from, chips: rollChips(roll), drift: { to: to || from, label: `−${total}` } };
   const share = Number(amount);
   if ( Number.isFinite(share) && (share > 0) ) {
-    rise.land = { on: to || from, chips: [{ label: `−${total}`, flat: true }, { label: String(Math.max(0, share - total)), was: String(share), up: true, after: 700 }] };
+    return { on: to || from, chips: [{ label: `−${total}`, flat: true, up: true },
+      { label: String(Math.max(0, share - total)), was: String(share), up: true, after: 700 }] };
   }
-  return rise;
+  return { on: from, chips: rollChips(roll), drift: { to: to || from, label: `−${total}` } };
 }
 
 /**
