@@ -1,7 +1,8 @@
 // @ts-check
 /**
- * By the Books — the reaction hold's DICE: a bent attack's d20s, or a cast AC reaction's bonus, rise
- * over the creature hit. Every client, once, off the record landing; a reload replays nothing.
+ * By the Books — the reaction hold's DICE: a bent attack's d20s rise over the ATTACKER, whose roll they
+ * are; a cast AC reaction's bonus over the creature hit, whose AC it is. Every client, once, off the
+ * record landing; a reload replays nothing.
  */
 import { readFlag, TITLE } from "../core.js";
 import { bentChips } from "../decide/rescue-hit.js";
@@ -23,15 +24,16 @@ listenOnce("ready", "hold/dice", () => {
 });
 
 listen("updateChatMessage", "hold/dice", message => {
+  const roller = tokenForUuid(message.getAssociatedActor?.()?.uuid) ?? null;
   for ( const target of bentTargets(message) ) {
     try {
       const token = tokenForUuid(target.uuid);
-      // A bent roll's d20s (or a cast AC reaction's bonus), once.
+      // A bent roll's d20s over the roller, or a cast AC reaction's bonus over the one hit, once.
       const key = keyOf(message, target);
       if ( (target.bent || isShield(target)) && !played.has(key) ) {
         played.add(key);
-        riseDice(token, target.bent ? bentChips(target.bent)
-          : acChips(reactionACBonus(target.reaction, token?.actor ?? null, { itemId: target.itemId, activityId: target.activityId })));
+        if ( target.bent ) riseDice(roller ?? token, bentChips(target.bent));
+        else riseDice(token, acChips(reactionACBonus(target.reaction, token?.actor ?? null, { itemId: target.itemId, activityId: target.activityId })));
       }
       // The duplicates' dice (Mirror Image), once — they land after any bent roll's.
       const dup = keyOf(message, target, "dup");

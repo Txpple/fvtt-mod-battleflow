@@ -242,18 +242,25 @@ export function bystanderMatters({ bend, sign = 1, dieMax = null, want, kept, pl
 }
 
 /**
- * THE DICE OF A BENT ROLL for the canvas: every d20 in order, the one that STANDS up, the rest
- * struck (`lost` when the drop took a critical). A tie keeps the first.
+ * THE DICE OF A BENT ROLL for the canvas, over the ROLLER: a bystander's die (Cutting Words) as the modifier, then a
+ * beat later the total as rolled turning over to the bent total; a stored face (Portent) as the face itself, then the
+ * d20 turning over to it; otherwise every d20 in order, the one that STANDS up, the rest struck (`lost` when the drop
+ * took a critical), a tie keeping the first.
  * @param {{how: string, first: number, second: number|null, stood: number, wasCritical: boolean,
- *          isCritical: boolean, faces?: number[], add?: number}|null} bent
- * @returns {{label: string, up?: boolean, drop?: boolean, lost?: boolean}[]}
+ *          isCritical: boolean, faces?: number[], add?: number, firstTotal?: number, total?: number}|null} bent
+ * @returns {{label: string, was?: string, up?: boolean, flat?: boolean, drop?: boolean, lost?: boolean, after?: number}[]}
  */
 export function bentChips(bent) {
   if ( !bent || (bent.how === "none") ) return [];
-  // A bystander's die: the number it moved the roll by, one chip (a signed label).
   if ( bent.how === "die" ) {
     const n = Number(bent.add) || 0;
-    return n ? [{ label: `${n > 0 ? "+" : "−"}${Math.abs(n)}`, up: true }] : [];
+    if ( !n ) return [];
+    const totals = Number.isFinite(Number(bent.firstTotal)) && Number.isFinite(Number(bent.total));
+    return [{ label: `${n > 0 ? "+" : "−"}${Math.abs(n)}`, flat: true, up: true },
+      ...(totals ? [{ was: String(bent.firstTotal), label: String(bent.total), up: true, after: 700 }] : [])];
+  }
+  if ( bent.how === "set" ) {
+    return [{ label: String(bent.stood), up: true }, { was: String(bent.first), label: String(bent.stood), up: true, after: 700 }];
   }
   const lost = !!bent.wasCritical && !bent.isCritical;
   let dice, keep;

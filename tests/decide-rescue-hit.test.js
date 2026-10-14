@@ -513,7 +513,14 @@ describe("neededOnDie — the face a bystander's die needs (the user, 2026-10-14
   it("dieOutcome moves the total and keeps the d20's own crit", () => {
     const o = r.dieOutcome({ kept: 12, total: 17, add: -5 });
     expect(o).toMatchObject({ how: "die", total: 12, add: -5, isCritical: false, changed: true });
-    expect(r.bentChips(o)).toEqual([{ label: "−5", up: true }]);
+    expect(r.bentChips(o)).toEqual([
+      { label: "−5", flat: true, up: true },
+      { was: "17", label: "12", up: true, after: 700 }
+    ]);
+    expect(r.bentChips({ how: "set", first: 20, stood: 2, firstTotal: 25, total: 7 })).toEqual([
+      { label: "2", up: true },
+      { was: "20", label: "2", up: true, after: 700 }
+    ]);
     const lines = r.bentLines({
       rescue: "Cutting Words (Corin)",
       bent: o,

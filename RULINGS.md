@@ -968,6 +968,12 @@ Fighting **U1**, *"truesight yes"*. `smoke-damage-rules` (31 checks), `smoke-gua
   Nothing else. Dice ADDED every time as the roll is made — Sneak Attack, Divine Smite, Hunter's
   Mark, Bless, Bane — stay on the card ("its kinda spammy if we take it too far ... it does open the
   floodgates"). A new rule is sorted by these two, not re-asked.
+  **Where they rise** (the table, 2026-10-14): over the ONE whose number changed, nowhere else. A bent attack or
+  check (Cutting Words' die, Portent's face) over the roller, never the one hit; a reduction with its share known
+  (Cutting Words' damage half, Interception) over the one who takes the damage, nothing over the reducer and
+  nothing in flight. Two cards: the modifier or the new face first, then a beat later the old value turning over
+  to the new ("−5", then "19" → "14"; "2", then "20" → "2"; "−3", then "5" → "2"). Shield's "+5 AC" stays over the
+  one hit, whose AC it is; Parry's reduction, its share unknown, keeps the die off the reducer and the drift.
 - **Unarmed Fighting:** its die on the sheet's plain Unarmed Strike rides the Unarmed Strike Dice
   table (a `hands` row: the feat's d8 attack with nothing held, its d6 otherwise; two rows on one
   actor swap in the larger die). **At the start of the turn** (U1) the owner of a grapple is asked

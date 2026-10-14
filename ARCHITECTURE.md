@@ -791,7 +791,7 @@ parts' registration order; it is load-bearing, and its comment says so.**
 
 - **`saves/`** — eight parts along the spine's steps. ESM evaluates a cycle's first-listed
   member LAST, which is why `saves/index.js` lists `verdict.js` before `ask.js`.
-- **`hold/`** — ten parts by moment, a DAG (`dice.js`, 2026-09-26: a bent d20 and Shield's "+5 AC" rising over the creature hit, off the hold record — a reload replays nothing); the index re-exports the machine's ONE outside
+- **`hold/`** — ten parts by moment, a DAG (`dice.js`, 2026-09-26: a bent d20 rising over the attacker, whose roll it is, and Shield's "+5 AC" over the creature hit, off the hold record — a reload replays nothing); the index re-exports the machine's ONE outside
   name, `stampHoldIfInterrupted`, and two bare imports at its head (`ui.js`, `effect-riders.js`)
   keep the spine's bar registered above the hold row.
 
