@@ -76,14 +76,14 @@ text trips no combat family, NATIVE otherwise. `| **Row** | NATIVE / MODULE / RO
 | **Elemental Familiar** | NATIVE | the summons and the pack's Energy Pulse save |
 | **Otherworldly Familiar** | NATIVE | the pack's effect |
 | **Soothing Familiar** | WAITS | Healing Beacon: a heal die's 1 or 2 read as 3 inside the familiar's 5-foot Emanation — `HEAL_REROLLS` with a minimum and a ring, its first customer |
-| **Warlike Familiar** | OUT | Intercept Attack is the redirect kind |
+| **Warlike Familiar** | WAITS | the free cast of Battle Familiar (the pack ships no forward and no pool — a module-built way to pay) and Intercept Attack (an `ac` guard: the familiar's Reaction, the caster's PB on an ally's AC) — parked until a player takes the feat (RULINGS *Summons*, the Battle Familiar pass) |
 | **Evocation Adept** | WAITS | Fueled Evocation: Hit Point Dice added to a spell's damage roll — a damage offer paid in Hit Dice, its first customer |
 | **Conjuration Adept** | NATIVE | the pack's effects |
 | **Transmutation Adept** | NATIVE | the pack's effect |
 | **Boon of Erupting Spellpower** | OUT | an epic boon — BACKLOG *The epic boons — every book's*; cast-triggered besides |
 | **Boon of Magic School Mastery** | OUT | an epic boon — BACKLOG *The epic boons — every book's* |
 | **Boon of the Iron Mind** | OUT | an epic boon — BACKLOG *The epic boons — every book's* |
-| **Battle Familiar** | OUT | summons-shaped — GitHub issue #1 |
+| **Battle Familiar** | MODULE | `SUMMON_SINGLES` · `SUMMON_OWN_INITIATIVE` · `SUMMON_FALLS` · `SUMMON_EMPOWERS` (summons.js) · `TRANSFORMS` (transforms.js; RULINGS *Summons*, the Battle Familiar pass): conjured on the summon road, or the standing Find Familiar empowered in place |
 | **Summon Plant** | OUT | summons-shaped — GitHub issue #1 |
 | **Summon Dinosaur** | OUT | summons-shaped — GitHub issue #1 |
 | **Spirit Lantern** | OUT | the fragments are a kill counter on a conjured object — summons-shaped, GitHub issue #1; its saves are the pack's |

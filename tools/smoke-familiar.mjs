@@ -18,8 +18,9 @@ import { Foundry } from 'fvtt-mcp-dnd5e/client';
 
 // THE COVERAGE MAP (tools/coverage-map.mjs) — ⚠ NEVER import a suite; the map is parsed.
 export const COVERS = [
-  'summons.js',         // §1 the free cast's cause and spend, §2 a cancelled menu spends nothing, §3 the boon landed, §7 the pocket, §8 the player's cast
-  'advantage-buys.js'   // §4 the box offered and spent, §5 greyed beyond 5 ft, §6 absent on an unproficient skill and a raw check, §7 greyed in the pocket
+  'summons.js',         // §1 the free cast's cause and spend, §2 a cancelled menu spends nothing, §3 the boon landed, §7 the pocket, §8 the player's cast; §9 Battle Familiar's empower record, §13 dismissed while empowered
+  'advantage-buys.js',  // §4 the box offered and spent, §5 greyed beyond 5 ft, §6 absent on an unproficient skill and a raw check, §7 greyed in the pocket, §10 offered while empowered
+  'transforms.js'       // §9 the familiar empowered in place, §11 the temp HP gone reverts and re-points, §12 the caster's effect as the lever
 ];
 
 const SECTIONS = {
@@ -30,9 +31,14 @@ const SECTIONS = {
   5: 'BEYOND 5 FT: the Owl three squares away — the box stays, greyed, "your familiar is 15 ft away — within 5 feet only", no tick',
   6: 'NOT A PROFICIENT SKILL: a Stealth check (unproficient) and a raw Wisdom check carry no box at all',
   7: 'IN THE POCKET: the familiar put away — the box greyed "in its pocket dimension"; Dismiss ends it',
-  8: 'THE PLAYER\'S CAST: with Allow Summoning off, the player test user\'s free cast on their own Mage posts its card with the record `asked`, no token created, the use spent'
+  8: 'THE PLAYER\'S CAST: with Allow Summoning off, the player test user\'s free cast on their own Mage posts its card with the record `asked`, no token created, the use spent',
+  9: 'EMPOWERED (Battle Familiar, Arcana Unleashed): cast with the Owl on the table and answered as the Brute, the elect transforms the Owl IN PLACE — the same token, the Brute\'s stat block (AC 15 at level 2, Str 16, Rend), its own Hit Points and type kept, 30 Temporary Hit Points, the caster\'s Proficiency Bonus, still named Owl; the caster\'s "Battle Familiar: Owl" effect for an hour and the form effect depending on it; the companion record knows',
+  10: 'HELPFUL FRIEND WHILE EMPOWERED: the box still offered one square from the empowered Owl',
+  11: 'THE TEMP HP GONE: the Owl reverts — a new token, the Hit Points lost kept, no temp HP, its seat in the tracker and the companion record re-pointed, the caster\'s effect gone, the record ended "noTemp"',
+  12: 'THE LEVER: empowered again, the caster\'s "Battle Familiar: Owl" effect removed by hand — the Owl reverts, the record ended',
+  13: 'DISMISSED WHILE EMPOWERED: empowered again, Dismiss — the token goes, the caster\'s effect with it, the record ended "gone"'
 };
-const DEPENDS = { 3: [1], 4: [1], 5: [1], 7: [1] };
+const DEPENDS = { 3: [1], 4: [1], 5: [1], 7: [1], 9: [1], 10: [9], 11: [9], 12: [11], 13: [12] };
 
 const { plan, pulled } = sectionPlan(SECTIONS, DEPENDS);
 const env = loadEnv();
@@ -56,10 +62,12 @@ const LEND = `async ({ casterName }) => {
     return data;
   };
   // a killed run's copies first (a lookup by name would find the stale one): the fixtures never carry these
-  const stale = caster.items.filter(i => ((i.type === 'feat') && (i.name === 'Familiar Friend')) || ((i.type === 'spell') && (i.name === 'Find Familiar'))).map(i => i.id);
+  const stale = caster.items.filter(i => ((i.type === 'feat') && (i.name === 'Familiar Friend')) || ((i.type === 'spell') && ((i.name === 'Find Familiar') || (i.name === 'Battle Familiar')))).map(i => i.id);
   if (stale.length) await caster.deleteEmbeddedDocuments('Item', stale);
   const feat = await fromPack('dnd-arcana-unleashed.feats', 'Familiar Friend');
   const spell = await fromPack('dnd-players-handbook.spells', 'Find Familiar');
+  const battle = await fromPack('dnd-arcana-unleashed.spells', 'Battle Familiar');
+  battle.system.method = 'spell'; battle.system.prepared = 1;
   // as the feat's advancement grants it: prepared, one use per Long Rest, a forward spending that use with no slot
   spell.system.method = 'spell'; spell.system.prepared = 2;
   spell.system.uses = { max: '1', recovery: [{ period: 'lr', type: 'recoverAll' }], spent: 0 };
@@ -67,11 +75,15 @@ const LEND = `async ({ casterName }) => {
   spell.system.activities.bfFreeCast000000 = { _id: 'bfFreeCast000000', type: 'forward', name: '(free casting)', sort: 1,
     activity: { id: summonId }, activation: { type: 'action', override: false },
     consumption: { targets: [{ type: 'itemUses', target: '', value: '1', scaling: {} }], scaling: { allowed: false }, spellSlot: true } };
-  const made = await caster.createEmbeddedDocuments('Item', [feat, spell]);
+  const made = await caster.createEmbeddedDocuments('Item', [feat, spell, battle]);
   const featItem = made.find(i => i.type === 'feat');
-  const spellItem = made.find(i => i.type === 'spell');
-  if (!featItem || !spellItem) return { fatal: 'the lend made ' + made.length + ' item(s): ' + made.map(i => i.name + '/' + i.type).join(', ') };
-  return { featId: featItem.id, spellId: spellItem.id, summonId, prof: Number(caster.system.attributes.prof) || 0, level: Number(caster.system.details.level) || 0 };
+  const spellItem = made.find(i => (i.type === 'spell') && (i.name === 'Find Familiar'));
+  const battleItem = made.find(i => (i.type === 'spell') && (i.name === 'Battle Familiar'));
+  if (!featItem || !spellItem || !battleItem) return { fatal: 'the lend made ' + made.length + ' item(s): ' + made.map(i => i.name + '/' + i.type).join(', ') };
+  const battleSummon = Object.values(battleItem.system.activities.contents ?? [...battleItem.system.activities]).find(a => a.type === 'summon');
+  const brute = battleSummon?.profiles?.find(p => p.name === 'Brute') ?? null;
+  return { featId: featItem.id, spellId: spellItem.id, summonId, battleId: battleItem.id, battleSummonId: battleSummon?.id ?? null,
+    bruteId: brute?._id ?? null, bruteUuid: brute?.uuid ?? null, prof: Number(caster.system.attributes.prof) || 0, level: Number(caster.system.details.level) || 0 };
 }`;
 
 const out = await f.evaluate(async ({ sections, titles, extra }) => {
@@ -142,10 +154,13 @@ const out = await f.evaluate(async ({ sections, titles, extra }) => {
     try {
       await closeDialogs();
       await caster.update({ 'system.skills.arc': skillsBefore.arc, 'system.skills.ste': skillsBefore.ste });
+      for (const l of landedMessage?.getFlag(MOD, 'summon')?.landed ?? []) if (!madeTokens.includes(l.tokenId)) madeTokens.push(l.tokenId);
+      if (game.combat?.getFlag(MOD, 'suiteFamiliar')) await game.combat.delete();
       const tokens = madeTokens.filter(id => canvas.scene.tokens.get(id));
       if (tokens.length) await canvas.scene.deleteEmbeddedDocuments('Token', tokens);
+      for (const e of caster.effects.filter(e => /^Battle Familiar/.test(e.name))) { try { await e.delete({ [MOD]: { empowerEnd: true } }); } catch { /* gone */ } }
       for (const e of caster.effects.filter(e => /^Familiar:/.test(e.name))) { try { await e.delete({ [MOD]: { companionEnd: true } }); } catch { try { await e.delete(); } catch { /* gone */ } } }
-      const live = caster.items.filter(i => lent.includes(i.id) || ((i.type === 'feat') && (i.name === 'Familiar Friend')) || ((i.type === 'spell') && (i.name === 'Find Familiar'))).map(i => i.id);
+      const live = caster.items.filter(i => lent.includes(i.id) || ((i.type === 'feat') && (i.name === 'Familiar Friend')) || ((i.type === 'spell') && ((i.name === 'Find Familiar') || (i.name === 'Battle Familiar')))).map(i => i.id);
       if (live.length) await caster.deleteEmbeddedDocuments('Item', live);
       for (const a of madeActors) { if (game.actors.get(a.id)) await a.delete(); }
       const mine = game.messages.filter(m => (m.timestamp >= suiteStart)
@@ -229,9 +244,24 @@ const out = await f.evaluate(async ({ sections, titles, extra }) => {
     const lendFn = new Function('return ' + extra.lend)();
     const lentOut = await lendFn({ casterName: caster.name });
     if (lentOut.fatal) return { fatal: lentOut.fatal };
-    lent.push(lentOut.featId, lentOut.spellId);
+    lent.push(lentOut.featId, lentOut.spellId, lentOut.battleId);
     featItem = caster.items.get(lentOut.featId);
     spellItem = caster.items.get(lentOut.spellId);
+    const battleItem = caster.items.get(lentOut.battleId);
+    const battleSummon = battleItem?.system?.activities?.get(lentOut.battleSummonId) ?? null;
+    if (!battleSummon || !lentOut.bruteId) return { fatal: `the lent Battle Familiar lacks its summon or its Brute (summon=${!!battleSummon} brute=${lentOut.bruteId})` };
+    // the empower cast, as a macro would send it: the question's answer on the use, the dialog skipped, no slot
+    const empower = async () => {
+      const result = await battleSummon.use({ [MOD]: { toCard: true, empower: { companionMessageId: landedMessage.id, profileId: lentOut.bruteId, level: 2, pick: { uuid: lentOut.bruteUuid, name: 'Brute' } } },
+        create: { summons: false, measuredTemplate: false }, consume: { spellSlot: false } }, { configure: false }, { create: true });
+      const message = result?.message instanceof ChatMessage ? result.message : null;
+      if (message) madeMessages.push(message);
+      const rec = await waitFor(() => message?.getFlag(MOD, 'transform')?.applied ? message.getFlag(MOD, 'transform') : null, 20000);
+      return { message, rec };
+    };
+    const casterEffect = () => caster.effects.find(e => /^Battle Familiar/.test(e.name)) ?? null;
+    const companionRecord = () => landedMessage?.getFlag(MOD, 'summon') ?? null;
+    const liveOwl = () => { const l = companionRecord()?.landed?.[0]; return l ? canvas.scene.tokens.get(l.tokenId) ?? null : null; };
     summon = spellItem.system.activities.get(lentOut.summonId);
     forward = spellItem.system.activities.get('bfFreeCast000000');
     if (!summon || !forward) return { fatal: `the lent Find Familiar lacks its activities (summon=${!!summon} forward=${!!forward})` };
@@ -354,7 +384,87 @@ const out = await f.evaluate(async ({ sections, titles, extra }) => {
       await closeDialogs();
     }
 
-    // ---- 7. in the pocket, then Dismiss
+    // ---- 9. empowered in place
+    if (want(9) && landedMessage && owlDoc) {
+      await closeDialogs();
+      const { max: base } = await owlBaseHp();
+      const oldId = owlDoc.id;
+      const { message, rec } = await empower();
+      const tok = canvas.scene.tokens.get(oldId) ?? null;
+      const a = tok?.actor ?? null;
+      const hp = a?.system?.attributes?.hp ?? {};
+      const eff = casterEffect();
+      const form = a?.effects?.find(e => !!e.getFlag(MOD, 'form')) ?? null;
+      ok('§9a the elect transformed the Owl in place: the same token, polymorphed, still named Owl', rec?.outcome === 'landed' && !!tok && !!a?.isPolymorphed && (a?.name === 'Owl') && (tok?.name === 'Owl'),
+        JSON.stringify({ outcome: rec?.outcome, failure: rec?.failure, token: !!tok, poly: a?.isPolymorphed, name: a?.name, tokenName: tok?.name }));
+      ok(`§9b the Brute's stat block at level 2 on its own Hit Points and type: AC 15, Str 16, Rend, HP ${base + 2 * level}, 30 temp, Celestial, PB ${PROF}, level 2 stamped`,
+        (Number(a?.system?.attributes?.ac?.value) === 15) && (Number(a?.system?.abilities?.str?.value) === 16) && !!a?.items?.find(i => i.name === 'Rend')
+          && (Number(hp.max) === base + 2 * level) && (Number(hp.value) === base + 2 * level) && (Number(hp.temp) === 30)
+          && (a?.system?.details?.type?.value === 'celestial') && (Number(a?.system?.attributes?.prof) === PROF) && (a?.getFlag('dnd5e', 'summon')?.level === 2),
+        JSON.stringify({ ac: a?.system?.attributes?.ac?.value, str: a?.system?.abilities?.str?.value, rend: !!a?.items?.find(i => i.name === 'Rend'), hp, type: a?.system?.details?.type?.value, prof: a?.system?.attributes?.prof, level: a?.getFlag('dnd5e', 'summon')?.level }));
+      ok('§9c the caster\'s "Battle Familiar: Owl" effect for an hour, the form effect on the Owl depending on it, the companion record knows',
+        !!eff && (eff.name === 'Battle Familiar: Owl') && (Number(eff.duration?.seconds) === 3600) && !!form && (form.getFlag('dnd5e', 'dependentOn') === eff.uuid)
+          && (companionRecord()?.companion?.empower?.messageId === message?.id),
+        JSON.stringify({ effect: eff?.name, seconds: eff?.duration?.seconds, form: form?.name, dep: form?.getFlag('dnd5e', 'dependentOn'), empower: companionRecord()?.companion?.empower }));
+    }
+
+    // ---- 10. Helpful Friend while empowered
+    if (want(10) && liveOwl()) {
+      await closeDialogs();
+      await featItem.update({ 'system.uses.spent': 0 });
+      owlDoc = liveOwl();
+      await moveOwl(1);
+      void caster.rollSkill({ skill: 'arc' });
+      const dlg = await openDialog();
+      const box = boxOf(dlg);
+      ok('§10 the box offered with a tick while the Owl is empowered one square away', !!box && /Familiar Friend — 1 use/.test(textOf(box)) && !!tickOf(dlg), `box="${textOf(box).slice(0, 100)}" tick=${!!tickOf(dlg)}`);
+      await closeDialogs();
+    }
+
+    // ---- 11. the temp HP gone: the revert, the re-point
+    if (want(11) && liveOwl()) {
+      await closeDialogs();
+      const old = liveOwl();
+      const { max: base } = await owlBaseHp();
+      const combat = await Combat.create({ scene: canvas.scene.id, active: true, [`flags.${MOD}.suiteFamiliar`]: true });
+      await combat.createEmbeddedDocuments('Combatant', [{ tokenId: old.id, actorId: old.actorId, sceneId: canvas.scene.id, initiative: 14 }]);
+      await combat.startCombat();
+      const transformMessage = game.messages.get(companionRecord()?.companion?.empower?.messageId) ?? null;
+      await old.actor.update({ 'system.attributes.hp.temp': 0, 'system.attributes.hp.value': base + 2 * level - 1 });
+      const ended = await waitFor(() => transformMessage?.getFlag(MOD, 'transform')?.ended ? transformMessage.getFlag(MOD, 'transform').ended : null, 20000);
+      await waitFor(() => (liveOwl() && (liveOwl().id !== old.id)) ? true : null, 10000);
+      await sleep(500);
+      const now = liveOwl();
+      const hp = now?.actor?.system?.attributes?.hp ?? {};
+      const seat = game.combat?.combatants?.find(c => c.tokenId === now?.id) ?? null;
+      ok('§11a no temp HP left: the Owl reverts — a new token, not polymorphed, the Hit Points lost kept, no temp HP', (ended?.word === 'noTemp') && !!now && (now.id !== old.id) && !now.actor?.isPolymorphed
+          && (Number(hp.value) === base + 2 * level - 1) && !(Number(hp.temp) > 0),
+        JSON.stringify({ ended, newToken: now?.id, oldToken: old.id, poly: now?.actor?.isPolymorphed, hp }));
+      ok('§11b its seat and the companion record follow the new token; the caster\'s effect is gone; the companion is no longer empowered',
+        !!seat && (seat.tokenId === now?.id) && (companionRecord()?.landed?.[0]?.tokenId === now?.id) && !casterEffect() && !companionRecord()?.companion?.empower,
+        JSON.stringify({ seat: seat?.tokenId, record: companionRecord()?.landed?.[0]?.tokenId, effect: !!casterEffect(), empower: companionRecord()?.companion?.empower }));
+      owlDoc = now;
+      if (now && !madeTokens.includes(now.id)) madeTokens.push(now.id);
+      await combat.delete();
+    }
+
+    // ---- 12. the lever: the caster's effect removed by hand
+    if (want(12) && liveOwl()) {
+      const old = liveOwl();
+      const { message } = await empower();
+      const eff = casterEffect();
+      ok('§12a empowered again: the caster\'s effect stands, the Owl polymorphed', !!eff && !!liveOwl()?.actor?.isPolymorphed, `effect=${eff?.name} poly=${liveOwl()?.actor?.isPolymorphed}`);
+      await eff?.delete();
+      const ended = await waitFor(() => message?.getFlag(MOD, 'transform')?.ended ? message.getFlag(MOD, 'transform').ended : null, 20000);
+      await waitFor(() => (liveOwl() && (liveOwl().id !== old.id)) ? true : null, 10000);
+      await sleep(500);
+      const now = liveOwl();
+      ok('§12b the effect removed by hand: the Owl reverts, the record ended', !!ended && !!now && !now.actor?.isPolymorphed && !casterEffect(), JSON.stringify({ ended, poly: now?.actor?.isPolymorphed, effect: !!casterEffect() }));
+      owlDoc = now;
+      if (now && !madeTokens.includes(now.id)) madeTokens.push(now.id);
+    }
+
+    // ---- 7. in the pocket, then called back
     if (want(7) && landedMessage) {
       await closeDialogs();
       const flag = landedMessage.getFlag(MOD, 'summon');
@@ -368,12 +478,30 @@ const out = await f.evaluate(async ({ sections, titles, extra }) => {
       ok('§7b the box greyed "your familiar is in its pocket dimension", no tick', !!box && /your familiar is in its pocket dimension/.test(textOf(box)) && !tickOf(dlg),
         `box="${textOf(box).slice(0, 120)}" tick=${!!tickOf(dlg)}`);
       await closeDialogs();
-      await api.askDismiss(landedMessage);
-      const dismissed = await waitFor(() => landedMessage.getFlag(MOD, 'summon')?.dismissed ? true : null, 15000);
-      ok('§7c Dismiss ends it: the companion effect leaves the caster', !!dismissed && !caster.effects.some(e => e.getFlag(MOD, 'companion') === landedMessage.id),
-        `dismissed=${!!dismissed} effects=${caster.effects.map(e => e.name).join(', ')}`);
+      const inPocket = landedMessage.getFlag(MOD, 'summon');
+      const recall = companionAsk(inPocket.companion, { kind: 'recall', placement: { x: casterToken.x + grid, y: casterToken.y, elevation: casterToken.elevation ?? 0, sceneId: canvas.scene.id } });
+      if (recall) await landedMessage.setFlag(MOD, 'summon', { ...inPocket, companion: { ...inPocket.companion, ...recall } });
+      const back = await waitFor(() => (landedMessage.getFlag(MOD, 'summon')?.companion?.state === 'present') ? true : null, 15000);
+      owlDoc = liveOwl();
+      if (owlDoc && !madeTokens.includes(owlDoc.id)) madeTokens.push(owlDoc.id);
+      ok('§7c called back: the companion stands again beside the caster', !!back && !!owlDoc, `state=${landedMessage.getFlag(MOD, 'summon')?.companion?.state} token=${!!owlDoc}`);
     } else if (want(7)) {
       results.push({ name: '§7 skipped — §1 landed nothing', pass: false, detail: '' });
+    }
+
+    // ---- 13. dismissed while empowered
+    if (want(13) && liveOwl()) {
+      await closeDialogs();
+      const old = liveOwl();
+      const { message } = await empower();
+      const poly = !!liveOwl()?.actor?.isPolymorphed;
+      await api.askDismiss(landedMessage);
+      const dismissed = await waitFor(() => landedMessage.getFlag(MOD, 'summon')?.dismissed ? true : null, 15000);
+      await sleep(500);
+      const ended = message?.getFlag(MOD, 'transform')?.ended ?? null;
+      ok('§13 Dismiss while empowered: the token goes, the caster\'s effect with it, the companion effect too, the record ended "gone"',
+        poly && !!dismissed && !canvas.scene.tokens.get(old.id) && !casterEffect() && !caster.effects.some(e => e.getFlag(MOD, 'companion') === landedMessage.id) && (ended?.word === 'gone'),
+        JSON.stringify({ poly, dismissed: !!dismissed, token: !!canvas.scene.tokens.get(old.id), effect: !!casterEffect(), ended }));
     }
   } catch (err) {
     results.push({ name: 'suite threw', pass: false, detail: `${err?.message}\n${err?.stack}` });

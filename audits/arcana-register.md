@@ -11,7 +11,7 @@
 > mechanism; OUT — held out by a ruling, the reason in *Why not*. **Kind**: species · subclass (its feature, the subclass named) · option
 > (nothing grants it) · feat · spell · item · gift · monster (the bestiary's traits, actions and reactions, one row per name).
 
-**257 rows (46 subclasss · 15 options · 29 feats · 33 spells · 69 items · 65 monsters): 73 NATIVE · 39 MODULE · 0 ROW · 0 TABLE · 0 KIND · 96 TEXT · 26 OUT · 23 WAITS.**
+**257 rows (46 subclasss · 15 options · 29 feats · 33 spells · 69 items · 65 monsters): 73 NATIVE · 40 MODULE · 0 ROW · 0 TABLE · 0 KIND · 96 TEXT · 24 OUT · 24 WAITS.**
 
 | Kind | Row | Where | Families | In scope | Why not / how | Rule of cool / bend | Walked |
 | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -104,8 +104,8 @@
 | feat | **Spell Resistant** | level 4 | resist | MODULE | `INTERRUPT_ROLLS` (hold/; RULINGS *The reaction hold*); `INTERRUPTS` (hold/; RULINGS *The reaction hold*) | — | — |
 | feat | **Spell Subterfuge** | level 4 | — | TEXT | no mechanism to play — the pack ships a paragraph | — | — |
 | feat | **Transmutation Adept** | level 4 | movement | NATIVE | the pack's effect | — | — |
-| feat | **Warlike Familiar** | level 4 | interrupt, reaction | OUT | Intercept Attack is the redirect kind | — | — |
-| spell | **Battle Familiar** | level 2 | — | OUT | summons-shaped — GitHub issue #1 | — | — |
+| feat | **Warlike Familiar** | level 4 | interrupt, reaction | WAITS | the free cast of Battle Familiar (the pack ships no forward and no pool — a module-built way to pay) and Intercept Attack (an `ac` guard: the familiar's Reaction, the caster's PB on an ally's AC) — parked until a player takes the feat (RULINGS *Summons*, the Battle Familiar pass) | — | — |
+| spell | **Battle Familiar** | level 2 | — | MODULE | `SUMMON_EMPOWERS` (summons.js · transforms.js; RULINGS *Summons*); `SUMMON_FALLS` (summons.js; RULINGS *Summons*); `SUMMON_OWN_INITIATIVE` (summons.js; RULINGS *Summons*); `SUMMON_SINGLES` (summons.js; RULINGS *Summons*); `TRANSFORMS` (transforms.js; RULINGS *Wild Shape and the polymorph spells*) — `SUMMON_SINGLES` · `SUMMON_OWN_INITIATIVE` · `SUMMON_FALLS` · `SUMMON_EMPOWERS` (summons.js) · `TRANSFORMS` (transforms.js; RULINGS *Summons*, the Battle Familiar pass): conjured on the summon road, or the standing Find Familiar empowered in place | — | — |
 | spell | **Disruptive Tune** | level 2 | bend-save, press-condition, half-on-save, concentration | NATIVE | the save and the effect; the Concentration lost is the table's | — | — |
 | spell | **Dueling Ground** | level 2 | — | TEXT | the marks ship; a duelist's drop teleporting it out is the table's | — | — |
 | spell | **Uncertain Footing** | level 2 | press-condition | MODULE | `REPEAT_SAVES` (repeat-saves.js; RULINGS *The spells slice — Tiers 1 and 2*) | — | — |

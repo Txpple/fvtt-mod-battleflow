@@ -318,7 +318,9 @@ export const MOMENT_RECORDS = Object.freeze({
         ability: r.itemName ?? null,
         targets: (r.landed ?? []).map(l => ({ uuid: l.originalUuid ?? l.actorUuid ?? null, name: l.name ?? null })),
         details: { outcome: r.outcome ?? null, key: r.key ?? null, form: r.pick?.name ?? null, formUuid: r.pick?.uuid ?? null,
-          learned: r.learned?.name ?? null, self: !!r.self, ended: r.ended?.word ?? null } }
+          learned: r.learned?.name ?? null, self: !!r.self, ended: r.ended?.word ?? null,
+          // a companion empowered by a summon spell (summons.js stamps the record, transforms.js lands it)
+          empowered: !!r.empower, level: r.empower?.level ?? null } }
     }] : []
   },
 
@@ -896,7 +898,9 @@ export const STATE_KEYS = Object.freeze({
   formSwapAnswer: "an envelope — a player's known-form answer; the fold onto the formSwap flag, landed by the elect, is the resolve",
   form: "an ActiveEffect field — the form effect's tie to its transform record (the card, the original creature, the row); its removal ends the form",
   knownForms: "an Item field — the Known Forms a Wild Shape item holds (uuid, name, art); the transform record (a form learned at the use) and the formSwap record (the Long Rest's change) are the resolves",
-  lastForm: "an Item field — the form last taken through the item, marked on its row at the next use; presentation",
+  lastForm: "an Item field — the form last taken through the item (transforms.js; a summon spell's profile, summons.js), marked on its row at the next use; presentation",
+  empowerEffect: "an ActiveEffect flag on the caster of a SUMMON_EMPOWERS spell — the message id of the transform card its empowered companion stands on; removing the effect asks the revert, the transform record's `ended` is the resolve (summons.js, transforms.js)",
+  empowerEnd: "a delete option, not a flag — the elect's own removal of the empower effect as the form ends, which asks no second revert (transforms.js, summons.js)",
   formEnd: "the card a form's end posts (transforms.js) — the clock, Concentration, Incapacitated, 0 Hit Points, the Temporary Hit Points gone, or a revert; the `ended` stamp on the transform record is the resolve",
   cleaveArm: "Cleave armed for the extra attack; that attack is a real roll with its own card",
   cleaveStripped: "provenance — the armed Cleave's second attack shed its riders",

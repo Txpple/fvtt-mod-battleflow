@@ -416,20 +416,22 @@ export function currentCompanion(records, sourceUuid, itemName) {
  * @param {{ pocket?: boolean }} row
  * @returns {string[]}  of away · recall · dismiss · summon
  */
-export function companionMenu(state, { pocket = true } = {}) {
-  const first = !pocket ? [] : (state === "pocket") ? ["recall"] : ["away"];
+export function companionMenu(state, { pocket = true } = {}, { empowered = false } = {}) {
+  // an empowered companion (SUMMON_EMPOWERS) stays on the table: the pocket and the spell never overlap
+  const first = (!pocket || empowered) ? [] : (state === "pocket") ? ["recall"] : ["away"];
   return [...first, "dismiss", "summon"];
 }
 
 /**
  * A player's ask of a standing companion, judged against its state: away from the table, a recall
  * from the pocket with a square to land on. The patch to the record's `companion`, or null.
- * @param {{ state: string, ask?: object|null }|null|undefined} companion
+ * @param {{ state: string, ask?: object|null, empower?: object|null }|null|undefined} companion
  * @param {{ kind: string, placement?: { x: number, y: number, elevation?: number, sceneId: string|null } }} ask
  */
 export function companionAsk(companion, ask) {
   if ( !companion || companion.ask ) return null;
-  if ( (ask?.kind === "away") && (companion.state === "present") ) return { ask: { kind: "away", at: Date.now() } };
+  // empowered (SUMMON_EMPOWERS), it cannot be put away: the pocket and the spell never overlap
+  if ( (ask?.kind === "away") && (companion.state === "present") && !companion.empower ) return { ask: { kind: "away", at: Date.now() } };
   const p = ask?.placement;
   if ( (ask?.kind === "recall") && (companion.state === "pocket") && Number.isFinite(Number(p?.x)) && Number.isFinite(Number(p?.y)) && p?.sceneId ) {
     return { ask: { kind: "recall", placement: { x: Number(p.x), y: Number(p.y), elevation: Number(p.elevation) || 0, sceneId: p.sceneId }, at: Date.now() } };
@@ -481,6 +483,85 @@ export function boonHpPlan({ total, hasClasses, hardMax, linked, hp }) {
   if ( hasClasses && !hardMax ) return { effect: { key: "system.attributes.hp.bonuses.overall" }, updates: {} };
   if ( linked ) return { effect: { key: "system.attributes.hp.max" }, updates: {} };
   return { effect: null, updates: { "system.attributes.hp.max": (Number(hp?.max) || 0) + n, "system.attributes.hp.value": (Number(hp?.value) || 0) + n } };
+}
+
+/* --- a standing summon that falls, and the familiar empowered (SUMMON_FALLS, SUMMON_EMPOWERS) ---- */
+
+/**
+ * The record whose creature this token is, when its Hit Points reaching 0 take it off the table: a
+ * companion on the table (its own text), or a summon standing on its caster's effect whose spell is a
+ * SUMMON_FALLS row with `atZero`. The message id, or null.
+ * @param {Array<{ id: string, flag: object|null|undefined }>} records
+ * @param {string|null|undefined} tokenUuid
+ * @param {Record<string, { atZero?: boolean }>} falls   SUMMON_FALLS
+ * @param {Set<string>} listed   lower-cased SUMMON_FALLS keys
+ * @returns {string|null}
+ */
+export function fallenSummon(records, tokenUuid, falls, listed) {
+  if ( !tokenUuid ) return null;
+  for ( const { id, flag } of records ?? [] ) {
+    if ( !flag?.applied || flag.dismissAsked || flag.dismissed || (flag.outcome === "failed") ) continue;
+    if ( !(flag.landed ?? []).some(l => l.tokenUuid === tokenUuid) ) continue;
+    if ( flag.companion ) { if ( flag.companion.state === "present" ) return id; continue; }
+    const item = String(flag.itemName ?? "").toLowerCase();
+    const row = Object.entries(falls ?? {}).find(([k]) => k.toLowerCase() === item)?.[1] ?? null;
+    if ( flag.standing && row?.atZero && listed?.has?.(item) ) return id;
+  }
+  return null;
+}
+
+/**
+ * The caster's standing summons that disappear when the caster dies (SUMMON_FALLS `casterDeath`): their
+ * message ids. A companion is never among them unless its row says so.
+ * @param {Array<{ id: string, flag: object|null|undefined }>} records
+ * @param {string} sourceUuid
+ * @param {Record<string, { casterDeath?: boolean }>} falls
+ * @param {Set<string>} listed
+ * @returns {string[]}
+ */
+export function casterDeathSummons(records, sourceUuid, falls, listed) {
+  const out = [];
+  for ( const { id, flag } of records ?? [] ) {
+    if ( !flag?.applied || flag.dismissAsked || flag.dismissed || (flag.outcome === "failed") || (flag.sourceUuid !== sourceUuid) ) continue;
+    const item = String(flag.itemName ?? "").toLowerCase();
+    if ( !listed?.has?.(item) ) continue;
+    const row = Object.entries(falls ?? {}).find(([k]) => k.toLowerCase() === item)?.[1] ?? null;
+    if ( row?.casterDeath ) out.push(id);
+  }
+  return out;
+}
+
+/**
+ * The form rows with the last form taken marked (SUMMON_EMPOWERS and the conjure alike: "you decide
+ * whether you summon the familiar that disappeared or a different one"): that row pre-picked and tagged,
+ * else the first. Rows without a `checked` of their own only.
+ * @template {{ id: string, tags?: string[] }} R
+ * @param {R[]} rows
+ * @param {string|null|undefined} lastForm   the profile id last taken
+ * @returns {Array<R & { checked: boolean, tags: string[] }>}
+ */
+export function lastFormRows(rows, lastForm) {
+  const list = rows ?? [];
+  const has = !!lastForm && list.some(r => r.id === lastForm);
+  return list.map((r, i) => ({ ...r, checked: has ? (r.id === lastForm) : (i === 0), tags: [...(r.tags ?? []), ...((has && (r.id === lastForm)) ? ["last time"] : [])] }));
+}
+
+/**
+ * Where a SUMMON_EMPOWERS cast goes, read off the caster's companion of the row's spell: no companion
+ * standing, the summon road; one in its pocket, refused; one on the table, the question (summon a new one
+ * or empower it). The companion's message id rides along.
+ * @param {Array<{ id: string, flag: object|null|undefined }>} records
+ * @param {string} sourceUuid
+ * @param {string} companionSpell   the row's `companion`, as the tables know it
+ * @returns {{ route: "summon"|"refuse"|"ask", messageId: string|null, name: string|null }}
+ */
+export function empowerRoute(records, sourceUuid, companionSpell) {
+  const id = currentCompanion(records, sourceUuid, companionSpell);
+  if ( !id ) return { route: "summon", messageId: null, name: null };
+  const flag = (records ?? []).find(r => r.id === id)?.flag ?? null;
+  const name = flag?.companion?.name || flag?.summonName || null;
+  if ( flag?.companion?.state === "pocket" ) return { route: "refuse", messageId: id, name };
+  return { route: "ask", messageId: id, name };
 }
 
 /**

@@ -227,5 +227,54 @@ export function formTitle({ who, form, ended = null, failed = false }) {
   return `${who} is now ${articleOf(form)} ${form}`;
 }
 
+/* --- the familiar empowered (a SUMMON_EMPOWERS spell on a `subject: "companion"` row) ------------- */
+
+/**
+ * dnd5e's transformation setting for an empower row: the row's `keep` and `effects`, nothing merged, the
+ * form's Hit Points at the cast level as the Temporary Hit Points (a number, so no roll data is needed),
+ * the token transformed with the creature.
+ * @param {{ keep?: readonly string[], effects?: readonly string[] }} row
+ * @param {number} tempHp
+ */
+export function empowerSetting(row, tempHp) {
+  return { effects: [...(row?.effects ?? [])], keep: [...(row?.keep ?? [])], merge: [], tempFormula: String(Math.max(0, Math.round(Number(tempHp) || 0))), transformTokens: true };
+}
+
+/**
+ * The Temporary Hit Points the empowered familiar gains: the form's Hit Point maximum plus the summon
+ * activity's own Hit Point bonus at the cast level (the Brute's 30, +5 a level above 2nd).
+ * @param {{ formHpMax: number|null|undefined, hpBonus: number|null|undefined }} facts
+ */
+export const empowerTempHp = ({ formHpMax, hpBonus }) => Math.max(0, (Number(formHpMax) || 0) + (Number(hpBonus) || 0));
+
+/**
+ * The summon activity's own changes, applied on top of the transform: dnd5e's `getChanges` with its Hit
+ * Point branch (the form's Hit Points are the Temporary Hit Points here, the familiar's own are kept) and its
+ * creature-type branch (the familiar keeps its type) set aside. The actor update, the effects to create and
+ * the item updates, apart.
+ * @param {Record<string, unknown> & { effects?: object[], items?: object[] }} actorUpdates
+ * @returns {{ updates: Record<string, unknown>, effects: object[], items: object[] }}
+ */
+export function empowerUpdates(actorUpdates) {
+  const updates = /** @type {Record<string, unknown>} */ ({});
+  for ( const [k, v] of Object.entries(actorUpdates ?? {}) ) {
+    if ( (k === "effects") || (k === "items") ) continue;
+    if ( k.startsWith("system.attributes.hp") || k.startsWith("system.details.type") ) continue;
+    updates[k] = v;
+  }
+  // a type landed on a race item is a character's shape, never a familiar's: the item updates pass as they are
+  return { updates, effects: [...(actorUpdates?.effects ?? [])], items: [...(actorUpdates?.items ?? [])] };
+}
+
+/**
+ * A record's landed token entries re-pointed at the token the revert made (dnd5e's revert of an unlinked
+ * token creates a new one): the entry that named the old token takes the new token's facts.
+ * @param {Array<{ tokenId: string, sceneId: string, tokenUuid: string, actorUuid: string|null, name: string }>} landed
+ * @param {{ oldTokenId: string, tokenId: string, sceneId: string, tokenUuid: string, actorUuid: string|null, name: string }} token
+ */
+export function repointedLanded(landed, { oldTokenId, tokenId, sceneId, tokenUuid, actorUuid, name }) {
+  return (landed ?? []).map(l => (l.tokenId === oldTokenId) ? { ...l, tokenId, sceneId, tokenUuid, actorUuid: actorUuid ?? null, name } : l);
+}
+
 /** "a" or "an" for a form's name. @param {string} name */
 export const articleOf = name => /^[aeiou]/i.test(String(name ?? "").trim()) ? "an" : "a";

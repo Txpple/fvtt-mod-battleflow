@@ -15,7 +15,8 @@ import { MODULE_ID, readFlag, TITLE, isActiveGM, queueFlagWrite, canAnswerFor, a
 import { cardActivity, lower, resolveUuid, featureNamed } from "./lookup.js";
 import { TRANSFORMS, transformEntries, listedNames, tableIndex } from "./decide/registry.js";
 import { poolRuleOf, capOfTarget, knownSlotsOf, knownHolderOf, knownState, learnedList, restKnownList, transformRecord,
-  pickedAnswer, formEffectData, endOfForm, formTitle, articleOf } from "./decide/transforms.js";
+  pickedAnswer, formEffectData, endOfForm, formTitle, articleOf, empowerSetting, empowerTempHp, empowerUpdates, repointedLanded } from "./decide/transforms.js";
+import { summonEffectName } from "./decide/summons.js";
 import { galleryRows, crLabel } from "./decide/gallery.js";
 import { bfCard, esc, popupKey } from "./decide/present.js";
 import { targetsOf } from "./decide/card.js";
@@ -321,6 +322,78 @@ async function transformOne(subject, source, { activity, settings, flag, pick, m
   return { actorUuid: landed.uuid, originalUuid: target.uuid, name: landed.name, tokenName: landed.isToken ? landed.token?.name : null };
 }
 
+/** dnd5e's transformation setting model: the data model the system registers, else the one a transform activity carries. */
+function settingClass() {
+  const models = globalThis.dnd5e?.dataModels ?? {};
+  return models.settings?.TransformationSetting ?? Object.values(models.settings ?? {}).find(c => c?.name === "TransformationSetting")
+    ?? Object.values(models).find(c => c?.name === "TransformationSetting") ?? null;
+}
+
+/**
+ * A companion empowered by a summon spell (SUMMON_EMPOWERS; the TRANSFORMS row `subject: "companion"`): dnd5e's
+ * own `transformInto` on the companion's token with the row's `keep` and `effects` and the form's Hit Points at
+ * the cast level as Temporary Hit Points; then the summon activity's own changes on top (the level stamped, the
+ * attack and Proficiency matched, the AC bonus), the type and Hit Points the system would set aside; dnd5e's
+ * transform Proficiency override removed (it carries the form's own, blank for a creature with no CR); the
+ * companion's name back on the creature and its token; the caster's effect for the spell's life, and the form
+ * effect dependent on it. Returns the landed facts (RULINGS *Summons*, the Battle Familiar pass).
+ */
+async function empowerOne(subject, source, { activity, flag, message }) {
+  const row = TRANSFORMS[flag.key];
+  const Setting = settingClass();
+  if ( !Setting ) throw new Error("dnd5e's TransformationSetting was not found");
+  const caster = resolveUuid(flag.sourceUuid);
+  if ( !(caster instanceof Actor) ) throw new Error("the caster could not be read off the card");
+  const profile = activity.profiles?.find(p => p._id === flag.profile?.id) ?? activity.availableProfiles?.[0] ?? null;
+  if ( !profile ) throw new Error(`no form ${flag.profile?.id ?? ""} on ${flag.itemName}`);
+  const rollData = { ...(activity.getRollData?.() ?? {}), summon: subject.getRollData?.() ?? {} };
+  let hpBonus = 0;
+  if ( activity.bonuses?.hp ) { const r = await new Roll(String(activity.bonuses.hp), rollData).evaluate(); hpBonus = Number(r.total) || 0; }
+  const tempHp = empowerTempHp({ formHpMax: source.system?.attributes?.hp?.max ?? 0, hpBonus });
+  const name = flag.empower?.name || subject.token?.name || subject.name;
+  const token = subject.token;
+  await subject.transformInto(source, new Setting(empowerSetting(row, tempHp)), { renderSheet: false });
+  const landed = token?.actor ?? subject;
+  if ( !landed?.isPolymorphed ) throw new Error(`${name} was not transformed`);
+  // the spell's own bonuses, as the summon landing applies them; the type and the Hit Points stay the familiar's
+  const changes = await activity.getChanges(landed, profile, { profile: profile._id });
+  const plan = empowerUpdates(changes.actorUpdates ?? {});
+  if ( Object.keys(plan.updates).length ) await landed.update(plan.updates);
+  const items = plan.items.filter(i => i?._id && landed.items.has(i._id));
+  if ( items.length ) await landed.updateEmbeddedDocuments("Item", items);
+  if ( plan.effects.length ) await landed.createEmbeddedDocuments("ActiveEffect", plan.effects, { keepId: true });
+  // dnd5e's own transform Proficiency override: the form's PB, blank for a stat block with no CR
+  const profId = globalThis.dnd5e?.utils?.staticID?.("dnd5eTransformProf") ?? null;
+  const profEffect = landed.effects.find(e => (e.id === profId) || ((e.name === "Proficiency") && e.changes?.some(c => c.key === "system.attributes.prof") && !e.flags?.dnd5e?.summon));
+  if ( profEffect && (profEffect.id !== (globalThis.dnd5e?.utils?.staticID?.("dnd5eMatchProficiency") ?? "")) ) await profEffect.delete();
+  // its own name and art (the transform keeps the token's texture; dnd5e renames both)
+  await landed.update({ name });
+  if ( token ) await token.update({ name, lockRotation: false });
+  const tokenUpdates = { ...(changes.tokenUpdates ?? {}) };
+  delete tokenUpdates.name; delete tokenUpdates.texture; delete tokenUpdates.width; delete tokenUpdates.height;
+  if ( token && Object.keys(tokenUpdates).length ) await token.update(tokenUpdates);
+  // the caster's effect for the spell's life — the lever (a hand, its clock, a rest); the form effect depends on it
+  const duration = activity.duration?.getEffectData?.() ?? {};
+  const effectName = summonEffectName({ itemName: flag.itemName, creatureName: name });
+  const [casterEffect] = await caster.createEmbeddedDocuments("ActiveEffect", [{
+    name: effectName, img: activity.item?.img ?? source.img ?? null,
+    type: "base", transfer: false, disabled: false, origin: flag.itemUuid,
+    description: `<p>${esc(name)} is empowered by ${esc(flag.itemName)} while this effect stands: remove it to end the spell.</p>`,
+    duration: { ...duration }, flags: { [MODULE_ID]: { empowerEffect: message.id } }
+  }]);
+  const data = formEffectData({ itemName: flag.itemName, formName: flag.pick?.name ?? source.name, img: flag.pick?.img ?? source.img ?? null, origin: flag.itemUuid,
+    duration, messageId: message.id, originalId: landed.id, key: flag.key, dependentOn: casterEffect?.uuid ?? null,
+    description: `<p>${esc(flag.sourceName)}'s ${esc(flag.itemName)}: ${esc(name)} empowered in the form of ${esc(articleOf(flag.pick?.name ?? source.name))} ${esc(flag.pick?.name ?? source.name)}, ${tempHp} Temporary Hit Points. Removing this ends the spell.</p>` });
+  await landed.createEmbeddedDocuments("ActiveEffect", [data]);
+  // the companion's own record knows it is empowered (its dismissal ends the spell with no form left to revert)
+  const companionMessage = game.messages.get(flag.empower?.companionMessageId);
+  if ( companionMessage ) await queueFlagWrite(companionMessage, "summon", current => {
+    if ( !current.companion ) return false;
+    current.companion.empower = { messageId: message.id, effectId: casterEffect?.id ?? null };
+  });
+  return { actorUuid: landed.uuid, originalUuid: landed.uuid, name, tokenName: name, tempHp, empowerEffectId: casterEffect?.id ?? null };
+}
+
 async function landTransform(message) {
   let claimed = false;
   await queueFlagWrite(message, TRANSFORM_FLAG, current => {
@@ -351,7 +424,13 @@ async function landTransform(message) {
     const holder = knownHolderItem(original, flag.key);
     if ( holder && (Number(flag.slots) > 0) ) await holder.setFlag(MODULE_ID, LAST_FORM_FLAG, flag.pick.uuid);
     const settings = activity.settings ?? undefined;
-    for ( const t of flag.targets ?? [] ) {
+    if ( flag.empower ) {
+      // the familiar empowered (a SUMMON_EMPOWERS cast): the companion's token actor, the spell's own bonuses on top
+      const subject = resolveUuid(flag.targets?.[0]?.uuid);
+      if ( !(subject instanceof Actor) || !subject.isToken ) throw new Error(`${flag.targets?.[0]?.name ?? "the companion"} is no longer on the table`);
+      landed.push(await empowerOne(subject, source, { activity, flag, message }));
+    }
+    else for ( const t of flag.targets ?? [] ) {
       const subject = resolveUuid(t.uuid);
       if ( !(subject instanceof Actor) ) { failure = `${t.name} is not on any scene`; continue; }
       landed.push(await transformOne(subject, source, { activity, settings, flag, pick: flag.pick, message }));
@@ -430,8 +509,12 @@ async function revertForm(actor, ended, formFlag = null) {
   const flag = readFlag(message, TRANSFORM_FLAG) ?? null;
   const formName = flag?.pick?.name ?? actor.name;
   const who = actor.isToken ? (actor.token?.name ?? actor.name) : (originalOf(actor)?.name ?? actor.name);
+  const oldToken = actor.isToken ? { id: actor.token?.id ?? null, sceneId: actor.token?.parent?.id ?? null } : null;
   try {
-    await actor.revertOriginalForm({ renderSheet: false });
+    const back = await actor.revertOriginalForm({ renderSheet: false });
+    // an empowered companion: dnd5e's revert of an unlinked token makes a NEW token — the seat, the companion's record
+    // and the caster's effect follow it
+    if ( flag?.empower && oldToken?.id ) await repointEmpowered(flag, oldToken, back).catch(err => console.warn(`${TITLE} | The reverted ${who} could not be re-seated — check the tracker.`, err));
     if ( message && flag && !flag.ended ) {
       await queueFlagWrite(message, TRANSFORM_FLAG, current => {
         if ( current.ended ) return false;
@@ -451,6 +534,34 @@ async function revertForm(actor, ended, formFlag = null) {
   }
 }
 
+/**
+ * After an empowered companion reverts: every combatant of the old token re-pointed at the new one (dnd5e's
+ * `delete({ replacements })` re-points nothing, measured), the companion's record naming the new token, and
+ * the caster's empower effect removed as the elect's own.
+ */
+async function repointEmpowered(flag, oldToken, back) {
+  const token = (back instanceof TokenDocument) ? back : null;
+  const caster = resolveUuid(flag.sourceUuid);
+  const companionMessage = game.messages.get(flag.empower?.companionMessageId);
+  if ( token ) {
+    for ( const combat of game.combats ) {
+      for ( const c of combat.combatants.filter(x => (x.tokenId === oldToken.id) && (x.sceneId === oldToken.sceneId)) ) {
+        try { await c.update({ tokenId: token.id, actorId: token.actorId, name: token.name }); }
+        catch { await combat.createEmbeddedDocuments("Combatant", [{ tokenId: token.id, sceneId: token.parent.id, actorId: token.actorId, initiative: c.initiative }]); await c.delete(); }
+      }
+    }
+    if ( companionMessage ) await queueFlagWrite(companionMessage, "summon", current => {
+      current.landed = repointedLanded(current.landed ?? [], { oldTokenId: oldToken.id, tokenId: token.id, sceneId: token.parent.id, tokenUuid: token.uuid, actorUuid: token.actor?.uuid ?? null, name: token.name });
+      if ( current.companion ) delete current.companion.empower;
+    });
+  } else if ( companionMessage ) await queueFlagWrite(companionMessage, "summon", current => { if ( current.companion ) delete current.companion.empower; });
+  const effect = flag.landed?.[0]?.empowerEffectId ? caster?.effects?.get(flag.landed[0].empowerEffectId) : null;
+  if ( effect ) await effect.delete({ [MODULE_ID]: { empowerEnd: true } });
+}
+
+/** The transform record a form effect ties to, or null. */
+const recordOfForm = form => (form?.messageId ? readFlag(game.messages.get(form.messageId), TRANSFORM_FLAG) : null) ?? null;
+
 // The hours ran out: Foundry marks the effect expired on the GM client, dnd5e deletes it there; either way the elect reverts.
 listen("updateActiveEffect", "transforms", (effect, changes) => {
   try {
@@ -467,9 +578,13 @@ listen("deleteActiveEffect", "transforms", effect => {
     const actor = effect.parent;
     if ( !(actor instanceof Actor) ) return;
     if ( !actor.isToken && !game.actors.get(actor.id) ) return;   // the copy itself is going: a revert already ran
+    const form = readFlag(effect, FORM_FLAG);
     const dependent = !!effect.getFlag("dnd5e", "dependentOn");
-    void revertForm(actor, dependent ? { word: "concentration", why: "Concentration ended" } : { word: "revert", why: "the form was ended" },
-      readFlag(effect, FORM_FLAG));
+    // an empowered companion's form depends on the caster's effect for the spell, not on Concentration
+    const record = dependent ? recordOfForm(form) : null;
+    const ended = (dependent && record?.empower) ? { word: "ended", why: `${record.itemName} ended` }
+      : dependent ? { word: "concentration", why: "Concentration ended" } : { word: "revert", why: "the form was ended" };
+    void revertForm(actor, ended, form);
   } catch(err) { console.error(`${TITLE} | The form's end could not run.`, err); }
 });
 
@@ -481,6 +596,8 @@ listen("updateActor", "transforms", (actor, changes) => {
     if ( !form ) return;
     const hp = changes?.system?.attributes?.hp;
     if ( !hp || !(("value" in hp) || ("temp" in hp)) ) return;
+    // an empowered companion at 0 Hit Points disappears instead (summons.js takes it off the table): no revert here
+    if ( ("value" in hp) && (Number(hp.value) <= 0) && recordOfForm(form)?.empower ) return;
     const ended = endOfForm(TRANSFORMS[form.key]?.ends ?? [], { hpValue: ("value" in hp) ? hp.value : null, tempValue: ("temp" in hp) ? hp.temp : null });
     if ( ended ) void revertForm(actor, ended);
   } catch(err) { console.error(`${TITLE} | The form's end could not be read off the update.`, err); }
@@ -509,13 +626,15 @@ async function askRevert(message) {
 
 async function driveRevert(message) {
   const flag = readFlag(message, TRANSFORM_FLAG);
+  // an empowered companion whose spell effect went (summons.js asks the revert): the spell ended, not a choice
+  const ended = (flag.empower && (flag.revertWhy === "ended")) ? { word: "ended", why: `${flag.itemName} ended` } : { word: "revert", why: "reverted by choice" };
   let any = false;
   for ( const l of flag.landed ?? [] ) {
     const actor = resolveUuid(l.actorUuid);
-    if ( (actor instanceof Actor) && actor.isPolymorphed ) { any = true; await revertForm(actor, { word: "revert", why: "reverted by choice" }); }
+    if ( (actor instanceof Actor) && actor.isPolymorphed ) { any = true; await revertForm(actor, ended); }
   }
   await queueFlagWrite(message, TRANSFORM_FLAG, current => {
-    if ( !current.ended ) current.ended = { why: any ? "reverted by choice" : "nothing was still transformed", word: "revert", at: Date.now() };
+    if ( !current.ended ) current.ended = { why: any ? ended.why : "nothing was still transformed", word: ended.word, at: Date.now() };
   });
 }
 
@@ -558,10 +677,12 @@ function drawTransform(message, html, flag) {
     row.innerHTML = bfCard({ eyebrow: "Transform", tone: "neutral", title: formTitle({ who, form, ended: flag.ended }) });
   } else {
     const learned = flag.learned ? `${flag.learned.name} learned as a known form` : null;
-    row.innerHTML = bfCard({ eyebrow: "Transform", tone: "good", title: formTitle({ who, form }),
-      subtitle: [learned, "transformed by the GM's client", (flag.changed?.length ? `changed by the GM from ${flag.changed.at(-1).from?.name ?? "the first form"}` : null)].filter(Boolean).join(" · ") });
-    if ( (mine || game.user.isGM) && !flag.revertAsked ) row.appendChild(momentButton("Revert", () => { void askRevert(message); }, { margin: "0.25rem 0 0" }));
-    if ( game.user.isGM && !flag.changeAsked && !flag.revertAsked ) row.appendChild(momentButton("Change the form", () => { void showChangePopup(message); }, { margin: "0.25rem 0 0" }));
+    // an empowered companion: its own name kept, the Temporary Hit Points it gained (the words are the player's)
+    const empowered = flag.empower ? `empowered${Number.isFinite(Number(flag.landed?.[0]?.tempHp)) ? ` · ${flag.landed[0].tempHp} Temporary Hit Points` : ""}` : null;
+    row.innerHTML = bfCard({ eyebrow: flag.empower ? "Empower" : "Transform", tone: "good", title: formTitle({ who, form }),
+      subtitle: [learned, empowered ?? "transformed by the GM's client", (flag.changed?.length ? `changed by the GM from ${flag.changed.at(-1).from?.name ?? "the first form"}` : null)].filter(Boolean).join(" · ") });
+    if ( (mine || game.user.isGM) && !flag.revertAsked ) row.appendChild(momentButton(flag.empower ? `End ${flag.itemName}` : "Revert", () => { void askRevert(message); }, { margin: "0.25rem 0 0" }));
+    if ( game.user.isGM && !flag.changeAsked && !flag.revertAsked && !flag.empower ) row.appendChild(momentButton("Change the form", () => { void showChangePopup(message); }, { margin: "0.25rem 0 0" }));
     if ( flag.revertAsked ) row.appendChild(Object.assign(document.createElement("em"), { textContent: "reverting…" }));
     else if ( flag.changeAsked ) row.appendChild(Object.assign(document.createElement("em"), { textContent: `changing to ${flag.changeAsked.name}…` }));
   }

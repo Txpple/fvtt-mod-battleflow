@@ -811,3 +811,141 @@ describe("the replay's usage — what the dialog answered rides the cast again, 
     expect(s.castUsage(null, base)).toEqual(base);
   });
 });
+
+describe("Battle Familiar: the rows, a standing summon that falls, the last form, the empower route", () => {
+  const listedFalls = () => reg.listedNames(reg.summonFallEntries());
+  const standing = (id, extra = {}) => ({
+    id,
+    flag: {
+      applied: true,
+      itemName: "Battle Familiar",
+      sourceUuid: "Actor.c",
+      standing: { effectId: "e1" },
+      landed: [{ tokenUuid: `Scene.s.Token.${id}`, tokenId: id, sceneId: "s" }],
+      ...extra
+    }
+  });
+  const companion = (id, state, extra = {}) => ({
+    id,
+    flag: {
+      applied: true,
+      itemName: "Find Familiar",
+      sourceUuid: "Actor.c",
+      placedAt: 1,
+      companion: { state, name: "Owl" },
+      summonName: "Owl",
+      landed: [{ tokenUuid: `Scene.s.Token.${id}`, tokenId: id, sceneId: "s" }],
+      ...extra
+    }
+  });
+
+  it("Battle Familiar is one at a time and rolls its own Initiative; it falls at 0 HP and at its caster's death, dropping its gear; it empowers a Find Familiar", () => {
+    expect(reg.listedNames(reg.summonSingleEntries()).has("battle familiar")).toBe(true);
+    expect(reg.listedNames(reg.summonOwnInitiativeEntries()).has("battle familiar")).toBe(true);
+    expect(reg.SUMMON_FALLS["Battle Familiar"]).toMatchObject({
+      atZero: true,
+      casterDeath: true,
+      drops: true
+    });
+    expect(reg.SUMMON_EMPOWERS["Battle Familiar"]).toMatchObject({
+      companion: "Find Familiar",
+      transform: "Battle Familiar"
+    });
+    expect(reg.TRANSFORMS["Battle Familiar"]).toBeTruthy();
+  });
+
+  it("fallenSummon: a companion on the table, or a standing summon of a falls row — never one in the pocket, dismissed, or of a spell with no row", () => {
+    const falls = reg.SUMMON_FALLS;
+    expect(
+      s.fallenSummon([companion("m1", "present")], "Scene.s.Token.m1", falls, listedFalls())
+    ).toBe("m1");
+    expect(
+      s.fallenSummon([companion("m1", "pocket")], "Scene.s.Token.m1", falls, listedFalls())
+    ).toBe(null);
+    expect(s.fallenSummon([standing("m2")], "Scene.s.Token.m2", falls, listedFalls())).toBe("m2");
+    expect(
+      s.fallenSummon(
+        [standing("m2", { dismissAsked: true })],
+        "Scene.s.Token.m2",
+        falls,
+        listedFalls()
+      )
+    ).toBe(null);
+    expect(
+      s.fallenSummon(
+        [standing("m3", { itemName: "Mage Hand" })],
+        "Scene.s.Token.m3",
+        falls,
+        listedFalls()
+      )
+    ).toBe(null);
+    expect(s.fallenSummon([standing("m2")], "Scene.s.Token.other", falls, listedFalls())).toBe(
+      null
+    );
+    expect(s.fallenSummon([standing("m2")], null, falls, listedFalls())).toBe(null);
+  });
+
+  it("casterDeathSummons: the caster's standing summons whose row says they go with it", () => {
+    const falls = reg.SUMMON_FALLS;
+    const records = [
+      standing("m1"),
+      standing("m2", { sourceUuid: "Actor.other" }),
+      standing("m3", { itemName: "Mage Hand" }),
+      standing("m4", { dismissed: true }),
+      companion("m5", "present")
+    ];
+    expect(s.casterDeathSummons(records, "Actor.c", falls, listedFalls())).toEqual(["m1"]);
+    expect(s.casterDeathSummons([], "Actor.c", falls, listedFalls())).toEqual([]);
+  });
+
+  it("lastFormRows: the form last taken pre-picked and tagged, else the first; a last form the rows no longer carry is ignored", () => {
+    const rows = [
+      { id: "a", name: "Brute" },
+      { id: "b", name: "Flyer" },
+      { id: "c", name: "Stalker", tags: ["x"] }
+    ];
+    expect(s.lastFormRows(rows, "c").map(r => [r.checked, r.tags])).toEqual([
+      [false, []],
+      [false, []],
+      [true, ["x", "last time"]]
+    ]);
+    expect(s.lastFormRows(rows, null).map(r => r.checked)).toEqual([true, false, false]);
+    expect(s.lastFormRows(rows, "gone").map(r => r.checked)).toEqual([true, false, false]);
+    expect(s.lastFormRows(null, "a")).toEqual([]);
+  });
+
+  it("empowerRoute: no companion is the summon road, one in the pocket is refused, one on the table is the question", () => {
+    expect(s.empowerRoute([], "Actor.c", "find familiar")).toEqual({
+      route: "summon",
+      messageId: null,
+      name: null
+    });
+    expect(s.empowerRoute([companion("m1", "pocket")], "Actor.c", "find familiar")).toEqual({
+      route: "refuse",
+      messageId: "m1",
+      name: "Owl"
+    });
+    expect(s.empowerRoute([companion("m1", "present")], "Actor.c", "find familiar")).toEqual({
+      route: "ask",
+      messageId: "m1",
+      name: "Owl"
+    });
+    expect(s.empowerRoute([companion("m1", "present")], "Actor.other", "find familiar").route).toBe(
+      "summon"
+    );
+  });
+
+  it("an empowered companion cannot be put away, and its menu offers no pocket", () => {
+    expect(
+      s.companionAsk({ state: "present", empower: { messageId: "t1" } }, { kind: "away" })
+    ).toBe(null);
+    expect(s.companionAsk({ state: "present" }, { kind: "away" })).toMatchObject({
+      ask: { kind: "away" }
+    });
+    expect(s.companionMenu("present", { pocket: true }, { empowered: true })).toEqual([
+      "dismiss",
+      "summon"
+    ]);
+    expect(s.companionMenu("present", { pocket: true })).toEqual(["away", "dismiss", "summon"]);
+  });
+});

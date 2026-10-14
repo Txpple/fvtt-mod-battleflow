@@ -16,10 +16,13 @@
  */
 import { MODULE_ID, readFlag, TITLE, activeCombatFor, isActiveGM, queueFlagWrite, answersHere, statContext } from "./core.js";
 import { activityNamed, cardActivity, featureNamed, lower, resolveUuid } from "./lookup.js";
-import { COMPANIONS, SUMMON_AS, SUMMON_BOONS, SUMMON_CHOICES, SUMMON_COMMANDS, SUMMON_EXTRAS, SUMMON_GUISES, SUMMON_LIGHTS, SUMMON_LOOKS, SUMMON_ONE_FORM, summonChoiceEntries, summonOwnInitiativeEntries, summonSingleEntries, listedNames } from "./decide/registry.js";
+import { COMPANIONS, SUMMON_AS, SUMMON_BOONS, SUMMON_CHOICES, SUMMON_COMMANDS, SUMMON_EMPOWERS, SUMMON_EXTRAS, SUMMON_FALLS, SUMMON_GUISES, SUMMON_LIGHTS, SUMMON_LOOKS, SUMMON_ONE_FORM, TRANSFORMS,
+  summonChoiceEntries, summonEmpowerEntries, summonFallEntries, summonOwnInitiativeEntries, summonSingleEntries, listedNames } from "./decide/registry.js";
 import { profileRows, choiceRowKey, formNeeds, poolPicks, summonRecord, placedAnswer, narrowedActivities, resistanceEffectData,
   ownershipGrant, seatInitiative, rangeFeet, replacedSummons, companionEffectName, currentCompanion, companionMenu, companionAsk,
-  carriedItemIds, sizesInOrder, summonEffectName, tokenLight, formName, guisesOf, boonFormula, boonHpPlan, castUsage } from "./decide/summons.js";
+  carriedItemIds, sizesInOrder, summonEffectName, tokenLight, formName, guisesOf, boonFormula, boonHpPlan, castUsage,
+  fallenSummon, casterDeathSummons, lastFormRows, empowerRoute } from "./decide/summons.js";
+import { transformRecord } from "./decide/transforms.js";
 import { bfCard, esc, popupKey } from "./decide/present.js";
 import { artChanges } from "./decide/summon-art.js";
 import { concentrationIdOf } from "./decide/card.js";
@@ -31,7 +34,23 @@ import { SURFACES } from "./surfaces.js";
 import { listen, listenOnce } from "./dispatch.js";
 
 const SUMMON_FLAG = "summon";
+/** The transform record a SUMMON_EMPOWERS cast stamps on its card instead of a summon record (transforms.js lands it). */
+const EMPOWER_RECORD_FLAG = "transform";
+/** The profile last taken through a summon spell, a flag on the caster's own item: marked on its row at the next cast. */
+const SUMMON_LAST_FLAG = "lastForm";
 const listed = () => listedNames(summonChoiceEntries());
+
+/** The SUMMON_FALLS row a spell answers to, by name, or null. */
+const fallRowOf = name => {
+  const key = lower(rulesName(name) ?? "");
+  return (listedNames(summonFallEntries()).has(key) ? Object.entries(SUMMON_FALLS).find(([k]) => lower(k) === key)?.[1] : null) ?? null;
+};
+
+/** The SUMMON_EMPOWERS row a spell answers to, by name, or null. */
+const empowerRowOf = name => {
+  const key = lower(name ?? "");
+  return (listedNames(summonEmpowerEntries()).has(key) ? Object.entries(SUMMON_EMPOWERS).find(([k]) => lower(k) === key)?.[1] : null) ?? null;
+};
 
 /** A SUMMON_EXTRAS row's own activity (Pact of the Chain's Expanded Options): its forms are a tab of the item's
  * summon, never a use of their own. */
@@ -153,8 +172,57 @@ listen("dnd5e.preUseActivity", "summons", (activity, usageConfig, dialogConfig) 
       // the menu's Summon casts again with the cause this use arrived with (a forward's free cast: Familiar Friend)
       if ( message ) { void showCompanionMenu(message, activity, usageConfig?.cause ? foundry.utils.deepClone(usageConfig.cause) : null); return false; }
     }
+    // A spell that empowers a standing companion (SUMMON_EMPOWERS): the route is read before the dialog opens. A use
+    // carrying the answer (`[MODULE_ID].empower`: a macro, an automation, the live suites) skips the question.
+    const erow = empowerRowOf(activity.item?.name);
+    if ( erow && !castThrough.delete(activity.uuid) && !usageConfig?.[MODULE_ID]?.empower ) {
+      const route = empowerRoute(summonRecords(), activity.actor?.uuid ?? "", rulesName(erow.companion));
+      if ( route.route === "refuse" ) {
+        ui.notifications?.warn(`${TITLE}: you can't cast ${activity.item.name} while your ${lower(companionOf(erow.companion)?.noun ?? "companion")} is in its pocket dimension — call it back first.`);
+        return false;
+      }
+      if ( route.route === "ask" ) {
+        if ( needsGM(companionOf(erow.companion) ?? { noun: "familiar" }) ) return false;
+        void askEmpowerQuestion(activity, erow, route, usageConfig?.cause ? foundry.utils.deepClone(usageConfig.cause) : null);
+        return false;
+      }
+    }
   } catch(err) { console.warn(`${TITLE} | Could not take the summon — the spell is cast as usual.`, err); }
 });
+
+/** The empower question's answers, by activity uuid, read by the dialog's answer: the companion to dismiss, or to empower. */
+const empowerAnswers = new Map();
+
+/**
+ * The one question when the companion stands on the table: summon a new one (the companion dismissed forever as
+ * the new one lands) or empower it (RULINGS *Summons*, the Battle Familiar pass). Either way the system's own
+ * Cast dialog follows; nothing is spent here.
+ */
+async function askEmpowerQuestion(activity, erow, route, cause) {
+  const caster = activity.actor;
+  const message = game.messages.get(route.messageId);
+  const flag = readFlag(message, SUMMON_FLAG);
+  const crow = companionOf(erow.companion);
+  const noun = lower(crow?.noun ?? "companion");
+  const name = route.name ?? noun;
+  const creature = flag?.summonUuid ? await describeCreature(flag.summonUuid, { label: name }) : { label: name, img: null, summary: null };
+  creature.img = liveToken(flag)?.texture?.src ?? creature.img;
+  const go = answer => {
+    empowerAnswers.set(activity.uuid, { ...answer, companionMessageId: route.messageId });
+    castThrough.add(activity.uuid);
+    void activity.use(cause ? { cause } : {}).catch(err => console.error(`${TITLE} | ${activity.item.name} could not be cast.`, err));
+  };
+  await openPicker({ id: `empower-${activity.uuid}` }, "empowerAsk", caster, {
+    title: `${activity.item.name} — ${caster.name}`, icon: "fa-solid fa-spaghetti-monster-flying", width: 440, by: game.user.id,
+    card: { eyebrow: "Summon", title: `Your ${noun} ${esc(name)} is on the table`, subtitle: "empower it, or summon a new one in its place?" },
+    sections: [{ rows: [{ value: flag?.summonUuid ?? "companion", ...creature }] }, { rule: erow.rule }],
+    buttons: [
+      { action: "empower", label: `Empower ${name}`, default: true, submit: () => go({ empower: true }) },
+      { action: "summon", label: "Summon a new one", submit: () => go({ dismiss: true }) },
+      { action: "cancel", label: "Not now" }
+    ]
+  });
+}
 
 // The dialog's answer is taken here, after the dialog and before anything is spent (RULINGS *Summons*, call
 // 33): the use is vetoed, the module's menu opens at the level the dialog picked, and Place casts again with
@@ -199,7 +267,18 @@ listen("dnd5e.preActivityConsumption", "summons", (activity, usageConfig) => {
       // a forward activity's cast (Familiar Friend's "(free casting)"): its item use is spent by the system only when the cause rides
       cause: usageConfig.cause ? foundry.utils.deepClone(usageConfig.cause) : undefined
     };
-    void openCastMenu(live, asked, slotLevel ?? (Number(live.item.system?.level) || live.relevantLevel)).catch(err => {
+    const level = slotLevel ?? (Number(live.item.system?.level) || live.relevantLevel);
+    // the empower question answered (SUMMON_EMPOWERS): the form menu for the companion, or the summon road with the companion to dismiss
+    const empower = empowerAnswers.get(activity.uuid) ?? null;
+    empowerAnswers.delete(activity.uuid);
+    if ( empower?.empower ) {
+      void openEmpowerMenu(live, asked, level, empower.companionMessageId).catch(err => {
+        console.error(`${TITLE} | The empower menu failed — cast the spell again.`, err);
+        ui.notifications?.error(`${TITLE}: the empower menu could not open (${err?.message ?? err}).`);
+      });
+      return false;
+    }
+    void openCastMenu(live, asked, level, empower?.dismiss ? empower.companionMessageId : null).catch(err => {
       console.error(`${TITLE} | The summon menu failed — cast the spell again.`, err);
       ui.notifications?.error(`${TITLE}: the summon menu could not open (${err?.message ?? err}).`);
     });
@@ -207,8 +286,9 @@ listen("dnd5e.preActivityConsumption", "summons", (activity, usageConfig) => {
   } catch(err) { console.warn(`${TITLE} | Could not take the summon — the spell is cast as usual.`, err); }
 });
 
-/** The module's menu after the system's dialog, at the cast's level; Place casts with the dialog's answer. */
-async function openCastMenu(activity, asked, level) {
+/** The module's menu after the system's dialog, at the cast's level; Place casts with the dialog's answer.
+ * `dismisses` a companion's message id the landing dismisses forever (the empower question's "Summon a new one"). */
+async function openCastMenu(activity, asked, level, dismisses = null) {
   const item = activity.item;
   const facts = await castFacts(activity, level);
   const was = companionOf(item.name) ? currentCompanion(summonRecords(), activity.actor.uuid, rulesName(item.name)) : null;
@@ -216,9 +296,80 @@ async function openCastMenu(activity, asked, level) {
   facts.askedBy = game.user.id;
   await askSummon(`cast-${activity.uuid}`, facts, { light: lightRowOf(item.name) }, async answer => {
     const usage = castUsage(asked, { create: { summons: false }, [MODULE_ID]: { [CONCENTRATION_ASKED]: true, lightOn: answer.lightOn ?? null } });
-    planned.set(activity.uuid, answer);
+    planned.set(activity.uuid, dismisses ? { ...answer, dismisses } : answer);
     try { await activity.use(usage, { configure: false }, {}); } finally { planned.delete(activity.uuid); }
   });
+}
+
+/* --- the familiar empowered (SUMMON_EMPOWERS): the form menu, then a transform record on the cast card ---- */
+
+/**
+ * The form menu for the standing companion: the spell's forms at the cast's level, no creature type (the
+ * companion keeps its own), no placement (it stands where it is). Empower casts with the dialog's answer;
+ * the card then carries a transform record for transforms.js to land (RULINGS *Summons*, the Battle Familiar pass).
+ */
+async function openEmpowerMenu(activity, asked, level, companionMessageId) {
+  const item = activity.item;
+  const erow = empowerRowOf(item.name);
+  const companionMessage = game.messages.get(companionMessageId);
+  const cflag = readFlag(companionMessage, SUMMON_FLAG);
+  if ( !erow || !cflag?.companion ) return;
+  const facts = await castFacts(activity, level);
+  const caster = activity.actor;
+  const noun = lower(companionOf(erow.companion)?.noun ?? "companion");
+  const name = cflag.companion.name || cflag.summonName || noun;
+  const tokenArt = (formLabel, img) => artOf(facts.itemName, formLabel).token ?? img ?? null;
+  const rows = lastFormRows(facts.profiles, facts.lastForm).map(p => ({ value: p.id, label: p.label || p.name, img: tokenArt(p.label || p.name, p.img), summary: p.summary, checked: p.checked, tags: p.tags }));
+  await openPicker({ id: `empower-${activity.uuid}` }, EMPOWER_RECORD_FLAG, caster, {
+    title: `${facts.itemName} — ${facts.sourceName}`, icon: "fa-solid fa-spaghetti-monster-flying", width: 480, by: game.user.id,
+    card: { eyebrow: "Empower", title: `${esc(name)} takes a form`, subtitle: facts.level ? `level ${facts.level} · its own name, type and Hit Points kept` : "its own name, type and Hit Points kept" },
+    sections: [{ head: "The form", field: "bf-empower-profile", rows }, { rule: erow.rule }],
+    needs: [{ field: "bf-empower-profile", why: "pick the form first" }],
+    buttons: [
+      { action: "empower", label: `Empower ${name}`, default: true, checks: true, submit: picks => {
+        const profile = facts.profiles.find(p => p.id === picks.one("bf-empower-profile")) ?? facts.profiles[0];
+        if ( !profile?.uuid ) { ui.notifications?.warn(`${TITLE}: that form names no creature.`); return; }
+        const usage = castUsage(asked, { create: { summons: false }, [MODULE_ID]: { [CONCENTRATION_ASKED]: true } });
+        planned.set(activity.uuid, { empower: { companionMessageId, profileId: profile.id, level: Number(level) || 0,
+          pick: { uuid: profile.uuid, name: profile.label || profile.name, img: profile.img ?? null } } });
+        void (async () => { try { await activity.use(usage, { configure: false }, {}); } finally { planned.delete(activity.uuid); } })()
+          .catch(err => console.error(`${TITLE} | ${item.name} could not be cast — cast it again.`, err));
+      } },
+      { action: "cancel", label: "Not now" }
+    ]
+  });
+}
+
+/**
+ * The transform record on the cast card for an empower (transforms.js lands it as a `subject: "companion"`
+ * row): the companion's live token actor the subject, the form the pick, `empower` naming the companion's
+ * card and the summon activity's level. `picked` at birth, so the elect lands it on the next render.
+ */
+async function stampEmpower(activity, message, answer) {
+  const actor = activity.actor;
+  const erow = empowerRowOf(activity.item.name);
+  const trow = erow ? TRANSFORMS[erow.transform] : null;
+  const companionMessage = game.messages.get(answer.companionMessageId);
+  const cflag = readFlag(companionMessage, SUMMON_FLAG);
+  const doc = cflag ? liveToken(cflag) : null;
+  if ( !erow || !trow || !cflag?.companion || !doc?.actor ) {
+    ui.notifications?.error(`${TITLE}: the ${lower(companionOf(erow?.companion ?? "")?.noun ?? "companion")} is no longer on the table — ${activity.item.name} could not empower it.`);
+    return;
+  }
+  const tok = actor.token ?? activity.getUsageToken?.() ?? actor.getActiveTokens?.(true, true)?.[0] ?? null;
+  const record = transformRecord({
+    key: erow.transform, sourceUuid: actor.uuid, sourceName: tok?.name ?? actor.name,
+    itemUuid: activity.item.uuid, itemName: activity.item.name, itemType: activity.item.type, activityUuid: activity.uuid,
+    profile: { id: answer.profileId, cr: null, types: [], sizes: [], movement: [], uuid: answer.pick.uuid, name: answer.pick.name },
+    self: false, targets: [{ uuid: doc.actor.uuid, name: doc.name }], targetCap: null, known: [], slots: 0, lastForm: null,
+    concentrationId: null, sceneId: doc.parent?.id ?? null
+  });
+  record.pick.img = answer.pick.img ?? null;
+  record.empower = { companionMessageId: companionMessage.id, level: Number(answer.level) || Number(activity.relevantLevel) || 0, tokenId: doc.id, name: doc.name };
+  record.askedBy = game.user.id;
+  await message.setFlag(MODULE_ID, EMPOWER_RECORD_FLAG, { ...record, ...statContext(actor.uuid) });
+  const item = actor.items.get(activity.item.id);
+  if ( item ) await item.setFlag(MODULE_ID, SUMMON_LAST_FLAG, answer.profileId);
 }
 
 /* --- a feature with more than one way to pay: one more line in the system's Consumption ------------ */
@@ -351,7 +502,9 @@ async function castFacts(activity, level) {
     mode: activity.summon?.mode ?? null, creatureTypes: [...(activity.creatureTypes ?? [])],
     creatureSizes: sizesOf(activity), rangeFt: asRowOf(activity.item.name)?.rangeFt ?? companionOf(activity.item.name)?.rangeFt ?? rangeFeet(activity.range),
     guises: guisesOf(guiseRowOf(activity.item.name)),
-    extras: await extrasOf(activity, level)
+    extras: await extrasOf(activity, level),
+    // the form last taken through this item, marked on its row ("the familiar that disappeared or a different one")
+    lastForm: readFlag(actor.items?.get(activity.item.id), SUMMON_LAST_FLAG) ?? null
   };
 }
 
@@ -388,17 +541,25 @@ async function stampRecord(activity, message, answer) {
   if ( lightRowOf(activity.item.name) ) record.light = activity.item.name;
   // the menu answered before the cast: the record is placed at birth (a profile gone at the cast level keeps it asked)
   const patch = answer ? placedAnswer(record, answer, SUMMON_CHOICES) : null;
+  // the companion the empower question gave up (SUMMON_EMPOWERS "Summon a new one"): dismissed forever as this lands
+  if ( answer?.dismisses && game.messages.get(answer.dismisses) ) record.dismisses = answer.dismisses;
   await message.setFlag(MODULE_ID, SUMMON_FLAG, { ...record, ...(patch ?? {}), ...statContext(actor.uuid) });
+  const item = patch ? actor.items.get(activity.item.id) : null;
+  if ( item && patch?.profileId && (record.profiles.length > 1) ) await item.setFlag(MODULE_ID, SUMMON_LAST_FLAG, patch.profileId);
 }
 
-listen("dnd5e.postUseActivity", "summons", (activity, _usageConfig, results) => {
+listen("dnd5e.postUseActivity", "summons", (activity, usageConfig, results) => {
   try {
     if ( !takes(activity) || !activity.actor?.isOwner ) return;
-    const answer = planned.get(activity.uuid) ?? null;
+    // the empower answer a use carries (`[MODULE_ID].empower`, the live suites' road) stands in for the menu's
+    const forced = usageConfig?.[MODULE_ID]?.empower ?? null;
+    const answer = planned.get(activity.uuid) ?? (forced ? { empower: foundry.utils.deepClone(forced) } : null);
     // Light or Continual Flame on a token: token-lights.js lands it; the spell's earlier object goes (one at a time).
     if ( answer?.lightOn === "token" ) { dismissSingles(activity.actor.uuid, activity.item.name, null); return; }
     const message = (results?.message instanceof ChatMessage) ? results.message : null;
     if ( !message ) return;
+    // the familiar empowered (SUMMON_EMPOWERS): a transform record for transforms.js, no summon record
+    if ( answer?.empower ) { void stampEmpower(activity, message, answer.empower).catch(err => console.error(`${TITLE} | Could not stamp the empower on the card — transform the familiar by hand.`, err)); return; }
     void stampRecord(activity, message, answer).catch(err => console.error(`${TITLE} | Could not stamp the summon on the card — place the creature by hand.`, err));
   } catch(err) {
     console.error(`${TITLE} | The summon could not be recorded — place the creature by hand.`, err);
@@ -454,7 +615,9 @@ async function askSummon(key, facts, { light = null } = {}, onAnswer) {
   // a light's object reads as the thing touched (a stone), in the table's art when it sets one
   const labelOf = p => light ? light.object.name : (p.label || p.name);
   const imgOf = p => light ? (tokenArt(p.label || p.name, null) ?? light.object.img) : tokenArt(p.label || p.name, p.img);
-  const profileRow = (p, checked) => ({ value: p.id, label: labelOf(p), img: imgOf(p), summary: light ? null : p.summary, checked });
+  const profileRow = (p, checked, tags = []) => ({ value: p.id, label: labelOf(p), img: imgOf(p), summary: light ? null : p.summary, checked, tags });
+  // the form last taken pre-picked and tagged (Battle Familiar's "the familiar that disappeared or a different one")
+  const marked = lastFormRows(facts.profiles, facts.lastForm ?? null);
   const targets = [...(game.user.targets ?? [])].filter(t => t.actor);
   const sections = [];
   if ( light ) sections.push({ head: "Where the light goes", field: "bf-light-on", pills: [
@@ -468,7 +631,7 @@ async function askSummon(key, facts, { light = null } = {}, onAnswer) {
     sections.push({ head: guiseRowOf(facts.itemName)?.ask ?? "The look", field: "bf-summon-guise", rows: guises.map((g, i) => ({
       value: g.guise, label: g.name, img: tokenArt(g.name, base?.img ?? null), summary: base?.summary ?? null, checked: i === 0 })) });
   }
-  else if ( needs.profile ) sections.push({ head: "The form", field: "bf-summon-profile", rows: facts.profiles.map((p, i) => profileRow(p, i === 0)) });
+  else if ( needs.profile ) sections.push({ head: "The form", field: "bf-summon-profile", rows: marked.map(p => profileRow(p, p.checked, p.tags)) });
   // a light's object stands only while the light goes on an object: with a token targeted it is unpicked and greyed
   else if ( (facts.profiles.length === 1) && !needs.pool && !guises.length ) sections.push({ field: "bf-summon-profile", rows: [profileRow(facts.profiles[0], true)],
     onlyWhen: light ? { field: "bf-light-on", value: "object" } : undefined });
@@ -778,12 +941,16 @@ async function landSummon(message) {
       }]);
       if ( effect ) {
         standing = { effectId: effect.id, name };
+        // a summon that leaves its gear behind (SUMMON_FALLS `drops`): what it landed with is its stat block's
+        if ( fallRowOf(flag.itemName)?.drops ) standing.baseItems = actor.items.contents.map(i => i.id);
         events.push(ownerEvent("appear", created[0], caster, name));
       }
     }
     // One at a time (SUMMON_SINGLES): the caster's earlier familiar goes as the new one lands.
     replaced = replacedSummons(summonRecords(), { id: message.id, sourceUuid: flag.sourceUuid, itemName: rulesName(flag.itemName) },
       listedNames(summonSingleEntries()));
+    // the companion given up for this one (the empower question's "Summon a new one"): dismissed forever now
+    if ( flag.dismisses && game.messages.get(flag.dismisses) && !replaced.includes(flag.dismisses) ) replaced = [...replaced, flag.dismisses];
   } catch(err) {
     console.error(`${TITLE} | The summon could not be landed — place the creature by hand.`, err);
     outcome = "failed";
@@ -859,6 +1026,8 @@ async function dismissSummon(message) {
       await pause(LEAVE_MS);
     } else if ( flag.standing ) {
       const at = liveToken(flag);
+      // what it carried stays where it stood (SUMMON_FALLS `drops`), however it goes
+      if ( at && flag.standing.baseItems ) await dropCarried(at, flag.standing.baseItems);
       if ( at ) await queueFlagWrite(message, SUMMON_FLAG, current => { current.events = [...(current.events ?? []), ownerEvent("leave", at, caster, flag.standing.name)]; });
     }
     const byScene = new Map();
@@ -868,6 +1037,9 @@ async function dismissSummon(message) {
       const live = ids.filter(id => scene?.tokens.get(id));
       if ( live.length ) await scene.deleteEmbeddedDocuments("Token", live);
     }
+    // a companion dismissed while empowered (SUMMON_EMPOWERS): the spell ends with it — its record stamped, the caster's
+    // effect removed after the token (no form is left to revert)
+    if ( flag.companion?.empower ) await endEmpower(caster, flag.companion.empower, { why: `the ${lower(flag.companion.noun ?? "companion")} disappeared`, word: "gone" });
     const effect = flag.resistance?.effectId ? caster?.effects?.get(flag.resistance.effectId) : null;
     if ( effect ) await effect.delete();
     if ( flag.companion ) await endCompanionEffects(caster, message.id);
@@ -1014,9 +1186,9 @@ async function showCompanionMenu(message, activity, cause = null) {
   await openPicker(message, "companionMenu", caster, {
     title: `${flag.itemName} — ${flag.sourceName}`, icon: "fa-solid fa-spaghetti-monster-flying", width: 440, by: game.user.id,
     card: { eyebrow: row.noun, title: creature.label, subtitle: [flag.companion.type, where].filter(Boolean).join(" · ") },
-    sections: [{ rows: [{ value: flag.summonUuid, ...creature }] }, { note: row.brief ?? "" }],
+    sections: [{ rows: [{ value: flag.summonUuid, ...creature }] }, { note: flag.companion.empower ? `${row.brief ?? ""} Empowered, it stays on the table until the spell ends.`.trim() : (row.brief ?? "") }],
     buttons: [
-      ...companionMenu(state, row).map((kind, i) => ({ action: kind, label: MENU[kind].label, default: i === 0,
+      ...companionMenu(state, row, { empowered: !!flag.companion.empower }).map((kind, i) => ({ action: kind, label: MENU[kind].label, default: i === 0,
         submit: () => { if ( !needsGM(row) ) void Promise.resolve(act[kind]()).catch(err => console.error(`${TITLE} | The ${lower(row.noun)} could not ${kind}.`, err)); } })),
       { action: "cancel", label: "Not now" }
     ]
@@ -1166,21 +1338,66 @@ async function confirmCompanionEnd(effect, message) {
 }
 
 // At 0 HP the familiar disappears (the spell's own text), leaving behind what it carried: the elect
-// dismisses it, which drops the gear, plays the leave and ends the owner's effect.
+// dismisses it, which drops the gear, plays the leave and ends the owner's effect. A summon standing on
+// its caster's effect falls the same way when its row says so (SUMMON_FALLS `atZero`).
 listen("updateActor", "summons", (actor, changes) => {
   try {
     if ( !isActiveGM() || !actor?.isToken || !foundry.utils.hasProperty(changes, "system.attributes.hp.value") ) return;
     if ( Number(actor.system?.attributes?.hp?.value) > 0 ) return;
-    const tokenUuid = actor.token?.uuid;
-    const hit = summonRecords().find(({ flag }) => (flag?.companion?.state === "present") && !flag.dismissAsked && (flag.landed ?? []).some(l => l.tokenUuid === tokenUuid));
-    const message = hit ? game.messages.get(hit.id) : null;
+    const id = fallenSummon(summonRecords(), actor.token?.uuid, SUMMON_FALLS, listedNames(summonFallEntries()));
+    const message = id ? game.messages.get(id) : null;
     if ( !message ) return;
     void (async () => {
-      await queueFlagWrite(message, SUMMON_FLAG, current => { if ( current.companion ) current.companion.fell = true; });
+      await queueFlagWrite(message, SUMMON_FLAG, current => { if ( current.companion ) current.companion.fell = true; else current.fell = true; });
       await askDismiss(message);
-    })().catch(err => console.warn(`${TITLE} | Could not take the companion off the table at 0 HP.`, err));
-  } catch(err) { console.warn(`${TITLE} | Could not read the companion's Hit Points.`, err); }
+    })().catch(err => console.warn(`${TITLE} | Could not take the summon off the table at 0 HP.`, err));
+  } catch(err) { console.warn(`${TITLE} | Could not read the summon's Hit Points.`, err); }
 });
+
+// The caster dies (the `dead` status lands on it; 0 Hit Points alone is Dying): a summon whose text says so
+// disappears (SUMMON_FALLS `casterDeath`), and a companion it empowered reverts (the caster's empower effect goes).
+listen("createActiveEffect", "summons", effect => {
+  try {
+    if ( !isActiveGM() || !(effect?.parent instanceof Actor) || !effect.statuses?.has?.("dead") ) return;
+    const caster = effect.parent;
+    for ( const id of casterDeathSummons(summonRecords(), caster.uuid, SUMMON_FALLS, listedNames(summonFallEntries())) ) {
+      const message = game.messages.get(id);
+      if ( message ) void askDismiss(message).catch(err => console.warn(`${TITLE} | Could not dismiss the summon at its caster's death — delete its token by hand.`, err));
+    }
+    for ( const e of caster.effects.filter(x => !!readFlag(x, "empowerEffect")) ) void e.delete().catch(err => console.warn(`${TITLE} | Could not end the empowerment at the caster's death.`, err));
+  } catch(err) { console.warn(`${TITLE} | Could not read the caster's death.`, err); }
+});
+
+// The caster's empower effect removed (a hand, its clock, a rest; never the elect's own `empowerEnd`): the
+// form on the companion ends — the elect is asked to revert through the transform record. dnd5e's own
+// dependency takes the form effect with it too; the revert runs once either way.
+listen("deleteActiveEffect", "summons", (effect, options) => {
+  try {
+    const id = readFlag(effect, "empowerEffect");
+    if ( !id || !isActiveGM() || options?.[MODULE_ID]?.empowerEnd ) return;
+    const message = game.messages.get(id);
+    if ( !message ) return;
+    void queueFlagWrite(message, EMPOWER_RECORD_FLAG, current => {
+      if ( !current.applied || current.ended || current.revertAsked ) return false;
+      current.revertAsked = true;
+      current.revertWhy = "ended";   // the spell's effect went: the end card says the spell ended, not a choice
+    }).catch(err => console.warn(`${TITLE} | Could not end the empowerment with its effect — revert the familiar from its sheet.`, err));
+  } catch(err) { console.warn(`${TITLE} | Could not end the empowerment with its effect.`, err); }
+});
+
+/**
+ * The empowerment ended by the companion's own going (dismissed, fallen): the transform record stamped `ended`
+ * and the caster's effect removed as the elect's own (`empowerEnd`), with no form left to revert.
+ */
+async function endEmpower(caster, empower, ended) {
+  const message = game.messages.get(empower?.messageId);
+  if ( message ) await queueFlagWrite(message, EMPOWER_RECORD_FLAG, current => {
+    if ( !current.applied || current.ended ) return false;
+    current.ended = { why: ended.why, word: ended.word, at: Date.now() };
+  });
+  const effect = empower?.effectId ? caster?.effects?.get(empower.effectId) : null;
+  if ( effect ) await effect.delete({ [MODULE_ID]: { empowerEnd: true } });
+}
 
 /** Every beat a record carries: the landing's and the standing effect's, then a companion's own. */
 const beatsOf = flag => [...(flag?.events ?? []), ...(flag?.companion?.events ?? [])];
@@ -1235,7 +1452,7 @@ function drawSummon(message, html, flag) {
     row.innerHTML = bfCard({ eyebrow: "Summon", tone: "pending", title: `${what} — placed`,
       subtitle: gm ? "appearing…" : "no GM online — it appears when a GM connects" });
   } else if ( flag.dismissed ) {
-    row.innerHTML = bfCard({ eyebrow: "Summon", tone: "neutral", title: `${what} — ${flag.companion?.fell ? "dropped to 0 HP and disappeared" : "dismissed"}`, subtitle: flag.resistance ? `${flag.resistance.effectName} ended` : "" });
+    row.innerHTML = bfCard({ eyebrow: "Summon", tone: "neutral", title: `${what} — ${(flag.companion?.fell || flag.fell) ? "dropped to 0 HP and disappeared" : "dismissed"}`, subtitle: flag.resistance ? `${flag.resistance.effectName} ended` : "" });
   } else if ( flag.outcome === "failed" ) {
     row.innerHTML = bfCard({ eyebrow: "Summon", tone: "bad", title: `${what} — could not be landed`, subtitle: `${flag.failure ?? "see the console"} · place it by hand` });
   } else {

@@ -13,7 +13,7 @@ import { announcePlan, connectSuite, finish, sectionArg, sectionPlan } from './h
 
 // THE COVERAGE MAP (tools/coverage-map.mjs) — ⚠ NEVER import a suite; the map is parsed.
 export const COVERS = [
-  'summons.js',   // §1 the intercept and the record, §2 the landing, §3 the dragon, §4 Dismiss, §5 the seat, §6 the pool it picks from (gallery.js is a service: the battery's)
+  'summons.js',   // §1 the intercept and the record, §2 the landing, §3 the dragon, §4 Dismiss, §5 the seat, §6 the pool it picks from (gallery.js is a service: the battery's), §9 Battle Familiar conjured: its own seat, one at a time, the fall at 0 HP, the caster's death
   'summon-art.js' // §7 the Summon Art window lists the familiar's pool, and the table's art lands on the familiar; §8 Match files and Save
 ];
 
@@ -25,7 +25,8 @@ const SECTIONS = {
   5: 'THE SEAT: with the caster in a started combat at Initiative 15, the landed creature joins at 14.99 right after it',
   6: 'THE POOL: the pack index pool at CR 0, beasts only, holds Owl once (the MM copy), sorted by CR then name',
   7: 'SUMMON ART: the Summon Art window lists the Owl for Find Familiar; with the Owl given a token and a portrait in the table, a Find Familiar landed as an Owl wears the token, the portrait and the token on its companion effect',
-  8: 'MATCH AND SAVE: in the Summon Art window, Match files over a folder holding owl.webp, owl-portrait.webp and bat.webp fills the Owl and the Bat, keeps a Bat token set by hand, and Save stores the table by name'
+  8: 'MATCH AND SAVE: in the Summon Art window, Match files over a folder holding owl.webp, owl-portrait.webp and bat.webp fills the Owl and the Bat, keeps a Bat token set by hand, and Save stores the table by name',
+  9: 'BATTLE FAMILIAR CONJURED (Arcana Unleashed): with no familiar standing the Brute lands on the Sorcerer\'s 1-hour effect and rolls its own Initiative in the started combat; a second cast dismisses the first (one at a time); at 0 HP it disappears, the card saying so; a third cast disappears when the caster is marked dead'
 };
 const DEPENDS = { 3: [1], 4: [2], 5: [2] };
 
@@ -80,7 +81,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       }
       const tokens = madeTokens.filter(id => canvas.scene.tokens.get(id));
       if (tokens.length) await canvas.scene.deleteEmbeddedDocuments('Token', tokens);
-      for (const e of caster.effects.filter(e => /Shared Resistance|Summon/.test(e.name))) { try { await e.delete(); } catch { /* gone */ } }
+      for (const e of caster.effects.filter(e => /Shared Resistance|Summon|Battle Familiar/.test(e.name))) { try { await e.delete({ [MOD]: { summonEnd: true } }); } catch { /* gone */ } }
+      for (const e of caster.effects.filter(e => e.statuses?.has?.('dead'))) { try { await e.delete(); } catch { /* gone */ } }
       if (artBefore !== undefined) await game.settings.set(MOD, 'summonArt', artBefore);
       const live = lent.filter(id => caster.items.get(id));
       if (live.length) await caster.deleteEmbeddedDocuments('Item', live);
@@ -90,11 +92,11 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     } catch (err) { log.push(`TEARDOWN ERROR: ${err?.message}`); }
   };
 
-  const lend = async name => {
-    const pack = game.packs.get('dnd-players-handbook.spells');
-    if (!pack) throw new Error("the Player's Handbook spells pack is not on this box");
+  const lend = async (name, packId = 'dnd-players-handbook.spells') => {
+    const pack = game.packs.get(packId);
+    if (!pack) throw new Error(`${packId} is not on this box`);
     const hit = (await pack.getIndex()).find(e => e.name === name);
-    if (!hit) throw new Error(`the PHB ships no "${name}" this box can find`);
+    if (!hit) throw new Error(`${packId} ships no "${name}" this box can find`);
     const src = (await pack.getDocument(hit._id)).toObject();
     src.system.prepared = 1;
     const [item] = await caster.createEmbeddedDocuments('Item', [src]);
@@ -265,6 +267,60 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         FP.browse = browse;
         if (win.rendered) await win.close();
       }
+    }
+    if (want(9)) {
+      // Battle Familiar on a caster with NO familiar: the plain summon road, the Brute, Fey
+      const battle = await lend('Battle Familiar', 'dnd-arcana-unleashed.spells');
+      const { placedAnswer } = await import('/modules/fvtt-mod-bythebooks/scripts/decide/summons.js');
+      const { SUMMON_CHOICES } = await import('/modules/fvtt-mod-bythebooks/scripts/decide/registry.js');
+      const grid = canvas.scene.grid.size;
+      const stale = caster.effects.filter(e => /^Battle Familiar/.test(e.name)).map(e => e.id);
+      if (stale.length) await caster.deleteEmbeddedDocuments('ActiveEffect', stale, { [MOD]: { summonEnd: true } });
+      // a started combat with the caster at 15, so the seat can be read
+      let combat = game.combat;
+      if (!combat?.getFlag(MOD, 'suiteSummons')) {
+        combat = await Combat.create({ scene: canvas.scene.id, active: true, [`flags.${MOD}.suiteSummons`]: true });
+        await combat.createEmbeddedDocuments('Combatant', [{ tokenId: casterToken.id, actorId: caster.id, sceneId: canvas.scene.id, initiative: 15 }]);
+        await combat.startCombat();
+      }
+      const conjure = async (dy, form = 'Brute') => {
+        const { message, flag } = await castSummon(battle);
+        const profile = flag?.profiles?.find(p => /Brute|Flyer|Stalker/.test(p.label || p.name) && (p.label || p.name).includes(form)) ?? flag?.profiles?.[0] ?? null;
+        const patch = (flag && profile) ? placedAnswer(flag, { profileId: profile.id, count: 1, sceneId: canvas.scene.id, creatureType: 'fey',
+          placements: [{ x: casterToken.x, y: casterToken.y + grid * dy, elevation: casterToken.elevation ?? 0, rotation: 0 }] }, SUMMON_CHOICES) : null;
+        if (patch) await message.setFlag(MOD, 'summon', { ...flag, ...patch });
+        const landed = patch ? await waitFor(() => message.getFlag(MOD, 'summon')?.applied ? message.getFlag(MOD, 'summon') : null, 20000) : null;
+        const tok = landedToken(landed);
+        if (tok) madeTokens.push(tok.id);
+        for (const a of game.actors.filter(a => a.getFlag('dnd5e', 'isAutoImported') && /Battle Familiar/.test(a.name))) if (!madeActors.includes(a)) madeActors.push(a);
+        return { message, flag, patch, landed, tok };
+      };
+      const first = await conjure(2);
+      const standing = caster.effects.find(e => e.getFlag(MOD, 'summonEffect') === first.message?.id) ?? null;
+      ok('§9a the Brute lands as a Fey on the caster\'s 1-hour effect, no companion', first.landed?.outcome === 'landed' && !!first.tok && (first.tok.actor?.system?.details?.type?.value === 'fey')
+        && !!standing && (Number(standing.duration?.seconds) === 3600) && !first.landed.companion,
+        JSON.stringify({ outcome: first.landed?.outcome, failure: first.landed?.failure, type: first.tok?.actor?.system?.details?.type?.value, effect: standing?.name, seconds: standing?.duration?.seconds }));
+      ok('§9b the form rows were marked with the last form (the second cast pre-picks the Brute)', (first.flag?.profiles?.length === 3) && (first.patch?.profileId === first.landed?.profileId), JSON.stringify({ rows: first.flag?.profiles?.map(p => p.label || p.name), picked: first.landed?.profileName }));
+      const seat = combat.combatants.find(c => c.tokenId === first.tok?.id) ?? null;
+      ok('§9c it rolls its own Initiative, not the caster\'s less 0.01', !!seat && Number.isFinite(Number(seat.initiative)) && (seat.initiative !== 14.99), `initiative=${seat?.initiative}`);
+      // one at a time: a second cast dismisses the first
+      const second = await conjure(3, 'Flyer');
+      const firstGone = await waitFor(() => first.message?.getFlag(MOD, 'summon')?.dismissed ? true : null, 15000);
+      ok('§9d a second cast dismisses the first (one at a time): its token gone, the new card says so', !!firstGone && !canvas.scene.tokens.get(first.tok?.id) && (second.landed?.replaced >= 1),
+        JSON.stringify({ firstDismissed: !!firstGone, firstToken: !!canvas.scene.tokens.get(first.tok?.id), replaced: second.landed?.replaced }));
+      // at 0 HP it disappears, what it carried dropped (a dagger given to it)
+      const dagger = (await game.packs.get('dnd-players-handbook.equipment')?.getIndex())?.find(e => e.name === 'Dagger') ?? null;
+      if (dagger && second.tok?.actor) await second.tok.actor.createEmbeddedDocuments('Item', [(await game.packs.get('dnd-players-handbook.equipment').getDocument(dagger._id)).toObject()]);
+      await second.tok?.actor?.update({ 'system.attributes.hp.value': 0 });
+      const fell = await waitFor(() => second.message?.getFlag(MOD, 'summon')?.dismissed ? second.message.getFlag(MOD, 'summon') : null, 15000);
+      ok('§9e at 0 HP it disappears: the token gone, the record fell, the effect gone', !!fell?.fell && !canvas.scene.tokens.get(second.tok?.id) && !caster.effects.find(e => e.getFlag(MOD, 'summonEffect') === second.message?.id),
+        JSON.stringify({ fell: fell?.fell, dismissed: fell?.dismissed, token: !!canvas.scene.tokens.get(second.tok?.id) }));
+      // the caster's death takes a third one with it
+      const third = await conjure(4, 'Stalker');
+      await caster.toggleStatusEffect('dead', { active: true });
+      const died = await waitFor(() => third.message?.getFlag(MOD, 'summon')?.dismissed ? true : null, 15000);
+      await caster.toggleStatusEffect('dead', { active: false });
+      ok('§9f the caster marked dead: the familiar disappears', !!died && !canvas.scene.tokens.get(third.tok?.id), `dismissed=${!!died} token=${!!canvas.scene.tokens.get(third.tok?.id)}`);
     }
   } catch (err) {
     results.push({ name: 'suite threw', pass: false, detail: `${err?.message}\n${err?.stack}` });

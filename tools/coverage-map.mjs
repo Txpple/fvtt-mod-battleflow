@@ -81,7 +81,7 @@ export const ORDER = [
     needs: ["fixture-suite"]
   },
   // The Sorcerer's token standing (the seed above): the familiar lands beside it.
-  { name: "smoke-familiar", note: "Familiar Friend — the free cast's use spent through the summon's cause, the boon's Hit Points off the feat's own change, Helpful Friend's box offered within 5 ft / greyed beyond or in the pocket / absent off a proficient skill, the player's cast with Allow Summoning off",
+  { name: "smoke-familiar", note: "Familiar Friend — the free cast's use spent through the summon's cause, the boon's Hit Points off the feat's own change, Helpful Friend's box offered within 5 ft / greyed beyond or in the pocket / absent off a proficient skill, the player's cast with Allow Summoning off; Battle Familiar empowering the Owl in place, the temp HP gone and the caster's effect as the ends, Dismiss while empowered",
     needs: ["fixture-suite"] },
   // Both ride BTB Test Halfling (Lucky, Savage Attacker); the nearest seed above is theirs.
   {

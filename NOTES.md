@@ -598,6 +598,16 @@ The 6.0.5 → 6.0.6 diff is 16 files, no pack changed, read file by file:
 - **The battery:** 49/49 suites, 2019/2019 checks, settings clean, hook coverage 65/65 names
   (411/411 registrations), 89m 38s, on the local sandbox (Foundry 14.368, dnd5e 6.0.6).
 
+### dnd5e's transform of an unlinked token: in place going in, a new token coming back (2026-10-14, Battle Familiar)
+
+Measured on 6.0.6 for the empowered familiar (RULINGS *Summons*, the Battle Familiar pass): `transformInto` on a token
+actor updates the token IN PLACE (same id, the combatant survives); `revertOriginalForm` CREATES a new token and deletes
+the old with `{ replacements }`, which re-points no combatant — the module re-seats it and re-points its own records
+(`repointEmpowered`). The transform also plants a "Proficiency" override effect (`dnd5eTransformProf`) carrying the
+SOURCE's PB, which is null for a stat block with no CR: delete it when the summon activity's Match Proficiency is wanted.
+`keep: hp` carries the Hit Points lost in the form back on the revert and drops the Temporary Hit Points unless `tempHP`
+is kept — exactly a polymorph spell's ending.
+
 ### A transferred enchantment change keyed to an activity is inert on the actor (2026-10-14, Familiar Friend)
 
 Arcana Unleashed's Familiar Friend carries "Fortified Familiar" as an `enchantment` effect, `transfer: true`, one change

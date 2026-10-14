@@ -107,6 +107,11 @@ https://github.com/Txpple/fvtt-mod-bythebooks/releases/latest/download/module.js
   A feat that reaches the familiar is kept: Familiar Friend's free cast spends its use and no slot,
   its Fortified Familiar Hit Points land on the creature, and its Helpful Friend Advantage is a tick
   in the skill dialog while the familiar stands within 5 feet (greyed, with the reason, when it does not).
+  Arcana Unleashed's **Battle Familiar** conjures its Brute, Flyer or Stalker like any summon (its own
+  Initiative, one at a time, gone at 0 HP leaving its gear), or, with your Find Familiar on the table,
+  asks whether to empower it instead: the familiar keeps its name, art, type and Hit Points, takes the
+  stat block at the slot's level with the form's Hit Points as Temporary Hit Points, and reverts when
+  those run out, when the hour passes, or when you end the spell from your effects bar.
   **Summon Art** (a button in the module's settings) gives each creature your own token and
   portrait, Find Familiar first; a folder of files named after the creatures fills it in one click.
 - **Wild Shape and Polymorph without the compendium browser.** Using Wild Shape opens one popup

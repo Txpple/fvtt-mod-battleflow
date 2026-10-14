@@ -278,3 +278,91 @@ describe("the words", () => {
     expect(s.articleOf("Elk")).toBe("an");
   });
 });
+
+describe('the familiar empowered (a SUMMON_EMPOWERS spell on a `subject: "companion"` row)', () => {
+  it("the Battle Familiar row transforms the standing Find Familiar companion, keeps its type and Hit Points, ends with the temp HP, on the spell's clock", () => {
+    const row = reg.TRANSFORMS["Battle Familiar"];
+    expect(row.self).toBe(false);
+    expect(row.subject).toBe("companion");
+    expect(row.companion).toBe("Find Familiar");
+    expect([...row.ends]).toEqual(["noTemp"]);
+    expect(row.clock).toBe("activity");
+    expect([...row.keep]).toEqual(["hp", "type", "bio", "vision"]);
+    expect([...row.effects]).toEqual(["otherOrigin", "origin", "spell"]);
+    expectPointer(row.rule, "Battle Familiar");
+  });
+
+  it("the setting carries the row's keep and effects, nothing merged, the temp HP as a number, the token transformed", () => {
+    const row = reg.TRANSFORMS["Battle Familiar"];
+    expect(s.empowerSetting(row, 30)).toEqual({
+      effects: ["otherOrigin", "origin", "spell"],
+      keep: ["hp", "type", "bio", "vision"],
+      merge: [],
+      tempFormula: "30",
+      transformTokens: true
+    });
+    expect(s.empowerSetting(row, 34.6).tempFormula).toBe("35");
+    expect(s.empowerSetting({}, -3).tempFormula).toBe("0");
+  });
+
+  it("the temp HP is the form's maximum plus the activity's bonus at the cast level: the Brute's 30, +5 a level above 2nd", () => {
+    expect(s.empowerTempHp({ formHpMax: 30, hpBonus: 0 })).toBe(30);
+    expect(s.empowerTempHp({ formHpMax: 20, hpBonus: 10 })).toBe(30);
+    expect(s.empowerTempHp({ formHpMax: null, hpBonus: null })).toBe(0);
+  });
+
+  it("the activity's changes applied on top set the Hit Points and the creature type aside, the effects and item updates apart", () => {
+    const plan = s.empowerUpdates({
+      "flags.dnd5e.summon": { level: 2, mod: 3 },
+      "system.details.type.value": "fey",
+      "system.attributes.hp.max": 33,
+      "system.attributes.hp.value": 33,
+      "system.attributes.hp.temp": 5,
+      effects: [{ name: "Match Proficiency" }, { name: "Bonus Armor Class" }],
+      items: [{ _id: "rend", effects: [] }]
+    });
+    expect(plan.updates).toEqual({ "flags.dnd5e.summon": { level: 2, mod: 3 } });
+    expect(plan.effects.map(e => e.name)).toEqual(["Match Proficiency", "Bonus Armor Class"]);
+    expect(plan.items).toEqual([{ _id: "rend", effects: [] }]);
+    expect(s.empowerUpdates(null)).toEqual({ updates: {}, effects: [], items: [] });
+  });
+
+  it("a record's landed entries follow the token the revert made; the others stand", () => {
+    const landed = [
+      {
+        tokenId: "old",
+        sceneId: "s1",
+        tokenUuid: "Scene.s1.Token.old",
+        actorUuid: "Scene.s1.Token.old.Actor.a",
+        name: "Owl"
+      },
+      { tokenId: "other", sceneId: "s1", tokenUuid: "u", actorUuid: null, name: "Bat" }
+    ];
+    const out = s.repointedLanded(landed, {
+      oldTokenId: "old",
+      tokenId: "new",
+      sceneId: "s1",
+      tokenUuid: "Scene.s1.Token.new",
+      actorUuid: "Scene.s1.Token.new.Actor.b",
+      name: "Owl"
+    });
+    expect(out[0]).toEqual({
+      tokenId: "new",
+      sceneId: "s1",
+      tokenUuid: "Scene.s1.Token.new",
+      actorUuid: "Scene.s1.Token.new.Actor.b",
+      name: "Owl"
+    });
+    expect(out[1]).toEqual(landed[1]);
+    expect(
+      s.repointedLanded(null, {
+        oldTokenId: "x",
+        tokenId: "y",
+        sceneId: "s",
+        tokenUuid: "u",
+        actorUuid: null,
+        name: "n"
+      })
+    ).toEqual([]);
+  });
+});

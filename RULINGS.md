@@ -3650,6 +3650,84 @@ calls:
    that skips the dialog meets no box, as Lucky's. The register's verdict of 2026-10-02 ("Helpful Friend is the Help
    action", TEXT) is replaced.
 
+**The Battle Familiar pass (2026-10-14, Arcana Unleashed; the plan `audits/plans/battle-familiar.md`, the spell measured on
+the sandbox before the build: dnd5e 6.0.6's `transformInto` on an unlinked token is in place, its `revertOriginalForm` makes a
+NEW token and `delete({ replacements })` re-points nothing, its transform plants a Proficiency override with the SOURCE's PB).**
+The spell alone (the user: "right now I just want to support the spell"); Warlike Familiar's free cast (the pack ships no
+forward and no pool) and Intercept Attack (an `ac` guard) stay WAITS rows. The calls:
+
+48. **Battle Familiar is one at a time and rolls its own Initiative** (`SUMMON_SINGLES`, `SUMMON_OWN_INITIATIVE`; its own text).
+   A recast replaces the standing one as it lands.
+49. **A standing summon can fall** (`SUMMON_FALLS`): Battle Familiar's creature disappears at 0 Hit Points (`atZero`; the
+   companion's road generalised — `fallenSummon`, the card "dropped to 0 HP and disappeared") and when its caster dies
+   (`casterDeath`: the `dead` status landing on the caster; 0 Hit Points alone is Dying — the user took the lean). What it
+   carried stays where it stood however it goes (`drops`: `standing.baseItems` at the landing, `dropCarried` at the
+   dismissal — the Loot Shelf chest, else lost).
+50. **The last form is remembered** ("you decide whether you summon the familiar that disappeared or a different one"):
+   the profile taken is a flag on the caster's own spell (`lastForm`, summons.js `SUMMON_LAST_FLAG`), its row pre-picked
+   and tagged "last time" at the next cast (`lastFormRows`; the conjure's menu and the empower's alike).
+51. **The route at the cast** (the user, 2026-10-14; `SUMMON_EMPOWERS`, `empowerRoute`): no Find Familiar companion
+   standing, the summon road; the companion **in its pocket**, the cast refused before any slot is spent ("you can't cast
+   Battle Familiar while your familiar is in its pocket dimension — call it back first"); the companion **on the table**,
+   one question before dnd5e's own Cast dialog — **Empower ⟨name⟩** or **Summon a new one** (the companion dismissed
+   forever as the new one lands, `dismisses` on the record). A HOUSE BEND: the text empowers with no choice. The familiar
+   of Wild Companion or Pact of the Chain counts (read through SUMMON_AS).
+52. **The empower is a transform of the companion's token** (`TRANSFORMS["Battle Familiar"]`, `subject: "companion"`;
+   summons.js stamps a `transform` record on the cast card, transforms.js lands it — `empowerOne`). dnd5e's Cast dialog
+   first (the slot level is the stat block's), then the three form rows at that level (no type, no placement). The elect:
+   `transformInto` with the row's `keep` (Hit Points and Hit Dice, type, biography, senses) and the polymorph preset's
+   `effects`, the Temporary Hit Points the form's Hit Points at the cast level (the Brute's 30, +5 a level above 2nd;
+   `empowerTempHp`); then the summon activity's own `getChanges` on top with its Hit Point and creature-type branches set
+   aside (`empowerUpdates`): the level stamped (Rend's +level, Multiattack's and Talented's half-level), the attack and
+   Proficiency matched, the AC bonus (AC 15 at 2nd). **dnd5e's own transform Proficiency override is deleted**: it carries
+   the form's PB, blank for a stat block with no CR (measured: PB null). **The familiar keeps its name and its art** (the
+   user: "keep the owl's name and art"; dnd5e names it "Owl (Battle Familiar (Brute))" — one update puts it back; the token
+   art stayed the Owl's on its own). The caster's effect **"Battle Familiar: Owl"** for the spell's hour is the lever (call
+   19's shape, `empowerEffect`): the form effect on the familiar depends on it, so the clock, a hand, a rest or the effect's
+   end all revert through one road; **no Temporary Hit Points left** reverts (`noTemp`, the transforms machine's own end);
+   Dismiss while empowered ends the spell with no form left to revert (the record `ended` "gone"); **0 Hit Points** is the
+   familiar's own fall (it disappears, as Find Familiar says), never a revert. The revert keeps the Hit Points lost and drops
+   the Temporary Hit Points (dnd5e's `keep: hp`). The card: "Owl is now a Brute · empowered · 30 Temporary Hit Points", End
+   Battle Familiar on it; the end card names why.
+53. **The revert's new token is followed** (`repointEmpowered`, measured: Foundry's `delete({ replacements })` re-points no
+   combatant): every combatant of the old token takes the new one, the companion's record names it (`repointedLanded`), the
+   caster's effect goes as the elect's own (`empowerEnd`). Helpful Friend finds the familiar through the transform and the
+   revert alike.
+54. **The pocket and the spell never overlap**: "Put it away" is not offered while empowered (`companionMenu` `empowered`;
+   `companionAsk` refuses it), the mirror of call 51's refusal.
+55. **A use carrying the answer skips the question** (`[MODULE_ID].empower` on the use: a macro, an automation, the live
+   suites), as `toCard` skips the menu.
+
+| Row | Where | What it does |
+| --- | --- | --- |
+| The rows | `SUMMON_SINGLES`, `SUMMON_OWN_INITIATIVE`, `SUMMON_FALLS`, `SUMMON_EMPOWERS`, `TRANSFORMS` | one at a time; its own seat; the fall and the gear; the route and the transform row it drives |
+| The route | summons.js `dnd5e.preUseActivity` → `askEmpowerQuestion` | refuse, ask, or the summon road; the answer rides the use to `dnd5e.preActivityConsumption` |
+| The empower menu | summons.js `openEmpowerMenu` → `stampEmpower` | the forms at the level; a `transform` record `picked` at birth on the cast card, `empower` naming the companion's card |
+| The landing | transforms.js `landTransform` → `empowerOne` | `transformInto` with the row's setting, `getChanges` on top, the Proficiency override deleted, the name back, the caster's effect, the form effect dependent on it, the companion's record told |
+| The ends | transforms.js `revertForm` → `repointEmpowered`; summons.js `deleteActiveEffect` (`empowerEffect`) → `revertAsked`; `dismissSummon` → `endEmpower` | the revert and the re-point; the lever; the companion's going ends the spell |
+| The fall | summons.js `updateActor` → `fallenSummon`; `createActiveEffect` (`dead`) → `casterDeathSummons` | 0 Hit Points and the caster's death |
+
+**Suites:** `smoke-summons` §9 (conjured: the 1-hour effect, its own Initiative, one at a time, the fall at 0 HP with a dagger
+carried, the caster marked dead); `smoke-familiar` §9–§13 (empowered in place: AC 15, Str 16, Rend, the Owl's 11 HP and
+Celestial kept, 30 temp, PB 3, level 2; Helpful Friend offered while empowered; the temp HP gone reverts to a new token with
+the Hit Point lost kept, the seat and the record re-pointed; the caster's effect removed by hand reverts; Dismiss while
+empowered). Unit: `decide-summons` (the falls, the last form, the route, the menu while empowered), `decide-transforms` (the
+setting, the temp HP, the changes set aside, the re-point). All green on the sandbox 2026-10-14.
+
+**The walk table:**
+
+| Step | What you should see |
+| --- | --- |
+| Battle Familiar with no familiar | dnd5e's Cast dialog, then the menu "The form": Brute · Flyer · Stalker at the slot's level, Place; the Brute lands as the type picked, "Battle Familiar: Brute" on the caster for an hour; in a started combat it rolls its own Initiative |
+| Cast it again | the Brute row tagged "last time" and pre-picked; the new one lands, the first is dismissed, the card "the earlier one is dismissed" |
+| The familiar in its pocket, Battle Familiar cast | the warning "call it back first", nothing spent |
+| The Owl on the table, Battle Familiar cast | the question "Your familiar Owl is on the table — empower it, or summon a new one in its place?" |
+| Empower, the Brute | the Owl's token stays where it is, AC 15, 30 temp HP over its own Hit Points, Rend on its sheet, still "Owl" in its own art; "Battle Familiar: Owl" on the caster's bar, "Battle Familiar — Brute" on the Owl's; the card "Owl is now a Brute · empowered · 30 Temporary Hit Points" |
+| Its temp HP to 0 | the Owl reverts (a fresh token where it stood, its lost Hit Points kept), the end card "no Temporary Hit Points left", the caster's effect gone |
+| Remove "Battle Familiar: Owl" by hand, or a Short Rest | the Owl reverts, the end card "Battle Familiar ended" |
+| Dismiss the familiar while empowered | the Owl goes, the caster's effect with it, the card "dismissed" |
+| The Owl to 0 HP while empowered | it disappears as a familiar does (no revert), its gear where it stood |
+
 ## Rests end the short effects (2026-10-12)
 
 **The user's rule, on the sandbox: "long rest should remove anything with concentration, it should also remove

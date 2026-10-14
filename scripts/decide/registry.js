@@ -4222,6 +4222,11 @@ export const SUMMON_SINGLES = Object.freeze({
   "Light": Object.freeze({
     says: "The spell ends if you cast it again.",
     rule: Object.freeze({ item: "Light", uuid: "Compendium.dnd-players-handbook.spells.Item.phbsplLight00000" })
+  }),
+  // ARCANA UNLEASHED (RULINGS *Summons*, the Battle Familiar pass)
+  "Battle Familiar": Object.freeze({
+    says: "You can't have more than one familiar at a time. If you cast this spell while you already have a familiar from this spell, that familiar is replaced by the new one.",
+    rule: Object.freeze({ item: "Battle Familiar", uuid: "Compendium.dnd-arcana-unleashed.spells.Item.aunBattleFamilq9" })
   })
 });
 
@@ -4393,7 +4398,39 @@ export const SUMMON_OWN_INITIATIVE = Object.freeze({
   "Find Familiar": Object.freeze({
     says: "The familiar rolls its own Initiative and acts on its own turn.",
     rule: Object.freeze({ item: "Find Familiar", uuid: "Compendium.dnd-players-handbook.spells.Item.phbsplFindFamili" })
+  }),
+  "Battle Familiar": Object.freeze({
+    says: "The familiar is an ally to you and your allies. It rolls its own Initiative and acts on its own turn.",
+    rule: Object.freeze({ item: "Battle Familiar", uuid: "Compendium.dnd-arcana-unleashed.spells.Item.aunBattleFamilq9" })
   })
+});
+
+/**
+ * SUMMON FALLS (summons.js): a summon that stands on its caster's effect (no Concentration, not a companion) and
+ * disappears when its own text says: `atZero` at 0 Hit Points, `casterDeath` when its caster dies (the `dead`
+ * status landing on the caster, never 0 Hit Points alone: a character at 0 is Dying). `drops`: what it carried
+ * is left where it stood as it goes, however it goes (the companion's Loot Shelf chest, else lost). `says` the
+ * book's sentence (RULINGS *Summons*, the Battle Familiar pass).
+ */
+export const SUMMON_FALLS = Object.freeze({
+  "Battle Familiar": Object.freeze({ atZero: true, casterDeath: true, drops: true,
+    says: "The battle familiar disappears when the spell ends, if it drops to 0 Hit Points, or if you die. When it disappears, it leaves behind in its space anything it was wearing or carrying.",
+    rule: Object.freeze({ item: "Battle Familiar", uuid: "Compendium.dnd-arcana-unleashed.spells.Item.aunBattleFamilq9" }) })
+});
+
+/**
+ * SUMMON EMPOWERS (summons.js): a summon spell that, cast while its caster's COMPANION of another spell stands,
+ * empowers that companion instead of conjuring: the companion's token is transformed into the spell's form
+ * through the TRANSFORMS row the key names (`transform`), its own name and art kept, the spell's level stamped
+ * on it. The route at the cast (RULINGS *Summons*, the Battle Familiar pass): no companion, the summon road;
+ * the companion in its pocket, the cast refused before any slot is spent; the companion on the table, one
+ * question — summon a new one (the companion dismissed forever as the new one lands) or empower it. A house
+ * bend: the text empowers with no choice. `says` the book's sentence.
+ */
+export const SUMMON_EMPOWERS = Object.freeze({
+  "Battle Familiar": Object.freeze({ companion: "Find Familiar", transform: "Battle Familiar",
+    says: "If you have a familiar from the Find Familiar spell when you cast this spell, you empower your existing familiar rather than conjuring a new one. For the duration, your familiar can attack in addition to taking other actions as normal, and your familiar's game statistics are replaced by the Battle Familiar stat block, but it retains its creature type, alignment, Hit Points, Hit Point Dice, and any features granted by the Find Familiar spell. Your familiar gains a number of Temporary Hit Points equal to the Hit Points of the battle familiar. Battle Familiar ends early if the familiar has no more Temporary Hit Points left, and these Temporary Hit Points vanish if any remain when Battle Familiar ends. Your familiar reverts to its previous form when Battle Familiar ends.",
+    rule: Object.freeze({ item: "Battle Familiar", uuid: "Compendium.dnd-arcana-unleashed.spells.Item.aunBattleFamilq9" }) })
 });
 
 /**
@@ -4405,7 +4442,10 @@ export const SUMMON_OWN_INITIATIVE = Object.freeze({
  * `zero` (Hit Points reach 0), `noTemp` (the Temporary Hit Points the form gave are gone); `clock` where
  * the form's clock comes from — `activity` (the activity's duration), `concentration` (the caster's
  * Concentration on the item), null for none. The presets are the system's and never re-implemented
- * (RULINGS *Wild Shape and the polymorph spells*).
+ * (RULINGS *Wild Shape and the polymorph spells*). A row a SUMMON_EMPOWERS spell drives (`subject: "companion"`)
+ * transforms the caster's standing companion of `companion` instead of the caster or a target: its own
+ * `keep` and `effects` (dnd5e's setting categories) and the form's Hit Points at the cast level as Temporary
+ * Hit Points; the summon activity's own bonuses land on top (RULINGS *Summons*, the Battle Familiar pass).
  */
 export const TRANSFORMS = Object.freeze({
   "Wild Shape": Object.freeze({ self: true, known: 4, ends: Object.freeze(["incapacitated", "zero"]), clock: "activity",
@@ -4433,6 +4473,14 @@ export const TRANSFORMS = Object.freeze({
   "Boon of Fluid Forms": Object.freeze({ self: true, ends: Object.freeze(["noTemp"]), clock: "activity",
     rule: Object.freeze({ item: "Boon of Fluid Forms", uuid: "Compendium.dnd-heroes-faerun.options.Item.hofBoonofFluidFo", benefit: "Shapechanger" }),
     from: "Epic Boon (Heroes of Faerûn)" }),
+  // ARCANA UNLEASHED — the familiar empowered: the stat block replaces its own, it keeps its type, alignment, Hit Points
+  // and Hit Dice (dnd5e's `keep`), the form's Hit Points become its Temporary Hit Points, and the spell ends early when
+  // those are gone (`noTemp`); the clock is the spell's hour.
+  "Battle Familiar": Object.freeze({ self: false, subject: "companion", companion: "Find Familiar", ends: Object.freeze(["noTemp"]), clock: "activity",
+    keep: Object.freeze(["hp", "type", "bio", "vision"]), effects: Object.freeze(["otherOrigin", "origin", "spell"]),
+    caveat: "the features Find Familiar grants are the table's: the pack grants the familiar none as items",
+    rule: Object.freeze({ item: "Battle Familiar", uuid: "Compendium.dnd-arcana-unleashed.spells.Item.aunBattleFamilq9" }),
+    from: "Arcana Unleashed level 2 (1 hour)" }),
   "Shape-Shifter": Object.freeze({ self: true, ends: Object.freeze(["noTemp"]), clock: "concentration",
     caveat: "the modified Polymorph's own benefits are the pack's settings on the activity",
     rule: Object.freeze({ item: "Shape-Shifter", uuid: "Compendium.dnd-arcana-unleashed.subclasses.Item.aunShapeshifter0" }),
@@ -4507,6 +4555,8 @@ export const gearLightEntries = () => everyRow(Object.keys(GEAR_LIGHTS));
 export const summonChoiceEntries = () => everyRow(Object.keys(SUMMON_CHOICES));
 export const summonSingleEntries = () => everyRow(Object.keys(SUMMON_SINGLES));
 export const summonOwnInitiativeEntries = () => everyRow(Object.keys(SUMMON_OWN_INITIATIVE));
+export const summonFallEntries = () => everyRow(Object.keys(SUMMON_FALLS));
+export const summonEmpowerEntries = () => everyRow(Object.keys(SUMMON_EMPOWERS));
 export const transformEntries = () => everyRow(Object.keys(TRANSFORMS));
 export const damageSaveEntries = () => everyRow(Object.keys(DAMAGE_SAVES));
 export const superiorityUseEntries = () => everyRow(Object.keys(SUPERIORITY_USES));
