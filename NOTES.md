@@ -598,6 +598,16 @@ The 6.0.5 → 6.0.6 diff is 16 files, no pack changed, read file by file:
 - **The battery:** 49/49 suites, 2019/2019 checks, settings clean, hook coverage 65/65 names
   (411/411 registrations), 89m 38s, on the local sandbox (Foundry 14.368, dnd5e 6.0.6).
 
+### A token's prepared texture can lag its store on Foundry 14.369 (2026-10-14, Battle Familiar)
+
+Measured on the sandbox with a plain unlinked Owl token: a flat `update({ "texture.src": … })` lands in `_source` AND in the
+prepared `texture.src`; after an update carrying a NESTED `texture: { src, scaleX, scaleY }` object (the summon landing's
+`artChanges` shape), later writes still reach `_source` but the prepared `texture.src` and `texture.scaleX` stop following
+it on that client (the scale drifted on every update). Foundry 14's TokenDocument prepares token data through
+`applyActiveEffects` and keeps `_priorOverrides` for unlinked tokens, and an unlinked token's delta is prepared lazily; the
+mechanism was not chased further. The rule: read a familiar's look off `token._source.texture`, write it back with flat
+keys (`empowerOne`), and in a suite assert the store, not the prepared value (`smoke-familiar` §9a).
+
 ### dnd5e's transform of an unlinked token: in place going in, a new token coming back (2026-10-14, Battle Familiar)
 
 Measured on 6.0.6 for the empowered familiar (RULINGS *Summons*, the Battle Familiar pass): `transformInto` on a token

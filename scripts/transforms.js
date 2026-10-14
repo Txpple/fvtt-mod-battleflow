@@ -353,7 +353,8 @@ async function empowerOne(subject, source, { activity, flag, message }) {
   const name = flag.empower?.name || subject.token?.name || subject.name;
   const token = subject.token;
   // its own look, read before the transform: dnd5e's transform wears the form's token art and portrait
-  const look = { texture: token?.texture?.src ?? null, img: subject.img ?? null };
+  // read off the STORED token (the prepared texture can lag behind the store on this platform)
+  const look = { texture: flag.empower?.look?.texture ?? token?._source?.texture?.src ?? token?.texture?.src ?? null, img: flag.empower?.look?.img ?? subject.img ?? null };
   await subject.transformInto(source, new Setting(empowerSetting(row, tempHp)), { renderSheet: false });
   const landed = token?.actor ?? subject;
   if ( !landed?.isPolymorphed ) throw new Error(`${name} was not transformed`);
@@ -374,8 +375,9 @@ async function empowerOne(subject, source, { activity, flag, message }) {
   // snapped to its square's origin first, so a Tiny token growing to a square fills the square it stood in
   const grid = token?.parent?.grid;
   const origin = (grid && token) ? { x: Math.floor(token.x / grid.sizeX) * grid.sizeX, y: Math.floor(token.y / grid.sizeY) * grid.sizeY } : {};
+  // flat keys: a nested `texture` object left the token's prepared texture stale on Foundry 14.369 (measured)
   if ( token ) await token.update({ name, lockRotation: false, width: 1, height: 1, ...origin,
-    texture: { ...(look.texture ? { src: look.texture } : {}), scaleX: 1, scaleY: 1 } });
+    ...(look.texture ? { "texture.src": look.texture } : {}), "texture.scaleX": 1, "texture.scaleY": 1 });
   const tokenUpdates = { ...(changes.tokenUpdates ?? {}) };
   delete tokenUpdates.name; delete tokenUpdates.texture; delete tokenUpdates.width; delete tokenUpdates.height; delete tokenUpdates.ring;
   if ( token && Object.keys(tokenUpdates).length ) await token.update(tokenUpdates);
@@ -399,7 +401,8 @@ async function empowerOne(subject, source, { activity, flag, message }) {
     if ( !current.companion ) return false;
     current.companion.empower = { messageId: message.id, effectId: casterEffect?.id ?? null };
   });
-  return { actorUuid: landed.uuid, originalUuid: landed.uuid, name, tokenName: name, tempHp, empowerEffectId: casterEffect?.id ?? null };
+  return { actorUuid: landed.uuid, originalUuid: landed.uuid, name, tokenName: name, tempHp, empowerEffectId: casterEffect?.id ?? null,
+    look: { read: look.texture, worn: token?._source?.texture?.src ?? null, scale: token?._source?.texture?.scaleX ?? null } };
 }
 
 async function landTransform(message) {

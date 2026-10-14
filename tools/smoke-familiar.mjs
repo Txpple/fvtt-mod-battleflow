@@ -82,8 +82,9 @@ const LEND = `async ({ casterName }) => {
   if (!featItem || !spellItem || !battleItem) return { fatal: 'the lend made ' + made.length + ' item(s): ' + made.map(i => i.name + '/' + i.type).join(', ') };
   const battleSummon = Object.values(battleItem.system.activities.contents ?? [...battleItem.system.activities]).find(a => a.type === 'summon');
   const brute = battleSummon?.profiles?.find(p => p.name === 'Brute') ?? null;
+  const forms = Object.fromEntries((battleSummon?.profiles ?? []).map(p => [p.name, { id: p._id, uuid: p.uuid }]));
   return { featId: featItem.id, spellId: spellItem.id, summonId, battleId: battleItem.id, battleSummonId: battleSummon?.id ?? null,
-    bruteId: brute?._id ?? null, bruteUuid: brute?.uuid ?? null, prof: Number(caster.system.attributes.prof) || 0, level: Number(caster.system.details.level) || 0 };
+    bruteId: brute?._id ?? null, bruteUuid: brute?.uuid ?? null, forms, prof: Number(caster.system.attributes.prof) || 0, level: Number(caster.system.details.level) || 0 };
 }`;
 
 const out = await f.evaluate(async ({ sections, titles, extra }) => {
@@ -251,8 +252,9 @@ const out = await f.evaluate(async ({ sections, titles, extra }) => {
     const battleSummon = battleItem?.system?.activities?.get(lentOut.battleSummonId) ?? null;
     if (!battleSummon || !lentOut.bruteId) return { fatal: `the lent Battle Familiar lacks its summon or its Brute (summon=${!!battleSummon} brute=${lentOut.bruteId})` };
     // the empower cast, as a macro would send it: the question's answer on the use, the dialog skipped, no slot
-    const empower = async () => {
-      const result = await battleSummon.use({ [MOD]: { toCard: true, empower: { companionMessageId: landedMessage.id, profileId: lentOut.bruteId, level: 2, pick: { uuid: lentOut.bruteUuid, name: 'Brute' } } },
+    const empower = async (form = 'Brute') => {
+      const f = lentOut.forms?.[form] ?? { id: lentOut.bruteId, uuid: lentOut.bruteUuid };
+      const result = await battleSummon.use({ [MOD]: { toCard: true, empower: { companionMessageId: landedMessage.id, profileId: f.id, level: 2, pick: { uuid: f.uuid, name: form } } },
         create: { summons: false, measuredTemplate: false }, consume: { spellSlot: false } }, { configure: false }, { create: true });
       const message = result?.message instanceof ChatMessage ? result.message : null;
       if (message) madeMessages.push(message);
@@ -391,18 +393,21 @@ const out = await f.evaluate(async ({ sections, titles, extra }) => {
       const oldId = owlDoc.id;
       // its own look, given by the table so the check means something: the Owl wears a token and a portrait of its own
       const LOOK = { token: 'icons/svg/mystery-man.svg', portrait: 'icons/svg/cowled.svg' };
-      await owlDoc.update({ 'texture.src': LOOK.token, 'texture.scaleX': 2, 'texture.scaleY': 2 });
+      // the portrait first: Foundry follows a token actor's img onto its token's texture when the two matched
       await owlDoc.actor.update({ img: LOOK.portrait });
+      await owlDoc.update({ 'texture.src': LOOK.token, 'texture.scaleX': 2, 'texture.scaleY': 2 });
+      await sleep(400);
+      log.push(`§9 the Owl's look set: stored=${canvas.scene.tokens.get(oldId)?._source?.texture?.src} prepared=${canvas.scene.tokens.get(oldId)?.texture?.src} scale=${canvas.scene.tokens.get(oldId)?._source?.texture?.scaleX} img=${canvas.scene.tokens.get(oldId)?.actor?.img}`);
       const { message, rec } = await empower();
       const tok = canvas.scene.tokens.get(oldId) ?? null;
       const a = tok?.actor ?? null;
       const hp = a?.system?.attributes?.hp ?? {};
       const eff = casterEffect();
       const form = a?.effects?.find(e => !!e.getFlag(MOD, 'form')) ?? null;
-      ok('§9a the elect transformed the Owl in place: the same token, polymorphed, still named Owl, in its own token art and portrait, one square at scale 1',
-        rec?.outcome === 'landed' && !!tok && !!a?.isPolymorphed && (a?.name === 'Owl') && (tok?.name === 'Owl') && (tok?.texture?.src === LOOK.token) && (a?.img === LOOK.portrait)
-          && (tok?.width === 1) && (tok?.height === 1) && (tok?.texture?.scaleX === 1),
-        JSON.stringify({ outcome: rec?.outcome, failure: rec?.failure, token: !!tok, poly: a?.isPolymorphed, name: a?.name, tokenName: tok?.name, texture: tok?.texture?.src, img: a?.img, width: tok?.width, scale: tok?.texture?.scaleX }));
+      ok('§9a the elect transformed the Owl in place: the same token, polymorphed, still named Owl, in its own token art and portrait, one square, its Tiny doubling gone',
+        rec?.outcome === 'landed' && !!tok && !!a?.isPolymorphed && (a?.name === 'Owl') && (tok?.name === 'Owl') && (tok?._source?.texture?.src === LOOK.token) && (a?.img === LOOK.portrait)
+          && (tok?.width === 1) && (tok?.height === 1) && (Number(tok?._source?.texture?.scaleX) === 1),
+        JSON.stringify({ outcome: rec?.outcome, failure: rec?.failure, token: !!tok, poly: a?.isPolymorphed, name: a?.name, tokenName: tok?.name, stored: tok?._source?.texture?.src, prepared: tok?.texture?.src, img: a?.img, width: tok?.width, scale: tok?._source?.texture?.scaleX, landedLook: rec?.landed?.[0]?.look ?? null, recordLook: message?.getFlag(MOD, 'transform')?.empower?.look ?? null }));
       ok(`§9b the Brute's stat block at level 2 on its own Hit Points and type: AC 15, Str 16, Rend, HP ${base + 2 * level}, 30 temp, Celestial, PB ${PROF}, level 2 stamped`,
         (Number(a?.system?.attributes?.ac?.value) === 15) && (Number(a?.system?.abilities?.str?.value) === 16) && !!a?.items?.find(i => i.name === 'Rend')
           && (Number(hp.max) === base + 2 * level) && (Number(hp.value) === base + 2 * level) && (Number(hp.temp) === 30)
@@ -457,7 +462,7 @@ const out = await f.evaluate(async ({ sections, titles, extra }) => {
     // ---- 12. the lever: the caster's effect removed by hand
     if (want(12) && liveOwl()) {
       const old = liveOwl();
-      const { message } = await empower();
+      const { message } = await empower('Stalker');
       const eff = casterEffect();
       ok('§12a empowered again: the caster\'s effect stands, the Owl polymorphed', !!eff && !!liveOwl()?.actor?.isPolymorphed, `effect=${eff?.name} poly=${liveOwl()?.actor?.isPolymorphed}`);
       await eff?.delete();
@@ -465,7 +470,12 @@ const out = await f.evaluate(async ({ sections, titles, extra }) => {
       await waitFor(() => (liveOwl() && (liveOwl().id !== old.id)) ? true : null, 10000);
       await sleep(500);
       const now = liveOwl();
+      const { max: base2 } = await owlBaseHp();
+      const hp2 = now?.actor?.system?.attributes?.hp ?? {};
       ok('§12b the effect removed by hand: the Owl reverts, the record ended', !!ended && !!now && !now.actor?.isPolymorphed && !casterEffect(), JSON.stringify({ ended, poly: now?.actor?.isPolymorphed, effect: !!casterEffect() }));
+      ok(`§12c after the second cycle its Hit Points are still its own: ${base2 + 2 * level - 1} of ${base2 + 2 * level}, no temp folded in`,
+        (Number(hp2.max) === base2 + 2 * level) && (Number(hp2.value) === base2 + 2 * level - 1) && !(Number(hp2.temp) > 0),
+        JSON.stringify({ hp: hp2, deltaHp: now?.delta?.toObject?.()?.system?.attributes?.hp ?? null, tokenFlags: now?.flags?.dnd5e ?? null }));
       owlDoc = now;
       if (now && !madeTokens.includes(now.id)) madeTokens.push(now.id);
     }

@@ -365,7 +365,9 @@ async function stampEmpower(activity, message, answer) {
     concentrationId: null, sceneId: doc.parent?.id ?? null
   });
   record.pick.img = answer.pick.img ?? null;
-  record.empower = { companionMessageId: companionMessage.id, level: Number(answer.level) || Number(activity.relevantLevel) || 0, tokenId: doc.id, name: doc.name };
+  // its look at the cast, put back after the transform (dnd5e's transform wears the form's art)
+  record.empower = { companionMessageId: companionMessage.id, level: Number(answer.level) || Number(activity.relevantLevel) || 0, tokenId: doc.id, name: doc.name,
+    look: { texture: doc._source?.texture?.src ?? doc.texture?.src ?? null, img: doc.actor.img ?? null } };
   record.askedBy = game.user.id;
   await message.setFlag(MODULE_ID, EMPOWER_RECORD_FLAG, { ...record, ...statContext(actor.uuid) });
   const item = actor.items.get(activity.item.id);
