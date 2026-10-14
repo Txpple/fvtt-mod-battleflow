@@ -424,7 +424,7 @@ function situation(flag, roll, guard, row) {
   const needed = (Number.isFinite(flag.dc) && /d/i.test(String(guard.die)))
     ? neededOnDieLine({ total: Number(roll?.total), against: flag.dc, dieMax: max, minus, die: String(guard.die) }) : "";
   return `${esc(flag.rollerName)}'s ${test}: <strong>${roll?.total}</strong>${vs}.`
-    + (Number.isFinite(flag.dc) ? ` A ${esc(guard.die)} can turn it: ${roll?.total} ${minus ? "−" : "+"} ${max} = ${minus ? roll.total - max : roll.total + max}.${needed ? ` ${needed}` : ""}`
+    + (Number.isFinite(flag.dc) ? ` A ${esc(guard.die)} can turn it: ${roll?.total} ${minus ? "−" : "+"} ${max} = ${minus ? roll.total - max : roll.total + max}.${needed ? `<div style="margin-top:0.55rem;">${needed}</div>` : ""}`
       : " No DC is known — the arithmetic goes on the card and the DM rules.");
 }
 

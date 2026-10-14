@@ -107,14 +107,14 @@ function interceptorsFor(defender, attacker, { attackDamage = true } = {}) {
  * creature on the DEFENDER's side within the row's feet of the ATTACKER (the creature making the damage roll), its
  * Reaction free, a use left — asked HERE, where the damage and the defender's Hit Points are known. A mute (shared.js
  * `bystanderMuted`) silences a trivial ask; an ask that can keep the defender ABOVE 0 Hit Points is always made
- * (`keepsUp`, decide/rescue-hit.js). BOTH HALVES ASK (the table, 2026-10-14 evening): a bystander the ATTACK hold asked
- * at the roll, who passed, is asked again here once the damage is known — the roll half's pass was "not at the roll",
- * not "not this hit" (the one-ask rule it replaces had left the damage half to the down guard alone: with a +4 attack
- * on AC 18 every hit sat inside the d8, so the roll half always asked first). The mutes are the brake. An attack's
- * damage only: a save's share has no attacker's roll to stand beside.
+ * (`keepsUp`, decide/rescue-hit.js). BOTH HALVES ASK (RULINGS *The asks widened*): a bystander the ATTACK hold asked
+ * at the roll, who passed, is asked again here once the damage is known — a pass at the roll means "not at the roll",
+ * not "not this hit", since the damage is unknown there; a hit inside the die's reach would otherwise never show its
+ * damage half but through the down guard. The mutes are the brake. An attack's damage only: a save's share has no
+ * attacker's roll to stand beside.
  * @returns {{name: string, row: any, guards: object[]}|null}
  */
-function cuttersFor(defender, attacker, attack, amount) {
+function cuttersFor(defender, attacker, amount) {
   const guarded = tokenForUuid(defender?.uuid), from = tokenForUuid(attacker?.uuid);
   if ( !guarded || !from || !(Number(amount) > 0) ) return null;
   const side = guarded.document?.disposition;
@@ -191,7 +191,7 @@ registerDamageClaim((receiptMessage, target, actor, damages, { multiplier = 1, n
     const source = attack?.getAssociatedActor?.() ?? receiptMessage.getAssociatedActor?.() ?? null;
     const amount = Math.floor(damages.reduce((n, d) => n + (Number(d.value) || 0), 0) * multiplier);
     const guards = mergeGuards(guarded ? interceptorsFor(actor, source, { attackDamage: !!attack }) : null,
-      (attack && cuttersListed()) ? cuttersFor(actor, source, attack, amount) : null);
+      (attack && cuttersListed()) ? cuttersFor(actor, source, amount) : null);
     if ( !guards ) return false;
     claimedShares.set(key, Date.now());
     void stampHold(receiptMessage, target, actor, damages, { multiplier, note }, guards, { guarded: true })

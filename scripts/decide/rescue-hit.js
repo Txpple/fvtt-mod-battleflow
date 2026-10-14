@@ -90,7 +90,7 @@ export function dieMaxOf(formula) {
 }
 
 /**
- * THE FACE A BYSTANDER NEEDS (the user, 2026-10-14: "you need an X or higher", the X in bold so the player zeroes in): the
+ * THE FACE A BYSTANDER NEEDS ("you need an X or higher", the X in bold so the player zeroes in): the
  * least face of the die that turns the verdict — a minus die (Cutting Words) turns a success when `total − n < against`,
  * a plus die (Guided Strike's die, Combat Inspiration) turns a failure when `total + n ≥ against`. Clamped to 1 (any face
  * does it); null when no face can (the gate never asks then), when the die has no size, or when the target is unknown.

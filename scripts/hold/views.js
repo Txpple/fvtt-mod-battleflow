@@ -272,7 +272,8 @@ function bystanderSituation(row, roll, ac, guard, miss = false) {
   const what = /d/i.test(String(guard.die)) ? esc(guard.die) : `${minus ? "−" : "+"}${esc(guard.die)}`;
   // The face the die needs, in bold, so the player zeroes in (a real die only; a flat +10 has no face to need).
   const needed = /d/i.test(String(guard.die)) ? neededOnDieLine({ total: Number(roll.total), against: Number(ac), dieMax: max, minus, die: String(guard.die) }) : "";
-  return `${head} A ${what} can turn it: ${roll.total} ${minus ? "−" : "+"} ${max} = ${minus ? roll.total - max : roll.total + max}.${needed ? ` ${needed}` : ""}`;
+  // The needed face on its own line, a gap above it, so the eye lands on it.
+  return `${head} A ${what} can turn it: ${roll.total} ${minus ? "−" : "+"} ${max} = ${minus ? roll.total - max : roll.total + max}.${needed ? `<div style="margin-top:0.55rem;">${needed}</div>` : ""}`;
 }
 
 /** A BYSTANDER's popup (Cutting Words, Restore Balance): keyed like a guard's, three buttons — the third mutes. */
