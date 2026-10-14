@@ -172,7 +172,12 @@ registerWithhold(KEY, {
   }
 });
 
-// A CHECK: no DC exists, so the offer stamps on the roller's own message and nothing waits on it.
+/** The DC dnd5e put on the roll itself (`options.target`: an enricher's `dc=`, a request's, an activity's check), or null. */
+const dcOnRoll = roll => { const t = Number(roll?.options?.target); return (Number.isFinite(t) && (t > 0)) ? t : null; };
+
+// A CHECK: the offer stamps on the roller's own message and nothing waits on it. With no DC the margin gate asks and the
+// verdict is the DM's; a check whose roll CARRIES a DC (RULINGS *Portent widened*) is judged like a save — the
+// gate reads the margin, a stored face is offered only where it turns the verdict.
 for ( const hook of ["dnd5e.rollAbilityCheck", "dnd5e.rollSkill", "dnd5e.rollToolCheck"] ) {
   listen(hook, "bystanders", async (rolls, data) => {
     try {
@@ -180,12 +185,33 @@ for ( const hook of ["dnd5e.rollAbilityCheck", "dnd5e.rollSkill", "dnd5e.rollToo
       const message = rolls?.[0]?.parent;
       if ( !(roller instanceof Actor) || !(message instanceof ChatMessage) || !message.isAuthor ) return;
       if ( readFlag(message, KEY) ) return;
-      await stampBystanders(message, roller, "check");
+      const dc = dcOnRoll(rolls[0]);
+      await stampBystanders(message, roller, "check", (dc === null) ? {} : { dc });
     } catch(err) {
       console.error(`${TITLE} | The bystander offer on a check failed.`, err);
     }
   });
 }
+
+// A SAVE that is NOT a demand's answer but carries a DC on its roll (an enricher's `[[/save … dc=]]`, a GM's request): the
+// same offer, on the roll's own message, nothing withheld — the card states the bent total against the DC. A demand's answer
+// (`saveFor`) is the withhold's road above; a death save and a concentration save are their own machines' and stay out.
+listen("dnd5e.rollSavingThrow", "bystanders", async (rolls, data) => {
+  try {
+    const roller = data?.subject;
+    const roll = rolls?.[0];
+    const message = roll?.parent;
+    if ( !(roller instanceof Actor) || !(message instanceof ChatMessage) || !message.isAuthor ) return;
+    if ( readFlag(message, KEY) || readFlag(message, "saveFor") || readFlag(message, "respondsTo") ) return;
+    if ( roll.options?.isConcentration || (message.system?.type === "death") ) return;
+    const dc = dcOnRoll(roll);
+    if ( dc === null ) return;
+    const ability = message.getFlag("dnd5e", "roll")?.ability ?? data?.ability ?? null;
+    await stampBystanders(message, roller, "save", { dc, demand: { statuses: [], ability, spell: false } });
+  } catch(err) {
+    console.error(`${TITLE} | The bystander offer on a requested save failed.`, err);
+  }
+});
 
 /* --- THE ANSWER: first act wins; a pass only once everyone asked has passed. */
 
@@ -449,7 +475,9 @@ function bentLine(flag) {
     : (b.how === "reroll") ? `the d20 (${b.first}) rerolled${(b.faces?.length > 1) ? ` with Advantage (${b.faces.join(", ")})` : ""} — the ${b.stood} stands`
     : (b.how === "neutralised") ? `no Advantage or Disadvantage — the first d20 (${b.stood}) stands`
     : `${Number(b.add) < 0 ? "−" : "+"}${Math.abs(Number(b.add) || 0)}`;
-  const tail = (flag.testKind === "check") ? " — ask your DM whether it still succeeds" : Number.isFinite(flag.dc) ? ` vs DC ${flag.dc}` : "";
+  // A DC the module knows (a demand's, or one the roll carried) states the verdict; a bare check's is the DM's.
+  const tail = Number.isFinite(flag.dc) ? ` vs DC ${flag.dc} — <strong>${(Number(b.total) >= Number(flag.dc)) ? "SUCCESS" : "FAILURE"}</strong>`
+    : (flag.testKind === "check") ? " — ask your DM whether it still succeeds" : "";
   return `<strong>${who}</strong> ${change}: ${b.firstTotal} → <strong>${b.total}</strong>${tail}`;
 }
 

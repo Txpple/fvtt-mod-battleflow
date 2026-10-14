@@ -195,6 +195,7 @@ const SECTIONS = {
   123: "Sword of Wounding: a hit demands its save - failed, Wounded and Cannot Heal lands, a heal does nothing, and its turn end repeats the save",
   124: "Luck Blade: a failed save offers Luck Blade's reroll; pressed, the second roll stands and the Luck use is spent",
   125: "Moonblade with the Critical Range rune: a 19 is a Critical Hit (the pack's own threshold)",
+  126: 'Portent widened (2026-10-14, lent to the Sorcerer): a check or a save whose roll carries a DC asks the diviner with the faces that turn it and the card says SUCCESS; a bare check asks nobody',
 };
 const DEPENDS = {};
 
@@ -593,6 +594,12 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     const popupTitled = re => popups().find(app => app.element?.querySelector?.('[data-bf-ticks="bf-bystander"]') && re.test(textOf(app.element))) ?? null;
     const refillDivinity = async () => { const cd = divinity(); if (cd) await cd.update({ 'system.uses.spent': 0 }); };
     const rollPopup = re => popups().find(app => app.element?.querySelector?.('[data-bf-ticks="bf-bystander-roll"]') && re.test(textOf(app.element))) ?? null;
+    // The rest's stored dice are the bearer's to roll (2026-10-14): the rest card's ask, its Roll pressed; the chip follows.
+    const rollStoredAsk = async (re = /roll your .* dice/i) => {
+      const pop = await waitFor(() => popups().find(app => re.test(textOf(app.element)) && app.element?.querySelector?.('button[data-action="roll"]')) ?? null, 8000);
+      pop?.element?.querySelector('button[data-action="roll"]')?.click();
+      return !!pop;
+    };
     const rollFlag = m => game.messages.get(m?.id)?.getFlag(MOD, 'bystanderRoll') ?? null;
 
     // ---- 7. Guided Strike for an ally
@@ -2949,12 +2956,14 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           const t0 = Date.now();
           faces([[17, 20], [3, 20]]);
           await sorcerer.longRest({ dialog: false, chat: true, newDay: false });
+          const askedA = await rollStoredAsk();
           await waitFor(() => chip(), 8000);
           CONFIG.Dice.randomUniform = realPRNG;
           const restCard = await waitFor(() => game.messages.contents.find(m => (m.timestamp >= t0) && m.getFlag(MOD, 'storedRolled')) ?? null, 6000);
           const restLine = (await waitFor(() => cardEl(restCard?.id)?.querySelector('.bf-stored-line'), 4000))?.textContent?.trim() ?? '';
-          ok('41a. the Long Rest: the chip "Portent — 17 · 3", the rest card "Portent — 17 and 3 kept"',
-            (chip()?.name === 'Portent — 17 · 3') && /Portent — 17 and 3 kept/.test(restLine), `chip=${chip()?.name ?? null} line="${restLine}"`);
+          ok('41a. the Long Rest asks the Sorcerer to roll; Roll: the chip "Portent — 17 · 3", the roll\'s card "Portent — 17 and 3 kept"',
+            askedA && (chip()?.name === 'Portent — 17 · 3') && /Portent — 17 and 3 kept/.test(restLine) && !!restCard?.getFlag(MOD, 'storedFor'),
+            `asked=${askedA} chip=${chip()?.name ?? null} line="${restLine}" for=${restCard?.getFlag(MOD, 'storedFor') ?? null}`);
           // b. its own save, the dialog: "use the 17" ticked — the d20 IS the 17, the face gone
           const p = sorcerer.rollSavingThrow({ ability: 'wis' }, {}, {});
           const dlg = await waitFor(rollDialog, 6000);
@@ -3035,6 +3044,74 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         }
       } finally {
         await closeA1();
+        const chips = sorcerer.effects.filter(e => e.getFlag(MOD, 'storedDice')).map(e => e.id);
+        if (chips.length) await sorcerer.deleteEmbeddedDocuments('ActiveEffect', chips).catch(() => {});
+        if (portent) await unlend(sorcerer, portent);
+        CONFIG.Dice.randomUniform = realPRNG;
+        clearTargets();
+      }
+    }
+
+    // ---- 126. Portent widened (2026-10-14): a check or a save whose roll CARRIES a DC asks the diviner; a bare check asks nobody
+    if (want(126)) {
+      await closeA1(); await spendLuck();
+      const portent = await hgLend(sorcerer, 'Portent', 'feat');
+      const chip = () => sorcerer.effects.find(e => e.getFlag(MOD, 'storedDice')?.key === 'Portent') ?? null;
+      const setFaces = async f => {
+        const c = chip();
+        if (c) await c.update({ name: `Portent — ${f.join(' · ')}`, [`flags.${MOD}.storedDice`]: { key: 'Portent', faces: f, turn: null } });
+        else await sorcerer.createEmbeddedDocuments('ActiveEffect', [{ name: `Portent — ${f.join(' · ')}`, img: 'icons/svg/d20.svg', transfer: false, flags: { [MOD]: { storedDice: { key: 'Portent', faces: f, turn: null } } } }]);
+      };
+      const resolvedFlag = msg => waitFor(() => { const f = game.messages.get(msg?.id)?.getFlag(MOD, 'bystanderRoll'); return (f?.status === 'resolved') ? f : null; }, 8000);
+      try {
+        if (!portent) log.push('§126 skipped: no Portent in the PHB');
+        else {
+          await setFaces([18, 2]);
+          // a. the Halfling's Dexterity check with DC 15 on the roll (an enricher's or a request's `target`), a natural 1: the popup, the 18 only
+          faces([[10, 20]]);
+          const probe = await halfling.rollAbilityCheck({ ability: 'dex' }, { configure: false }, { create: false });
+          const cmod = Number(probe?.[0]?.total) - 10;
+          faces([[1, 20]]);
+          const rollsA = await halfling.rollAbilityCheck({ ability: 'dex', target: 15 }, { configure: false }, {});
+          CONFIG.Dice.randomUniform = realPRNG;
+          const msgA = rollsA?.[0]?.parent ?? null;
+          const popA = await waitFor(() => rollPopup(/Portent/), 8000);
+          const textA = textOf(popA?.element);
+          ok('126a. a check whose roll carries DC 15, a natural 1: the diviner\'s popup "Portent — replace the 1 with the 18", the 2 not offered',
+            !!popA && /replace the 1 with the 18/.test(textA) && !/with the 2\b/.test(textA) && (Number(rollsA?.[0]?.options?.target) === 15),
+            `pop=${!!popA} target=${rollsA?.[0]?.options?.target} mod=${cmod} text="${textA.slice(0, 200)}"`);
+          popA?.element?.querySelector('button[data-action="answer"]')?.click();
+          const flagA = await resolvedFlag(msgA);
+          await sleep(500);
+          ok('126b. Answer: the check\'s card "Portent (BTB Test Sorcerer) … → 18 + mod vs DC 15 — SUCCESS", the chip "Portent — 2"',
+            (flagA?.bent?.how === 'set') && (flagA?.bent?.stood === 18) && /vs DC 15 — SUCCESS/.test(cardText(msgA?.id)) && (chip()?.name === 'Portent — 2'),
+            `flag=${JSON.stringify(flagA && { answer: flagA.answer, bent: flagA.bent })} chip=${chip()?.name ?? null} card="${cardText(msgA?.id).slice(0, 220)}"`);
+          // c. a bare check (no DC on the roll), a natural 1: nobody asked
+          await setFaces([18, 2]);
+          faces([[1, 20]]);
+          const rollsC = await halfling.rollAbilityCheck({ ability: 'dex' }, { configure: false }, {});
+          CONFIG.Dice.randomUniform = realPRNG;
+          await sleep(1500);
+          const askedC = !!rollPopup(/Portent/);
+          const flagC = game.messages.get(rollsC?.[0]?.parent?.id)?.getFlag(MOD, 'bystanderRoll') ?? null;
+          ok('126c. a bare check with no DC on the roll: no Portent popup, no Portent guard (a check asks only with a DC)',
+            !askedC && !flagC?.guards?.some(g => g.row === 'Portent'), `asked=${askedC} flag=${JSON.stringify(flagC)}`);
+          // d. a save that is not a demand's answer but carries DC 15 (a request's), a natural 1: the popup; Answer: SUCCESS on its card
+          faces([[1, 20]]);
+          const rollsD = await halfling.rollSavingThrow({ ability: 'wis', target: 15 }, { configure: false }, {});
+          CONFIG.Dice.randomUniform = realPRNG;
+          const msgD = rollsD?.[0]?.parent ?? null;
+          const popD = await waitFor(() => rollPopup(/Portent/), 8000);
+          ok('126d. a requested save with DC 15 on the roll, a natural 1: the diviner\'s popup "replace the 1 with the 18"',
+            !!popD && /replace the 1 with the 18/.test(textOf(popD?.element)), `pop=${!!popD} target=${rollsD?.[0]?.options?.target} text="${textOf(popD?.element).slice(0, 160)}"`);
+          popD?.element?.querySelector('button[data-action="answer"]')?.click();
+          const flagD = await resolvedFlag(msgD);
+          await sleep(500);
+          ok('126e. Answer: "… vs DC 15 — SUCCESS" on the save\'s own card, the 18 spent — the chip "Portent — 2"',
+            (flagD?.bent?.stood === 18) && /vs DC 15 — SUCCESS/.test(cardText(msgD?.id)) && (chip()?.name === 'Portent — 2'),
+            `flag=${JSON.stringify(flagD?.bent ?? null)} chip=${chip()?.name ?? null} card="${cardText(msgD?.id).slice(0, 220)}"`);
+        }
+      } finally {
         const chips = sorcerer.effects.filter(e => e.getFlag(MOD, 'storedDice')).map(e => e.id);
         if (chips.length) await sorcerer.deleteEmbeddedDocuments('ActiveEffect', chips).catch(() => {});
         if (portent) await unlend(sorcerer, portent);
@@ -3750,6 +3827,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           await dropReactionChips(sorcerer);
           faces([[4, 6]]);
           await sorcerer.longRest({ dialog: false, chat: true, newDay: false });
+          await rollStoredAsk();
           await waitFor(() => chip(), 8000);
           CONFIG.Dice.randomUniform = realPRNG;
           ok('52a. the Long Rest rolls the d6: an even face (4) is Weal — the chip "Cosmic Omen — Weal (4)"', chip()?.name === 'Cosmic Omen — Weal (4)', `chip=${chip()?.name ?? null}`);
@@ -5233,6 +5311,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         else {
           faces([[17, 20], [3, 20], [9, 20]]);
           await sorcerer.longRest({ dialog: false, chat: true, newDay: false });
+          await rollStoredAsk();
           await waitFor(chip, 8000);
           CONFIG.Dice.randomUniform = realPRNG;
           ok('82a. the Long Rest with Greater Portent keeps three faces: "Portent — 17 · 3 · 9"', chip()?.name === 'Portent — 17 · 3 · 9', `chip=${chip()?.name ?? null} faces=${JSON.stringify(chip()?.getFlag(MOD, 'storedDice')?.faces ?? null)}`);

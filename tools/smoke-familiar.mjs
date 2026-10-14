@@ -75,6 +75,13 @@ const LEND = `async ({ casterName }) => {
   spell.system.activities.bfFreeCast000000 = { _id: 'bfFreeCast000000', type: 'forward', name: '(free casting)', sort: 1,
     activity: { id: summonId }, activation: { type: 'action', override: false },
     consumption: { targets: [{ type: 'itemUses', target: '', value: '1', scaling: {} }], scaling: { allowed: false }, spellSlot: true } };
+  // as the feat's grant does on a real sheet (measured on Tychon, 2026-10-14): the feat's enchantment rides onto the spell,
+  // so dnd5e's own summon landing carries Fortified Familiar's Hit Points and the module must not add them again
+  spell.effects = [...(spell.effects ?? []), ...(feat.effects ?? []).filter(e => e.type === 'enchantment').map(e => {
+    const copy = foundry.utils.deepClone(e); delete copy._id;
+    foundry.utils.setProperty(copy, 'flags.dnd5e.advancementOrigin', 'lent.enchant');
+    return copy;
+  })];
   const made = await caster.createEmbeddedDocuments('Item', [feat, spell, battle]);
   const featItem = made.find(i => i.type === 'feat');
   const spellItem = made.find(i => (i.type === 'spell') && (i.name === 'Find Familiar'));
@@ -327,7 +334,7 @@ const out = await f.evaluate(async ({ sections, titles, extra }) => {
       ok(`§3a the Owl's Hit Points are its own plus twice the caster's level (${base} + ${2 * level})`,
         (Number(hp.max) === base + 2 * level) && (Number(hp.value) === base + 2 * level),
         `hp=${hp.value}/${hp.max} base=${base} level=${level}`);
-      ok('§3b the record names Fortified Familiar and the amount', boon?.feature === 'Familiar Friend' && boon?.benefit === 'Fortified Familiar' && (Number(boon?.hp) === 2 * level),
+      ok('§3b the record names Fortified Familiar and the amount — the sheet\'s own (the enchantment on the spell), nothing added on top', boon?.feature === 'Familiar Friend' && boon?.benefit === 'Fortified Familiar' && (Number(boon?.hp) === 2 * level) && (boon?.bySystem === true),
         JSON.stringify(boon));
     }
 
@@ -398,16 +405,17 @@ const out = await f.evaluate(async ({ sections, titles, extra }) => {
       await owlDoc.update({ 'texture.src': LOOK.token, 'texture.scaleX': 2, 'texture.scaleY': 2 });
       await sleep(400);
       log.push(`§9 the Owl's look set: stored=${canvas.scene.tokens.get(oldId)?._source?.texture?.src} prepared=${canvas.scene.tokens.get(oldId)?.texture?.src} scale=${canvas.scene.tokens.get(oldId)?._source?.texture?.scaleX} img=${canvas.scene.tokens.get(oldId)?.actor?.img}`);
+      const ringBefore = !!canvas.scene.tokens.get(oldId)?._source?.ring?.enabled;
       const { message, rec } = await empower();
       const tok = canvas.scene.tokens.get(oldId) ?? null;
       const a = tok?.actor ?? null;
       const hp = a?.system?.attributes?.hp ?? {};
       const eff = casterEffect();
       const form = a?.effects?.find(e => !!e.getFlag(MOD, 'form')) ?? null;
-      ok('§9a the elect transformed the Owl in place: the same token, polymorphed, still named Owl, in its own token art and portrait, one square, its Tiny doubling gone',
+      ok('§9a the elect transformed the Owl in place: the same token, polymorphed, still named Owl, in its own token art, portrait and ring, one square, its Tiny doubling gone',
         rec?.outcome === 'landed' && !!tok && !!a?.isPolymorphed && (a?.name === 'Owl') && (tok?.name === 'Owl') && (tok?._source?.texture?.src === LOOK.token) && (a?.img === LOOK.portrait)
-          && (tok?.width === 1) && (tok?.height === 1) && (Number(tok?._source?.texture?.scaleX) === 1),
-        JSON.stringify({ outcome: rec?.outcome, failure: rec?.failure, token: !!tok, poly: a?.isPolymorphed, name: a?.name, tokenName: tok?.name, stored: tok?._source?.texture?.src, prepared: tok?.texture?.src, img: a?.img, width: tok?.width, scale: tok?._source?.texture?.scaleX, landedLook: rec?.landed?.[0]?.look ?? null, recordLook: message?.getFlag(MOD, 'transform')?.empower?.look ?? null }));
+          && (tok?.width === 1) && (tok?.height === 1) && (Number(tok?._source?.texture?.scaleX) === 1) && (!!tok?._source?.ring?.enabled === ringBefore),
+        JSON.stringify({ outcome: rec?.outcome, failure: rec?.failure, token: !!tok, poly: a?.isPolymorphed, name: a?.name, tokenName: tok?.name, stored: tok?._source?.texture?.src, prepared: tok?.texture?.src, img: a?.img, width: tok?.width, scale: tok?._source?.texture?.scaleX, ring: tok?._source?.ring?.enabled, ringBefore, landedLook: rec?.landed?.[0]?.look ?? null, recordLook: message?.getFlag(MOD, 'transform')?.empower?.look ?? null }));
       ok(`§9b the Brute's stat block at level 2 on its own Hit Points and type: AC 15, Str 16, Rend, HP ${base + 2 * level}, 30 temp, Celestial, PB ${PROF}, level 2 stamped`,
         (Number(a?.system?.attributes?.ac?.value) === 15) && (Number(a?.system?.abilities?.str?.value) === 16) && !!a?.items?.find(i => i.name === 'Rend')
           && (Number(hp.max) === base + 2 * level) && (Number(hp.value) === base + 2 * level) && (Number(hp.temp) === 30)

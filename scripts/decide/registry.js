@@ -209,9 +209,11 @@ export const INTERRUPT_ROLLS = Object.freeze({
     from: "Bard — College of Valor 3" }),
   // A7: a STORED face replaces the d20 (`bend: "set"`, `stored` the STORED_DICE row that keeps the faces); `bystander:
   // "sight"` — the scene is the reach, sight is never judged (Q6); no Reaction, no pool. `ask: "crit"` — on an attack a
-  // popup only for a critical hit, else the card's quiet row (the noise gate's narrowing, Q2 option A); saves ask.
+  // popup only for a critical hit, else the card's quiet row (the noise gate's narrowing, Q2 option A); saves ask. A CHECK
+  // only when its roll carries a DC (dnd5e's `options.target`: an enricher's or a request's); a bare check asks nobody
+  // (RULINGS *Portent widened*).
   "Portent": Object.freeze({ reaction: false, uses: false, point: null, activity: null, stored: "Portent",
-    bystander: "sight", tests: Object.freeze(["attack", "save"]), bend: "set", on: "both", ask: "crit",
+    bystander: "sight", tests: Object.freeze(["attack", "save", "check"]), bend: "set", on: "both", ask: "crit",
     rule: Object.freeze({ item: "Portent", uuid: "Compendium.dnd-players-handbook.classes.Item.phbwzdPortent000" }),
     from: "Wizard — Diviner 3" }),
   // B1: the bard's Reaction REROLLS a friend's failed save (the bard's own included) `against` an effect that applies one

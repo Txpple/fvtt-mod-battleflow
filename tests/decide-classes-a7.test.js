@@ -146,13 +146,13 @@ describe("STORED_DICE and the Portent bystander row (A7b)", () => {
     expectPointer(row.rule);
     expect(reg.storedDiceEntries().map(e => e.kind)).toEqual(["portent", "cosmic omen"]); // Cosmic Omen joined in B4
   });
-  it("the bystander row: a stored face, the scene the reach, attacks and saves, a popup only for a crit on an attack", () => {
+  it("the bystander row: a stored face, the scene the reach, attacks, saves and checks (a check only with a DC on its roll), a popup only for a crit on an attack", () => {
     expect(reg.INTERRUPT_ROLLS.Portent).toMatchObject({
       reaction: false,
       uses: false,
       stored: "Portent",
       bystander: "sight",
-      tests: ["attack", "save"],
+      tests: ["attack", "save", "check"],
       bend: "set",
       on: "both",
       ask: "crit"

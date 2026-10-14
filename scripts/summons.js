@@ -20,7 +20,7 @@ import { COMPANIONS, SUMMON_AS, SUMMON_BOONS, SUMMON_CHOICES, SUMMON_COMMANDS, S
   summonChoiceEntries, summonEmpowerEntries, summonFallEntries, summonOwnInitiativeEntries, summonSingleEntries, listedNames } from "./decide/registry.js";
 import { profileRows, choiceRowKey, formNeeds, poolPicks, summonRecord, placedAnswer, narrowedActivities, resistanceEffectData,
   ownershipGrant, seatInitiative, rangeFeet, replacedSummons, companionEffectName, currentCompanion, companionMenu, companionAsk,
-  carriedItemIds, sizesInOrder, summonEffectName, tokenLight, formName, guisesOf, boonFormula, boonHpPlan, castUsage,
+  carriedItemIds, sizesInOrder, summonEffectName, tokenLight, formName, guisesOf, boonFormula, boonHpPlan, systemHpBonusOf, castUsage,
   fallenSummon, casterDeathSummons, lastFormRows, empowerRoute, staleCompanionEffect } from "./decide/summons.js";
 import { transformRecord } from "./decide/transforms.js";
 import { bfCard, esc, popupKey } from "./decide/present.js";
@@ -368,7 +368,9 @@ async function stampEmpower(activity, message, answer) {
   record.pick.img = answer.pick.img ?? null;
   // its look at the cast, put back after the transform (dnd5e's transform wears the form's art)
   record.empower = { companionMessageId: companionMessage.id, level: Number(answer.level) || Number(activity.relevantLevel) || 0, tokenId: doc.id, name: doc.name,
-    look: { texture: doc._source?.texture?.src ?? doc.texture?.src ?? null, img: doc.actor.img ?? null } };
+    look: { texture: doc._source?.texture?.src ?? doc.texture?.src ?? null, img: doc.actor.img ?? null,
+      // its own ring too: dnd5e's transform wears the form's (`tokenPropsFromSource` carries `ring`)
+      ring: doc._source?.ring ? foundry.utils.deepClone(doc._source.ring) : null } };
   record.askedBy = game.user.id;
   await message.setFlag(MODULE_ID, EMPOWER_RECORD_FLAG, { ...record, ...statContext(actor.uuid) });
   const item = actor.items.get(activity.item.id);
@@ -446,9 +448,10 @@ listen("renderActivityUsageDialog", "summons", (app, element) => {
       ownRow.after(row);
       boxes.push(box);
     }
-    // one line ticked at a time; the system's own line is the default
+    // one line ticked at a time; nothing ticked casts without a cost, as the system's own line allows (a re-tick here
+    // would pin the slot once the free cast is spent — RULINGS *Summons* call 57)
     for ( const box of boxes ) box.addEventListener("change", () => {
-      if ( !box.checked ) { if ( !boxes.some(b => b.checked) ) { own.checked = true; paidWith.delete(activity.uuid); } return; }
+      if ( !box.checked ) { if ( !boxes.some(b => b.checked) ) paidWith.delete(activity.uuid); return; }
       for ( const other of boxes ) if ( other !== box ) other.checked = false;
       if ( box.dataset.bfPayWay ) paidWith.set(activity.uuid, box.dataset.bfPayWay); else paidWith.delete(activity.uuid);
     });
@@ -819,8 +822,13 @@ async function landSummon(message) {
     for ( const placement of flag.placements ?? [] ) {
       // dnd5e's own changes for the profile, per token (a formula may be dice).
       const changes = await activity.getChanges(actor, profile, options);
-      // a boon on the caster (SUMMON_BOONS, Fortified Familiar): the feature's own change, landed as the system's bonus would be
-      if ( boon ) boonLanded = await landBoon(changes, actor, caster, boon);
+      // a boon on the caster (SUMMON_BOONS, Fortified Familiar): the feature's own change, landed as the system's bonus would be —
+      // unless the system already carries it (the feat's enchantment reached the spell through its grant, RULINGS *Summons*
+      // call 58): then the system's own number is the record's and nothing is added on top
+      if ( boon ) {
+        const bySystem = systemHpBonusOf(changes, actor.system?.attributes?.hp?.max);
+        boonLanded = bySystem ? { feature: boon.key, benefit: boon.row.benefit, hp: bySystem, bySystem: true } : await landBoon(changes, actor, caster, boon);
+      }
       if ( lightRow ) {
         // the row's size whatever the activity's sizes (Continual Flame's offers none): half a square for a Tiny
         // object (the light's stones), else one 5-ft square
@@ -1472,7 +1480,7 @@ function drawSummon(message, html, flag) {
   } else {
     const kind = flag.creatureType ? (CONFIG.DND5E?.creatureTypes?.[flag.creatureType]?.label ?? flag.creatureType) : null;
     row.innerHTML = bfCard({ eyebrow: "Summon", tone: "good", title: `${names.join(", ") || what} — summoned`,
-      subtitle: [kind, flag.picked, flag.boon ? `+${flag.boon.hp} HP (${flag.boon.benefit})` : null, flag.resistance ? `${flag.resistance.effectName} on ${flag.sourceName}` : null,
+      subtitle: [kind, flag.picked, flag.boon ? `+${flag.boon.hp} HP (${flag.boon.benefit}${flag.boon.bySystem ? ", the sheet's own" : ""})` : null, flag.resistance ? `${flag.resistance.effectName} on ${flag.sourceName}` : null,
         (flag.companion?.state === "pocket") ? "in its pocket dimension" : null,
         flag.replaced ? "the earlier one is dismissed" : null].filter(Boolean).join(" · ") });
     if ( (mine || game.user.isGM) && !flag.dismissAsked ) row.appendChild(momentButton("Dismiss", () => { void askDismiss(message); }, { margin: "0.25rem 0 0" }));

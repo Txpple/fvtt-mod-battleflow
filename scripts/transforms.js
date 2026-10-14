@@ -354,7 +354,8 @@ async function empowerOne(subject, source, { activity, flag, message }) {
   const token = subject.token;
   // its own look, read before the transform: dnd5e's transform wears the form's token art and portrait
   // read off the STORED token (the prepared texture can lag behind the store on this platform)
-  const look = { texture: flag.empower?.look?.texture ?? token?._source?.texture?.src ?? token?.texture?.src ?? null, img: flag.empower?.look?.img ?? subject.img ?? null };
+  const look = { texture: flag.empower?.look?.texture ?? token?._source?.texture?.src ?? token?.texture?.src ?? null, img: flag.empower?.look?.img ?? subject.img ?? null,
+    ring: flag.empower?.look?.ring ?? (token?._source?.ring ? foundry.utils.deepClone(token._source.ring) : null) };
   await subject.transformInto(source, new Setting(empowerSetting(row, tempHp)), { renderSheet: false });
   const landed = token?.actor ?? subject;
   if ( !landed?.isPolymorphed ) throw new Error(`${name} was not transformed`);
@@ -376,8 +377,10 @@ async function empowerOne(subject, source, { activity, flag, message }) {
   const grid = token?.parent?.grid;
   const origin = (grid && token) ? { x: Math.floor(token.x / grid.sizeX) * grid.sizeX, y: Math.floor(token.y / grid.sizeY) * grid.sizeY } : {};
   // flat keys: a nested `texture` object left the token's prepared texture stale on Foundry 14.369 (measured)
+  // its own ring back as well: the form's prototype brought its own, a ring the familiar never wore (RULINGS *Summons* call 59)
   if ( token ) await token.update({ name, lockRotation: false, width: 1, height: 1, ...origin,
-    ...(look.texture ? { "texture.src": look.texture } : {}), "texture.scaleX": 1, "texture.scaleY": 1 });
+    ...(look.texture ? { "texture.src": look.texture } : {}), "texture.scaleX": 1, "texture.scaleY": 1,
+    ...(look.ring ? foundry.utils.flattenObject({ ring: look.ring }) : {}) });
   const tokenUpdates = { ...(changes.tokenUpdates ?? {}) };
   delete tokenUpdates.name; delete tokenUpdates.texture; delete tokenUpdates.width; delete tokenUpdates.height; delete tokenUpdates.ring;
   if ( token && Object.keys(tokenUpdates).length ) await token.update(tokenUpdates);

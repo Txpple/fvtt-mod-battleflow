@@ -592,3 +592,25 @@ export function castUsage(asked, base) {
   for ( const key of ["spell", "consume", "concentration", "cause"] ) if ( asked?.[key] ) usage[key] = asked[key];
   return usage;
 }
+
+/**
+ * The Hit Point bonus dnd5e's own summon changes already carry (`SummonActivity#getChanges` with a non-empty
+ * `bonuses.hp` — the feat's enchantment reaching the spell through its grant, RULINGS *Summons* call 58): the
+ * unlinked branch's raised maximum against the creature's own, else the `dnd5eHPBonus` effect's add. 0 when the
+ * system lands none — then a SUMMON_BOONS row lands the feature's change itself.
+ * @param {{ actorUpdates?: Record<string, unknown> & { effects?: Array<{ changes?: Array<{ key?: string, value?: unknown }> }> } }|null|undefined} changes
+ * @param {number|null|undefined} hpMax   the creature's own maximum before the landing
+ * @returns {number}
+ */
+export function systemHpBonusOf(changes, hpMax) {
+  const raised = Number(changes?.actorUpdates?.["system.attributes.hp.max"]);
+  if ( Number.isFinite(raised) ) return Math.max(0, raised - (Number(hpMax) || 0));
+  for ( const e of changes?.actorUpdates?.effects ?? [] ) {
+    for ( const c of e?.changes ?? [] ) {
+      if ( !/^system\.attributes\.hp\.(max|bonuses\.overall)$/.test(String(c?.key ?? "")) ) continue;
+      const n = Number(c.value);
+      if ( Number.isFinite(n) ) return Math.max(0, n);
+    }
+  }
+  return 0;
+}

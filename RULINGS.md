@@ -75,7 +75,7 @@ done at all stay in DESIGN §8; this is what IS done, differently from the page.
 | **Cutting Words** ("makes a damage roll or succeeds on an ability check or attack roll") and **Guided Strike** ("misses with an attack roll") — another creature's roll | offered after the roll shows its verdict, before the damage; a hit or a miss is held for the bystander (`hold/trigger.js`), a check is offered on its own card | the roller's client cannot be paused by another player's Reaction (Shield's row) | 2026-09-29 |
 | **Every bystander's "a creature you can see within N feet"** (Cutting Words, Guided Strike, Restore Balance) | every creature on the right side of the table (token disposition) within the feet of the ROLLER, not Incapacitated, its Reaction free and a use left, is asked; sight is not judged | nothing the module reads says who sees whom; the side and the distance are the facts it can read (Protection's row) | 2026-09-29 |
 | **Cutting Words' damage half** ("makes a damage roll … reducing the damage") | offered on the attack card only where a hold already stands for the hit (another reaction asked); a hit nobody else is asked about lands whole | the ruled noise gate (Q2 option A): no hold opens for a bend that cannot change the verdict, and without a hold the damage has already landed when a card button could be pressed | 2026-09-29 |
-| **Portent**: "you must choose to do so before the roll" — another creature's D20 Test | offered AFTER that roll, the faces that turn it shown: a demanded save that a stored face turns asks the diviner (the save's verdict waits); an attack asks only on a critical hit, an ordinary hit a face would turn keeps the card row where a hold already stands; the diviner's OWN rolls keep the rule's order (a tick in its roll dialog, before the roll) | the roller's client cannot be paused by another player (Shield's row); the noise gate narrows it to saves and critical hits (Q2 option A) | 2026-09-29 |
+| **Portent**: "you must choose to do so before the roll" — another creature's D20 Test | offered AFTER that roll, the faces that turn it shown: a demanded save that a stored face turns asks the diviner (the save's verdict waits); an attack asks only on a critical hit, an ordinary hit a face would turn keeps the card row where a hold already stands; the diviner's OWN rolls keep the rule's order (a tick in its roll dialog, before the roll); since 2026-10-14 a check or a save whose roll carries a DC asks like a demanded save (*Portent widened*) | the roller's client cannot be paused by another player (Shield's row); the noise gate narrows it to saves and critical hits (Q2 option A) | 2026-09-29 |
 | **A bystander's bend on a CHECK** | the bent total is stated on the check's card — "ask your DM whether it still succeeds"; the module claims no verdict | dnd5e keeps no DC for a check (the raw-check shape, Tactical Mind's) | 2026-09-29 |
 | **A bystander's bend on a SAVE** — and **Countercharm**'s "fails a saving throw against an effect that applies the Charmed or Frightened condition" (2026-09-30) | offered only on a save the module DEMANDED (its DC known, the verdict withheld while the bystander answers); a save rolled from the sheet with no demand is not offered — Countercharm reads what the save is against off the demand's effects | only a demand carries the DC, a verdict to withhold (`registerWithhold`) and what the save is against | 2026-09-29; Countercharm 2026-09-30 |
 | **Magic Circle** and **Forcecage**: a creature "can't willingly enter" / "can't leave it by nonmagical means" | a NOTICE card as the creature moves in or out; the move itself carries on | Polearm Master's row, the same seam: a pause would need the moving client's `pauseMovement`, out of scope (DESIGN §8) (`emanations.js` `notice`) | 2026-09-28 |
@@ -2395,7 +2395,8 @@ NO new kind; BUILT and PROVEN (`smoke-classes` §41).** Calls — **each the use
    bend on the `roll` interrupt (`bend: "set"`, beside "die" and "neutralise") for another creature's roll, and a
    pinned die for the diviner's own: the shape already has its homes, so the kind would name nothing new (R4).
 5. **The faces live on a chip on the wizard** ("Portent — 17 · 3", an effect the effect view lists), written at the
-   Long Rest (the rest card: "Portent — 17 and 3 kept"), renamed as a face is spent, deleted when none is left; the
+   Long Rest (since 2026-10-14 the bearer rolls the dice from the rest card's ask — *Portent widened*; the roll's card:
+   "Portent — 17 and 3 kept"), renamed as a face is spent, deleted when none is left; the
    pack's description text is not written. Once per turn is a stamp on the chip.
 6. **Its own roll, before the roll** (the rule's order): the roll dialog carries "By the Books — before the roll" with a
    tick per face; ticked, the d20 term ROLLS that face (its own result, so the crit, the fumble and every reader
@@ -3629,7 +3630,8 @@ calls:
    from placing — is not so**: the module never reads it (call 1), and §8 is the player test user's own free cast with
    it off, the record stamped on their card. Tom's client had lost clicking and targeting that night (the gm-notes); the
    path itself holds. Allow Summoning stays off on prod.
-46. **A boon on the caster lands at the landing** (Fortified Familiar). The pack carries the benefit as a transferred
+46. **A boon on the caster lands at the landing** (Fortified Familiar) — **as first read; corrected by call 58 (2026-10-14):
+   the enchantment does reach the spell through the feat's grant, and the module then stands down.** The pack carries the benefit as a transferred
    enchantment change on the feat, `activities[summon].bonuses.hp = 2 * @details.level`, a key dnd5e applies only from
    an item's OWN effects (`active-effect.mjs` `applyChange`, `item.mjs` `allApplicableEffects`); transferred to the actor
    it does nothing, and Tychon's summon activity reads `bonuses.hp: ""`. `SUMMON_BOONS`: the elect reads the change the
@@ -3711,6 +3713,27 @@ forward and no pool) and Intercept Attack (an `ac` guard) stay WAITS rows. The c
    step (a cast, a new form, the pocket and back, a new form into the pocket, Dismiss, two casts back to back, 0 HP, an
    orphan) — is `smoke-companions`, green 2026-10-14. Two GM clients at once is the other road to a double; its impact
    analysis is the suite's issue #8.
+57. **Nothing ticked in the ways to pay casts without a cost** (the user's walk, 2026-10-14: with the free cast spent, the
+   slot box could not be unticked — the module re-ticked the system's own line whenever nothing else was). The system's
+   "Consume Spell Slot?" is the player's to clear, as in a plain dnd5e cast; the module's lines stay mutually exclusive with
+   it and with each other, and the consumption hook already reads an unticked slot as a cast with no slot.
+58. **Fortified Familiar is the sheet's own where the grant carried it** (the user's walk, 2026-10-14: a Crab at 33 and a Bat at
+   31 Hit Points, +30 each). Call 46 read the pack's enchantment as inert, off the stored `bonuses.hp: ""`; the PREPARED
+   activity tells another story: dnd5e's feat grant copies the feat's enchantment effect onto the granted spell
+   (`flags.dnd5e.advancementOrigin` on the copy), where it applies to the spell's own summon activity, so the system's landing
+   already adds 2 × level — and the module's boon added the same again. Tychon's sheet carries the enchantment **twice** (the
+   Familiar Trainer background's grant ran twice at session zero, 2026-10-14 01:10; one feat was removed, both copies stayed), so
+   the sheet's own number is 20 at level 5, and with the module's 10 on top the Crab read 33. Now the landing reads the system's
+   own bonus off its changes (`decide/summons.js` `systemHpBonusOf`): where it carries one, the record takes that number
+   (`boon.bySystem`, the card says "the sheet's own") and nothing is added; where it carries none (a spell added by hand, the
+   suites' lent spell before this), the module lands the feature's change as before. The duplicate enchantment is the sheet's to
+   clean (one of the two effects deleted, prod and the sandbox). Errata #792's premise (the enchantment never reaches the
+   spell) is wrong by this measurement and should be withdrawn. `smoke-familiar`'s lend now copies the enchantment as the
+   grant does; §3 asserts base + 2 × level once, `bySystem`.
+59. **An empowered familiar keeps its own token ring** (the user's walk, 2026-10-14: "it puts a ring there that doesn't
+   belong"). dnd5e's transform wears the form's prototype token `ring` (`tokenPropsFromSource`); the empower record now
+   carries the familiar's ring in its look and the landing puts it back with the art and the scale (`transforms.js`
+   `empowerOne`); the revert restores dnd5e's own `previousTokenData`, ring included. §9a asserts it.
 
 | Row | Where | What it does |
 | --- | --- | --- |
@@ -3910,6 +3933,33 @@ go.** Four items; the fourth, Familiar Friend, is *Summons* calls 45–47.
    snapshots carry the Exhaustion either side (`exhaustionChange`), the row says "Exhaustion 0 → 1", and Revert puts the
    level back with the Hit Points (`revertPlan`). Every creature, as the user ruled (2026-10-14): a non-important NPC
    dies at 0 under dnd5e and gains its level all the same, harmlessly.
+
+## Portent widened (2026-10-14)
+
+**Built on `main`, unreleased.** The user's ask off the day's analysis ("widen Portent's bystander offers"), measured first
+(`audits/plans/portent-widened.md`: the three widenings, the prototype's noise meter re-run with today's code), the plan's
+recommendations taken and the rest left as the 2026-09-29 ruling has it. The suites: `smoke-classes` §41, §52 and §82 amended
+(the rest's ask pressed), §126 new.
+
+| Call | Ruling | Why | Date |
+| --- | --- | --- | --- |
+| **A check — or a save that is no demand's answer — whose roll CARRIES a DC** (dnd5e's `options.target`: an enricher's `[[/check … dc=]]` or `[[/save … dc=]]`, a GM's roll request with a DC, an activity's own check) | judged like a demanded save: the margin gate reads the DC, Portent offers only the faces that turn the verdict, the roll's card states "… → 22 vs DC 15 — **SUCCESS**"; nothing is withheld (no demand to withhold for), the bent total is the line's; a die row on such a check (Cutting Words) is margin-gated the same way (`bystanders.js` `dcOnRoll`) | the DC is on the roll, and it is the test the GM chose to set one on; the cost is nothing measurable (`smoke-classes` §126) | 2026-10-14 |
+| **A bare check** (no DC on the roll) | not offered — a check with no DC asks nobody for a stored face; Cutting Words' raw-check shape is unchanged | the exploration-time spam: every check on the scene would ask, and no mute exists out of combat (the plan's W3) | 2026-10-14 |
+| **An ordinary hit, a friend's miss** | unchanged: the card's quiet row where a hold already stands, no popup | the meter re-run with today's code: 8–9 Portent popups a fight against 1–3, and the mute a player reaches for costs the crit and the big save (the plan's W2) | 2026-10-14 |
+| **The rest's dice are the bearer's to roll** (the user: "way more fun") | the rest card ASKS (`storedAsk`): a popup with one button, Roll, for whoever answers for the creature (the owning player when connected, the GM otherwise — `canAnswerFor`); Roll posts the dice as the bearer's own roll message (the dice land on the table; `storedFor` points at the rest card, `storedRolled` is its line) and writes the chip; the decision timer rolls when it runs out ("(timer)"); a popup closed unpressed leaves a Roll button on the rest card; a rest with chat off rolls at once, in the open; the old faces go at the rest, before the new ones are rolled (`stored-dice.js`) | the roll is the player's moment; the module's clocks already say a mandatory roll rolls when the timer runs out | 2026-10-14 |
+
+**The walk table** (the sandbox, Tychon holding Portent; the GM's seat sees the diviner's popups when Tom is not connected):
+
+| Step | What you should see |
+| --- | --- |
+| Tychon takes a Long Rest from his sheet | his old Portent chip goes; the rest card says "Portent — Tychon Thorne rolls the dice"; a popup "Portent — the Long Rest" with one button, Roll, and the timer's bar |
+| Roll | the 2d20 land on the table as Tychon's own roll, "Portent — the Long Rest's dice"; under it "Portent — 17 and 3 kept"; the effect view's "Portent — 17 · 3"; the popup closes |
+| Close the popup without pressing | the rest card keeps a Roll button; the timer (Decision Timer Seconds) rolls when it runs out, "(timer)" on the roll |
+| In chat, `[[/check dex dc=15]]`, then Kartor's player (or you with Kartor's token targeted) clicks it and fails | Tychon's popup "Portent — Kartor's check", "N vs DC 15", only the faces that turn it; Answer: the check's card "Portent (Tychon) the stored 17 replaces the d20 (4): 6 → 19 vs DC 15 — SUCCESS", the chip one face lighter |
+| The same with `[[/save wis dc=15]]` | the same popup and line on the save's own card; nothing waits on it |
+| Kartor rolls a bare Perception check from his sheet and fails | nothing — no DC on the roll, no offer |
+| Kartor's ordinary hit, a Grimlock's ordinary hit | nothing of Portent's — unchanged (the 2026-09-29 ruling) |
+| A Grimlock's critical hit on Kartor | the popup as before — unchanged |
 
 ## Rulings the code carried
 
