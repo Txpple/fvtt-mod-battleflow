@@ -388,7 +388,8 @@ async function empowerOne(subject, source, { activity, flag, message }) {
     description: `<p>${esc(name)} is empowered by ${esc(flag.itemName)} while this effect stands: remove it to end the spell.</p>`,
     duration: { ...duration }, flags: { [MODULE_ID]: { empowerEffect: message.id } }
   }]);
-  const data = formEffectData({ itemName: flag.itemName, formName: flag.pick?.name ?? source.name, img: flag.pick?.img ?? source.img ?? null, origin: flag.itemUuid,
+  // the form effect wears the SPELL's icon, as the caster's does (the form's token art is a creature, not a status)
+  const data = formEffectData({ itemName: flag.itemName, formName: flag.pick?.name ?? source.name, img: activity.item?.img ?? source.img ?? null, origin: flag.itemUuid,
     duration, messageId: message.id, originalId: landed.id, key: flag.key, dependentOn: casterEffect?.uuid ?? null,
     description: `<p>${esc(flag.sourceName)}'s ${esc(flag.itemName)}: ${esc(name)} empowered in the form of ${esc(articleOf(flag.pick?.name ?? source.name))} ${esc(flag.pick?.name ?? source.name)}, ${tempHp} Temporary Hit Points. Removing this ends the spell.</p>` });
   await landed.createEmbeddedDocuments("ActiveEffect", [data]);
