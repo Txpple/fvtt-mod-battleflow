@@ -36,7 +36,7 @@ export function rollChips(roll, cap = 8) {
 /**
  * A reduction (Interception, Cutting Words' damage half): chips over the reducer, the reduction drifting to the
  * protected — and, with the share known (`amount`), a LANDING over the protected once the drift arrives: the
- * modifier beside a chip that shows the damage as rolled and turns over to what lands ("−3", then "5" → "2").
+ * modifier, then a beat later a chip that shows the damage as rolled and turns over to what lands ("−3", then "5" → "2").
  * @param {{roll: object, from: string, to?: string|null, amount?: number|null}} args   actor uuids; the share
  * @returns {{on: string, chips: object[], drift: {to: string, label: string}, land?: {on: string, chips: object[]}}|null}
  */
@@ -46,7 +46,7 @@ export function reductionRise({ roll, from, to = null, amount = null }) {
   const rise = { on: from, chips: rollChips(roll), drift: { to: to || from, label: `−${total}` } };
   const share = Number(amount);
   if ( Number.isFinite(share) && (share > 0) ) {
-    rise.land = { on: to || from, chips: [{ label: `−${total}`, flat: true }, { label: String(Math.max(0, share - total)), was: String(share), up: true }] };
+    rise.land = { on: to || from, chips: [{ label: `−${total}`, flat: true }, { label: String(Math.max(0, share - total)), was: String(share), up: true, after: 700 }] };
   }
   return rise;
 }
@@ -86,7 +86,7 @@ export function foldRise({ mode, oldFace = null, newFace = null, total = null, o
   if ( mode === "die" ) return known(total) && Number(total) ? { on, chips: [{ label: `+${Number(total)}`, flat: true, up: true }] } : null;
   if ( !known(oldFace) || !known(newFace) ) return null;
   if ( mode === "reroll" ) return { on, chips: [{ was: String(oldFace), label: String(newFace), up: true }] };
-  if ( mode === "set" ) return { on, chips: [{ label: String(newFace), up: true }, { was: String(oldFace), label: String(newFace), up: true }] };
+  if ( mode === "set" ) return { on, chips: [{ label: String(newFace), up: true }, { was: String(oldFace), label: String(newFace), up: true, after: 700 }] };
   const second = Number(newFace) > Number(oldFace);
   return { on, chips: [second ? { label: String(oldFace), drop: true } : { label: String(oldFace), up: true },
     second ? { label: String(newFace), up: true } : { label: String(newFace), drop: true }] };

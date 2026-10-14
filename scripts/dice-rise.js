@@ -1,8 +1,9 @@
 /**
  * By the Books — SPINE: THE DICE THAT RISE (RULINGS *Dice that rise*) — chips over a token on the
  * canvas interface, off with core's scrolling-text setting; per client, nothing stored.
- * A chip: `{label, was?, up?, flat?, drop?, lost?}` — `was` the face it turns FROM; `up` the gold
- * edge; `flat` a bonus, not a die; `drop` a die that no longer counts; `lost` a dropped critical.
+ * A chip: `{label, was?, up?, flat?, drop?, lost?, after?}` — `was` the face it turns FROM; `up` the gold
+ * edge; `flat` a bonus, not a die; `drop` a die that no longer counts; `lost` a dropped critical; `after`
+ * the milliseconds it waits before it shows (a second card that appears once the first has been read).
  */
 
 import { readFlag, TITLE } from "./core.js";
@@ -26,16 +27,18 @@ const Text = () => foundry.canvas.containers.PreciseText;
 /**
  * Raise the chips over a token visible to this client.
  * @param {Token|null} token
- * @param {{label: string, was?: string, up?: boolean, flat?: boolean, drop?: boolean, lost?: boolean}[]} chips
+ * @param {{label: string, was?: string, up?: boolean, flat?: boolean, drop?: boolean, lost?: boolean, after?: number}[]} chips
  */
 export function riseDice(token, chips) {
   if ( !token?.visible || !chips?.length || !canvas?.interface || !canvas?.app?.ticker ) return;
   if ( game.settings.get("core", "scrollingStatusText") === false ) return;
   const s = canvas.dimensions?.uiScale ?? 1;
   const size = 30, gap = 6, root = new PIXI.Container();
-  const turns = [], drops = [];
+  const turns = [], drops = [], lates = [];
   chips.forEach((c, i) => {
     const chip = new PIXI.Container();
+    const after = Math.max(0, Number(c.after) || 0);
+    if ( after ) { chip.alpha = 0; lates.push({ chip, after }); }
     chip.position.set(i * (size + gap) + size / 2, size / 2);
     const glow = new PIXI.Graphics().lineStyle(7, c.lost ? RED : GOLD, 0.55).drawRoundedRect(-size / 2 - 2, -size / 2 - 2, size + 4, size + 4, 7);
     glow.alpha = 0;
@@ -52,7 +55,7 @@ export function riseDice(token, chips) {
       drops.push({ chip, glow, strike, lost: !!c.lost });
     }
     root.addChild(chip);
-    if ( c.up ) turns.push({ chip, glow, text, to: c.label, flips: !!c.was, turned: false });
+    if ( c.up ) turns.push({ chip, glow, text, to: c.label, flips: !!c.was, turned: false, after });
   });
   const width = (chips.length * size) + ((chips.length - 1) * gap);
   root.pivot.set(width / 2, size);
@@ -60,7 +63,9 @@ export function riseDice(token, chips) {
   root.position.set(token.center.x, y0);
   root.alpha = 0;
   onTop(root);
-  const start = performance.now(), total = 1900;
+  // The latest chip's wait stretches the whole rise by as much.
+  const latest = Math.max(0, ...chips.map(c => Number(c.after) || 0));
+  const start = performance.now(), out = 1200 + latest, total = 1900 + latest;
   const tick = () => {
     const t = performance.now() - start;
     if ( (t >= total) || root.destroyed ) {
@@ -68,19 +73,20 @@ export function riseDice(token, chips) {
       if ( !root.destroyed ) root.destroy({ children: true });
       return;
     }
-    // in: 0–250 fade and grow; out: 1200–1900 rise and fade
+    // in: 0–250 fade and grow; out: the last 700 rise and fade
     const pop = Math.min(1, t / 250);
-    root.alpha = t < 1200 ? pop : Math.max(0, 1 - ((t - 1200) / 700));
+    root.alpha = t < out ? pop : Math.max(0, 1 - ((t - out) / 700));
     root.scale.set(s * (0.6 + (0.4 * pop)));
-    root.position.y = y0 - (t > 1200 ? ((t - 1200) / 700) * 40 * s : 0);
+    root.position.y = y0 - (t > out ? ((t - out) / 700) * 40 * s : 0);
+    for ( const l of lates ) l.chip.alpha = Math.min(1, Math.max(0, (t - l.after) / 250));   // a late chip fades in on its own clock
     for ( const u of turns ) {
-      // 400–600 the turn; the flash peaks at 550.
-      const k = (t - 400) / 200;
+      // 400–600 after the chip shows, the turn; the flash peaks at 550.
+      const k = (t - u.after - 400) / 200;
       if ( u.flips ) {
         if ( (k >= 0.5) && !u.turned ) { u.text.text = u.to; u.turned = true; }
         u.chip.scale.y = ((k > 0) && (k < 1)) ? Math.max(0.05, Math.abs(1 - (2 * k))) : 1;
       }
-      u.glow.alpha = (t < 400) ? 0 : Math.max(0, 1 - (Math.abs(t - 550) / 350));
+      u.glow.alpha = (t < u.after + 400) ? 0 : Math.max(0, 1 - (Math.abs(t - u.after - 550) / 350));
     }
     for ( const d of drops ) {
       // 450–650 the drop: the strike draws in, the chip dims; a lost critical flashes red first

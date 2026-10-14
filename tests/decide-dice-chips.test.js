@@ -46,7 +46,7 @@ describe("foldRise - a d20 fold whose number changed", () => {
   it("a stored face (Portent): the face itself, then the d20 turning over to it", () => {
     expect(foldRise({ mode: "set", oldFace: 14, newFace: 3, on: "Actor.r" }).chips).toEqual([
       { label: "3", up: true },
-      { was: "14", label: "3", up: true }
+      { was: "14", label: "3", up: true, after: 700 }
     ]);
   });
   it("Lucky's second d20: the higher gold, the other struck; a tie keeps the first", () => {
@@ -147,7 +147,7 @@ describe("a reaction that modifies a roll - the reductions, Shield, a fold's die
       on: "Actor.ally",
       chips: [
         { label: "−3", flat: true },
-        { label: "2", was: "5", up: true }
+        { label: "2", was: "5", up: true, after: 700 }
       ]
     });
     expect(
@@ -157,7 +157,7 @@ describe("a reaction that modifies a roll - the reductions, Shield, a fold's die
         to: "Actor.ally",
         amount: 5
       }).land.chips[1]
-    ).toEqual({ label: "0", was: "5", up: true });
+    ).toEqual({ label: "0", was: "5", up: true, after: 700 });
     expect(reductionRise({ roll: d10(5, 2), from: "Actor.me" }).land).toBeUndefined();
     expect(reductionRise({ roll: { total: 0, terms: [] }, from: "Actor.me" })).toBeNull();
   });
