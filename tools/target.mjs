@@ -89,6 +89,9 @@ export async function preflightSoleGM(f, { requireElect = true, allowBridge = fa
       .map(u => [u.name, u.flags.world.fvttMcpBridge])),
     module: !!game.modules.get('fvtt-mod-bythebooks')?.active,
     legacy: !!game.modules.get('fvtt-mod-battleflow')?.active,
+    // A started combat none of the fixtures stand in: the table's own, left running.
+    foreignCombats: game.combats.filter(c => c.started && !c.combatants.some(cb => /^(BTB|BF) Test /.test(cb.actor?.name ?? cb.name ?? '')))
+      .map(c => `${c.scene?.name ?? 'no scene'} round ${c.round} turn ${c.turn} (${c.combatants.map(cb => cb.name).join(', ') || 'no combatants'}; id ${c.id})`),
   }), null);
   const others = who.gms.filter(n => n !== who.self);
   const onlyTheBridge = others.length === 1 && others[0] === bridgeUser;
@@ -109,6 +112,13 @@ export async function preflightSoleGM(f, { requireElect = true, allowBridge = fa
     throw new Error(
       `PREFLIGHT: ${who.gms.length} GM-capable clients connected (${who.gms.join(', ')}) — `
       + `exactly one must be. ${why}`);
+  }
+  // ⚠ A started combat of the table's own poisons every suite: the receipts stamp `game.combat` whoever is in it,
+  // and Foundry clocks every new effect to it, so a Reaction chip spent out of combat reads as expired. A fixture
+  // combat is a killed run's, swept by teardown-fixtures; this one is somebody's, ended by hand.
+  if (requireElect && who.foreignCombats.length) {
+    throw new Error(`PREFLIGHT: a started combat none of the fixtures stand in — ${who.foreignCombats.join('; ')}. `
+      + 'The receipts and the Reaction chips would read it. End or delete it (the tracker, or the MCP), then re-run.');
   }
   if (requireElect && (!who.module || who.legacy)) {
     throw new Error('PREFLIGHT: '

@@ -71,6 +71,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   if (!casterToken) return { fatal: 'the Sorcerer has no token on the scene — run tools/fixture-suite.mjs' };
   const lent = [];
   let artBefore;
+  const suiteStart = Date.now();
   const madeTokens = [];
   const madeActors = [];
   const madeMessages = [];
@@ -87,6 +88,12 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const live = lent.filter(id => caster.items.get(id));
       if (live.length) await caster.deleteEmbeddedDocuments('Item', live);
       for (const a of madeActors) { if (game.actors.get(a.id)) await a.delete(); }
+      // The gear a fallen Battle Familiar leaves (a Loot Shelf chest where it stood): its token and its actor go too,
+      // or the next area ask on the range lists the chest.
+      const chests = game.actors.filter(a => /'s gear$/.test(a.name ?? '') && (a._stats?.createdTime ?? 0) >= suiteStart);
+      const chestTokens = canvas.scene.tokens.filter(t => chests.some(a => a.id === t.actorId)).map(t => t.id);
+      if (chestTokens.length) await canvas.scene.deleteEmbeddedDocuments('Token', chestTokens);
+      if (chests.length) await Actor.deleteDocuments(chests.map(a => a.id));
       for (const m of madeMessages) { if (game.messages.get(m.id)) await m.delete(); }
       if (game.combat?.getFlag(MOD, 'suiteSummons')) await game.combat.delete();
     } catch (err) { log.push(`TEARDOWN ERROR: ${err?.message}`); }

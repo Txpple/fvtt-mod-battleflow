@@ -91,7 +91,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       // §10's statuses and chip must not outlive a crash: they bend the next suite's rolls.
       for (const a of [victim, shielder, npc]) {
         const carriers = a.effects.filter(e => e.getFlag(MOD, 'mastery')
-          || ['prone', 'blinded'].some(s => e.statuses?.has?.(s)));
+          || ['prone', 'blinded', 'unconscious', 'dead'].some(s => e.statuses?.has?.(s)));
         if (carriers.length) await a.deleteEmbeddedDocuments('ActiveEffect', carriers.map(e => e.id));
       }
       for (const [actorId, ids] of Object.entries(created.items.reduce((m, i) => {
@@ -711,6 +711,13 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         const eff = await ActiveEffect.implementation.fromStatusEffect(id);
         await ActiveEffect.implementation.create(eff.toObject(), { parent: actor, keepId: true });
       };
+      // The two start clean: the rays above can down either out of combat, and the downed conditions'
+      // Prone rider outlives the heal, which would be a modifier §10 did not press.
+      for (const a of [victim, shielder]) {
+        const stale = a.effects.filter(e => ['prone', 'blinded', 'unconscious', 'dead'].some(s => e.statuses?.has?.(s)));
+        if (stale.length) await a.deleteEmbeddedDocuments('ActiveEffect', stale.map(e => e.id));
+        await a.update({ 'system.attributes.hp.value': a.system.attributes.hp.max });
+      }
       await press(victim, 'prone');
       await press(shielder, 'blinded');
       const vex = await ActiveEffect.implementation.create({
@@ -782,7 +789,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       // Put the table back: statuses, the chip if it survived, dispositions.
       for (const a of [victim, shielder]) {
         const carriers = a.effects.filter(e => e.getFlag(MOD, 'mastery')
-          || ['prone', 'blinded'].some(s => e.statuses?.has?.(s)));
+          || ['prone', 'blinded', 'unconscious', 'dead'].some(s => e.statuses?.has?.(s)));
         if (carriers.length) await a.deleteEmbeddedDocuments('ActiveEffect', carriers.map(e => e.id));
       }
       for (const [i, t] of trio.entries()) await t.document.update({ disposition: priorDispo[i] }).catch(() => {});

@@ -78,6 +78,22 @@ One per feature area. Every suite restores the settings it touches and deletes i
 messages. Disconnect the MCP bridge first, and verify settings after — **`battery.mjs` does the
 ordering, the capture and the settings check for you**, which is why it is the front door.
 
+⚠ **A started combat of the table's own is refused by the preflight** (2026-10-14): a hand walk's
+combat left running (unlinked, round 26) stamped every receipt (`combatStamp` reads `game.combat`,
+whoever is in it) and expired every Reaction chip spent out of combat (Foundry clocks a new effect
+to the active combat), and the first battery after it went red in three suites before anything else.
+A combat none of the fixtures stand in names itself in the refusal; end or delete it, then re-run.
+A fixture combat (a killed run's) is teardown's, not the preflight's.
+
+**The downed leftovers are swept on every suite's connect** (`harness.mjs`, 2026-10-14): the module
+applies dnd5e's downed conditions out of combat too, and the Prone rider outlives the heal, as
+written — so a fixture one suite dropped and healed stood Prone in the next (a modifier it never
+pressed), with Exhaustion from the Going Down house rule and death saves from a death-save section.
+Every `BTB Test` actor goes back to standing (Prone, Unconscious and Dead off, Exhaustion 0, death
+saves 0) before a suite's first section. Pools stay each suite's own; `reset-fixture-state` fills
+the shared four, and sweeps every FOREIGN token off the range (no fixture stamp, not a BTB Test
+actor: a hand walk's summons, the gear chests a familiar leaves).
+
 `reset-fixture-state` runs before any suite (it sweeps a killed run's linked strays before anything
 measures a distance — NOTES §5 *A KILLED battery poisons the next one*), `smoke-bythebooks` is the
 first suite (it places the shared victim token), `smoke-hold` immediately after
@@ -157,7 +173,11 @@ run: evaluate #7`, `teardown`), **kills the headless browser and its renderers**
 Playwright's own exit hook did not), and exits 3; any other exit with the browser still open runs the
 same kill, and a `dispose()` that does not settle in 10 s ends the same way. Proven by a script whose
 evaluate holds a promise forever: exit 3 at the watchdog, no `chrome-headless-shell` left, the lock
-released, `/api/status` back to zero users.
+released, `/api/status` back to zero users. **The heartbeat also reports a stage the suite sets**
+(`window.__suiteStage`, 2026-10-14): a suite whose whole run is one `evaluate` names its step before
+each await group (`stage('§10')`), and a hang then reads "stage §10" instead of "evaluate #8" — how
+`smoke-spells`'s 600 s hang was traced to the 2024 Sleep's template placement in a headless page.
+`smoke-spells` carries the markers; add them to a suite the moment it hangs.
 
 **One-off jobs** go through `job.mjs` instead of a throwaway script: `-e "<the body of an async
 function>"` or a file holding one, run in the GM client's page with `arg` (`--arg '<json>'`) and
@@ -189,6 +209,13 @@ run the probe and compare its row with these.
 | `--section 4 smoke-hold` | one suite's sections; only that suite receives `--section`, a pulled need runs whole |
 | `--snapshot` | take a world snapshot first, roll it back after (the cure for the crash-launder hazard) |
 | `--list` | the order, the needs and the notes, without running anything. With `--changed` / `--files` / names: **the plan**, each row with why it runs (the file that claimed it, the suite that needed it, or the reason for the full battery), and each changed file that runs nothing with why |
+
+**The house rules are off for the run** (2026-10-14): after the settings snapshot the battery pins
+`goingDownCosts` false through `job.mjs` (the file `pin-house-rules.txt`), and puts the table's own
+value back before the settings check. The suites assert the rules as written; a table with the house
+rule on walked its fixtures to Exhaustion 6 — dead — across a dozen suites. The section that tests the
+rule (`smoke-bythebooks` §4d) pins it on itself. A suite run by hand on such a table is the
+hand-runner's to pin.
 
 **The progress bar** (`battery-status.mjs`, 2026-09-30, the user's rule): **a status update on a running
 battery is this bar, never prose** — run it and paste the lines.

@@ -4508,6 +4508,9 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     // ---- 63. the reminders and the bends: War Magic, Shadow Step, Defensive Tactics (Escape the Horde, Multiattack Defense), Misty Escape, Sculpt Spells
     if (want(63)) {
       await closeA1(); await a1Victim(); await spendLuck();
+      // The Halfling stands: a drop earlier in the suite leaves the downed conditions' Prone rider past the heal (as
+      // written), and c reads the gate's rows.
+      { const stale = halfling.effects.filter(e => ['prone', 'unconscious', 'dead'].some(s => e.statuses?.has?.(s))); if (stale.length) await halfling.deleteEmbeddedDocuments('ActiveEffect', stale.map(e => e.id)); }
       const warMagic = await hgLend(pcAttacker, 'War Magic', 'feat');
       const shadow = await hgLend(pcAttacker, 'Shadow Step', 'feat');
       const tactics = await hgLend(halfling, 'Defensive Tactics', 'feat');

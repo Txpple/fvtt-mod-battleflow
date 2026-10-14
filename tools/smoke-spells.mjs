@@ -53,6 +53,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   };
   const sleep = ms => new Promise(r => setTimeout(r, ms));
   const suiteStart = Date.now();
+  // The heartbeat reports this (harness.mjs): where the run is when it hangs.
+  const stage = s => { window.__suiteStage = s; };
 
   const mod = game.modules.get(MOD);
   if (!mod?.active) return { fatal: `module active=${mod?.active}` };
@@ -109,6 +111,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   };
 
   try {
+    stage('settings');
     await set('decisionTimer', 0);
     await set('dramaticBeat', 0);
     await set('saveRolls', 'auto');   // the demanded saves roll themselves; the bonus steers the verdict
@@ -130,12 +133,14 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       return null;
     };
     const spells = {};
+    stage('lend');
     for (const name of ['Heroism', 'Hold Person', "Tasha's Hideous Laughter", "Otto's Irresistible Dance", 'Flesh to Stone', 'Sleep']) {
       spells[name] = await lend(name, 'spell');
       if (!spells[name]) return { fatal: `the PHB ships no "${name}" this box can find`, results, log, skips };
     }
     const actOf = (name, type) => cleric.items.get(spells[name].id)?.system.activities.find(a => a.type === type) ?? null;
 
+    stage('view');
     if (canvas.scene?.id !== scene.id) await scene.view();
     for (let i = 0; i < 40 && !canvas.ready; i++) await sleep(250);
     const g = scene.grid.size;
@@ -150,6 +155,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       for (let i = 0; i < 40 && !(canvas.ready && canvas.tokens.get(doc.id)); i++) await sleep(250);
       return canvas.tokens.get(doc.id);
     };
+    stage('place');
     const victimToken = await place(victim, 0);
     const clericToken = await place(cleric, 1);
     if (!victimToken || !clericToken) return { fatal: 'the tokens never reached the canvas', results, log, skips };
@@ -179,12 +185,14 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       return (cards.length >= n) && c?.getFlag(MOD, 'repeatSave')?.says ? c : null;
     }, timeout);
 
-    /** Cast a save spell at the Victim with the save steered: the demand card, its verdict done. */
+    /** Cast a save spell at the Victim with the save steered: the demand card, its verdict done.
+     * ⚠ No template: the 2024 Sleep carries a sphere, and dnd5e's placement waits for a canvas click no headless client
+     * makes (the run hung there for the watchdog's whole 600 s); the demand reads the targeted Victim instead. */
     const castAt = async (name, bonus) => {
       await saveBonusFor(name, bonus);
       target();
       await sleep(120);
-      const use = await actOf(name, 'save').use({ consume: { spellSlot: false } }, { configure: false }, {});
+      const use = await actOf(name, 'save').use({ consume: { spellSlot: false }, create: { measuredTemplate: false } }, { configure: false }, {});
       const card = use?.message instanceof ChatMessage ? use.message : null;
       if (!card) return null;
       await waitFor(() => card.getFlag(MOD, 'saves')?.targets?.[0]?.applied ? true : null, 15000);
@@ -206,6 +214,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
 
     // ================================================== 1. Heroism
     if (want(1)) {
+      stage('§1');
       await healFull();
       const mod = Number(cleric.system.abilities?.wis?.mod ?? 0);
       target();
@@ -215,7 +224,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const bravery = await waitFor(() => effectNamed('Bravery'), 12000);
       ok('1a. the cast lands Bravery on the Victim, its origin the Cleric\'s Heroism (the applier\'s stamp)',
         !!card && !!bravery && (bravery.system?.origin?.item === cleric.items.get(spells.Heroism.id)?.uuid),
-        `card=${!!card} bravery=${!!bravery} origin=${bravery?.system?.origin?.item}`);
+        `card=${!!card} bravery=${!!bravery} origin=${bravery?.system?.origin?.item} use=${typeof use}:${JSON.stringify(use && Object.keys(use))} msgType=${use?.message?.constructor?.name}`);
       await startCombat();
       const n0 = grantCards().length;
       await combat.nextTurn();   // the Victim's turn starts
@@ -240,6 +249,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
 
     // ================================================== 2. Hold Person at the turn end
     if (want(2)) {
+      stage('§2');
       await healFull();
       const cast = await castAt('Hold Person', '-30');
       const paralyzed = await waitFor(() => effectNamed('Paralyzed'), 8000);
@@ -290,6 +300,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
 
     // ================================================== 10. Sleep (2024)
     if (want(10)) {
+      stage('§10');
       await healFull();
       const cast = await castAt('Sleep', '-30');
       const sleeping = await waitFor(() => effectNamed('Sleeping'), 8000);
@@ -339,6 +350,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
 
     // ================================================== 3. Tasha's on damage
     if (want(3)) {
+      stage('§3');
       await healFull();
       const cast = await castAt("Tasha's Hideous Laughter", '-30');
       const laughing = await waitFor(() => effectNamed('Uncontrollable Laughter'), 8000);
@@ -374,6 +386,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
 
     // ================================================== 4. Otto's: the action, offered
     if (want(4)) {
+      stage('§4');
       await healFull();
       const cast = await castAt("Otto's Irresistible Dance", '-30');
       const dance = await waitFor(() => effectNamed('Irresistible Dance'), 8000);
@@ -406,6 +419,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
 
     // ================================================== 5. Flesh to Stone: the count
     if (want(5)) {
+      stage('§5');
       await healFull();
       const cast = await castAt('Flesh to Stone', '-30');
       const stone = await waitFor(() => effectNamed('Turning to Stone'), 8000);
@@ -443,6 +457,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     const clericHp = () => cleric.system.attributes.hp.value;
     const victimHp = () => victim.system.attributes.hp.value;
     if (want(6)) {
+      stage('§6');
       await healFull();
       spells['Warding Bond'] = await lend('Warding Bond', 'spell');
       if (!spells['Warding Bond']) return { fatal: 'the PHB ships no "Warding Bond" this box can find', results, log, skips };
@@ -497,6 +512,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
 
     // ================================================== 7. Vampiric Touch: the heal on hit
     if (want(7)) {
+      stage('§7');
       await healFull();
       spells['Vampiric Touch'] = await lend('Vampiric Touch', 'spell');
       if (!spells['Vampiric Touch']) return { fatal: 'the PHB ships no "Vampiric Touch" this box can find', results, log, skips };
@@ -530,6 +546,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
 
     // ================================================== 8. Prismatic Spray: the rays
     if (want(8)) {
+      stage('§8');
       await healFull();
       spells['Prismatic Spray'] = await lend('Prismatic Spray', 'spell');
       if (!spells['Prismatic Spray']) return { fatal: 'the PHB ships no "Prismatic Spray" this box can find', results, log, skips };
@@ -621,6 +638,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
 
     // ================================================== 9. Regeneration — the bearer's own trait
     if (want(9)) {
+      stage('§9');
       let regen = null;
       try {
         await clearVictim();

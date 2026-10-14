@@ -27,9 +27,10 @@ const COUNT_FLAG = "repeatCount";
  * names the pack, NOTES §2). */
 const originItemOf = effect => effectSourceOf(effect)?.item ?? null;
 
-/** The listed row a standing effect answers, with its item — null for almost every effect. */
-function rowOf(effect) {
-  if ( !effect || effect.disabled || readFlag(effect, COUNT_FLAG)?.locked ) return null;
+/** The listed row a standing effect answers, with its item — null for almost every effect. A locked effect (its count
+ * spent, no more asking) answers none, unless `lockedToo`: an `endsOn` cause still ends it (Sleep's damage). */
+function rowOf(effect, { lockedToo = false } = {}) {
+  if ( !effect || effect.disabled || (!lockedToo && readFlag(effect, COUNT_FLAG)?.locked) ) return null;
   const item = originItemOf(effect);
   // THE DMG — an enchanted weapon is its row's item too (Sword of Wounding on a "Longsword of Wounding").
   const found = repeatRowFor({ table: REPEAT_SAVES, item, effectName: effect.name, listed: listedNames(repeatSaveEntries()), answers: answersOrEnchanted });
@@ -88,10 +89,12 @@ listen("dnd5e.damageActor", "repeat-saves", (actor, changes) => {
     const total = Number(changes?.total ?? ((Number(changes?.hp) || 0) + (Number(changes?.temp) || 0)));
     if ( !(total < 0) ) return;   // healing, or a change that took nothing
     for ( const effect of actor.effects ) {
-      const row = rowOf(effect);
+      // a locked effect still ENDS on its cause (Sleep locked by the failed repeat, then damaged); it repeats no more
+      const row = rowOf(effect, { lockedToo: true });
       if ( !row ) continue;
       // an `endsOn` row (Sleep): the damage ends the effect outright, no save
       if ( repeatEnds(row, "damaged") ) { void endOutright(effect, row, "damaged"); continue; }
+      if ( readFlag(effect, COUNT_FLAG)?.locked ) continue;
       const due = repeatDue(row, "damaged", { pending: pendingFor(effect) });
       if ( !due.due ) continue;
       void raiseRepeat(effect, row, "damaged", due.why);
@@ -267,7 +270,8 @@ listen("deleteActiveEffect", "repeat-saves", effect => {
   try {
     const actor = effect.parent;
     if ( !(actor instanceof Actor) || !drivesMomentFor(actor.uuid) ) return;
-    const row = rowOf(effect);
+    // the lock is what pressed the status, so the locked effect is the one that lifts it
+    const row = rowOf(effect, { lockedToo: true });
     const count = readFlag(effect, COUNT_FLAG) ?? null;
     const lift = row ? repeatLift(row, count) : null;
     if ( !lift ) return;
@@ -285,7 +289,7 @@ listen("deleteActiveEffect", "repeat-saves", effect => {
     const actor = effect.parent;
     if ( !(actor instanceof Actor) || !canvas?.interface?.createScrollingText ) return;
     if ( !needsFloat({ statuses: effect.statuses, changes: effect.system?.changes ?? effect.changes ?? [] }) ) return;
-    if ( !rowOf(effect) ) return;
+    if ( !rowOf(effect, { lockedToo: true }) ) return;
     // The platform's own float (ActiveEffect#_displayScrollingStatus), for the effect it skips.
     for ( const token of actor.getActiveTokens(true) ) {
       if ( !token.visible || token.document.isSecret ) continue;

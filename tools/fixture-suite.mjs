@@ -456,6 +456,19 @@ const out = await f.evaluate(async ({ playerName }) => {
     await ensureToken(dummy, 1900, false, 600);
     for (const { actor, x, y } of built) await ensureToken(actor, x, true, y);
 
+    // ⚠ FOREIGN tokens off the range (no fixture stamp, not a BTB Test actor): a hand walk's summons, the gear chest a
+    // fallen familiar leaves — every area ask lists them, and the seed runs before each suite that asks at an area.
+    // An ephemeral chest's actor goes with its last token. reset-fixture-state sweeps the same.
+    const foreign = scene.tokens.filter(t => !t.getFlag("fvtt-mod-bythebooks", "fixtureHome")
+      && !/^(BTB|BF) Test /.test(game.actors.get(t.actorId)?.name ?? ""));
+    if (foreign.length) {
+      await scene.deleteEmbeddedDocuments("Token", foreign.map(t => t.id));
+      const chests = [...new Set(foreign.map(t => t.actorId))].map(id => game.actors.get(id))
+        .filter(a => a && /'s gear$/.test(a.name) && !game.scenes.some(s => s.tokens.some(t => t.actorId === a.id)));
+      if (chests.length) await Actor.deleteDocuments(chests.map(a => a.id));
+      log.push(`swept ${foreign.length} foreign token(s) off the range: ${foreign.map(t => t.name).join(", ")}${chests.length ? ` (and ${chests.length} gear chest actor(s))` : ""}`);
+    }
+
     // Full HP on the token actors: at 0, "applied 0" and "already empty" look the same.
     for (const id of [attackerToken, victimToken]) {
       const ta = scene.tokens.get(id)?.actor;

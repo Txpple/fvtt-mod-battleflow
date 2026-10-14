@@ -217,22 +217,29 @@ listen("dnd5e.preApplyDamage", "drop-to-one", (actor, amount, updates, _options)
 // module applies the same mapping (`downedOutcome`) to a creature NOT in combat, on the updating client as the system
 // does, with the system's own `autoDowned` flag, so the system's removal on the heal is the one that ends it and the
 // Prone rider stays, as written. dnd5e's setting governs: at "none" nothing is applied.
+// One application per drop: the hook can fire again for the same creature before the first status lands (a synthetic
+// actor's update reaches it twice), and the status ids are fixed, so a second create would be refused as a duplicate.
+const downing = new Set();
 listen("updateActor", "drop-to-one", (actor, changes, _options, userId) => {
   try {
     if ( (userId !== game.user.id) || !(actor instanceof Actor) || !foundry.utils.hasProperty(changes, HP) ) return;
-    if ( (Number(actor.system?.attributes?.hp?.value ?? 1) > 0) || actor.inCombat ) return;
+    if ( (Number(actor.system?.attributes?.hp?.value ?? 1) > 0) || actor.inCombat || downing.has(actor.uuid) ) return;
     const conditions = actor.effects.filter(e => e.type === "condition" || e.statuses?.size);
     const toApply = downedOutcome({ setting: game.settings.get("dnd5e", "autoApplyDowned"), type: actor.type,
       important: !!actor.system?.traits?.important, failedDeathSaves: Number(actor.system?.attributes?.death?.failure ?? 0) >= 3,
       isDead: conditions.some(e => e.statuses?.has?.("dead")), isUnconscious: conditions.some(e => e.statuses?.has?.("unconscious")) });
     if ( !toApply ) return;
+    downing.add(actor.uuid);
     void (async () => {
       const effect = await ActiveEffect.implementation.fromStatusEffect(toApply);
+      // Landed meanwhile (the system's own, or another client's): nothing to add.
+      if ( actor.statuses?.has?.(toApply) || actor.effects.has(effect.id) ) return;
       const flags = { dnd5e: { autoDowned: true } };
       if ( toApply === "dead" ) flags.core = { overlay: true };
       effect.updateSource({ flags });
       await ActiveEffect.implementation.create(effect, { parent: actor, keepId: true });
-    })().catch(err => console.warn(`${TITLE} | The downed condition could not be applied out of combat — set it by hand.`, err));
+    })().catch(err => console.warn(`${TITLE} | The downed condition could not be applied out of combat — set it by hand.`, err))
+      .finally(() => downing.delete(actor.uuid));
   } catch(err) {
     console.error(`${TITLE} | The downed condition failed out of combat.`, err);
   }

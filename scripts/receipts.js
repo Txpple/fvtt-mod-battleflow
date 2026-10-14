@@ -242,6 +242,9 @@ export async function revertTarget(message, uuid) {
     return;
   }
 
+  // The Dead mark goes FIRST, while the Hit Points are still 0: dnd5e's `updateDowned` deletes every `autoDowned`
+  // effect the moment they come back, so a clear after the write races the system's own (the loser throws).
+  if ( plan.clearDefeated ) await clearStatus(actor, "dead");
   await actor.update(plan.update);
   // A ward pool's take goes back to the ward (its hit points are the feature's uses).
   if ( plan.ward?.took ) {
@@ -264,7 +267,8 @@ export async function revertTarget(message, uuid) {
 
 /**
  * combatplus's combatant matching, in reverse. ⚠ Best-effort: dnd5e races to clear the same marks,
- * and a lost race must not cost the caller its marker write.
+ * and a lost race must not cost the caller its marker write. The Dead status itself is cleared
+ * before the Hit Points are written (`revertTarget`), never here.
  */
 async function clearDefeated(actor) {
   for ( const combat of game.combats ) {
@@ -279,5 +283,4 @@ async function clearDefeated(actor) {
       }
     }
   }
-  await clearStatus(actor, "dead");
 }

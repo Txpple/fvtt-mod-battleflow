@@ -357,10 +357,10 @@ export async function connectSuite({ tag, watchdogMs, requireElect = true, allow
     let peekTimer;
     try {
       const w = await Promise.race([
-        evaluate(() => ({ messages: game.messages.size, combat: game.combat ? `round ${game.combat.round} turn ${game.combat.turn}` : "none" }), null),
+        evaluate(() => ({ messages: game.messages.size, combat: game.combat ? `round ${game.combat.round} turn ${game.combat.turn}` : "none", stage: window.__suiteStage ?? null }), null),
         new Promise((_, reject) => { peekTimer = setTimeout(() => reject(new Error("no answer in 5 s")), 5_000); })
       ]);
-      pulse = `the page answers: ${w.messages} messages, combat ${w.combat}`;
+      pulse = `the page answers: ${w.messages} messages, combat ${w.combat}${w.stage ? `, stage ${w.stage}` : ""}`;
     } catch (err) {
       pulse = `⚠ the page did not answer (${err.message})`;
     } finally { clearTimeout(peekTimer); }
@@ -371,6 +371,32 @@ export async function connectSuite({ tag, watchdogMs, requireElect = true, allow
   stage = "preflight";
   await preflightSoleGM(f, { requireElect, allowBridge, env });
   stage = "baseline";
+
+  /**
+   * ⚠ THE DOWNED LEFTOVERS, swept on every suite's connect: the module applies the downed conditions out of combat
+   * too (dnd5e's own mapping), and the Prone rider OUTLIVES the heal, as written — so a fixture a previous suite
+   * dropped and healed stands Prone, with Exhaustion from the Going Down house rule when a table has it on, and
+   * death saves from a death save section. Every `BTB Test` actor goes back to standing: those three statuses
+   * off, Exhaustion 0, death saves 0. Pools are each suite's own (reset-fixture-state fills the shared four).
+   */
+  if ( requireElect ) {
+    const swept = await f.evaluate(async () => {
+      const out = [];
+      for ( const a of game.actors.filter(x => /^BTB Test /.test(x.name ?? "")) ) {
+        const stale = a.effects.filter(e => ["prone", "unconscious", "dead"].some(s => e.statuses?.has?.(s)));
+        const update = {};
+        if ( Number(a.system?.attributes?.exhaustion ?? 0) ) update["system.attributes.exhaustion"] = 0;
+        const death = a.system?.attributes?.death;
+        if ( Number(death?.success ?? 0) || Number(death?.failure ?? 0) ) Object.assign(update, { "system.attributes.death.success": 0, "system.attributes.death.failure": 0 });
+        if ( !stale.length && !Object.keys(update).length ) continue;
+        if ( stale.length ) await a.deleteEmbeddedDocuments("ActiveEffect", stale.map(e => e.id)).catch(() => {});
+        if ( Object.keys(update).length ) await a.update(update).catch(() => {});
+        out.push(`${a.name}: ${stale.map(e => e.name).join(", ") || "no status"}${update["system.attributes.exhaustion"] !== undefined ? ", Exhaustion" : ""}${update["system.attributes.death.success"] !== undefined ? ", death saves" : ""}`);
+      }
+      return out;
+    }, null);
+    if ( swept.length ) console.log(`[${tag}] swept the downed leftovers — ${swept.join("; ")}`);
+  }
 
   /**
    * ⚠ Client-scoped baseline: verify-settings pins WORLD keys only and the tester is a fresh

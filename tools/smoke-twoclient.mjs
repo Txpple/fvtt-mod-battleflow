@@ -500,6 +500,9 @@ if (want('bystander')) {
       const before = new Set(game.messages.contents.map(m => m.id));
       let caught = null;
       const hook = Hooks.on('createChatMessage', m => { if (!caught && !before.has(m.id) && (m.author?.id === game.user.id) && m.getFlag('fvtt-mod-bythebooks', 'respondsTo')) caught = m; });
+      // The popup is radios with one Apply (the pass is ticked by default): tick the rescue's own row, then Apply.
+      const row = [...dlg.element.querySelectorAll('[data-bf-ticks] input')].find(i => !i.disabled && !/^(pass|mute-)/.test(i.value)) ?? null;
+      if (row) { row.checked = true; row.dispatchEvent(new Event('change', { bubbles: true })); }
       dlg.element.querySelector('button[data-action="answer"]')?.click();
       for (let i = 0; i < 40 && !caught; i++) await sleep(200);
       Hooks.off('createChatMessage', hook);
@@ -562,6 +565,9 @@ if (want('bystander')) {
       const before = new Set(game.messages.contents.map(m => m.id));
       let caught = null;
       const hook = Hooks.on('createChatMessage', m => { if (!caught && !before.has(m.id) && m.getFlag('fvtt-mod-bythebooks', 'bystanderRollAnswer')) caught = m; });
+      // The popup is radios with one Apply (the pass is ticked by default): tick the rescue's own row, then Apply.
+      const row = [...dlg.element.querySelectorAll('[data-bf-ticks] input')].find(i => !i.disabled && !/^(pass|mute-)/.test(i.value)) ?? null;
+      if (row) { row.checked = true; row.dispatchEvent(new Event('change', { bubbles: true })); }
       dlg.element.querySelector('button[data-action="answer"]')?.click();
       for (let i = 0; i < 40 && !caught; i++) await sleep(200);
       Hooks.off('createChatMessage', hook);

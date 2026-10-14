@@ -246,6 +246,22 @@ if (snap.code !== 0) {
 }
 console.log(`[battery] ${snap.body.split("\n").find(l => l.startsWith("[verify] SNAPSHOT")) ?? "settings recorded"}`);
 
+// ⚠ THE HOUSE RULES OFF for the run, back before the settings check: the suites assert the rules as written, and a
+// table with Going Down on (a level of Exhaustion at every drop to 0) walks its fixtures to Exhaustion 6 — dead —
+// inside a dozen suites. The section that tests the rule pins it on itself.
+const HOUSE_RULES = ["goingDownCosts"];
+const pinHouseRules = (values_, label) => run("job", ["-e",
+  `const MOD = "fvtt-mod-bythebooks"; const out = {}; for (const [k, v] of Object.entries(arg)) { out[k] = game.settings.get(MOD, k); await game.settings.set(MOD, k, v); } return out;`,
+  "--arg", JSON.stringify(values_)], label);
+const pinned = pinHouseRules(Object.fromEntries(HOUSE_RULES.map(k => [k, false])), "pin-house-rules");
+// job.mjs prints its result pretty, over several lines: the text between the first "{" and the last "}".
+const priorHouseRules = (() => {
+  try { return JSON.parse(pinned.body.slice(pinned.body.indexOf("{"), pinned.body.lastIndexOf("}") + 1)); }
+  catch { return {}; }
+})();
+if (pinned.code !== 0) console.log(`[battery] ⚠ the house rules could not be pinned off (exit ${pinned.code}) — see ${join(runDir, "pin-house-rules.txt")}`);
+else console.log(`[battery] house rules off for the run: ${HOUSE_RULES.map(k => `${k} (was ${JSON.stringify(priorHouseRules[k])})`).join(", ")}`);
+
 const results = [];
 let failed = 0;
 for (const suite of plan) {
@@ -288,6 +304,11 @@ if (coverage.code !== 0) {
   const from = lines.findIndex(l => l.includes("NEVER FIRED"));
   if (from >= 0) for (const l of lines.slice(from)) console.log(l.trimEnd());
   else console.log(`  ${lines.find(l => l.startsWith("REPORT")) ?? ""}`);
+}
+
+if (pinned.code === 0) {
+  const back = pinHouseRules(Object.fromEntries(HOUSE_RULES.map(k => [k, priorHouseRules[k] ?? false])), "unpin-house-rules");
+  console.log(`\n[battery] house rules back to the table's own${back.code === 0 ? "" : ` — ⚠ FAILED (exit ${back.code}), see ${join(runDir, "unpin-house-rules.txt")}`}`);
 }
 
 console.log("\n[battery] the settings, against the world's own before the run…");
