@@ -68,6 +68,36 @@ Write down: whose screen the window opened on, and whether the bar ran out befor
 3. Kartor **misses** the Drill Post. Nobody is asked.
 4. Tom's own Reaction, uses and slots are untouched by any of this: Portent spends faces, nothing else.
 
+## 8. The asks widened — the next build (RULINGS *The asks widened*, on the sandbox, not in 3.4.6)
+
+The second round of rulings, the same day. Anthony's **Lysandra Vane** needs **Cutting Words** for the first three (a Lore
+bard's; lend it on the sandbox if she has none, with a few Bardic Inspiration uses), and Tom's Tychon his Portent faces.
+
+1. **A foe hits a friend hard.** The Drill Post hits Kartor by a lot more than a d8 could turn. Nobody is asked at the
+   roll. The damage rolls, and then **Anthony sees** a popup "Cutting Words — Hearth-guard Drill Post's hit on Kartor
+   Bloodaxe", "hits Kartor for N — cut the damage?", with **Cut**, **Pass**, **Not until my turn** and **Not this combat**
+   (out of combat the one button **Not until the next combat**). Chat has a card "Kartor Bloodaxe is about to take N damage ·
+   Lysandra Vane may cut". The damage waits.
+2. **Cut.** The d8 lands in chat as Lysandra's roll, "Cutting Words — off Kartor Bloodaxe's damage"; the receipt says
+   "reduced by N"; a Bardic Inspiration and her Reaction are spent; Kartor takes that much less.
+3. **Not until my turn.** Lysandra's effects show "Cutting Words — muted until your next turn". The next hit on anyone asks
+   her nothing. When her turn comes round the effect goes, and the next hit asks again. **Not this combat** does the same
+   until the fight ends.
+4. **A hit that would drop someone to 0.** Set Kartor low enough that the Drill Post's hit would down him, with Lysandra
+   muted. **Anthony is asked anyway**: the popup carries **"You can keep Kartor Bloodaxe from hitting 0 Hit Points."** and
+   has no mute buttons. Cut, and Kartor stands.
+5. **Portent on an ordinary hit.** The Drill Post hits Kartor by a little, and Tychon holds a low face. **Tom sees**
+   "Portent — Hearth-guard Drill Post's attack at Kartor Bloodaxe", "replace the 14 with the 3", Answer / Pass / the two
+   mutes. Answer: a MISS, no damage — and **every screen** flashes "Tychon Thorne's Portent bends reality! Hearth-guard
+   Drill Post's attack at Kartor Bloodaxe: the d20 14 becomes the 3 — 19 → 8 · MISS" for a few seconds.
+6. **Portent on a friend's miss.** Kartor misses the Drill Post and Tychon holds a high face: the same popup on the miss;
+   Answer: a HIT, the damage rolls, the banner.
+7. **Portent on a save or a check with a DC** (sections 3–5 above): unchanged, plus the banner when Tom answers, and the
+   mute buttons on his popup.
+8. **What is still quiet.** Tychon's own rolls (the tick in his roll window, no banner). A bare check with no DC. A hit
+   the d8 cannot turn where Lysandra already passed on the roll popup for that same hit asks her nothing more, unless it
+   would down someone.
+
 ## 7. If something looks wrong
 
 Note the time, who rolled, from where (sheet, chat card, request card), which seat saw a window, and what the card said.

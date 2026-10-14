@@ -165,6 +165,29 @@ listen("deleteCombat", "chip-spend", combat => {
   void sweepCombatChips(combat);
 });
 
+// The mute "until my turn" (RULINGS *The asks widened*) goes when the bearer's turn begins; a mute written out of combat
+// ("until the next combat") is inert in one and goes with it. The elect writes, once per turn change.
+listen("updateCombat", "chip-spend", (combat, changes) => {
+  if ( !isActiveGM() || !combat?.started ) return;
+  if ( (changes?.turn === undefined) && (changes?.round === undefined) ) return;
+  const actor = combat.combatant?.actor;
+  if ( !(actor instanceof Actor) ) return;
+  void sweepTurnMutes(actor, combat);
+});
+
+async function sweepTurnMutes(actor, combat) {
+  try {
+    const ids = actor.effects.filter(e => {
+      const m = readFlag(e, "bystanderMute");
+      return m && (((m.until === "turn") && (m.combat === combat.id)) || (m.combat == null));
+    }).map(e => e.id);
+    if ( !ids.length ) return;
+    await actor.deleteEmbeddedDocuments("ActiveEffect", ids);
+  } catch(err) {
+    if ( actor.effects.some(e => readFlag(e, "bystanderMute")?.until === "turn") ) console.warn(`${TITLE} | The turn's mute sweep failed on ${actor.name}.`, err);
+  }
+}
+
 async function sweepCombatChips(combat) {
   try {
     // One pass per ACTOR, parallel across actors, never within one (NOTES §1).

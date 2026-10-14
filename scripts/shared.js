@@ -275,8 +275,8 @@ export async function spendReaction(actor, { origin = null, what = "a Reaction" 
 /** The chip's flag key: `{ key, faces, turn }`. */
 export const STORED_FLAG = "storedDice";
 
-/** This combat turn's key (`combat:round:turn`), or null out of combat. */
-const storedTurnNow = () => { const c = game.combat; return c?.started ? `${c.id}:${c.round}:${c.turn}` : null; };
+/** The BEARER's combat turn (`combat:round:turn`), or null when it is in no started combat — never another scene's combat. */
+const storedTurnNow = actor => { const c = activeCombatFor(actor); return c ? `${c.id}:${c.round}:${c.turn}` : null; };
 
 /** The bearer's chip for a STORED_DICE row, or null. */
 export const storedChipOf = (actor, key) => actor?.effects?.find?.(e => readFlag(e, STORED_FLAG)?.key === key) ?? null;
@@ -285,7 +285,7 @@ export const storedChipOf = (actor, key) => actor?.effects?.find?.(e => readFlag
 export function storedFacesUsable(chip, row) {
   const f = readFlag(chip, STORED_FLAG);
   if ( !f?.faces?.length ) return false;
-  const now = storedTurnNow();
+  const now = storedTurnNow(chip?.parent);
   return !(row?.oncePerTurn && now && (f.turn === now));
 }
 
@@ -297,37 +297,56 @@ export async function spendStoredFace(actor, key, face) {
   const faces = withoutFace(f.faces, face);
   if ( faces.length === f.faces.length ) return false;
   if ( !faces.length ) { await chip.delete(); return true; }
-  await chip.update({ name: storedChipName(key, faces), [`flags.${MODULE_ID}.${STORED_FLAG}`]: { key, faces, turn: storedTurnNow() } });
+  await chip.update({ name: storedChipName(key, faces), [`flags.${MODULE_ID}.${STORED_FLAG}`]: { key, faces, turn: storedTurnNow(actor) } });
   return true;
 }
 
-/* --- "Not this combat": a bystander's feature muted until the combat ends (Q2, option A) ------- */
+/* --- THE MUTES: a bystander's feature muted until the bearer's next turn, or the combat's end (RULINGS *The asks widened*) --- */
 
-/** Is this bystander feature muted for its bearer in the bearer's RUNNING combat? A stale mute is no mute. */
+/**
+ * THE MUTE'S SCOPES: in a combat, "turn" (until the bearer's next turn begins) and "combat" (until it ends); out of one,
+ * "combat" alone (until a combat starts). Each is a popup button and a card button; the chip is `bystanderMute`
+ * `{ key, combat, until }` — `combat` null for a mute written out of combat, inert once one starts.
+ * @returns {{until: "turn"|"combat", label: string, hint: string}[]}
+ */
+export function muteScopesFor(actor) {
+  if ( activeCombatFor(actor) ) return [
+    { until: "turn", label: "Don't ask again till next turn", hint: "Don't ask me about this again until my next turn." },
+    { until: "combat", label: "Don't ask again this combat", hint: "Don't ask me about this again until this combat ends." }
+  ];
+  return [{ until: "combat", label: "Don't ask again till the next combat", hint: "Don't ask me about this again until a combat starts." }];
+}
+
+/** Is the bearer's mute on this feature live now — a combat's chip in that combat, an out-of-combat chip out of one? */
 export function bystanderMuted(actor, key) {
+  if ( !actor ) return false;
   const combat = activeCombatFor(actor);
-  if ( !combat || !actor ) return false;
   const want = String(key ?? "").toLowerCase();
   return actor.effects?.some(e => { const m = readFlag(e, "bystanderMute");
-    return m && (String(m.key ?? "").toLowerCase() === want) && (m.combat === combat.id); }) ?? false;
+    return m && (String(m.key ?? "").toLowerCase() === want) && (combat ? (m.combat === combat.id) : (m.combat == null)); }) ?? false;
 }
 
 /**
- * Mute a bystander feature until the combat ends: an effect on the bearer (the effect view lists it; the
- * combat's end sweeps it; deleting it unmutes). Out of combat there is nothing to mute: null.
+ * Write the mute: an effect on the bearer (the effect view lists it; the turn's start or the combat's end sweeps it,
+ * chip-spend.js; deleting it unmutes). One chip per feature — an older one of any scope is replaced.
  * @param {Actor} actor
  * @param {string} key   the INTERRUPT_ROLLS row
- * @param {{img?: string|null}} [opts]
+ * @param {{img?: string|null, until?: "turn"|"combat"}} [opts]
  */
-export async function muteBystander(actor, key, { img = null } = {}) {
+export async function muteBystander(actor, key, { img = null, until = "combat" } = {}) {
   if ( !(actor instanceof Actor) || !canApplyTo(actor) ) return null;
   const combat = activeCombatFor(actor);
-  if ( !combat || bystanderMuted(actor, key) ) return null;
+  const scope = (combat && (until === "turn")) ? "turn" : "combat";
+  const want = String(key ?? "").toLowerCase();
+  const stale = actor.effects.filter(e => String(readFlag(e, "bystanderMute")?.key ?? "").toLowerCase() === want).map(e => e.id);
+  if ( stale.length ) await actor.deleteEmbeddedDocuments("ActiveEffect", stale);
+  const word = combat ? ((scope === "turn") ? "until your next turn" : "this combat") : "until the next combat";
+  const span = combat ? ((scope === "turn") ? "until its next turn begins" : "until this combat ends") : "until a combat starts";
   return ActiveEffect.implementation.create({
-    name: `${key} — muted this combat`, img: img ?? "icons/svg/sound-off.svg",
-    description: `${actor.name} is not asked about ${key} again until this combat ends. Delete this effect to be asked again.`,
+    name: `${key} — muted ${word}`, img: img ?? "icons/svg/sound-off.svg",
+    description: `${actor.name} is not asked about ${key} again ${span}. Delete this effect to be asked again.`,
     disabled: false, transfer: false,
-    flags: { [MODULE_ID]: { bystanderMute: { key, combat: combat.id } } }
+    flags: { [MODULE_ID]: { bystanderMute: { key, combat: combat?.id ?? null, until: scope } } }
   }, { parent: actor });
 }
 

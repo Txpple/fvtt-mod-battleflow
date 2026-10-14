@@ -2,7 +2,7 @@
 /**
  * By the Books — auto-apply damage, the shared receipt applier, and the payout pipeline. Split shape (ARCHITECTURE.md §7).
  */
-import { readFlag, TITLE, drivesMomentFor, canApplyTo, whisperNoGM, queueFlagWrite, statContext, isActiveGM } from "./core.js";
+import { MODULE_ID, readFlag, TITLE, drivesMomentFor, canApplyTo, whisperNoGM, queueFlagWrite, statContext, isActiveGM } from "./core.js";
 import { receiptEntry, joinDamageReceipt } from "./decide/receipt.js";
 import { interruptMultiplier, reduceDamages } from "./decide/verdict.js";
 import { INTERRUPT_MULTIPLIERS } from "./decide/registry.js";
@@ -50,12 +50,30 @@ async function resolveAttackDamage(message) {
   // A miss that still pays (Potent Cantrip): the judged targets the roll missed take the row's share.
   const share = missShareFor(attackMessage.getAssociatedActivity?.() ?? message.getAssociatedActivity?.() ?? null);
   const missed = share ? await missedTargets(attackMessage, hits) : [];
-  if ( !hits.length && !missed.length ) return; // every target Shield-flipped: the dice do nothing
+  if ( !hits.length && !missed.length ) {
+    // Every judged target was missed (a Portent face, a Shield, a plain miss) and someone rolled the damage anyway: the
+    // dice do nothing, and the card says so (receipts.js draws `notApplied`) instead of looking like a hit's damage.
+    await stampNotApplied(message, attackMessage);
+    return;
+  }
   if ( hits.length ) await resolveDamagePayouts(message, attackMessage, hits);
   if ( share && missed.length ) {
     await applyDamagesWithReceipt(message, missed, damagePartsOf(message.rolls),
       { multiplier: share.share, note: `missed — ${share.by}, half damage` });
   }
+}
+
+/** The line for dice rolled on a miss: who turned it (the hold's record), or the plain miss. Once; the owner writes. */
+async function stampNotApplied(message, attackMessage) {
+  if ( !message.isOwner || readFlag(message, "notApplied") ) return;
+  const judged = targetsOf(attackMessage).filter(t => (t.ac !== null) && (t.ac !== undefined));
+  if ( !judged.length ) return;   // nothing was judged: not a miss, just no target
+  const turned = (readFlag(attackMessage, "hold")?.targets ?? [])
+    .filter(t => (t.verdict === "miss") && (t.rescue || t.reaction))
+    .map(t => `${t.rescue ?? t.reaction}${t.guardedBy?.name ? ` (${t.guardedBy.name})` : ""} turned the hit on ${t.name} into a miss`);
+  const why = turned.length ? turned.join("; ") : `the attack missed ${judged.map(t => t.name).join(", ")}`;
+  await message.setFlag(MODULE_ID, "notApplied", { why, at: Date.now() })
+    .catch(err => console.warn(`${TITLE} | The not-applied line could not be written.`, err));
 }
 
 /** The judged targets this attack MISSED — never one a duplicate absorbed — still standing and writable here. */

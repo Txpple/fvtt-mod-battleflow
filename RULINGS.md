@@ -74,8 +74,8 @@ done at all stay in DESIGN §8; this is what IS done, differently from the page.
 | **Prismatic Spray**, the violet ray: "makes a Wisdom saving throw at the start of your next turn … on a failed save the creature teleports to another plane" | the ray's Blinded lands on a failed Wisdom save (the ray's own activity); the LATER save is the table's | the pack clocks Teleporting (Violet) to end at the caster's next turn start — dnd5e's own expiry, judged on the same combat edge the repeat would need, and the effect may be gone before a demand could name it; a plane shift is nothing the module plays (`RAY_TABLES`) | 2026-09-28 |
 | **Cutting Words** ("makes a damage roll or succeeds on an ability check or attack roll") and **Guided Strike** ("misses with an attack roll") — another creature's roll | offered after the roll shows its verdict, before the damage; a hit or a miss is held for the bystander (`hold/trigger.js`), a check is offered on its own card | the roller's client cannot be paused by another player's Reaction (Shield's row) | 2026-09-29 |
 | **Every bystander's "a creature you can see within N feet"** (Cutting Words, Guided Strike, Restore Balance) | every creature on the right side of the table (token disposition) within the feet of the ROLLER, not Incapacitated, its Reaction free and a use left, is asked; sight is not judged | nothing the module reads says who sees whom; the side and the distance are the facts it can read (Protection's row) | 2026-09-29 |
-| **Cutting Words' damage half** ("makes a damage roll … reducing the damage") | offered on the attack card only where a hold already stands for the hit (another reaction asked); a hit nobody else is asked about lands whole | the ruled noise gate (Q2 option A): no hold opens for a bend that cannot change the verdict, and without a hold the damage has already landed when a card button could be pressed | 2026-09-29 |
-| **Portent**: "you must choose to do so before the roll" — another creature's D20 Test | offered AFTER that roll, the faces that turn it shown: a demanded save that a stored face turns asks the diviner (the save's verdict waits); an attack asks only on a critical hit, an ordinary hit a face would turn keeps the card row where a hold already stands; the diviner's OWN rolls keep the rule's order (a tick in its roll dialog, before the roll); since 2026-10-14 a check or a save whose roll carries a DC asks like a demanded save (*Portent widened*) | the roller's client cannot be paused by another player (Shield's row); the noise gate narrows it to saves and critical hits (Q2 option A) | 2026-09-29 |
+| **Cutting Words' damage half** ("makes a damage roll … reducing the damage") | offered on the attack card only where a hold already stands for the hit (another reaction asked); a hit nobody else is asked about lands whole — **superseded 2026-10-14**: asked at the damage hold on every foe's hit, with the mutes (*The asks widened*) | the ruled noise gate (Q2 option A): no hold opens for a bend that cannot change the verdict, and without a hold the damage has already landed when a card button could be pressed | 2026-09-29 |
+| **Portent**: "you must choose to do so before the roll" — another creature's D20 Test | offered AFTER that roll, the faces that turn it shown: a demanded save that a stored face turns asks the diviner (the save's verdict waits); an attack asks only on a critical hit, an ordinary hit a face would turn keeps the card row where a hold already stands; the diviner's OWN rolls keep the rule's order (a tick in its roll dialog, before the roll); since 2026-10-14 a check or a save whose roll carries a DC asks like a demanded save (*Portent widened*), and the narrowing to critical hits is gone — every roll a face turns asks, the mutes the brake (*The asks widened*) | the roller's client cannot be paused by another player (Shield's row); the noise gate narrows it to saves and critical hits (Q2 option A) | 2026-09-29 |
 | **A bystander's bend on a CHECK** | the bent total is stated on the check's card — "ask your DM whether it still succeeds"; the module claims no verdict | dnd5e keeps no DC for a check (the raw-check shape, Tactical Mind's) | 2026-09-29 |
 | **A bystander's bend on a SAVE** — and **Countercharm**'s "fails a saving throw against an effect that applies the Charmed or Frightened condition" (2026-09-30) | offered only on a save the module DEMANDED (its DC known, the verdict withheld while the bystander answers); a save rolled from the sheet with no demand is not offered — Countercharm reads what the save is against off the demand's effects | only a demand carries the DC, a verdict to withhold (`registerWithhold`) and what the save is against | 2026-09-29; Countercharm 2026-09-30 |
 | **Magic Circle** and **Forcecage**: a creature "can't willingly enter" / "can't leave it by nonmagical means" | a NOTICE card as the creature moves in or out; the move itself carries on | Polearm Master's row, the same seam: a pause would need the moving client's `pauseMovement`, out of scope (DESIGN §8) (`emanations.js` `notice`) | 2026-09-28 |
@@ -2103,10 +2103,10 @@ bent by someone who is neither the roller nor its target: vocabulary on the `rol
 - **The margin gate**: asked only when the bend can change the verdict (a die up to its maximum across the AC or
   DC, the first d20 across it). A check has no DC, so it asks. With "Hold Shows the Math" off, a die bend is asked
   on every hit but a natural 20 or 1 (the gate would leak the AC — `holdWouldMatter`'s rule).
-- **The quiet road**: a bystander the gate is silent on, whose row has a damage half (Cutting Words), rides a hold
+- **The quiet road** (retired 2026-10-14, *The asks widened*): a bystander the gate is silent on, whose row has a damage half (Cutting Words), rides a hold
   that already stands, on the attack card only and only on its own client — "Cutting Words (Corin) — −d8 off
   the damage [Answer] [Not this combat]". It never opens a hold of its own (the register's row).
-- **"Not this combat"**: on the popup and on the card row, only while a combat runs; an effect on the bearer
+- **"Not this combat"** (since 2026-10-14 one of two scopes, with "Not until my turn", *The asks widened*): on the popup and on the card row, only while a combat runs; an effect on the bearer
   ("Cutting Words — muted this combat", flag `bystanderMute`), listed by the effect view, swept when the combat
   ends (`chip-spend.js`), deleted to unmute.
 - **The pools** are each activity's own consumption (`poolOf`); a pool named by the pack's uuid on a sheet whose
@@ -2114,7 +2114,7 @@ bent by someone who is neither the roller nor its target: vocabulary on the `rol
 - **Two clients**: the hold's answer relays as the bystander's own message (`respondsTo`, `by`); a save's or
   check's as `bystanderRollAnswer`, folded by the roll's keeper (`smoke-twoclient` §bystander).
 - **Deferred to their stages**: Bend Luck and Cosmic Omen (B4, the same facets), Portent (A7 — narrowed to saves
-  and critical hits by the ruling).
+  and critical hits by the ruling; widened to every roll a face turns on 2026-10-14, *The asks widened*).
 
 **The walk table** (for the batched walk):
 
@@ -3960,6 +3960,66 @@ recommendations taken and the rest left as the 2026-09-29 ruling has it. The sui
 | Kartor rolls a bare Perception check from his sheet and fails | nothing — no DC on the roll, no offer |
 | Kartor's ordinary hit, a Grimlock's ordinary hit | nothing of Portent's — unchanged (the 2026-09-29 ruling) |
 | A Grimlock's critical hit on Kartor | the popup as before — unchanged |
+
+## The asks widened — Cutting Words' damage half back, Portent on every roll a face turns (2026-10-14)
+
+**Built on `main`, unreleased, on the same day as *Portent widened* above.** The user's rulings, given after a plain-words
+account of the three shapes the dice changers take (the rescue, the bystander, the roller's own tick) and of what the
+2026-09-29 noise gate had made of Cutting Words' damage half: reachable only on a hit that held for someone else, so a Lore
+bard's commonest use of the feature was mostly gone. The user: *"gate it by 'does it make a difference / can it' as we
+have. Add back in the damage reduction on a hit"*, with two ways out of the asks — *"until my next turn"* and *"until the
+next combat"* — and one ask that is never silenced: *"if a damage reduction can save a person from going down, ALWAYS offer
+it and point out 'you can prevent this person from hitting zero HP'"*. For Portent: the diviner's own rolls *"are fine, not
+obtrusive"*; on other creatures' rolls *"gate the portent further such that the portent can make a difference: for allies
+attacking/saving, if the portent can change a fail to success, ask; for enemies, a success to a fail"*, the same two ways out;
+and when a face lands on someone else's roll, *"a popup saying 'so-and-so's Portent bends reality! old roll, new roll,
+result'"*. Built to sit inside the machines that exist (the user: *"make this architecturally sound in context of the other
+dice changers"*): the damage half is a guard of the DAMAGE HOLD beside Interception, the mutes one chip with a scope, Portent
+one table word fewer.
+
+| Call | Ruling | Why | Date |
+| --- | --- | --- | --- |
+| **Cutting Words' roll half** | as it was: asked when the die can turn the verdict (the margin gate), the popup on the attack hold, the card's "Cutting Words (Corin) −5 — 17 → 12, MISS" | the gate works for a die with a margin | 2026-10-14 |
+| **Cutting Words' damage half** ("makes a damage roll … reducing the damage") | ADDED BACK as a guard of the damage hold (`damage-holds.js` `cuttersFor`, Interception's machine): a foe's hit on a creature on the bard's side, the bard within 60 ft of the ATTACKER, its Reaction free and a Bardic Inspiration left — the damage rolled and KNOWN, the hold card "⟨target⟩ is about to take N damage · ⟨bard⟩ may cut", the bard's popup "⟨attacker⟩ hits ⟨target⟩ for N — cut the damage?" with Cut / Pass and the mutes; Cut rolls the Bardic die in the open ("Cutting Words — off ⟨target⟩'s damage"), spends the Reaction and the use, the share lands short by it and the receipt says so. An attack's damage only (a save's share has no attacker's roll to stand beside). A bard the attack hold asked for the roll half on this hit, who passed, is not asked again for the damage half — one ask per hit — unless the ask keeps the target up (below) | the die always takes something off the damage, and the hit's damage must be known before "can it keep them up" can be judged; the damage hold is where both are known. The one-ask rule: the popup the gate opened was the bard's chance | 2026-10-14 |
+| **The mutes** — every bystander ask's ways out (Cutting Words on either half, Restore Balance, Guided Strike, Bend Luck, Cosmic Omen, Portent, the Arcana rows) | in a combat two buttons, **Not until my turn** (swept when the bearer's turn begins, `chip-spend.js`) and **Not this combat** (swept with the combat); out of one, **Not until the next combat** (inert once a combat starts, swept at the bearer's first turn). On the popup and on the attack card's row. One chip per feature on the bearer, `bystanderMute { key, combat, until }`, the effect view lists it ("Cutting Words — muted until your next turn"), a newer mute replaces an older, deleting it unmutes (`shared.js` `muteScopesFor`, `muteBystander`, `bystanderMuted`) | the user's two scopes; "my next turn" is the natural unit of "not now", the combat the unit of "not this fight"; out of combat the turn does not exist | 2026-10-14 |
+| **The down guard** — a damage reduction that can keep the target ABOVE 0 Hit Points | ALWAYS asked, every mute ignored: the share would drop the target to 0 (temporary Hit Points first, then Hit Points) and the die's best face lands it short of that (`decide/rescue-hit.js` `reductionKeepsUp`). The popup carries **"You can keep ⟨target⟩ from hitting 0 Hit Points."** and offers no mute; the hold card says a Reaction can. Every other reduction is "trivial" in the user's word — the mutes' business | the user: always offer it and say so | 2026-10-14 |
+| **Portent on another creature's roll** — a foe's attack or save, a friend's attack or save, a check with a DC | asked on EVERY such roll a face in hand turns: a foe's hit to a miss or its success to a failure, a friend's miss to a hit or its failure to a success (`decide/stored-dice.js` `facesThatTurn`, the want by side — the gate that was), with the two mutes as the brake. The row's `ask: "crit"` dropped (`hold/lookup.js` lists the diviner asked on any attack a face turns; the miss hold already held a friend's miss for it); the attack's damage waits the decision window for the diviner as for any bystander. A bare check still asks nobody (*Portent widened*). The down guard does not reach Portent: at the attack roll the damage is not yet known | the user, with the 2026-09-29 meter in view (8–9 popups a fight against 1–3): the mutes are the brake now, and a Portent face is the rule's "any roll you can see" | 2026-10-14 |
+| **The bend banner** — a stored face replaces ANOTHER creature's d20 | every screen flashes **"⟨diviner⟩'s Portent bends reality!"** with the roll before and after and the verdict ("Kartor's attack at the Drill Post: the d20 14 becomes the 3 — 19 → 8 · MISS"; a save or check with a DC: SUCCESS or FAILURE), the resource flash's seat and fade, once per client, a view of the resolved hold or roll flag (`ui.js` `flashBend`, from `hold/continue.js` and `bystanders.js` on the update). The diviner's own rolls get none: the dialog's tick is the quiet road the user kept | the user's ask: the table should see reality bend | 2026-10-14 |
+| **The quiet road, retired** | no `quiet` guard rides a hold any more (`hold/lookup.js`, `hold/trigger.js`, `hold/answer.js`); the attack card's bystander row stays for a bystander still asked, carrying the mutes, so a popup closed unanswered can be silenced from the card (`hold/views.js` `appendBystanderRows`) | both quiet riders (Cutting Words' damage half, Portent's ordinary hit) now ask in their own right | 2026-10-14 |
+
+**The walk table** (the sandbox; Corin's Cutting Words, Tychon's Portent):
+
+| Step | What you should see |
+| --- | --- |
+| A foe hits a friend within 60 ft of the bard, by more than a d8 can turn | nobody asked at the attack; the damage rolls; a hold card "⟨friend⟩ is about to take N damage · ⟨bard⟩ may cut"; the bard's popup "cut the damage?" with Cut, Pass, Not until my turn, Not this combat |
+| Cut | the d8 lands in chat "Cutting Words — off ⟨friend⟩'s damage"; the receipt "reduced by N"; a Bardic Inspiration and the Reaction spent; the damage lands short |
+| Not until my turn | the bard shows "Cutting Words — muted until your next turn"; the next hit asks nobody; the bard's turn starts and the chip goes |
+| A hit whose damage would drop the friend to 0, the bard muted | the popup opens anyway: "You can keep ⟨friend⟩ from hitting 0 Hit Points.", no mute buttons |
+| A foe's ordinary hit on a friend that a stored face turns | Tychon's popup "Portent — replace the 14 with the 3", Answer / Pass / the two mutes; Answer: MISS, no damage, and every screen flashes "Tychon Thorne's Portent bends reality! ⟨foe⟩'s attack at ⟨friend⟩: the d20 14 becomes the 3 — 19 → 8 · MISS" |
+| A friend's miss a stored 17 turns | the same popup on the miss; Answer: HIT, the damage rolls, the banner |
+| A requested check with a DC, out of combat | the popup with one way out, "Not until the next combat"; pressed, Tychon shows "Portent — muted until the next combat" and no check asks him until a combat starts |
+
+**The same evening, from the table walk** (the user on the sandbox, two player seats and a GM seat):
+
+- **The popups as radios** (the user: *"short and to the point for a player to decide in 24 s"*; *"use radio buttons"*; *"default
+  to pass"*): the bystander popups carry one row per choice — "Use the 19 — 23 vs AC 14, a HIT" (a stored face), "Cutting
+  Words −d8", "Pass just this time" (checked), "Don't ask again till next turn", "Don't ask again this combat" (out of combat
+  "… till the next combat") — and one button, **Apply**. The card's title is the verdict ("Kartor missed the Drill Post ·
+  12 vs AC 14"); the sentence about stored faces and modifiers is gone (`decide/present.js` `tickRowsHTML` `kind: "radio"`,
+  `hold/views.js`, `bystanders.js`, `damage-holds.js`).
+- **Dice rolled on a turned miss say so** (the user: the damage can still be rolled from the card and *"it doesn't apply, but
+  can the card be made to say it doesn't apply"*): a damage card whose attack ended with every judged target missed carries
+  **"Not applied — Portent (Tychon Thorne) turned the hit on Kartor into a miss"** (or the plain miss), the `notApplied` flag
+  written where the applier used to drop the dice in silence (`auto-apply.js` `stampNotApplied`, `receipts.js`). A save's
+  damage needs none: it lands at the verdict's multiplier with its own receipt line ("saved — half damage", "no damage").
+- **Once per turn is the BEARER's turn.** The stamp a spent Portent face carries read `game.combat`, the scene's active
+  combat, so an unlinked combat (one with no scene, shown everywhere) stamped a diviner who was not in it and silenced his
+  next face; now `storedTurnNow(actor)` reads the bearer's own started combat (`shared.js`). Found by `smoke-classes` §41e
+  going red beside the table's Drill Post fight.
+
+The suites: `smoke-classes` §2 and §3 (the damage half at the damage hold; the out-of-combat mute), §6 (the two mutes in a
+combat, the turn's sweep), §41g–i (Portent's ordinary hit asks; the banner; the dice rolled after the miss), §127 (the down guard ignores the mute);
+`tests/decide-rescue-hit.test.js` (`reductionKeepsUp`, the row's `verb`), `tests/decide-classes-a7.test.js` (the Portent row).
 
 ## Rulings the code carried
 

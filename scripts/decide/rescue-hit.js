@@ -166,6 +166,19 @@ export const guardSign = (guard, row) => Number.isFinite(Number(guard?.sign)) ? 
   : ((typeof row?.sign === "number") ? row.sign : 1);
 
 /**
+ * Can a reduction of up to `dieMax` keep the creature ABOVE 0 Hit Points? The share would drop it to 0 (temporary Hit
+ * Points first, then Hit Points) and the die's best face lands it short of that. RULINGS *The asks widened*: such an
+ * ask is always made, whatever mute the bystander set, and the popup says so.
+ * @param {{amount: number, hp: number, temp?: number, dieMax: number|null}} args
+ */
+export function reductionKeepsUp({ amount, hp, temp = 0, dieMax }) {
+  const a = Number(amount), d = Number(dieMax);
+  const pool = Math.max(0, Number(hp) || 0) + Math.max(0, Number(temp) || 0);
+  if ( !Number.isFinite(a) || !(d > 0) || !(pool > 0) ) return false;
+  return (a >= pool) && ((a - d) < pool);
+}
+
+/**
  * THE MARGIN GATE (Q2, option A): can this bystander's bend change the verdict? The futile-skip gate's
  * shape (`holdSkipped`), for another creature's roll. `want` is the verdict the bystander is after.
  * @param {{bend: "die"|"neutralise"|"reroll", sign?: number, dieMax?: number|null, want: "miss"|"hit",

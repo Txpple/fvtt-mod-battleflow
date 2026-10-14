@@ -3,12 +3,12 @@
  * By the Books — the reaction hold: THE VIEWS. The durable card row (with the reload resumes) and the
  * popups. The row renders below ui.js's damage-offer bar (dispatch.js ORDER).
  */
-import { readFlag, TITLE, S, setting, canAnswerFor, isContinuingClient, activeCombatFor } from "../core.js";
+import { readFlag, TITLE, S, setting, canAnswerFor, isContinuingClient } from "../core.js";
 import { INTERRUPT_REDUCTIONS, INTERRUPT_ROLLS } from "../decide/registry.js";
 import { bfCard, popupKey, holdBarHTML, ruleLine, spendLine, spendPhrase, tickRowsHTML, esc } from "../decide/present.js";
 import { bentLines, d20ModeOf, dieMaxOf, futileGuardLine, guardRow, guardSign, liveRows, neutraliseOutcome, rescueTitle } from "../decide/rescue-hit.js";
 import { duplicateWords } from "../decide/duplicates.js";
-import { poolOf, resolveAttackMessage } from "../shared.js";
+import { muteScopesFor, poolOf, resolveAttackMessage } from "../shared.js";
 import { openMomentPopup, momentButton, scheduleBarSync, shownMoments } from "../ui.js";
 import { reactionItem, reactionImg, reactionACBonus, rescueRowsNow } from "./lookup.js";
 import { armHoldTimer } from "./clock.js";
@@ -162,18 +162,6 @@ listen("dnd5e.renderChatMessage", "hold/views", (message, html) => {
         return;
       }
 
-      // A bystander's die off the DAMAGE (Cutting Words' quiet road): the hit stands, the damage is less.
-      if ( (target.answer === "roll") && !target.bent && (Number(target.reduceBy) > 0) && (hold.status !== "pending") ) {
-        const by = target.guardedBy ?? null;
-        const rescue = target.rescue ?? target.reaction;
-        block.innerHTML = bfCard({
-          img: (by ? resolveUuid(by.uuid)?.items?.get(by.itemId)?.img : null) ?? reactionImg(actor, rescue, {}),
-          eyebrow: `Reaction — ${rescue}${by ? ` (${by.name})` : ""}`, title: `${rescue} — the damage reduced by ${target.reduceBy}`,
-          subtitle: target.name, tone: "good", lines: ["The attack still hits."]
-        });
-        return;
-      }
-
       // A reduction reaction (INTERRUPT_REDUCTIONS) wears the maneuver family's shape.
       const maneuver = !!target.reduce;
       let title = target.reaction;
@@ -237,34 +225,28 @@ listen("dnd5e.renderChatMessage", "hold/views", (message, html) => {
 
 /**
  * THE BYSTANDERS' CARD ROWS (Q2 option A), on the attack card itself and only on the bystander's own client —
- * never a message of their own: a QUIET row (the margin gate silent) offers the die off the damage; every row
- * carries "Not this combat".
+ * never a message of their own: a row per bystander still asked, with the mutes (shared.js `muteScopesFor`) so a
+ * popup closed unanswered can still be silenced from the card.
  */
 function appendBystanderRows(block, message, target) {
   for ( const guard of (target.guards ?? []) ) {
-    if ( !guard.bystander ) continue;
-    if ( !guard.quiet && guard.passed ) continue;
+    if ( !guard.bystander || guard.passed ) continue;
     const who = resolveUuid(guard.uuid);
     if ( !canAnswerFor(who) ) continue;
-    const row = INTERRUPT_ROLLS[guard.row] ?? null;
     const line = document.createElement("div");
     line.dataset.bfBystander = `${guard.row}|${guard.uuid}`;
     Object.assign(line.style, { display: "flex", gap: "0.3rem", alignItems: "center", justifyContent: "flex-end", flexWrap: "wrap",
       marginTop: "0.3rem", fontSize: "var(--font-size-12,12px)" });
     const label = document.createElement("span");
     label.style.opacity = "0.85";
-    label.textContent = (guard.quiet && (row?.bend === "set")) ? `${guard.row} (${guard.name}) — replace the d20:`
-      : guard.quiet ? `${guard.row} (${guard.name}) — −${guard.die ?? "a die"} off the damage` : `${guard.row} (${guard.name})`;
+    label.textContent = `${guard.row} (${guard.name})`;
     line.append(label);
     const small = { flex: "0 0 auto", margin: "0", padding: "0 0.4rem", fontSize: "inherit", lineHeight: "1.4" };
-    if ( guard.quiet && row?.damage ) line.append(momentButton("Answer", () => void bystanderReaction(message, target, guard, { onDamage: true }), small));
-    // A stored face's quiet row (Portent on an ordinary hit): a button per face that turns it.
-    if ( guard.quiet && (row?.bend === "set") ) {
-      for ( const face of (guard.faces ?? []) ) line.append(momentButton(`the ${face}`, () => void bystanderReaction(message, target, guard, { face }), small));
+    for ( const scope of muteScopesFor(who) ) {
+      const button = momentButton(scope.label, () => { line.remove(); void muteAndPass(message, target, guard, scope.until); }, small);
+      button.dataset.tooltip = scope.hint;
+      line.append(button);
     }
-    // "Not this combat" only where a combat runs: out of one there is nothing to mute.
-    if ( activeCombatFor(who) ) line.append(momentButton("Not this combat", () => { line.remove(); void muteAndPass(message, target, guard); }, small));
-    if ( line.childElementCount < 2 ) continue;
     block.append(line);
   }
 }
@@ -273,10 +255,8 @@ function appendBystanderRows(block, message, target) {
 function bystanderSituation(row, roll, ac, guard, miss = false) {
   const facts = d20FactsOf(roll);
   const reveal = setting(S.holdReveal);
-  if ( row?.bend === "set" ) {
-    const head = roll?.isCritical ? "<strong>natural 20</strong> — a critical hit." : `<strong>${roll.total}</strong>${reveal ? ` vs AC <strong>${ac}</strong>` : ""} — a ${miss ? "miss" : "hit"}.`;
-    return `${head} A stored face replaces the d20 (${facts.kept}) — the modifiers stand.`;
-  }
+  // A stored-face row (Portent) says the whole choice in its own line: nothing to add here.
+  if ( row?.bend === "set" ) return "";
   if ( row?.bend === "neutralise" ) {
     const o = neutraliseOutcome({ mode: facts.mode, kept: Number(facts.kept), plain: facts.plain, total: Number(roll.total),
       critAt: facts.critAt, fumbleAt: facts.fumbleAt });
@@ -310,41 +290,46 @@ async function showBystanderPopup(attackMessage, target, guard, byActor, hold, r
   const dice = (row?.bend === "neutralise") ? "the first d20 stands" : `${guardSign(guard, row) < 0 ? "−" : "+"}${guard.die ?? "a die"}`;
   const facts = d20FactsOf(roll);
   const modifier = Number(roll?.total) - Number(facts.kept);
-  const rows = (row?.bend === "set")
-    ? (guard.faces ?? []).map(face => ({ key: `${guard.row}|${face}`, name: `${guard.row} — replace the ${facts.kept} with the ${face}`,
-        dice: `${face} ${modifier < 0 ? "−" : "+"} ${Math.abs(modifier)} = ${face + modifier}`, tag: "a stored die · no Reaction", off: null, rule: row?.rule ?? "" }))
-    : [{ key: guard.row, name: guard.row, dice, tag, off: null, rule: row?.rule ?? "" }];
   const miss = !!hold?.miss;
+  const stored = row?.bend === "set";
+  const reveal = setting(S.holdReveal);
+  // A stored face's row (Portent): what the roll becomes and what that means — one line a player reads in a glance.
+  const verdictOf = face => {
+    const total = face + modifier;
+    const word = (face >= facts.critAt) ? "a CRITICAL HIT" : (face <= facts.fumbleAt) ? "a MISS" : (total >= Number(ac)) ? "a HIT" : "a MISS";
+    return `${total}${reveal ? ` vs AC ${ac}` : ""} — ${word}`;
+  };
+  // THE CHOICES AS RADIOS (RULINGS *The asks widened*): the bend's row(s), then "Pass just this time" checked,
+  // then the mutes; one button, Apply, so Enter passes and a click on a row takes it.
+  const bendRows = stored
+    ? (guard.faces ?? []).map(face => ({ key: `${guard.row}|${face}`, name: `Use the ${face}`, dice: verdictOf(face), tag: "", off: null, rule: row?.rule ?? "" }))
+    : [{ key: guard.row, name: guard.row, dice, tag, off: null, rule: row?.rule ?? "" }];
+  const rows = [...bendRows, { key: "pass", name: "Pass just this time", dice: "", tag: "", off: null, rule: "", checked: true },
+    ...muteScopesFor(byActor).map(scope => ({ key: `mute-${scope.until}`, name: scope.label, dice: "", tag: "", off: null, rule: "" }))];
   const self = miss ? !!guard.self : (guard.uuid === target.uuid);
   const whose = (miss && self) ? "your" : `${attacker}'s`;
   const at = (!miss && self) ? "you" : target.name;
+  const rolled = roll?.isCritical ? "natural 20 — a critical hit" : `${roll?.total}${reveal ? ` vs AC ${ac}` : ""} — a ${miss ? "miss" : "hit"}`;
+  const situation = bystanderSituation(row, roll, ac, guard, miss);
   const dialog = await openMomentPopup(attackMessage, `${target.uuid}|${guard.uuid}`, byActor, {
     title: `${guard.row} — ${whose} attack at ${at}`, icon: "fa-solid fa-comment-dots", width: 460,
-    content: bfCard({ img: item?.img ?? byActor?.img ?? null, eyebrow: `${(row?.reaction && (!guard.self || guard.hitSelf)) ? "Reaction" : "No Reaction"} — ${guard.row}`, tone: "pending",
+    content: bfCard({ img: item?.img ?? byActor?.img ?? null, eyebrow: stored ? `${guard.row} — no Reaction` : `${(row?.reaction && (!guard.self || guard.hitSelf)) ? "Reaction" : "No Reaction"} — ${guard.row}`, tone: "pending",
       title: `${(miss && self) ? "You" : attacker} ${miss ? "missed" : "hits"} ${at}`,
-      subtitle: `${weapon}${self ? "" : (row?.bystander === "sight") ? " · on the scene" : ` · within ${row?.bystander ?? "?"} ft of ${(row?.reach === "target") ? target.name : "you"}`}${guard.inspired ? ` · ${guard.inspired.bard}'s Inspired die` : ""}` })
-      + holdBarHTML(hold) + `<div style="padding:0.4rem 0.1rem;">${bystanderSituation(row, roll, ac, guard, miss)}</div>`
-      + tickRowsHTML({ name: "bf-bystander", rows }),
+      subtitle: stored ? rolled : `${weapon}${self ? "" : (row?.bystander === "sight") ? " · on the scene" : ` · within ${row?.bystander ?? "?"} ft of ${(row?.reach === "target") ? target.name : "you"}`}${guard.inspired ? ` · ${guard.inspired.bard}'s Inspired die` : ""}` })
+      + holdBarHTML(hold) + (situation ? `<div style="padding:0.4rem 0.1rem;">${situation}</div>` : "")
+      + tickRowsHTML({ name: "bf-bystander", rows, kind: "radio" }),
     buttons: [
-      { action: "answer", label: "Answer", default: true, callback: (_event, button) => {
-        const picked = button?.form?.querySelector?.('input[name="bf-bystander"]:checked');
-        if ( !picked ) return;
-        const face = (row?.bend === "set") ? Number(String(picked.value).split("|")[1]) : null;
+      { action: "answer", label: "Apply", default: true, callback: (_event, button) => {
+        const picked = String(button?.form?.querySelector?.('input[name="bf-bystander"]:checked')?.value ?? "pass");
+        if ( picked === "pass" ) { void answerHold(attackMessage, target.uuid, "pass", { by: guard.uuid }); return; }
+        // The mutes (RULINGS *The asks widened*): until the bystander's next turn, or the combat's end; out of one, until the next.
+        if ( picked.startsWith("mute-") ) { void muteAndPass(attackMessage, target, guard, (picked === "mute-turn") ? "turn" : "combat"); return; }
+        const face = (row?.bend === "set") ? Number(picked.split("|")[1]) : null;
         void bystanderReaction(attackMessage, target, guard, { face });
-      } },
-      { action: "pass", label: "Pass", callback: () => answerHold(attackMessage, target.uuid, "pass", { by: guard.uuid }) },
-      ...(activeCombatFor(byActor) ? [{ action: "mute", label: "Not this combat", callback: () => muteAndPass(attackMessage, target, guard) }] : [])
+      } }
     ]
   });
-  const form = dialog?.element?.querySelector?.("form") ?? dialog?.element ?? null;
-  const boxes = [...(form?.querySelectorAll?.('input[name="bf-bystander"]') ?? [])];
-  const answer = form?.querySelector?.('button[data-action="answer"]') ?? null;
-  if ( boxes[0] ) boxes[0].checked = true;
-  // One tick at a time (a stored face each); Answer lights while one stands.
-  for ( const box of boxes ) box.addEventListener("change", () => {
-    if ( box.checked ) for ( const other of boxes ) if ( other !== box ) other.checked = false;
-    if ( answer ) answer.disabled = !boxes.some(b => b.checked);
-  });
+  void dialog;
 }
 
 /** A maneuver reaction's popup (Parry): Riposte's shape — the card, the cost, the rule, the clock. */

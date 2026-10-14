@@ -1,7 +1,11 @@
 # Plan — Portent's offers on other creatures' rolls, widened
 
 **BUILT 2026-10-14 as recommended** (RULINGS *Portent widened*): W1 (a check or a requested save whose roll carries a DC), the
-rest's dice rolled by the bearer (the user's ask, outside this plan); W2 and W3 left as ruled. `smoke-classes` §126 proves W1.
+rest's dice rolled by the bearer (the user's ask, outside this plan); W3 left as ruled. `smoke-classes` §126 proves W1.
+**W2 BUILT the same day in its direct form, by the user's ruling** (RULINGS *The asks widened*): `ask: "crit"` dropped, every hit
+or miss a face turns asks, with two mutes ("until my turn", "this combat") as the brake — the 8–9 popups a fight measured below,
+chosen with that number in view. The quiet road (the card-only row) is retired; the same day Cutting Words' damage half moved to
+the damage hold with a down guard. `smoke-classes` §41g proves W2.
 
 Drafted 2026-10-14 at the user's ask ("widen Portent's bystander offers: what it would take to offer a stored face on other
 creatures' ordinary hits and checks, and what it costs in popups"). Measured on the module at 3.4.5 (`main` identical in every

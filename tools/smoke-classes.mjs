@@ -66,11 +66,11 @@ export const COVERS = [
 
 const SECTIONS = {
   1: 'Cutting Words, asked: a hit a d8 can turn (margin 2) opens the Bard\'s popup; Answer rolls the d8 (5), the hit becomes a MISS, the card says "Cutting Words (BTB Test Bard) −5", a Bardic Inspiration spent',
-  2: 'the margin gate: a hit by 9 asks nobody — no hold, no popup, the damage lands',
-  3: 'the quiet road: the Halfling\'s Lucky holds the hit, Cutting Words rides QUIET on the card; its Answer takes the d8 (3) off the damage — the hit stands, 3 less lands',
+  2: 'the margin gate on the roll half: a hit by 9 asks nobody for the roll — no attack hold, no popup; the damage half asks at the damage hold, passed, the damage lands',
+  3: 'Cutting Words\' damage half at the damage hold (2026-10-14): a hit the d8 cannot turn asks the Bard "cut the damage?" once the damage is known; Cut takes the d8 (3) off, 3 less lands; "Not until the next combat" mutes it out of combat, and a muted trivial hit asks nobody',
   4: 'Restore Balance: an Advantage hit (18 and 9) whose first die misses opens the Sorcerer\'s popup; Answer stands the 9 — a MISS; Cutting Words (margin 8) stays quiet',
   5: 'the reach: the Bard 65 ft from the attacker is not asked',
-  6: '"Not this combat": in a running combat the popup\'s third button mutes Cutting Words on the Bard (an effect), the hit lands; the next hit asks nobody; the combat\'s end sweeps the mute',
+  6: 'the mutes in a combat: "Not until my turn" (the chip, the next hit asks nobody, the Bard\'s turn sweeps it) and "Not this combat" (the chip, the combat\'s end sweeps it)',
   7: 'Guided Strike for an ally: BTB Test PC Attacker misses by 7 within 30 ft of the Cleric — the Cleric\'s popup "+10 · a Reaction"; Answer turns the miss into a HIT and the damage rolls and lands',
   8: 'Guided Strike on the Cleric\'s own miss: its own popup, "No Reaction"; the +10 turns it, the guard entry marked self',
   9: 'Restore Balance on a Disadvantage miss (18 then 3): the Sorcerer\'s popup beside the Cleric\'s; Answer stands the 18 — a HIT, the Cleric\'s popup closes',
@@ -105,7 +105,7 @@ const SECTIONS = {
   38: 'Vitality of the Tree (lent to the PC Attacker): the Rage used grants Vitality Surge (7 temp HP); a raging turn start asks "Who gets 7 Temporary Hit Points?" (Life-Giving Force, 2d6) — creatures on its side within 10 ft; OK gives the one ticked; not raging, nothing asked',
   39: 'Wild Magic Surge (lent to the Sorcerer with Tides of Chaos; Mage Armor marked a Sorcerer spell): a slot cast rolls the d20 — "d20: 14, nothing"; a 20 rolls the table and its card posts; Tides of Chaos spent: the table at once and Tides regained; a Wizard spell rolls nothing; in a combat, once per turn',
   40: 'Inspiring Smite (lent to the Cleric): after Divine Smite, "Divide 12 Temporary Hit Points" with a number per creature within 30 ft, the paladin among them; 7 and 5 land and one Channel Divinity is spent; No keeps it; the clock gives all 12 to the paladin',
-  41: 'Portent (lent to the Sorcerer): the Long Rest keeps 17 and 3 on a chip; in its own save dialog "use the 17" ticked makes the d20 the 17; a failed save of an ally that a stored 18 turns asks the diviner and Answer SAVES it; a critical hit by an enemy asks "replace the 20 with the 2" and makes it a MISS; an ordinary hit asks nobody',
+  41: 'Portent (lent to the Sorcerer): the Long Rest keeps 17 and 3 on a chip; in its own save dialog "use the 17" ticked makes the d20 the 17; a failed save of an ally that a stored 18 turns asks the diviner and Answer SAVES it; a critical hit by an enemy asks "replace the 20 with the 2" and makes it a MISS; an ordinary hit a stored 2 turns asks too (2026-10-14) and every screen sees the bend banner',
   // B1
   42: 'Countercharm (lent to the Bard): the Halfling fails a demanded save against Charm Person (Charmed) within 30 ft — the bard\'s popup "Countercharm — the Halfling\'s saving throw"; Answer: the d20 is rerolled with Advantage off the Halfling, the Reaction spent, the save retaken and SAVED; a failed save against Hold Person (Paralyzed) asks nobody',
   43: 'Eldritch Strike (B2, lent to the Attacker): a weapon hit offers the rider row ticked and lands "Struck" on the Victim for the vex window; the Victim\'s save against the striker\'s Hold Person reads "Struck — against BTB Test Attacker\'s spell", Net Disadvantage, and the save SPENDS it',
@@ -196,6 +196,7 @@ const SECTIONS = {
   124: "Luck Blade: a failed save offers Luck Blade's reroll; pressed, the second roll stands and the Luck use is spent",
   125: "Moonblade with the Critical Range rune: a 19 is a Critical Hit (the pack's own threshold)",
   126: 'Portent widened (2026-10-14, lent to the Sorcerer): a check or a save whose roll carries a DC asks the diviner with the faces that turn it and the card says SUCCESS; a bare check asks nobody',
+  127: 'the down guard (2026-10-14): a Cutting Words reduction that can keep the Halfling above 0 Hit Points is asked through the Bard\'s mute, the popup says so and offers no mute; Cut leaves the Halfling at 1',
 };
 const DEPENDS = {};
 
@@ -269,14 +270,36 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   const popups = () => [...foundry.applications.instances.values()].filter(app => app.rendered && !Object.entries(ui).some(([k, v]) => (k !== 'activeWindow') && (v === app)));
   const bystanderPopup = () => popups().find(app => app.element?.querySelector?.('[data-bf-ticks="bf-bystander"]')) ?? null;
   const rescuePopup = () => popups().find(app => app.element?.querySelector?.('[data-bf-ticks="bf-rescue"]')) ?? null;
+  // A popup's answer (2026-10-14, the radios): tick the named row (a face "Portent|18", "pass", "mute-turn", "cast" …) and Apply; with no
+  // name, the first row that is not a pass or a mute (unless one is already ticked). A popup that still carries its own button gets that.
+  const pickApply = (pop, value = null) => {
+    const el = pop?.element;
+    if (!el) return false;
+    const inputs = [...el.querySelectorAll('[data-bf-ticks] input')];
+    let target = value ? (inputs.find(i => i.value === value) ?? null) : null;
+    if (!value && inputs.length && !inputs.some(i => i.checked && !/^(pass|mute-)/.test(i.value))) target = inputs.find(i => !i.disabled && !/^(pass|mute-)/.test(i.value)) ?? null;
+    if (target) { target.checked = true; target.dispatchEvent(new Event('change', { bubbles: true })); }
+    const btn = (value && !target) ? (el.querySelector(`button[data-action="${value}"]`) ?? el.querySelector('button[data-action="answer"]')) : el.querySelector('button[data-action="answer"]');
+    btn?.click();
+    return !!btn;
+  };
+  // The damage hold's bystander popup (Cutting Words' damage half, 2026-10-14) and the newest damage hold card.
+  const cutPopup = () => popups().find(app => /cut the damage\?/.test(app.element?.textContent ?? '') && app.element?.querySelector?.('input[value="cast"]')) ?? null;
+  const damageHoldOf = () => game.messages.contents.filter(m => (m.timestamp >= suiteStart) && m.getFlag(MOD, 'damageHold')).pop() ?? null;
+  const dropReactionChipsOn = async actor => {
+    const ids = actor.effects.filter(e => e.getFlag(MOD, 'mastery') === 'reaction').map(e => e.id);
+    if (ids.length) await actor.deleteEmbeddedDocuments('ActiveEffect', ids).catch(() => {});
+  };
   const closeDialogs = async () => {
     for (const app of popups()) {
-      if (app.element?.querySelector?.('[data-bf-ticks]')) { try { await app.close(); } catch { /* gone */ } }
+      if (app.element?.querySelector?.('[data-bf-ticks]') || /cut the damage\?/.test(app.element?.textContent ?? '')) { try { await app.close(); } catch { /* gone */ } }
     }
   };
   const dropMutes = async () => {
-    const ids = bard.effects.filter(e => e.getFlag(MOD, 'bystanderMute')).map(e => e.id);
-    if (ids.length) await bard.deleteEmbeddedDocuments('ActiveEffect', ids).catch(() => {});
+    for (const actor of [bard, sorcerer]) {
+      const ids = actor.effects.filter(e => e.getFlag(MOD, 'bystanderMute')).map(e => e.id);
+      if (ids.length) await actor.deleteEmbeddedDocuments('ActiveEffect', ids).catch(() => {});
+    }
   };
   const teardown = async () => {
     if (restored) return;
@@ -408,15 +431,17 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     await halfling.update({ 'system.attributes.ac.override': AC, 'system.attributes.hp.max': 400, 'system.attributes.hp.value': 400 });
     const healFull = () => halfling.update({ 'system.attributes.hp.value': 400, 'system.attributes.hp.temp': 0 });
     const damageFor = id => game.messages.contents.find(m => (m.type === 'damage') && (m.getFlag(MOD, 'attackFor') === id));
+    // ⚠ Each await is named: a throw here is otherwise a bare server message with no client stack (2026-10-14).
+    const step = async (what, fn) => { try { return await fn(); } catch (err) { err.message = `${what}: ${err.message}`; throw err; } };
     const swing = async ({ d20 = [12], dmg = 3, advantage = false } = {}) => {
-      await healFull();
+      await step('swing/heal', healFull);
       attackerToken.control({ releaseOthers: true });
       halflingToken.setTarget(true, { releaseOthers: true });
       await sleep(80);
       faces([...d20.map(n => [n, 20]), [dmg, 6], [dmg, 6]]);
-      const usage = await act().use({ subsequentActions: false }, { configure: false }, {});
-      const rolls = await act().rollAttack(advantage ? { advantage: true } : {}, { configure: false },
-        usage?.message?.id ? { data: { 'system.origin': usage.message.id } } : {});
+      const usage = await step('swing/use', () => act().use({ subsequentActions: false }, { configure: false }, {}));
+      const rolls = await step('swing/rollAttack', () => act().rollAttack(advantage ? { advantage: true } : {}, { configure: false },
+        usage?.message?.id ? { data: { 'system.origin': usage.message.id } } : {}));
       const msg = rolls?.[0]?.parent ?? null;
       await waitFor(() => msg?.getFlag(MOD, 'hold') || damageFor(msg?.id), 4000);
       return msg;
@@ -441,7 +466,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         `pop=${!!pop} guards=${JSON.stringify(guards.map(g => [g.name, g.row, g.quiet ?? false]))}`);
       ok('1b. the popup states the margin: "a d8 can turn it"', /can turn it/.test(textOf(pop?.element)), textOf(pop?.element).slice(0, 200));
       faces([[5, 8]]);
-      pop?.element?.querySelector('button[data-action="answer"]')?.click();
+      pickApply(pop);
       const t = await resolvedTarget(msg);
       ok('1c. the d8 (5) off the attack: a MISS, answered by the Bard (rescue Cutting Words)',
         (t?.answer === 'roll') && (t?.verdict === 'miss') && (t?.rescue === 'Cutting Words') && (t?.guardedBy?.uuid === bard.uuid)
@@ -453,37 +478,100 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         `spent=${spentBI()} hp=${hp()} pop=${!!bystanderPopup()}`);
     }
 
-    // ---- 2. the margin gate: a hit by 9 asks nobody
+    // ---- 2. the margin gate on the ROLL half: a hit by 9 asks nobody for the roll; the damage half asks at the damage hold
     if (want(2)) {
-      await closeDialogs(); await spendLuck(); await refillInspiration();
+      await closeDialogs(); await spendLuck(); await refillInspiration(); await dropMutes();
       const msg = await swing({ d20: [19] });
-      await sleep(1200);
-      ok('2a. no hold and no popup: a d8 cannot turn a hit by 9', !holdOf(msg) && !bystanderPopup(), `hold=${JSON.stringify(holdOf(msg))} pop=${!!bystanderPopup()}`);
-      await waitFor(() => hp() < 400, 6000);
-      ok('2b. the damage landed', hp() < 400, `hp=${hp()}`);
+      const cut = await waitFor(cutPopup, 8000);
+      ok('2a. no attack hold and no roll popup: a d8 cannot turn a hit by 9; the damage waits on the damage hold — the Bard\'s "cut the damage?" popup',
+        !holdOf(msg) && !bystanderPopup() && !!cut && (hp() === 400), `hold=${JSON.stringify(holdOf(msg))} pop=${!!bystanderPopup()} cut=${!!cut} hp=${hp()}`);
+      pickApply(cut, 'pass');
+      await waitFor(() => hp() < 400, 8000);
+      ok('2b. Pass: the damage landed whole', hp() < 400, `hp=${hp()}`);
     }
 
-    // ---- 3. the quiet road
+    // ---- 3. Cutting Words' damage half at the damage hold (RULINGS *The asks widened*); the out-of-combat mute
     if (want(3)) {
-      await closeDialogs(); await refillLuck(); await refillInspiration();
+      await closeDialogs(); await spendLuck(); await refillInspiration(); await dropMutes();
       const msg = await swing({ d20: [19], dmg: 5 });
-      const own = await waitFor(rescuePopup, 6000);
-      const quiet = (holdOf(msg)?.targets?.[0]?.guards ?? []).find(g => g.uuid === bard.uuid);
-      const row = await waitFor(() => cardEl(msg?.id)?.querySelector?.('[data-bf-bystander^="Cutting Words|"]'), 6000);
-      ok('3a. the Halfling\'s Lucky holds the hit; Cutting Words rides QUIET (no popup), its row on the card with Answer (out of combat, no "Not this combat")',
-        !!own && quiet?.quiet === true && quiet?.passed === true && !bystanderPopup() && !!row
-          && /off the damage/.test(textOf(row)) && /Answer/.test(textOf(row)) && !/Not this combat/.test(textOf(row)),
-        `own=${!!own} quiet=${JSON.stringify(quiet)} row=${textOf(row)}`);
+      const cut = await waitFor(cutPopup, 8000);
+      const card = damageHoldOf();
+      const guard = card?.getFlag(MOD, 'damageHold')?.guards?.find(g => g.actorUuid === bard.uuid);
+      const text = textOf(cut?.element);
+      ok('3a. the Bard\'s popup "… hits BTB Test Halfling for N — cut the damage?", −1d8 off the damage, Bardic Inspiration N left; out of combat the one way out is "Not until the next combat"; no "keep from hitting 0" line at 400 HP',
+        !!cut && /cut the damage\?/.test(text) && /Cut the damage −1?d8/.test(text) && /Bardic Inspiration \d+ left/.test(text)
+          && !!cut?.element?.querySelector('input[value="mute-combat"]') && !cut?.element?.querySelector('input[value="mute-turn"]')
+          && !/hitting 0 Hit Points/.test(text) && (guard?.bystander === true) && (guard?.reaction === 'Cutting Words') && !guard?.keepsUp,
+        `cut=${!!cut} guard=${JSON.stringify(guard)} text="${text.slice(0, 260)}"`);
       faces([[3, 8]]);
-      [...(row?.querySelectorAll?.('button') ?? [])].find(b => b.textContent === 'Answer')?.click();
-      const t = await resolvedTarget(msg);
-      const dmg = await waitFor(() => damageFor(msg?.id), 6000);
+      pickApply(cut, 'cast');
+      const landed = await waitFor(() => { const f = game.messages.get(card?.id)?.getFlag(MOD, 'damageHold'); return f?.applied ? f : null; }, 12000);
+      CONFIG.Dice.randomUniform = realPRNG;
+      const dmg = damageFor(msg?.id);
       const full = (dmg?.rolls ?? []).reduce((n, r) => n + Number(r.total ?? 0), 0);
-      await waitFor(() => hp() < 400, 6000);
       await sleep(600);
-      ok('3b. the die (3) off the DAMAGE: the hit stands, the Bard answered, reduceBy 3', (t?.answer === 'roll') && (t?.verdict === 'hit') && (t?.reduceBy === 3) && !t?.bent && (t?.guardedBy?.uuid === bard.uuid),
-        JSON.stringify({ answer: t?.answer, verdict: t?.verdict, reduceBy: t?.reduceBy, by: t?.guardedBy?.name }));
-      ok('3c. 3 less landed; the Lucky popup closed', ((400 - hp()) === Math.max(0, full - 3)) && !rescuePopup(), `full=${full} taken=${400 - hp()} own=${!!rescuePopup()}`);
+      ok('3b. Cut: the d8 (3) off the DAMAGE — the Bard the reactor, reduceBy 3, 3 less landed, a Bardic Inspiration spent',
+        (landed?.answer === 'cast') && (landed?.actorUuid === bard.uuid) && (landed?.reaction === 'Cutting Words') && (Number(landed?.reduceBy) === 3)
+          && ((400 - hp()) === Math.max(0, full - 3)) && (spentBI() === 1),
+        JSON.stringify({ answer: landed?.answer, by: landed?.actorName, reaction: landed?.reaction, reduceBy: landed?.reduceBy, full, taken: 400 - hp(), spent: spentBI() }));
+      // c. the next hit: "Not until the next combat" — the chip, the hit lands whole
+      await refillInspiration(); await dropReactionChipsOn(bard);
+      const msg2 = await swing({ d20: [19], dmg: 5 });
+      const cut2 = await waitFor(cutPopup, 8000);
+      pickApply(cut2, 'mute-combat');
+      const eff = await waitFor(() => bard.effects.find(e => e.getFlag(MOD, 'bystanderMute')?.key === 'Cutting Words'), 6000);
+      await waitFor(() => hp() < 400, 8000);
+      await sleep(400);
+      ok('3c. "Not until the next combat": the chip "Cutting Words — muted until the next combat" (combat null, until "combat"); the hit lands whole',
+        /muted until the next combat/.test(eff?.name ?? '') && (eff?.getFlag(MOD, 'bystanderMute')?.combat === null) && (eff?.getFlag(MOD, 'bystanderMute')?.until === 'combat') && ((400 - hp()) === full),
+        `effect=${eff?.name ?? null} flag=${JSON.stringify(eff?.getFlag(MOD, 'bystanderMute') ?? null)} taken=${400 - hp()} full=${full}`);
+      // d. muted: a trivial reduction asks nobody — no damage hold, the damage lands at once
+      const before = game.messages.contents.filter(m => m.getFlag(MOD, 'damageHold')).length;
+      const msg3 = await swing({ d20: [19], dmg: 5 });
+      await waitFor(() => hp() < 400, 8000);
+      await sleep(800);
+      const after = game.messages.contents.filter(m => m.getFlag(MOD, 'damageHold')).length;
+      ok('3d. muted, a trivial reduction asks nobody: no damage hold, no popup, the damage landed whole', (after === before) && !cutPopup() && ((400 - hp()) === full),
+        `holds=${before}->${after} pop=${!!cutPopup()} taken=${400 - hp()}`);
+      await dropMutes();
+      void msg2; void msg3;
+    }
+
+    // ---- 127. the down guard (RULINGS *The asks widened*): a reduction that keeps the Halfling above 0 is asked through the mute
+    if (want(127)) {
+      await closeDialogs(); await spendLuck(); await refillInspiration(); await dropMutes(); await dropReactionChipsOn(bard);
+      await bard.createEmbeddedDocuments('ActiveEffect', [{ name: 'Cutting Words — muted until the next combat', img: 'icons/svg/sound-off.svg', transfer: false,
+        flags: { [MOD]: { bystanderMute: { key: 'Cutting Words', combat: null, until: 'combat' } } } }]);
+      // the hit's damage, measured: muted, a trivial hit at 400 HP lands at once
+      const probeMsg = await swing({ d20: [19], dmg: 5 });
+      await waitFor(() => hp() < 400, 8000);
+      const full = 400 - hp();
+      // the Halfling two short of the damage: it would drop to 0, and a d8 can keep it up
+      await halfling.update({ 'system.attributes.hp.value': Math.max(1, full - 2), 'system.attributes.hp.temp': 0 });
+      attackerToken.control({ releaseOthers: true });
+      halflingToken.setTarget(true, { releaseOthers: true });
+      await sleep(80);
+      faces([[19, 20], [5, 6], [5, 6]]);
+      const usage = await act().use({ subsequentActions: false }, { configure: false }, {});
+      const rolls = await act().rollAttack({}, { configure: false }, usage?.message?.id ? { data: { 'system.origin': usage.message.id } } : {});
+      const msg = rolls?.[0]?.parent ?? null;
+      const cut = await waitFor(cutPopup, 8000);
+      const card = damageHoldOf();
+      const guard = card?.getFlag(MOD, 'damageHold')?.guards?.find(g => g.actorUuid === bard.uuid);
+      const text = textOf(cut?.element);
+      ok('127a. muted, yet asked: the popup "You can keep BTB Test Halfling from hitting 0 Hit Points." with no mute button; the hold card says a Reaction can',
+        !!cut && /You can keep BTB Test Halfling from hitting 0 Hit Points/.test(text) && !cut?.element?.querySelector('input[value^="mute"]')
+          && (guard?.keepsUp === true) && /can keep BTB Test Halfling from hitting 0 Hit Points/.test(cardText(card?.id)),
+        `cut=${!!cut} guard=${JSON.stringify(guard)} full=${full} hp=${hp()} text="${text.slice(0, 260)}" card="${cardText(card?.id).slice(0, 200)}"`);
+      faces([[3, 8]]);
+      pickApply(cut, 'cast');
+      const landed = await waitFor(() => { const f = game.messages.get(card?.id)?.getFlag(MOD, 'damageHold'); return f?.applied ? f : null; }, 12000);
+      CONFIG.Dice.randomUniform = realPRNG;
+      await sleep(600);
+      ok('127b. Cut (3): the Halfling stands at 1 Hit Point', (landed?.answer === 'cast') && (Number(landed?.reduceBy) === 3) && (hp() === 1),
+        `answer=${landed?.answer} reduceBy=${landed?.reduceBy} hp=${hp()} full=${full}`);
+      await dropMutes(); await healFull();
+      void probeMsg; void msg;
     }
 
     // ---- 4. Restore Balance on an Advantage hit
@@ -493,11 +581,11 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const msg = await swing({ d20: [9, 18], advantage: true });
       const pop = await waitFor(bystanderPopup, 6000);
       const guards = holdOf(msg)?.targets?.[0]?.guards ?? [];
-      ok('4a. the Sorcerer\'s popup: "Restore Balance … the first d20 (9) stands"; Cutting Words (margin 8) quiet',
+      ok('4a. the Sorcerer\'s popup: "Restore Balance … the first d20 (9) stands"; Cutting Words (margin 8) not listed — the quiet road is gone',
         !!pop && /Restore Balance/.test(textOf(pop?.element)) && /first d20 \(9\)/.test(textOf(pop?.element))
-          && guards.some(g => (g.uuid === bard.uuid) && g.quiet) && guards.some(g => (g.uuid === sorcerer.uuid) && !g.quiet),
-        `pop=${textOf(pop?.element).slice(0, 160)} guards=${JSON.stringify(guards.map(g => [g.name, g.row, g.quiet ?? false]))}`);
-      pop?.element?.querySelector('button[data-action="answer"]')?.click();
+          && !guards.some(g => g.uuid === bard.uuid) && guards.some(g => (g.uuid === sorcerer.uuid) && !g.passed),
+        `pop=${textOf(pop?.element).slice(0, 160)} guards=${JSON.stringify(guards.map(g => [g.name, g.row, g.passed]))}`);
+      pickApply(pop);
       const t = await resolvedTarget(msg);
       ok('4b. the first d20 stands: a MISS, rescue Restore Balance, a use spent',
         (t?.verdict === 'miss') && (t?.rescue === 'Restore Balance') && (t?.bent?.how === 'neutralised') && (t?.bent?.stood === 9)
@@ -520,7 +608,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       await sleep(600);
     }
 
-    // ---- 6. "Not this combat"
+    // ---- 6. the mutes in a combat (RULINGS *The asks widened*): "Not until my turn" and the turn's sweep; "Not this combat" and the combat's
     if (want(6)) {
       await closeDialogs(); await spendLuck(); await refillInspiration(); await dropMutes();
       const [combat] = await Combat.createDocuments([{ scene: scene.id, active: true }]);
@@ -531,20 +619,44 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       await sleep(400);
       const msg = await swing({ d20: [12] });
       const pop = await waitFor(bystanderPopup, 6000);
-      const mute = pop?.element?.querySelector('button[data-action="mute"]');
-      ok('6a. the popup carries "Not this combat"', !!mute && /Not this combat/.test(textOf(mute)), textOf(pop?.element).slice(-120));
-      mute?.click();
+      const turnBtn = pop?.element?.querySelector('input[value="mute-turn"]')?.closest('label');
+      const combatBtn = pop?.element?.querySelector('input[value="mute-combat"]')?.closest('label');
+      ok('6a. the popup carries both ways out: "Don\x27t ask again till next turn" and "Don\x27t ask again this combat"',
+        !!turnBtn && /ask again till next turn/.test(textOf(turnBtn)) && !!combatBtn && /ask again this combat/.test(textOf(combatBtn)), textOf(pop?.element).slice(-160));
+      pickApply(pop, 'mute-turn');
       const eff = await waitFor(() => bard.effects.find(e => e.getFlag(MOD, 'bystanderMute')?.key === 'Cutting Words'), 6000);
       const t = await resolvedTarget(msg);
-      ok('6b. the mute on the Bard ("Cutting Words — muted this combat", this combat); the hit lands (passed)',
-        /Cutting Words — muted this combat/.test(eff?.name ?? '') && (eff?.getFlag(MOD, 'bystanderMute')?.combat === combat.id) && (t?.verdict === 'hit'),
-        `effect=${eff?.name ?? null} verdict=${t?.verdict}`);
+      const muteFlag = eff?.getFlag(MOD, 'bystanderMute');
+      ok('6b. "Not until my turn": the chip "Cutting Words — muted until your next turn" (this combat, until "turn"); the hit lands (passed)',
+        /Cutting Words — muted until your next turn/.test(eff?.name ?? '') && (muteFlag?.combat === combat.id) && (muteFlag?.until === 'turn') && (t?.verdict === 'hit'),
+        `effect=${eff?.name ?? null} flag=${JSON.stringify(muteFlag ?? null)} verdict=${t?.verdict}`);
+      await waitFor(() => hp() < 400, 8000);
       const msg2 = await swing({ d20: [12] });
-      await sleep(1200);
-      ok('6c. the next hit asks nobody', !holdOf(msg2) && !bystanderPopup(), `hold=${JSON.stringify(holdOf(msg2)?.targets?.[0]?.guards ?? null)}`);
-      await combat.delete();
+      await waitFor(() => hp() < 400, 8000);
+      await sleep(800);
+      ok('6c. muted: the next hit asks nobody — no attack hold, no popup, no damage hold; the damage landed',
+        !holdOf(msg2) && !bystanderPopup() && !cutPopup() && (hp() < 400), `hold=${JSON.stringify(holdOf(msg2)?.targets?.[0]?.guards ?? null)} cut=${!!cutPopup()}`);
+      // the Bard's turn begins: the mute goes
+      for (let i = 0; (i < 6) && (combat.combatant?.actorId !== bard.id); i++) await combat.nextTurn();
       const gone = await waitFor(() => !bard.effects.some(e => e.getFlag(MOD, 'bystanderMute')), 8000);
-      ok('6d. the combat\'s end sweeps the mute', gone, `left=${bard.effects.filter(e => e.getFlag(MOD, 'bystanderMute')).map(e => e.name)}`);
+      ok('6d. the Bard\'s turn begins: the turn\'s mute is swept', gone && (combat.combatant?.actorId === bard.id),
+        `turn=${combat.combatant?.name} left=${bard.effects.filter(e => e.getFlag(MOD, 'bystanderMute')).map(e => e.name)}`);
+      // asked again; "Not this combat"
+      const msg3 = await swing({ d20: [12] });
+      const pop3 = await waitFor(bystanderPopup, 6000);
+      pickApply(pop3, 'mute-combat');
+      const eff3 = await waitFor(() => bard.effects.find(e => e.getFlag(MOD, 'bystanderMute')?.key === 'Cutting Words'), 6000);
+      await resolvedTarget(msg3);
+      ok('6e. asked again on the Bard\'s turn; "Not this combat": the chip "Cutting Words — muted this combat" (until "combat")',
+        !!pop3 && /Cutting Words — muted this combat/.test(eff3?.name ?? '') && (eff3?.getFlag(MOD, 'bystanderMute')?.until === 'combat') && (eff3?.getFlag(MOD, 'bystanderMute')?.combat === combat.id),
+        `pop=${!!pop3} effect=${eff3?.name ?? null}`);
+      await waitFor(() => hp() < 400, 8000);
+      const msg4 = await swing({ d20: [12] });
+      await sleep(1200);
+      ok('6f. the next hit asks nobody', !holdOf(msg4) && !bystanderPopup() && !cutPopup(), `hold=${JSON.stringify(holdOf(msg4)?.targets?.[0]?.guards ?? null)}`);
+      await combat.delete();
+      const swept = await waitFor(() => !bard.effects.some(e => e.getFlag(MOD, 'bystanderMute')), 8000);
+      ok('6g. the combat\'s end sweeps the mute', swept, `left=${bard.effects.filter(e => e.getFlag(MOD, 'bystanderMute')).map(e => e.name)}`);
     }
 
     // ---- the miss side: a friendly attacker, a hostile target
@@ -615,7 +727,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         !!pop && /\+10/.test(textOf(pop?.element)) && /a Reaction/.test(textOf(pop?.element)) && (holdOf(msg)?.miss === true)
           && guards.some(g => (g.uuid === cleric.uuid) && !g.self),
         `pop=${textOf(pop?.element).slice(0, 180)} hold.miss=${holdOf(msg)?.miss} guards=${JSON.stringify(guards.map(g => [g.name, g.row, !!g.self]))}`);
-      pop?.element?.querySelector('button[data-action="answer"]')?.click();
+      pickApply(pop);
       const t = await missTarget(msg);
       const landed = await waitFor(() => vhp() < 400, 8000);
       ok('7b. the +10 turns it: a HIT (rescue Guided Strike, the Cleric), the damage rolled and landed, a Channel Divinity spent',
@@ -637,7 +749,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       ok('8a. its own popup: "your attack", "No Reaction", the entry marked self',
         !!pop && /your attack/.test(textOf(pop?.element)) && /No Reaction/.test(textOf(pop?.element)) && !/a Reaction ·/.test(textOf(pop?.element)) && g?.self === true,
         `pop=${textOf(pop?.element).slice(0, 180)} guard=${JSON.stringify(g)}`);
-      pop?.element?.querySelector('button[data-action="answer"]')?.click();
+      pickApply(pop);
       const t = await missTarget(msg);
       ok('8b. the +10 turns it: a HIT', (t?.verdict === 'hit') && (t?.rescue === 'Guided Strike'), JSON.stringify({ verdict: t?.verdict, rescue: t?.rescue }));
     }
@@ -653,7 +765,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const gs = popupTitled(/Guided Strike/);
       ok('9a. the Sorcerer\'s popup ("the first d20 (18) stands") beside the Cleric\'s', !!rb && /first d20 \(18\)/.test(textOf(rb?.element)) && !!gs,
         `rb=${textOf(rb?.element).slice(0, 200)} gs=${!!gs}`);
-      rb?.element?.querySelector('button[data-action="answer"]')?.click();
+      pickApply(rb);
       const t = await missTarget(msg);
       await sleep(600);
       ok('9b. the 18 stands: a HIT, rescue Restore Balance; the Cleric\'s popup closed', (t?.verdict === 'hit') && (t?.rescue === 'Restore Balance')
@@ -694,7 +806,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         ok('10a. the failed save is WITHHELD while the Sorcerer is asked: "Restore Balance — BTB Test Halfling\'s saving throw", the first d20 named',
           !!pop && new RegExp(`first d20 \\(${hi}\\)`).test(textOf(pop?.element)) && (rollFlag(rollMsg)?.status === 'pending') && !entry0?.done,
           `dc=${dc} mod=${smod} faces=${hi},${lo} pop=${textOf(pop?.element).slice(0, 200)} flag=${rollFlag(rollMsg)?.status} done=${entry0?.done}`);
-        pop?.element?.querySelector('button[data-action="answer"]')?.click();
+        pickApply(pop);
         const entry = await waitFor(() => { const e = card?.getFlag(MOD, 'saves')?.targets?.find(x => x.uuid === halfling.uuid); return e?.done ? e : null; }, 10000);
         await sleep(600);
         ok('10b. the first die stands: SAVED at the bent total; the roll\'s card names Restore Balance',
@@ -713,7 +825,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       ok('11a. the Bard\'s popup: "Cutting Words — BTB Test Attacker\'s check", no DC known', !!pop && /No DC is known/.test(textOf(pop?.element)),
         textOf(pop?.element).slice(0, 220));
       faces([[5, 8]]);
-      pop?.element?.querySelector('button[data-action="answer"]')?.click();
+      pickApply(pop);
       const flag = await waitFor(() => (rollFlag(msg)?.status === 'resolved') ? rollFlag(msg) : null, 8000);
       await sleep(600);
       ok('11b. the d8 (5) off: the card states the arithmetic and "ask your DM"', (flag?.answer === 'roll') && (flag?.bent?.add === -5)
@@ -730,9 +842,9 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const a = await waitFor(() => rollPopup(/Cutting Words/), 8000);
       const b = await waitFor(() => rollPopup(/Restore Balance/), 4000);
       ok('12a. both asked on an Advantage check', !!a && !!b, `cw=${!!a} rb=${!!b} guards=${JSON.stringify((rollFlag(msg)?.guards ?? []).map(g => g.row))}`);
-      a?.element?.querySelector('button[data-action="pass"]')?.click();
+      pickApply(a, 'pass');
       await sleep(400);
-      b?.element?.querySelector('button[data-action="pass"]')?.click();
+      pickApply(b, 'pass');
       const flag = await waitFor(() => (rollFlag(msg)?.status === 'resolved') ? rollFlag(msg) : null, 8000);
       await sleep(500);
       ok('12b. resolved as a pass; nothing on the card', (flag?.answer === 'pass') && !/Reaction — /.test(cardText(msg?.id)),
@@ -771,7 +883,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       if (box) {
         if (!box.checked) box.click();
         await sleep(50);
-        pop?.element?.querySelector('button[data-action="answer"]')?.click();
+        pickApply(pop);
       } else pop?.element?.querySelector('button[data-action="cast"]')?.click();
     };
     // ---- A1 helpers: the damage offer, the clock riders, Hew's reminders (§15, §17–§20)
@@ -938,7 +1050,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         !!pop && new RegExp(`−${N}\\b`).test(textOf(pop?.element)) && /a Reaction/.test(textOf(pop?.element))
           && /within 10 ft of BTB Test Halfling/.test(textOf(pop?.element)) && !!g && !g.quiet && (String(g.die) === String(N)),
         `N=${N} d20=${d} activity=${!!gdAct} pop="${textOf(pop?.element).slice(0, 220)}" guards=${JSON.stringify(guards.map(x => [x.name, x.row, x.die, x.quiet ?? false]))}`);
-      pop?.element?.querySelector('button[data-action="answer"]')?.click();
+      pickApply(pop);
       const t = await resolvedTarget(msg);
       const spentAfter = Number(cleric.items.get(gd.id)?.system?.uses?.spent ?? 0);
       ok(`13b. −${N} off the attack: a MISS, answered by the Cleric (rescue Glorious Defense), one use spent, no damage`,
@@ -1007,7 +1119,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           guards.length > 0 && guards.every(x => x.uuid === halfling.uuid) && popups().filter(app => app.element?.querySelector?.('[data-bf-ticks="bf-bystander"]')).length === 1,
           `guards=${JSON.stringify(guards.map(x => [x.name, x.row]))}`);
         faces([[5, denom || 6]]);
-        pop?.element?.querySelector('button[data-action="answer"]')?.click();
+        pickApply(pop);
         const t = await resolvedTarget(msg);
         await sleep(600);
         ok('14c. the die (5) off the attack: a MISS, the Halfling answered for itself (rescue Combat Inspiration)',
@@ -1196,7 +1308,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
             const pop3 = await waitFor(deflectPopup, 6000);
             ok('16h. with Deflect Energy the fire hit is held for Deflect Attacks', !!pop3 && (holdOf(msg3)?.targets?.[0]?.reaction === 'Deflect Attacks'),
               `pop=${!!pop3} reaction=${holdOf(msg3)?.targets?.[0]?.reaction}`);
-            pop3?.element?.querySelector('button[data-action="pass"]')?.click();
+            pickApply(pop3, 'pass');
             await waitFor(() => (holdOf(msg3)?.status === 'resolved'), 10000);
           } finally { await closeDialogs(); await unlend(halfling, energy); }
         }
@@ -3012,10 +3124,10 @@ const out = await f.evaluate(async ({ sections, titles }) => {
             const rollMsg = rolls2?.[0]?.parent ?? null;
             const pop = await waitFor(() => rollPopup(/Portent/), 8000);
             const rowsText = textOf(pop?.element);
-            ok('41c. an ally\'s failed save a stored 18 turns: the diviner\'s popup "Portent — replace the 1 with the 18", the 2 not offered',
-              !!pop && /replace the 1 with the 18/.test(rowsText) && !/with the 2\b/.test(rowsText) && (18 + smod >= dc),
+            ok('41c. an ally\'s failed save a stored 18 turns: the diviner\'s popup "Use the 18 … SUCCESS", the 2 not offered',
+              !!pop && /Use the 18/.test(rowsText) && /SUCCESS/.test(rowsText) && !/Use the 2\b/.test(rowsText) && (18 + smod >= dc),
               `pop=${!!pop} dc=${dc} mod=${smod} text="${rowsText.slice(0, 220)}" rolled=${JSON.stringify(rolls2?.[0]?.d20?.results?.map(r => r.result))} saves=${JSON.stringify(game.messages.contents.filter(m => (m.timestamp >= tFlame) && m.rolls?.length).map(m => [m.speaker?.alias, m.flavor?.slice(0, 40), m.rolls[0]?.total, m.id === rollMsg?.id]))}`);
-            pop?.element?.querySelector('button[data-action="answer"]')?.click();
+            pickApply(pop);
             const entry = await waitFor(() => card?.getFlag(MOD, 'saves')?.targets?.find(x => (x.uuid === halfling.uuid) && x.done) ?? null, 10000);
             ok('41d. Answer: SAVED, the chip "Portent — 2"', !!entry && /save|success/i.test(String(entry?.outcome ?? entry?.verdict ?? '')) && (chip()?.name === 'Portent — 2'),
               `entry=${JSON.stringify(entry && { outcome: entry.outcome, verdict: entry.verdict, total: entry.total })} chip=${chip()?.name ?? null} roll=${JSON.stringify(rollMsg?.getFlag(MOD, 'bystanderRoll')?.bent ?? null)}`);
@@ -3024,23 +3136,45 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           // e. an enemy's critical hit on the Halfling: the diviner asked, "replace the 20 with the 2" — a MISS, the chip gone
           const msg = await swing({ d20: [20] });
           const bpop = await waitFor(() => popups().find(app => app.element?.querySelector?.('[data-bf-ticks="bf-bystander"]') && /Portent/.test(textOf(app.element))) ?? null, 8000);
-          ok('41e. a critical hit on an ally: the diviner\'s popup "Portent — replace the 20 with the 2"', !!bpop && /replace the 20 with the 2/.test(textOf(bpop?.element)),
+          ok('41e. a critical hit on an ally: the diviner\'s popup "Use the 2 … a MISS"', !!bpop && /Use the 2\b/.test(textOf(bpop?.element)) && /a MISS/.test(textOf(bpop?.element)),
             `pop=${!!bpop} guards=${JSON.stringify(holdOf(msg)?.targets?.[0]?.guards?.map(g => [g.name, g.row, g.faces, g.quiet ?? false]) ?? null)}`);
-          bpop?.element?.querySelector('button[data-action="answer"]')?.click();
+          pickApply(bpop);
           const t = await resolvedTarget(msg);
           await sleep(600);
           ok('41f. Answer: a MISS, the card "Portent (BTB Test Sorcerer) — 20 → 2 …", no damage, the chip gone',
             (t?.verdict === 'miss') && (t?.bent?.how === 'set') && /Portent \(BTB Test Sorcerer\) — 20 → 2/.test(cardText(msg?.id)) && (hp() === 400) && !chip(),
             `verdict=${t?.verdict} bent=${JSON.stringify(t?.bent)} hp=${hp()} chip=${chip()?.name ?? null} card=${cardText(msg?.id).slice(0, 200)}`);
-          // g. an ordinary hit a face would turn: no popup (the noise gate) — the card's row only
+          // g. an ordinary hit a face turns: the diviner's popup (RULINGS *The asks widened*), the way out; Answer: a MISS, the banner
+          { const old = chip(); if (old) await old.delete(); }   // the rest writes a new chip; wait for THAT one, not the spent one
           await sorcerer.longRest({ dialog: false, chat: false, newDay: false });
           await waitFor(() => chip(), 6000);
           await setFaces([2]);
           const msg2 = await swing({ d20: [12] });
-          await sleep(1500);
-          const asked = popups().some(app => /Portent/.test(textOf(app.element)));
-          const quiet = holdOf(msg2)?.targets?.[0]?.guards?.find(g => g.row === 'Portent') ?? null;
-          ok('41g. an ordinary hit: no Portent popup (asked on saves and critical hits only)', !asked, `asked=${asked} quiet=${JSON.stringify(quiet)} hold=${!!holdOf(msg2)}`);
+          const gpop = await waitFor(() => popups().find(app => app.element?.querySelector?.('[data-bf-ticks="bf-bystander"]') && /Portent/.test(textOf(app.element))) ?? null, 8000);
+          const gtext = textOf(gpop?.element);
+          ok('41g. an ordinary hit a stored 2 turns: the diviner\'s popup "Use the 2 … a MISS"; out of combat the one way out, "Not until the next combat"',
+            !!gpop && /Use the 2\b/.test(gtext) && /a MISS/.test(gtext) && !!gpop?.element?.querySelector('input[value="mute-combat"]') && !gpop?.element?.querySelector('input[value="mute-turn"]'),
+            `pop=${!!gpop} guards=${JSON.stringify(holdOf(msg2)?.targets?.[0]?.guards?.map(g => [g.name, g.row, g.faces]) ?? null)} text="${gtext.slice(0, 200)}"`);
+          pickApply(gpop);
+          const t2 = await resolvedTarget(msg2);
+          // The crit's banner (41f) may still be fading: the newest attack banner is this hit's.
+          const banner = await waitFor(() => [...document.querySelectorAll('.bf-bend-banner')].filter(b => /the d20 12 becomes/.test(b.textContent ?? '')).pop() ?? null, 6000);
+          const btext = textOf(banner);
+          ok('41h. Answer: a MISS, no damage, the chip gone; every screen\'s banner "BTB Test Sorcerer\'s Portent bends reality!", the d20 12 becomes the 2, MISS',
+            (t2?.verdict === 'miss') && (t2?.bent?.how === 'set') && (hp() === 400) && !chip()
+              && /BTB Test Sorcerer's Portent bends reality!/.test(btext) && /the d20 12 becomes the 2/.test(btext) && /MISS/.test(btext),
+            `verdict=${t2?.verdict} hp=${hp()} chip=${chip()?.name ?? null} banner="${btext.slice(0, 220)}"`);
+          // i. the damage rolled by hand after the turned miss: nothing lands, and the card says who turned it
+          faces([[4, 6], [4, 6]]);
+          const late = await act().rollDamage({}, { configure: false }, { data: { flags: { [MOD]: { attackFor: msg2.id } } } });
+          CONFIG.Dice.randomUniform = realPRNG;
+          const lateMsg = late?.[0]?.parent ?? null;
+          const notApplied = await waitFor(() => game.messages.get(lateMsg?.id)?.getFlag(MOD, 'notApplied') ?? null, 8000);
+          await sleep(600);
+          ok('41i. the damage rolled after the miss: no receipt, the card "Not applied — Portent (BTB Test Sorcerer) turned the hit on BTB Test Halfling into a miss", the Halfling untouched',
+            !!notApplied && /Portent \(BTB Test Sorcerer\) turned the hit on BTB Test Halfling into a miss/.test(notApplied?.why ?? '') && !game.messages.get(lateMsg?.id)?.getFlag(MOD, 'receipt')
+              && /Not applied — Portent \(BTB Test Sorcerer\)/.test(cardText(lateMsg?.id)) && (hp() === 400),
+            `flag=${JSON.stringify(notApplied)} receipt=${!!game.messages.get(lateMsg?.id)?.getFlag(MOD, 'receipt')} hp=${hp()} card="${cardText(lateMsg?.id).slice(0, 200)}"`);
         }
       } finally {
         await closeA1();
@@ -3077,10 +3211,10 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           const msgA = rollsA?.[0]?.parent ?? null;
           const popA = await waitFor(() => rollPopup(/Portent/), 8000);
           const textA = textOf(popA?.element);
-          ok('126a. a check whose roll carries DC 15, a natural 1: the diviner\'s popup "Portent — replace the 1 with the 18", the 2 not offered',
-            !!popA && /replace the 1 with the 18/.test(textA) && !/with the 2\b/.test(textA) && (Number(rollsA?.[0]?.options?.target) === 15),
+          ok('126a. a check whose roll carries DC 15, a natural 1: the diviner\'s popup "Use the 18 … SUCCESS", the 2 not offered',
+            !!popA && /Use the 18/.test(textA) && /SUCCESS/.test(textA) && !/Use the 2\b/.test(textA) && (Number(rollsA?.[0]?.options?.target) === 15),
             `pop=${!!popA} target=${rollsA?.[0]?.options?.target} mod=${cmod} text="${textA.slice(0, 200)}"`);
-          popA?.element?.querySelector('button[data-action="answer"]')?.click();
+          pickApply(popA);
           const flagA = await resolvedFlag(msgA);
           await sleep(500);
           ok('126b. Answer: the check\'s card "Portent (BTB Test Sorcerer) … → 18 + mod vs DC 15 — SUCCESS", the chip "Portent — 2"',
@@ -3102,9 +3236,9 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           CONFIG.Dice.randomUniform = realPRNG;
           const msgD = rollsD?.[0]?.parent ?? null;
           const popD = await waitFor(() => rollPopup(/Portent/), 8000);
-          ok('126d. a requested save with DC 15 on the roll, a natural 1: the diviner\'s popup "replace the 1 with the 18"',
-            !!popD && /replace the 1 with the 18/.test(textOf(popD?.element)), `pop=${!!popD} target=${rollsD?.[0]?.options?.target} text="${textOf(popD?.element).slice(0, 160)}"`);
-          popD?.element?.querySelector('button[data-action="answer"]')?.click();
+          ok('126d. a requested save with DC 15 on the roll, a natural 1: the diviner\'s popup "Use the 18 … SUCCESS"',
+            !!popD && /Use the 18/.test(textOf(popD?.element)) && /SUCCESS/.test(textOf(popD?.element)), `pop=${!!popD} target=${rollsD?.[0]?.options?.target} text="${textOf(popD?.element).slice(0, 160)}"`);
+          pickApply(popD);
           const flagD = await resolvedFlag(msgD);
           await sleep(500);
           ok('126e. Answer: "… vs DC 15 — SUCCESS" on the save\'s own card, the 18 spent — the chip "Portent — 2"',
@@ -3181,7 +3315,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
               `pop=${!!pop} dc=${dc} mod=${smod} statuses=${JSON.stringify(demandStatuses)} text="${popText.slice(0, 240)}"`);
             // b. Answer: two d20s (17 and 3) rerolled off the Halfling, the 17 standing; the Reaction spent; the entry SAVED
             faces([[17, 20], [3, 20]]);
-            pop?.element?.querySelector('button[data-action="answer"]')?.click();
+            pickApply(pop);
             const entry = await waitFor(() => card.getFlag(MOD, 'saves')?.targets?.find(x => (x.uuid === halfling.uuid) && x.done) ?? null, 12000);
             CONFIG.Dice.randomUniform = realPRNG;
             const bent = rollMsg?.getFlag(MOD, 'bystanderRoll')?.bent ?? null;
@@ -3346,7 +3480,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
               !!pop && /Beguiling Twist/.test(popText) && /it succeeded/.test(popText) && /Target ONE other creature/.test(popText), `pop=${!!pop} text="${popText.slice(0, 240)}"`);
             // b. Answer with nothing targeted: refused, nothing spent, the popup stays.
             clearTargets();
-            pop?.element?.querySelector('button[data-action="answer"]')?.click();
+            pickApply(pop);
             await sleep(700);
             ok('44b. Answer with no target: refused — the roll still held, no Reaction spent',
               (rollFlag(rollMsg)?.status === 'pending') && !reactionChipOn(sorcerer), `status=${rollFlag(rollMsg)?.status} reaction=${!!reactionChipOn(sorcerer)}`);
@@ -3355,7 +3489,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
             const pop2 = await waitFor(() => rollPopup(/Beguiling Twist/), 6000);
             attackerToken.setTarget(true, { releaseOthers: true });
             await sleep(120);
-            (pop2 ?? pop)?.element?.querySelector('button[data-action="answer"]')?.click();
+            pickApply(pop2 ?? pop);
             const twistCard = await waitFor(() => game.messages.contents.find(m => (m.timestamp >= t0) && (m.getFlag(MOD, 'twistFor') === rollMsg?.id) && m.getFlag(MOD, 'saves')) ?? null, 12000);
             const entry = await waitFor(() => card.getFlag(MOD, 'saves')?.targets?.find(x => (x.uuid === halfling.uuid) && x.done) ?? null, 12000);
             const tflag = rollFlag(rollMsg);
@@ -3779,7 +3913,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           ok('51a. the Attacker hits the Halfling by 2: the sorcerer\'s popup "Bend Luck — −1d4", the guard\'s sign −1',
             !!pop && /−1d4/.test(textOf(pop?.element)) && (guard?.sign === -1) && !guard?.quiet, `pop=${!!pop} text="${textOf(pop?.element).slice(0, 160)}" guard=${JSON.stringify(guard && { sign: guard.sign, die: guard.die, quiet: guard.quiet })}`);
           faces([[3, 4]]);
-          pop?.element?.querySelector('button[data-action="answer"]')?.click();
+          pickApply(pop);
           const t = await resolvedTarget(msg);
           CONFIG.Dice.randomUniform = realPRNG;
           await sleep(900);   // the pool's spend lands after the answer
@@ -3796,7 +3930,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           ok('51c. the PC Attacker misses the Victim by 3: the sorcerer\'s popup "Bend Luck — +1d4", the guard\'s sign +1',
             !!pop2 && /\+1d4/.test(textOf(pop2?.element)) && (guard2?.sign === 1), `pop=${!!pop2} text="${textOf(pop2?.element).slice(0, 160)}" guard=${JSON.stringify(guard2 && { sign: guard2.sign })} hold=${!!holdOf(miss)}`);
           faces([[4, 4]]);
-          pop2?.element?.querySelector('button[data-action="answer"]')?.click();
+          pickApply(pop2);
           const h2 = await waitFor(() => (holdOf(miss)?.status === 'resolved') ? holdOf(miss) : null, 12000);
           const t2 = h2?.targets?.find(x => x.uuid === victim.uuid) ?? null;
           CONFIG.Dice.randomUniform = realPRNG;
@@ -3841,7 +3975,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
             !!pop && /\+1d6/.test(textOf(pop?.element)) && (guard?.sign === 1) && (sorcerer.items.get(omen.id)?.system?.activities?.get(guard?.activityId)?.name === 'Weal (Even)'),
             `pop=${!!pop} guard=${JSON.stringify(guard && { sign: guard.sign, activity: sorcerer.items.get(omen.id)?.system?.activities?.get(guard.activityId)?.name })}`);
           faces([[5, 6]]);
-          pop?.element?.querySelector('button[data-action="answer"]')?.click();
+          pickApply(pop);
           const h = await waitFor(() => (holdOf(miss)?.status === 'resolved') ? holdOf(miss) : null, 12000);
           CONFIG.Dice.randomUniform = realPRNG;
           await sleep(900);
@@ -3857,7 +3991,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           ok('52d. Woe (3): the Attacker hits the Halfling by 2 — the popup "Cosmic Omen — −1d6", the activity Woe (Odd)',
             !!pop2 && /−1d6/.test(textOf(pop2?.element)) && (guard2?.sign === -1) && (sorcerer.items.get(omen.id)?.system?.activities?.get(guard2?.activityId)?.name === 'Woe (Odd)'),
             `pop=${!!pop2} guard=${JSON.stringify(guard2 && { sign: guard2.sign })}`);
-          pop2?.element?.querySelector('button[data-action="pass"]')?.click();
+          pickApply(pop2, 'pass');
           await resolvedTarget(msg);
         }
       } finally {
@@ -4939,7 +5073,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const holdPopup = () => popups().find(app => /Superior Hunter's Defense/.test(textOf(app.element)) && (app.element?.querySelector?.('[data-bf-ticks="bf-rescue"]') || app.element?.querySelector?.('button[data-action="cast"]'))) ?? null;
       const answerHold = async pop => {
         const box = [...(pop?.element?.querySelectorAll?.('input[name="bf-rescue"]') ?? [])].find(x => x.value === "Superior Hunter's Defense");
-        if (box) { if (!box.checked) box.click(); await sleep(50); pop?.element?.querySelector('button[data-action="answer"]')?.click(); }
+        if (box) { if (!box.checked) box.click(); await sleep(50); pickApply(pop); }
         else pop?.element?.querySelector('button[data-action="cast"]')?.click();
       };
       const typed = () => halfling.effects.find(e => e.name.startsWith("Hunter's Defense: ")) ?? null;
@@ -5176,7 +5310,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           ok('78a. the PC Attacker under the Vow makes an attack roll: the paladin\'s popup "BTB Test PC Attacker attacked — strike?" with Soul of Vengeance (a melee attack), the card "under BTB Test Cleric\'s Vow of Enmity"',
             !!msg && !!card && !!pop && (f?.options ?? []).some(o => o.name === 'Soul of Vengeance') && /Vow of Enmity/.test(cardText(card?.id)),
             `card=${!!card} pop=${!!pop} options=${JSON.stringify((f?.options ?? []).map(o => o.name))} distance=${f?.distance ?? null} text="${cardText(card?.id).slice(0, 200)}" msg=${msg?.id ?? null}`);
-          pop?.element?.querySelector('button[data-action="pass"]')?.click();
+          pickApply(pop, 'pass');
           await sleep(500);
         }
       } finally {
@@ -5249,7 +5383,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         }
       } finally {
         await closeA1();
-        [...document.querySelectorAll('.application')].filter(el => (el.tagName === 'DIALOG') && !!el.querySelector('button[data-action="pass"]')).forEach(el => { el.querySelector('button[data-action="pass"]')?.click(); });
+        [...document.querySelectorAll('.application')].filter(el => (el.tagName === 'DIALOG') && (!!el.querySelector('button[data-action="pass"]') || !!el.querySelector('input[value="pass"]'))).forEach(el => { const r = el.querySelector('input[value="pass"]'); if (r) { r.checked = true; el.querySelector('button[data-action="answer"]')?.click(); } else el.querySelector('button[data-action="pass"]')?.click(); });
         for (const it of [ds, focus]) if (it) await unlend(halfling, it);
         CONFIG.Dice.randomUniform = realPRNG; clearTargets();
       }
@@ -5928,7 +6062,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       await closeA1(); await spendLuckC();
       const stroke = await hgLend(halfling, 'Stroke of Luck', 'feat', { 'system.uses.max': '1', 'system.uses.spent': 0 });
       let legend = null, legendFx = null, pcLegend = null, pcLegendFx = null;
-      const passAll = () => [...document.querySelectorAll('.application')].filter(el => (el.tagName === 'DIALOG') && !!el.querySelector('button[data-action="pass"]')).forEach(el => { el.querySelector('button[data-action="pass"]')?.click(); });
+      const passAll = () => [...document.querySelectorAll('.application')].filter(el => (el.tagName === 'DIALOG') && (!!el.querySelector('button[data-action="pass"]') || !!el.querySelector('input[value="pass"]'))).forEach(el => { const r = el.querySelector('input[value="pass"]'); if (r) { r.checked = true; el.querySelector('button[data-action="answer"]')?.click(); } else el.querySelector('button[data-action="pass"]')?.click(); });
       try {
         if (!stroke) log.push('§98 skipped: no Stroke of Luck');
         else {
@@ -6382,7 +6516,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     if (want(108)) {
       await closeA1(); await spendLuckC();
       const ring = await dmgLend(halfling, 'dmgRingOfEvasion', { 'system.uses.spent': 0 });
-      const passAll = () => [...document.querySelectorAll('.application')].filter(el => (el.tagName === 'DIALOG') && !!el.querySelector('button[data-action="pass"]')).forEach(el => { el.querySelector('button[data-action="pass"]')?.click(); });
+      const passAll = () => [...document.querySelectorAll('.application')].filter(el => (el.tagName === 'DIALOG') && (!!el.querySelector('button[data-action="pass"]') || !!el.querySelector('input[value="pass"]'))).forEach(el => { const r = el.querySelector('input[value="pass"]'); if (r) { r.checked = true; el.querySelector('button[data-action="answer"]')?.click(); } else el.querySelector('button[data-action="pass"]')?.click(); });
       try {
         if (!ring) log.push('§108 skipped: no Ring of Evasion');
         else {
@@ -6420,7 +6554,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     if (want(109)) {
       await closeA1(); await spendLuckC(); await set('saveRolls', 'prompt');
       const scarab = await dmgLend(halfling, 'dmgScarabOfProte', { 'system.uses.spent': 0 });
-      const passAll = () => [...document.querySelectorAll('.application')].filter(el => (el.tagName === 'DIALOG') && !!el.querySelector('button[data-action="pass"]')).forEach(el => { el.querySelector('button[data-action="pass"]')?.click(); });
+      const passAll = () => [...document.querySelectorAll('.application')].filter(el => (el.tagName === 'DIALOG') && (!!el.querySelector('button[data-action="pass"]') || !!el.querySelector('input[value="pass"]'))).forEach(el => { const r = el.querySelector('input[value="pass"]'); if (r) { r.checked = true; el.querySelector('button[data-action="answer"]')?.click(); } else el.querySelector('button[data-action="pass"]')?.click(); });
       try {
         if (!scarab) log.push('§109 skipped: no Scarab of Protection');
         else {
@@ -6939,7 +7073,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     if (want(124)) {
       await closeA1(); await closeOffers();
       const w = await dmgEnchant(pcAttacker, 'dmgLuckBlade0000', 'phbwepLongsword0');
-      const passAll = () => [...document.querySelectorAll('.application')].filter(el => (el.tagName === 'DIALOG') && !!el.querySelector('button[data-action="pass"]')).forEach(el => { el.querySelector('button[data-action="pass"]')?.click(); });
+      const passAll = () => [...document.querySelectorAll('.application')].filter(el => (el.tagName === 'DIALOG') && (!!el.querySelector('button[data-action="pass"]') || !!el.querySelector('input[value="pass"]'))).forEach(el => { const r = el.querySelector('input[value="pass"]'); if (r) { r.checked = true; el.querySelector('button[data-action="answer"]')?.click(); } else el.querySelector('button[data-action="pass"]')?.click(); });
       try {
         const luck = w?.system?.activities?.find?.(a => a.name === 'Luck') ?? null;
         if (!w || !luck) log.push(`§124 skipped: weapon=${!!w} luck=${!!luck}`);

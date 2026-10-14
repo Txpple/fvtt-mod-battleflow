@@ -14,7 +14,7 @@ import { rescueSpendText } from "../decide/rescue-hit.js";
 import { damageAfterHold } from "../auto-damage.js";
 import { joinEffectReceipt } from "../decide/receipt.js";
 import { bfCard, popupKey, spendPhrase, esc } from "../decide/present.js";
-import { livePopups, waitForWrite } from "../ui.js";
+import { flashBend, livePopups, waitForWrite } from "../ui.js";
 import { reactionItem, hasReactionEffect, applyReactionEffect, reactionACArrived, reactionImg, duplicatesOf, attackFactsOf, recoilKey } from "./lookup.js";
 import { duplicateOutcome, duplicateWords } from "../decide/duplicates.js";
 import { disarmHoldTimer } from "./clock.js";
@@ -28,11 +28,23 @@ listen("updateChatMessage", "hold/continue", message => {
   closeAnsweredHoldPopups(message);
 
   const hold = readFlag(message, "hold");
-  if ( hold?.status === "resolved" ) { void landProtection(message, hold); void landDuplicates(message, hold); }
+  if ( hold?.status === "resolved" ) { void landProtection(message, hold); void landDuplicates(message, hold); flashSetBends(message, hold); }
   if ( !hold || (hold.status !== "pending") || !isContinuingClient(hold) ) return;
   if ( !hold.targets.every(t => t.answer) ) return;
   void continueHold(message);
 });
+
+/** A stored face that replaced the attacker's d20 (Portent, `bent.how === "set"`): the banner, once per target, every screen. */
+function flashSetBends(message, hold) {
+  for ( const target of (hold.targets ?? []) ) {
+    const b = target.bent;
+    if ( (b?.how !== "set") || !target.guardedBy ) continue;
+    const attacker = message.getAssociatedActor?.()?.name ?? "The attacker";
+    flashBend(`${message.id}|${target.uuid}`, { key: target.rescue ?? target.reaction ?? "Portent", by: target.guardedBy.name ?? "The diviner",
+      roller: attacker, test: `attack at ${target.name}`, first: b.first, stood: b.stood, firstTotal: b.firstTotal, total: b.total,
+      verdict: target.verdict ? String(target.verdict).toUpperCase() : null });
+  }
+}
 
 /**
  * Write a continuation's resolved hold under the lock. False when the hold was no longer pending

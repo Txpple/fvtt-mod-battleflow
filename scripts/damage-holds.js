@@ -1,21 +1,25 @@
 /**
  * By the Books — MACHINE (ARCHITECTURE.md §7): the DAMAGE HOLD — an `any` reduction (Stone's
- * Endurance) or an `ally` guard's (Interception), asked before ANY module-applied damage lands.
- * A share claimed at auto-apply.js `registerDamageClaim` WAITS on its own card; the keeper lands
- * it short by the roll (`held`, never claimed twice). ⚠ Card buttons and sheet edits are never
- * held (RULINGS *Where the table bends the rule*). Order: save multiplier, reduction, resistances.
+ * Endurance), an `ally` guard's (Interception) or a BYSTANDER's die off the damage (Cutting Words'
+ * "makes a damage roll", a `roll` row with `damage`; RULINGS *The asks widened*), asked before ANY
+ * module-applied damage lands. A share claimed at auto-apply.js `registerDamageClaim` WAITS on its
+ * own card; the keeper lands it short by the roll (`held`, never claimed twice). ⚠ Card buttons and
+ * sheet edits are never held (RULINGS *Where the table bends the rule*). Order: save multiplier,
+ * reduction, resistances.
  */
 import { MODULE_ID, readFlag, TITLE, keepsMessage, queueFlagWrite, canAnswerFor, statContext, decisionWindow } from "./core.js";
-import { lower, itemNamed, resolveUuid, reductionFor, holdsFor, featureNamed, activityNamed } from "./lookup.js";
-import { alliesWithin, tokenForUuid } from "./geometry.js";
+import { lower, itemNamed, resolveUuid, reductionFor, holdsFor, featureNamed, activityNamed, bystanderRows, bystanderDie } from "./lookup.js";
+import { alliesWithin, nearestFeet, tokenForUuid } from "./geometry.js";
 import { interruptEntries } from "./decide/registry.js";
-import { INTERRUPT_MULTIPLIERS, INTERRUPT_REDUCTIONS } from "./decide/registry.js";
+import { INTERRUPT_MULTIPLIERS, INTERRUPT_REDUCTIONS, INTERRUPT_ROLLS } from "./decide/registry.js";
+import { dieMaxOf, reductionKeepsUp } from "./decide/rescue-hit.js";
 import { applyItemEffectOnHit } from "./effect-riders.js";
 import { reduceDamages } from "./decide/verdict.js";
 import { reductionRise } from "./decide/dice-chips.js";
-import { poolOf, reactionSpent, spendReaction, spendSuperiorityDie, spendPoolUses, resolveAttackMessage } from "./shared.js";
+import { poolOf, poolUsesOf, reactionSpent, spendReaction, spendSuperiorityDie, spendPoolUses, resolveAttackMessage,
+  bystanderMuted, muteBystander, muteScopesFor } from "./shared.js";
 import { applyDamagesWithReceipt, registerDamageClaim } from "./auto-apply.js";
-import { bfCard, esc, holdBarHTML, popupKey, ruleLine } from "./decide/present.js";
+import { bfCard, esc, holdBarHTML, popupKey, ruleLine, tickRowsHTML } from "./decide/present.js";
 import { livePopups, openMomentPopup, momentButton, scheduleBarSync, shownMoments,
   armDeadline, disarmDeadline, registerRelay, registerResumable } from "./ui.js";
 import { SURFACES } from "./surfaces.js";
@@ -98,6 +102,61 @@ function interceptorsFor(defender, attacker, { attackDamage = true } = {}) {
   return null;
 }
 
+/**
+ * THE BYSTANDERS' DAMAGE HALF (Cutting Words; RULINGS *The asks widened*): a `roll` row with `damage`, held by a
+ * creature on the DEFENDER's side within the row's feet of the ATTACKER (the creature making the damage roll), its
+ * Reaction free, a use left — asked HERE, where the damage and the defender's Hit Points are known. A mute (shared.js
+ * `bystanderMuted`) silences a trivial ask; an ask that can keep the defender ABOVE 0 Hit Points is always made
+ * (`keepsUp`, decide/rescue-hit.js). A bystander the ATTACK hold already asked about this hit (the roll half, passed)
+ * is not asked twice, unless it keeps up. An attack's damage only: a save's share has no attacker's roll to stand beside.
+ * @returns {{name: string, row: any, guards: object[]}|null}
+ */
+function cuttersFor(defender, attacker, attack, amount) {
+  const guarded = tokenForUuid(defender?.uuid), from = tokenForUuid(attacker?.uuid);
+  if ( !guarded || !from || !(Number(amount) > 0) ) return null;
+  const side = guarded.document?.disposition;
+  if ( ((side !== 1) && (side !== -1)) || (from.document?.disposition === side) ) return null;
+  const askedOnRoll = (readFlag(attack, "hold")?.targets ?? []).find(t => t.uuid === defender.uuid)?.guards ?? [];
+  const hp = Number(defender.system?.attributes?.hp?.value ?? 0), temp = Number(defender.system?.attributes?.hp?.temp ?? 0);
+  for ( const key of bystanderRows("attack") ) {
+    const row = INTERRUPT_ROLLS[key];
+    if ( !row?.damage ) continue;
+    const guards = [];
+    for ( const token of (canvas.tokens?.placeables ?? []) ) {
+      if ( token.document?.disposition !== side ) continue;
+      const actor = token.actor;
+      if ( !actor || (actor.uuid === attacker.uuid) || guards.some(g => g.actorUuid === actor.uuid) ) continue;
+      if ( ((actor.system?.attributes?.hp?.value ?? 0) <= 0) || actor.statuses?.has?.("incapacitated") ) continue;
+      const feet = nearestFeet(token, from);
+      if ( (feet === null) || (feet > row.bystander) ) continue;
+      const item = featureNamed(actor, key);
+      const activity = item ? activityNamed(item, row.activity) : null;
+      if ( !item || !activity || (row.reaction && reactionSpent(actor)) ) continue;
+      const pool = poolOf(actor, activity) ?? item;
+      if ( row.uses && !(Number(poolUsesOf(pool)?.value ?? 0) > 0) ) continue;
+      const die = bystanderDie(actor, row);
+      const dieMax = dieMaxOf(die);
+      if ( !dieMax ) continue;
+      const keepsUp = reductionKeepsUp({ amount, hp, temp, dieMax });
+      if ( !keepsUp && (bystanderMuted(actor, key) || askedOnRoll.some(g => (g.uuid === actor.uuid) && (g.row === key))) ) continue;
+      guards.push({ actorUuid: actor.uuid, actorName: token.document?.name ?? actor.name, itemId: item.id, activityId: activity.id,
+        formula: die, passed: false, reaction: key, bystander: true, ...(keepsUp ? { keepsUp: true } : {}) });
+    }
+    if ( guards.length ) return { name: key, row, guards };
+  }
+  return null;
+}
+
+/** The guards of two finders on one share: Interception's beside Cutting Words', each guard naming its own row. */
+function mergeGuards(...found) {
+  const live = found.filter(f => f?.guards?.length);
+  if ( !live.length ) return null;
+  return { name: live[0].name, row: live[0].row, guards: live.flatMap(f => f.guards.map(g => ({ reaction: f.name, ...g }))) };
+}
+
+/** A guard's own row: a reduction's (Interception) or a `roll` row's damage half (Cutting Words). */
+const rowOf = name => INTERRUPT_REDUCTIONS[name] ?? INTERRUPT_ROLLS[name] ?? null;
+
 /** B4 — a guard's ward pool (WARD_POOLS `uses`): `{ itemId, left, max }` or null. */
 function wardPoolOf(actor, featureName) {
   const item = featureNamed(actor, featureName);
@@ -125,8 +184,12 @@ registerDamageClaim((receiptMessage, target, actor, damages, { multiplier = 1, n
   const heldByAttack = !!readFlag(attack, "hold")?.targets?.some(t => t.uuid === target.uuid);
   const found = (own && !reactionSpent(actor) && !heldByAttack) ? anyReductionOf(actor) : null;
   if ( !found ) {
-    // An ATTACK's damage to a creature with a guard beside it is held for the guards to answer (an `any` guard on any damage).
-    const guards = guarded ? interceptorsFor(actor, attack?.getAssociatedActor?.() ?? receiptMessage.getAssociatedActor?.() ?? null, { attackDamage: !!attack }) : null;
+    // An ATTACK's damage to a creature with a guard beside it is held for the guards to answer (an `any` guard on any damage);
+    // a bystander with a die to take off an attack's damage (Cutting Words) is a guard of the same share.
+    const source = attack?.getAssociatedActor?.() ?? receiptMessage.getAssociatedActor?.() ?? null;
+    const amount = Math.floor(damages.reduce((n, d) => n + (Number(d.value) || 0), 0) * multiplier);
+    const guards = mergeGuards(guarded ? interceptorsFor(actor, source, { attackDamage: !!attack }) : null,
+      (attack && cuttersListed()) ? cuttersFor(actor, source, attack, amount) : null);
     if ( !guards ) return false;
     claimedShares.set(key, Date.now());
     void stampHold(receiptMessage, target, actor, damages, { multiplier, note }, guards, { guarded: true })
@@ -148,6 +211,7 @@ registerDamageClaim((receiptMessage, target, actor, damages, { multiplier = 1, n
 const listed = () => interruptEntries().some(e => INTERRUPT_REDUCTIONS[Object.keys(INTERRUPT_REDUCTIONS).find(k => lower(k) === lower(e.name))]?.any
   || INTERRUPT_MULTIPLIERS[Object.keys(INTERRUPT_MULTIPLIERS).find(k => lower(k) === lower(e.name))]?.any);
 const guardsListed = () => interruptEntries().some(e => INTERRUPT_REDUCTIONS[Object.keys(INTERRUPT_REDUCTIONS).find(k => lower(k) === lower(e.name))]?.ally);
+const cuttersListed = () => bystanderRows("attack").some(k => INTERRUPT_ROLLS[k]?.damage);
 
 async function stampHold(receiptMessage, target, actor, damages, { multiplier, note }, found, { guarded = false } = {}) {
   const window = decisionWindow();
@@ -167,13 +231,16 @@ async function stampHold(receiptMessage, target, actor, damages, { multiplier, n
     ...statContext(source?.uuid ?? null),
     ...(window ? { window, deadline: Date.now() + (window * 1000) } : {})
   };
-  const guardNames = guarded ? found.guards.map(g => g.actorName).join(" or ") : null;
+  // Each guard may answer with its own row's word ("intercept", "cut"); one that can keep the defender up says so.
+  const guardWords = guarded ? found.guards.map(g => `${g.actorName} may ${rowOf(g.reaction ?? found.name)?.verb ?? "intercept"}`).join(", ") : null;
+  const keepsUp = guarded && found.guards.some(g => g.keepsUp);
   const message = await ChatMessage.create({
     speaker: ChatMessage.getSpeaker({ actor }),
     content: bfCard({ img: guarded ? (resolveUuid(found.guards[0].actorUuid)?.items?.get(found.guards[0].itemId)?.img ?? null) : found.item.img,
-      eyebrow: `Reaction — ${found.name}`, tone: "pending",
+      eyebrow: `Reaction — ${guarded ? [...new Set(found.guards.map(g => g.reaction ?? found.name))].join(" · ") : found.name}`, tone: "pending",
       title: `${target.name ?? actor.name} is about to take ${amount} damage`,
-      subtitle: guarded ? `${guardNames} may ${found.row?.verb ?? "intercept"}${source ? ` · from ${source.name}` : ""}` : (source ? `from ${source.name}` : "the damage waits for the answer") }),
+      subtitle: guarded ? `${guardWords}${source ? ` · from ${source.name}` : ""}` : (source ? `from ${source.name}` : "the damage waits for the answer"),
+      lines: keepsUp ? [`<strong>A Reaction here can keep ${esc(target.name ?? actor.name)} from hitting 0 Hit Points.</strong>`] : [] }),
     flags: { [MODULE_ID]: { [HOLD_FLAG]: flag } }
   });
   if ( message ) armTimer(message);
@@ -213,7 +280,9 @@ function foldAnswer(current, { answer, reduceBy = 0, poolSpend = null, who = nul
     }
     Object.assign(current, { status: "resolved", answer, reduceBy: Number(reduceBy) || 0, poolSpend,
       actorUuid: guard.actorUuid, actorName: guard.actorName, itemId: guard.itemId, activityId: guard.activityId,
-      formula: guard.formula, answeredAt: Date.now() });
+      formula: guard.formula, answeredAt: Date.now(),
+      // The answering guard's own row names the receipt (Cutting Words beside Interception on one share).
+      ...(guard.reaction ? { reaction: guard.reaction, label: rowOf(guard.reaction)?.label ?? guard.reaction } : {}) });
     return;
   }
   Object.assign(current, { status: "resolved", answer, reduceBy: Number(reduceBy) || 0, poolSpend, answeredAt: Date.now() });
@@ -231,15 +300,31 @@ async function answerHold(message, answer, who = null) {
     if ( flag.guards?.length && !guard ) return;
     const mine = guard ?? flag;
     const actor = resolveUuid(mine.actorUuid);
+    const key = mine.reaction ?? flag.reaction;
     let reduceBy = 0;
     let poolSpend = null;
     if ( (answer === "cast") && (actor instanceof Actor) ) {
       const item = actor.items.get(mine.itemId);
       const activity = item?.system?.activities?.get(mine.activityId) ?? null;
       const pool = activity ? poolOf(actor, activity) : null;
-      if ( pool && !(Number(pool.system?.uses?.value ?? 0) > 0) ) {
-        ui.notifications.warn(`${TITLE}: ${actor.name} has no uses of ${flag.label ?? flag.reaction} left.`);
+      if ( pool && !(Number(poolUsesOf(pool)?.value ?? 0) > 0) ) {
+        ui.notifications.warn(`${TITLE}: ${actor.name} has no uses of ${(pool !== item) ? pool.name : (flag.label ?? key)} left.`);
         answer = "pass";
+      } else if ( mine.bystander ) {
+        // THE BYSTANDER'S DIE OFF THE DAMAGE (Cutting Words): rolled in the open, the use and the Reaction spent — the roll
+        // half's receipts (hold/answer.js `bystanderReaction`), the number folded here.
+        try {
+          const roll = await new Roll(String(mine.formula)).evaluate();
+          const rise = reductionRise({ roll: roll.toJSON(), from: actor.uuid, to: flag.target?.uuid ?? null });
+          await roll.toMessage({ speaker: ChatMessage.getSpeaker({ actor }), flavor: `${key} — off ${flag.target?.name ?? "the"}'s damage`,
+            ...(rise ? { flags: { [MODULE_ID]: { diceRise: rise } } } : {}) });
+          reduceBy = Math.max(0, Number(roll.total) || 0);
+        } catch(err) {
+          console.error(`${TITLE} | ${key}'s die could not be rolled — reduce by hand.`, err);
+        }
+        const row = INTERRUPT_ROLLS[key];
+        if ( row?.uses && (pool ?? item) ) poolSpend = await spendPoolUses(actor, pool ?? item, key, 1, (pool && (pool !== item)) ? pool.name : null).catch(() => null);
+        if ( row?.reaction ) await spendReaction(actor, { origin: item?.uuid ?? null, what: key });
       } else if ( mine.halve ) {
         // C1 — the multiplier's answer (Superior Hunter's Defense): the share halved, no roll; the Reaction (and a use) spent.
         const share = Math.floor(unpackDamages(flag.damages).reduce((n, d) => n + (Number(d.value) || 0), 0) * Number(flag.multiplier ?? 1));
@@ -346,12 +431,51 @@ registerResumable(HOLD_FLAG, {
 /** A guard's button: the row's verb (Protective Field "Reduce"), Interception's "Intercept" by default. */
 const verbLabel = row => { const v = row?.verb ?? "intercept"; return v.charAt(0).toUpperCase() + v.slice(1); };
 
+/**
+ * A bystander's own popup (Cutting Words' damage half; RULINGS *The asks widened*): the hit, the damage, the die off it; the
+ * mutes unless this ask can keep the defender above 0 Hit Points — then the popup says so and offers no mute.
+ */
+async function showCutterPopup(message, guard, flag, actor, key, row) {
+  const item = actor?.items.get(guard.itemId) ?? null;
+  const activity = item?.system?.activities?.get(guard.activityId) ?? null;
+  const pool = (activity ? poolOf(actor, activity) : null) ?? item;
+  const left = Number(poolUsesOf(pool)?.value ?? 0);
+  const tag = [row?.reaction ? "a Reaction" : null, row?.uses ? `${(pool && (pool !== item)) ? `${pool.name} ` : ""}${left} left` : null].filter(Boolean).join(" · ");
+  const target = flag.target?.name ?? "the target";
+  const mute = async until => {
+    await muteBystander(actor, key, { img: item?.img ?? null, until }).catch(err => console.warn(`${TITLE} | Could not mute ${key}.`, err));
+    void answerHold(message, "pass", guard.actorUuid);
+  };
+  // THE CHOICES AS RADIOS (RULINGS *The asks widened*): cut, "Pass just this time" checked, the mutes (none on a down-saver); Apply.
+  const rows = [{ key: "cast", name: `${verbLabel(row)} the damage`, dice: `−${guard.formula}`, tag: "", off: null, rule: row?.rule ?? "" },
+    { key: "pass", name: "Pass just this time", dice: "", tag: "", off: null, rule: "", checked: true },
+    ...(guard.keepsUp ? [] : muteScopesFor(actor).map(scope => ({ key: `mute-${scope.until}`, name: scope.label, dice: "", tag: "", off: null, rule: "" })))];
+  await openMomentPopup(message, `${HOLD_FLAG}|${guard.actorUuid}`, actor, {
+    title: `${key} — ${flag.sourceName ?? "the attacker"}'s hit on ${target}`, icon: "fa-solid fa-comment-dots", width: 460,
+    content: bfCard({ img: item?.img ?? actor?.img ?? null, eyebrow: `Reaction — ${key}`, tone: "pending",
+      title: `${flag.sourceName ?? "The attacker"} hits ${target} for ${flag.amount} — ${row?.verb ?? "cut"} the damage?`,
+      subtitle: `within ${row?.bystander ?? "?"} ft of ${flag.sourceName ?? "the attacker"}${tag ? ` · ${tag}` : ""}`,
+      lines: guard.keepsUp ? [`<strong>You can keep ${esc(target)} from hitting 0 Hit Points.</strong>`] : [] })
+      + holdBarHTML(flag, "to answer") + tickRowsHTML({ name: "bf-cutter", rows, kind: "radio" }),
+    buttons: [
+      { action: "answer", label: "Apply", default: true, callback: (_event, button) => {
+        const picked = String(button?.form?.querySelector?.('input[name="bf-cutter"]:checked')?.value ?? "pass");
+        if ( picked === "cast" ) { void answerHold(message, "cast", guard.actorUuid); return; }
+        if ( picked.startsWith("mute-") ) { void mute((picked === "mute-turn") ? "turn" : "combat"); return; }
+        void answerHold(message, "pass", guard.actorUuid);
+      } }
+    ]
+  });
+}
+
 /** A guard's own popup, keyed apart, closed by any intercept or its own pass. */
 async function showGuardPopup(message, guard) {
   const flag = readFlag(message, HOLD_FLAG);
   if ( (flag?.status !== "pending") || guard.passed ) return;
   const actor = resolveUuid(guard.actorUuid);
-  const row = INTERRUPT_REDUCTIONS[flag.reaction];
+  const key = guard.reaction ?? flag.reaction;
+  if ( guard.bystander ) return showCutterPopup(message, guard, flag, actor, key, INTERRUPT_ROLLS[key]);
+  const row = INTERRUPT_REDUCTIONS[key];
   await openMomentPopup(message, `${HOLD_FLAG}|${guard.actorUuid}`, actor, {
     title: `Reaction — ${flag.label ?? flag.reaction}`, icon: "fa-solid fa-shield-halved",
     content: bfCard({ img: actor?.items.get(guard.itemId)?.img ?? null, eyebrow: `Reaction — ${flag.label ?? flag.reaction}`, tone: "pending",
@@ -397,7 +521,7 @@ function holdLine(flag) {
   const to = guarded ? ` to ${flag.target?.name}` : "";
   if ( flag.answer === "cast" ) return `${flag.label ?? flag.reaction} — ${flag.actorName} reduces the damage${to} by ${flag.reduceBy}`;
   if ( flag.answer === "pass" ) return `${guarded ? flag.target?.name : flag.actorName} takes the damage${flag.timedOut ? " (timer)" : ""}`;
-  if ( guarded ) return `${flag.label ?? flag.reaction} — ${flag.guards.filter(g => !g.passed).map(g => g.actorName).join(" or ")} may reduce ${flag.amount} damage${to}; it waits for the answer`;
+  if ( guarded ) return `${flag.guards.filter(g => !g.passed).map(g => `${g.reaction ?? flag.label ?? flag.reaction} (${g.actorName})`).join(" or ")} may reduce ${flag.amount} damage${to}; it waits for the answer`;
   return `${flag.label ?? flag.reaction} — ${flag.actorName} may reduce ${flag.amount} damage; it waits for the answer`;
 }
 

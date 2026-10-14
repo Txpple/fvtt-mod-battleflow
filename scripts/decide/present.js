@@ -787,16 +787,17 @@ export function dieMeterHTML({ value, min, max, avg, beat, gain, low }) {
 
 /**
  * THE OFFER ROW, TICKED (RULINGS *Rescuing the hit*): name and dice, a fact as the tag, the rule
- * folded. ⚠ Never a caveat line. One tick at a time (the EDGE unticks the sibling).
+ * folded. ⚠ Never a caveat line. One tick at a time (the EDGE unticks the sibling); `kind: "radio"` makes
+ * the browser keep it so, and a row `checked` starts ticked (the bystander popups, RULINGS *The asks widened*).
  * @param {{name: string, rows: {key: string, name: string, dice?: string|null, tag?: string|null,
- *          off?: string|null, rule?: object|string|null}[]}} view
+ *          off?: string|null, rule?: object|string|null, checked?: boolean}[], kind?: "checkbox"|"radio"}} view
  */
-export function tickRowsHTML({ name, rows }) {
+export function tickRowsHTML({ name, rows, kind = "checkbox" }) {
   const items = (rows ?? []).map(r => `
       <label data-bf-tick-row="${attr(r.key)}" style="display:grid;grid-template-columns:auto 1fr auto;gap:0.2rem 0.5rem;align-items:center;
              margin:0.3rem 0;padding:0.35rem 0.5rem;border-radius:4px;background:rgba(0,0,0,0.06);
              border:1px solid var(--color-border-light,rgba(0,0,0,0.2));${r.off ? "opacity:0.5;" : "cursor:pointer;"}">
-        <input type="checkbox" name="${attr(name)}" value="${attr(r.key)}" ${r.off ? "disabled" : ""} style="margin:0;">
+        <input type="${kind === "radio" ? "radio" : "checkbox"}" name="${attr(name)}" value="${attr(r.key)}" ${r.off ? "disabled" : ""}${r.checked ? " checked" : ""} style="margin:0;">
         <span style="font-weight:bold;">${esc(r.name)}${r.dice ? ` <span style="font-weight:normal;opacity:0.8;">${esc(r.dice)}</span>` : ""}</span>
         <span style="font-size:var(--font-size-10,10px);letter-spacing:0.06em;text-transform:uppercase;white-space:nowrap;opacity:0.85;${r.off ? "color:var(--color-level-error,#b44);" : ""}">${esc(r.off ?? r.tag ?? "")}</span>
         ${foldedRuleHTML(r.rule ?? "").replace("grid-column:1 / -1", "grid-column:2 / -1")}

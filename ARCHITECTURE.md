@@ -675,7 +675,7 @@ The PHB classes (2026-09-29/30; RULINGS *The PHB classes — A1* … *B1*) moved
 (§6's tripwire 39 → 40, B1: a failed save rerolled with a bonus added, paid by a use or a Rage's once — the new d20
 REPLACES and the bonus ADDS in one `SAVE_FOLDS` entry) — and added tables that are not kinds (`WARD_POOLS`,
 `INITIATIVE_GRANTS`, `TURN_GRANTS`, `CAST_RIDERS`, `STORED_DICE`, `REROLLS`) plus bystander vocabulary on
-`INTERRUPT_ROLLS` (`bend: "die" | "neutralise" | "set" | "reroll"`, `bystander`, `against`, `advantage`).
+`INTERRUPT_ROLLS` (`bend: "die" | "neutralise" | "set" | "reroll"`, `bystander`, `against`, `advantage`; `damage` + `verb` — the die off an attack's damage, asked as a guard of the damage hold, RULINGS *The asks widened*).
 
 ### How a row names its content
 

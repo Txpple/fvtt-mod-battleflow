@@ -169,7 +169,7 @@ export const MOMENT_RECORDS = Object.freeze({
 
   damageHold: {
     events: ["hold-answered"],
-    means: "a reduction \"when you take damage\" was answered before the damage landed — cast or taken (damage-holds.js: Stone's Endurance on any damage); the landing is the receipt's",
+    means: "a reduction \"when you take damage\" was answered before the damage landed — cast or taken (damage-holds.js: Stone's Endurance on any damage, Interception's guards, Cutting Words' die off an attack's damage); the landing is the receipt's",
     resolved: (r) => r?.answer ? [{
       marker: "message", events: ["hold-answered"],
       facts: { actor: r.actorUuid ?? null, ability: r.reaction ?? null,
@@ -771,6 +771,7 @@ export const MOMENT_RECORDS = Object.freeze({
 export const STATE_KEYS = Object.freeze({
   // the hold's lifecycle and provenance
   attackFor: "provenance — the attack a damage roll answers (auto-damage.js)",
+  notApplied: "a damage card's line — dice rolled on an attack every judged target was missed on (a Portent face, a Shield, a plain miss): nothing applied, the card says why (auto-apply.js, receipts.js); presentation of the attack's resolve",
   attackHoldPending: "the offer is waiting on a hold; the hold's answer is the resolve",
   autoCrit: "provenance — the crit was auto-applied to the damage config",
   damageOffer: "the offer window's own state (open, answered); the die it offers resolves as hitManeuver, clockRiders, sneakDamage",
@@ -847,7 +848,7 @@ export const STATE_KEYS = Object.freeze({
   by: "an envelope field beside respondsTo — the GUARD who answered a held target (Protection, 2026-09-26); the fold onto the hold flag is the resolve",
   bystanderRollAnswer: "a message flag — a bystander's answer to another creature's save or check, relayed to the roll's keeper (bystanders.js); the envelope, the roll's `bystanderRoll` is the resolve",
   rerollUsed: "an ActiveEffect flag on the RAGE effect — the `reroll` folds spent this Rage (Fanatical Focus, B1); gone with the Rage, the spend itself is the d20fold resolve",
-  bystanderMute: "an ActiveEffect flag — \"Not this combat\" (Q2 option A, 2026-09-29): the bystander feature its bearer muted, with the combat it lasts for; a player's preference, swept with the combat, no resolve",
+  bystanderMute: "an ActiveEffect flag — the mute (Q2 option A, 2026-09-29; the scopes RULINGS *The asks widened*): the bystander feature its bearer muted, `until` its next turn or the combat's end (`combat` null: until the next combat); a player's preference, swept at the turn or with the combat, no resolve",
   protectedBy: "an ActiveEffect flag — the guard whose Protection landed \"Protected — <guard>\" on the creature it protected (2026-09-26); provenance, the hold is the resolve",
   fightingStyle: "a damage message's record — a fighting style's number that rode the roll (Great Weapon Fighting's raised dice, Thrown's and Dueling's +2, Two-Weapon's modifier): the card's line, the float, the stats' gain; and the same key on a style's FACE effect (its key, live, its line). Presentation and bookkeeping — the number rode the roll's own config (damage-rules.js, 2026-09-26)",
   armorBlock: "presentation — an actor flag riding the damage's own update: what Heavy Armor Master cut from an attack, for every client to pop \"−N\" over the armored creature; the damage receipt is the record (damage-rules.js, 2026-09-26)",

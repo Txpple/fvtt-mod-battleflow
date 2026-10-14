@@ -173,7 +173,7 @@ export const INTERRUPT_ROLLS = Object.freeze({
   // someone who is neither the roller nor its target. `bystander` the feet from the bystander to the ROLLER;
   // `tests` which D20 Tests; `bend` "die" (a signed `die` read off the BYSTANDER's roll data, or a flat
   // `bonus`) or "neutralise" (Advantage and Disadvantage gone, the first d20 standing — a rule of cool, Q3);
-  // `damage` the die may come off the damage roll instead (the card's quiet road, when the gate is silent).
+  // `damage` the die may come off the damage roll instead (the damage hold's ask, once the damage is known).
   // `on` which attack it bends: "hit" (a hostile's hit on the bystander's side, turned to a miss — the default),
   // "miss" (its own side's miss, turned to a hit), "both"; `self` the bystander's own roll too, with no Reaction
   // (`selfActivity` its pack activity); on a HIT the hit creature may answer for itself, and `only: "self"`
@@ -182,9 +182,11 @@ export const INTERRUPT_ROLLS = Object.freeze({
   // the die the bard's Bardic Inspiration, paid by deleting the answerer's own Inspired effect (Combat
   // Inspiration's Defense). `turned: "strike"`: a hit the bend turns to a miss offers the answerer one weapon
   // attack at the attacker (Riposte's driven attack). The pool is the activity's own consumption (`poolOf`).
-  // Asked only when the bend can change the verdict.
+  // Asked only when the bend can change the verdict. `damage`: the die may come off an attack's DAMAGE instead —
+  // asked at the damage hold (damage-holds.js), once the damage and the hit creature's Hit Points are known
+  // (RULINGS *The asks widened*); `verb` is that hold's word for the answer.
   "Cutting Words": Object.freeze({ reaction: true, uses: true, point: null, activity: "Cut with Words",
-    bystander: 60, tests: Object.freeze(["attack", "check"]), bend: "die", sign: -1, die: "scale.bard.inspiration", damage: true,
+    bystander: 60, tests: Object.freeze(["attack", "check"]), bend: "die", sign: -1, die: "scale.bard.inspiration", damage: true, verb: "cut",
     rule: Object.freeze({ item: "Cutting Words", uuid: "Compendium.dnd-players-handbook.classes.Item.phbbrdCuttingWor" }),
     from: "Bard — College of Lore 3" }),
   "Restore Balance": Object.freeze({ reaction: true, uses: true, point: null, activity: "Prevent Advantage/Disadvantage",
@@ -208,12 +210,13 @@ export const INTERRUPT_ROLLS = Object.freeze({
     rule: Object.freeze({ item: "Combat Inspiration", uuid: "Compendium.dnd-players-handbook.classes.Item.phbbrdCombatInsp", benefit: "Defense" }),
     from: "Bard — College of Valor 3" }),
   // A7: a STORED face replaces the d20 (`bend: "set"`, `stored` the STORED_DICE row that keeps the faces); `bystander:
-  // "sight"` — the scene is the reach, sight is never judged (Q6); no Reaction, no pool. `ask: "crit"` — on an attack a
-  // popup only for a critical hit, else the card's quiet row (the noise gate's narrowing, Q2 option A); saves ask. A CHECK
-  // only when its roll carries a DC (dnd5e's `options.target`: an enricher's or a request's); a bare check asks nobody
-  // (RULINGS *Portent widened*).
+  // "sight"` — the scene is the reach, sight is never judged (Q6); no Reaction, no pool. Asked on every roll a face in
+  // hand turns the verdict of — a foe's hit or success to a miss or a failure, a friend's miss or failure to a hit or a
+  // success — with the two mutes as the brake (RULINGS *The asks widened*; before it `ask: "crit"` kept an attack to
+  // its critical hits). A CHECK only when its roll carries a DC (dnd5e's `options.target`: an enricher's or a request's);
+  // a bare check asks nobody (RULINGS *Portent widened*).
   "Portent": Object.freeze({ reaction: false, uses: false, point: null, activity: null, stored: "Portent",
-    bystander: "sight", tests: Object.freeze(["attack", "save", "check"]), bend: "set", on: "both", ask: "crit",
+    bystander: "sight", tests: Object.freeze(["attack", "save", "check"]), bend: "set", on: "both",
     rule: Object.freeze({ item: "Portent", uuid: "Compendium.dnd-players-handbook.classes.Item.phbwzdPortent000" }),
     from: "Wizard — Diviner 3" }),
   // B1: the bard's Reaction REROLLS a friend's failed save (the bard's own included) `against` an effect that applies one

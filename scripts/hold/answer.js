@@ -33,8 +33,7 @@ import { listen } from "../dispatch.js";
 export function recordAnswer(target, answer, by = null) {
   if ( !target || target.answer ) return false;
   const guard = by ? (target.guards ?? []).find(g => g.uuid === by) : null;
-  // A QUIET bystander (the margin gate silent) starts passed, yet may still ACT from the card.
-  if ( by && (!guard || (guard.passed && !(guard.quiet && (answer !== "pass")))) ) return false;
+  if ( by && (!guard || guard.passed) ) return false;
   if ( answer === "pass" ) {
     if ( guard ) guard.passed = true;
     else if ( target.selfPassed ) return false;
@@ -336,15 +335,15 @@ export async function protectReaction(attackMessage, target, guard) {
 }
 
 /**
- * A BYSTANDER's answer (Cutting Words, Restore Balance — Q2 option A): the cost paid by hand, the bend
- * rolled in the open, recorded on the target it bent. `onDamage`: the die comes off the damage instead
- * (the quiet road, where the gate was silent — Cutting Words' "makes a damage roll").
+ * A BYSTANDER's answer (Cutting Words, Restore Balance, Portent — Q2 option A): the cost paid by hand, the bend
+ * rolled in the open, recorded on the target it bent. (Cutting Words' die off the DAMAGE is the damage hold's,
+ * damage-holds.js.)
  * @param {ChatMessage} attackMessage
  * @param {object} target  the hit creature's entry
  * @param {object} guard   the bystander's entry
- * @param {{onDamage?: boolean, face?: number|null}} [opts]  `face`: the stored face picked (Portent)
+ * @param {{face?: number|null}} [opts]  `face`: the stored face picked (Portent)
  */
-export async function bystanderReaction(attackMessage, target, guard, { onDamage = false, face = null } = {}) {
+export async function bystanderReaction(attackMessage, target, guard, { face = null } = {}) {
   const actor = await fromUuid(guard.uuid);
   const found = rollRow(guard.row);
   const item = actor?.items.get(guard.itemId) ?? null;
@@ -376,22 +375,18 @@ export async function bystanderReaction(attackMessage, target, guard, { onDamage
   if ( reaction ) await spendReaction(actor, { origin: item?.uuid ?? inspired?.origin ?? null, what: key });
   // The Inspired die is spent as it is rolled (d20-folds.js BARDIC's spend).
   if ( inspired ) await inspired.delete().catch(err => console.warn(`${TITLE} | Could not spend the Inspired die — delete it by hand.`, err));
-  let bent = null, reduceBy = null;
+  let bent = null;
   if ( row.bend === "die" ) {
     const formula = guard.die ?? bystanderDie(actor, row);
     let n = 0;
     try {
       const die = await new Roll(String(formula)).evaluate();
-      const rise = onDamage ? reductionRise({ roll: die.toJSON(), from: actor.uuid }) : null;
-      await die.toMessage({ speaker: ChatMessage.getSpeaker({ actor }),
-        flavor: onDamage ? `${key} — off ${target.name}'s damage` : `${key} — off the attack at ${target.name}`,
-        ...(rise ? { flags: { [MODULE_ID]: { diceRise: rise } } } : {}) });
+      await die.toMessage({ speaker: ChatMessage.getSpeaker({ actor }), flavor: `${key} — off the attack at ${target.name}` });
       n = Math.max(0, Number(die.total) || 0);
     } catch(err) {
       console.error(`${TITLE} | ${key}'s die could not be rolled — bend the roll by hand.`, err);
     }
-    if ( onDamage ) reduceBy = n;
-    else bent = dieOutcome({ kept: Number(facts.kept), total: Number(roll.total), add: guardSign(guard, row) * n,
+    bent = dieOutcome({ kept: Number(facts.kept), total: Number(roll.total), add: guardSign(guard, row) * n,
       critAt: facts.critAt, fumbleAt: facts.fumbleAt });
   } else if ( row.bend === "neutralise" ) {
     bent = neutraliseOutcome({ mode: facts.mode, kept: Number(facts.kept), plain: facts.plain, total: Number(roll.total),
@@ -405,7 +400,7 @@ export async function bystanderReaction(attackMessage, target, guard, { onDamage
     }
     bent = setOutcome({ kept: Number(facts.kept), total: Number(roll.total), face: pick, critAt: facts.critAt, fumbleAt: facts.fumbleAt });
   }
-  const settled = await answerHold(attackMessage, target.uuid, "roll", { poolSpend, bent, rescue: key, by: guard.uuid, reduceBy });
+  const settled = await answerHold(attackMessage, target.uuid, "roll", { poolSpend, bent, rescue: key, by: guard.uuid });
   // `turned: "strike"` — the bend turned the hit to a miss against the live AC: one weapon attack at the attacker.
   const ac = Number((await fromUuid(target.uuid))?.system?.attributes?.ac?.value ?? target.ac);
   if ( (row.turned === "strike") && bent && !bent.isCritical && Number.isFinite(ac) && (Number(bent.total) < ac) ) {
@@ -447,11 +442,17 @@ async function driveStrike(actor, option, token, attackId) {
   }
 }
 
-/** "Not this combat" (Q2 option A): mute the bystander's feature for its bearer, and pass this one. */
-export async function muteAndPass(attackMessage, target, guard) {
+/**
+ * The mute (RULINGS *The asks widened*): the feature muted for its bearer `until` its turn or the combat's end, and this one passed.
+ * @param {any} attackMessage
+ * @param {any} target
+ * @param {any} guard
+ * @param {"turn"|"combat"} [until]
+ */
+export async function muteAndPass(attackMessage, target, guard, until = "combat") {
   const actor = await fromUuid(guard.uuid);
   const img = actor?.items?.get(guard.itemId)?.img ?? null;
-  await muteBystander(actor, guard.row, { img }).catch(err => console.warn(`${TITLE} | Could not mute ${guard.row}.`, err));
+  await muteBystander(actor, guard.row, { img, until }).catch(err => console.warn(`${TITLE} | Could not mute ${guard.row}.`, err));
   if ( !guard.passed ) return answerHold(attackMessage, target.uuid, "pass", { by: guard.uuid });
 }
 

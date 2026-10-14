@@ -7,16 +7,16 @@
  * is stated as arithmetic and the verdict stays the DM's (the raw-check shape). One flag on the ROLL
  * message, `bystanderRoll`; a bystander who does not own the roll answers through the relay.
  */
-import { MODULE_ID, readFlag, TITLE, queueFlagWrite, canAnswerFor, keepsMessage, statContext, decisionWindow, activeCombatFor } from "./core.js";
+import { MODULE_ID, readFlag, TITLE, queueFlagWrite, canAnswerFor, keepsMessage, statContext, decisionWindow } from "./core.js";
 import { INTERRUPT_ROLLS, STORED_DICE } from "./decide/registry.js";
 import { bystanderMatters, dieMaxOf, dieOutcome, guardSign, neutraliseOutcome, rerollOutcome, signFor } from "./decide/rescue-hit.js";
 import { bfCard, esc, holdBarHTML, popupKey, tickRowsHTML } from "./decide/present.js";
 import { activityNamed, featureNamed, resolveUuid, bystanderRows, bystanderDie, d20FactsOf, rerollD20 } from "./lookup.js";
 import { nearestFeet, tokenForUuid } from "./geometry.js";
-import { poolOf, poolUsesOf, reactionSpent, spendReaction, spendPoolUses, bystanderMuted, muteBystander, STORED_FLAG, spendStoredFace, storedChipOf, storedFacesUsable, withTargets } from "./shared.js";
+import { poolOf, poolUsesOf, reactionSpent, spendReaction, spendPoolUses, bystanderMuted, muteBystander, muteScopesFor, STORED_FLAG, spendStoredFace, storedChipOf, storedFacesUsable, withTargets } from "./shared.js";
 import { facesThatTurn, setOutcome } from "./decide/stored-dice.js";
 import { foldRise } from "./decide/dice-chips.js";
-import { armAskTimer, cardRow, livePopups, openMomentPopup, registerRelay, registerWithhold, resumeWithheld, shownMoments } from "./ui.js";
+import { armAskTimer, cardRow, flashBend, livePopups, openMomentPopup, registerRelay, registerWithhold, resumeWithheld, shownMoments } from "./ui.js";
 import { listen } from "./dispatch.js";
 
 const KEY = "bystanderRoll";
@@ -44,6 +44,7 @@ function bystandersFor(roller, roll, testKind, dc, demand = {}) {
   if ( !token || !roll || !Number.isFinite(facts.kept) ) return [];
   const total = Number(roll.total);
   const known = Number.isFinite(Number(dc)) && (dc !== null);
+  /** @type {any[]} */
   const out = [];
   for ( const key of bystanderRows(testKind) ) {
     const row = INTERRUPT_ROLLS[key];
@@ -265,8 +266,9 @@ async function bystanderAnswer(message, guard, choice, face = null) {
   if ( flag?.status !== "pending" ) return;
   const actor = resolveUuid(guard.uuid);
   const base = { messageId: message.id, by: guard.uuid, itemId: guard.itemId, rescue: guard.row, rollerName: flag.rollerName };
-  if ( choice === "mute" ) {
-    await muteBystander(actor, guard.row, { img: actor?.items?.get?.(guard.itemId)?.img ?? null })
+  // The mutes (RULINGS *The asks widened*): "mute-turn" until the bystander's next turn, "mute-combat" until the combat ends.
+  if ( String(choice).startsWith("mute") ) {
+    await muteBystander(actor, guard.row, { img: actor?.items?.get?.(guard.itemId)?.img ?? null, until: (choice === "mute-turn") ? "turn" : "combat" })
       .catch(err => console.warn(`${TITLE} | Could not mute ${guard.row}.`, err));
     choice = "pass";
   }
@@ -363,6 +365,13 @@ listen("updateChatMessage", "bystanders", message => {
   const flag = readFlag(message, KEY);
   if ( !flag ) return;
   closeAnswered(message, flag);
+  // A stored face that replaced the d20 (Portent): the banner on every screen, once (ui.js `flashBend`).
+  if ( (flag.answer === "roll") && (flag.bent?.how === "set") ) {
+    const b = flag.bent;
+    const verdict = Number.isFinite(flag.dc) ? ((Number(b.total) >= Number(flag.dc)) ? "SUCCESS" : "FAILURE") : null;
+    flashBend(message.id, { key: flag.rescue ?? "Portent", by: flag.byName ?? "The diviner", roller: flag.rollerName ?? "The roller",
+      test: TEST_WORD[flag.testKind] ?? "roll", first: b.first, stood: b.stood, firstTotal: b.firstTotal, total: b.total, verdict });
+  }
   if ( (flag.status !== "resolved") || !flag.resume || flag.resumed || !keepsMessage(message) ) return;
   if ( resuming.has(message.id) ) return;
   resuming.add(message.id);
@@ -393,9 +402,8 @@ function situation(flag, roll, guard, row) {
   const facts = d20FactsOf(roll);
   const vs = Number.isFinite(flag.dc) ? ` vs DC <strong>${flag.dc}</strong>` : "";
   const test = TEST_WORD[flag.testKind] ?? "roll";
-  if ( row?.bend === "set" ) {
-    return `${esc(flag.rollerName)}'s ${test}: <strong>${roll?.total}</strong>${vs}. A stored face replaces the d20 (${facts.kept}) — the modifiers stand.`;
-  }
+  // A stored-face row (Portent) says the whole choice in its own line: nothing to add here.
+  if ( row?.bend === "set" ) return "";
   if ( row?.bend === "twist" ) {
     return `${esc(flag.rollerName)}'s ${test}: <strong>${roll?.total}</strong>${vs} — <strong>it succeeded</strong>. Target ONE other creature `
       + `within ${row.bystander ?? 120} ft of you, then Answer: it makes a Wisdom saving throw against your spell save DC.`;
@@ -433,36 +441,35 @@ async function showPopup(message, flag, guard) {
   const roll = message.rolls?.[0];
   const facts = d20FactsOf(roll);
   const modifier = Number(roll?.total) - Number(facts.kept);
-  const rows = (row?.bend === "set")
-    ? (guard.faces ?? []).map(face => ({ key: `${guard.row}|${face}`, name: `${guard.row} — replace the ${facts.kept} with the ${face}`,
-        dice: `${face} ${modifier < 0 ? "−" : "+"} ${Math.abs(modifier)} = ${face + modifier}`, tag: "a stored die · no Reaction", off: null, rule: row?.rule ?? "" }))
+  const stored = row?.bend === "set";
+  const dc = Number(flag.dc);
+  // A stored face's row (Portent): what the roll becomes against the DC — one line a player reads in a glance.
+  // THE CHOICES AS RADIOS (RULINGS *The asks widened*): the bend's row(s), "Pass just this time" checked, the mutes; one button, Apply.
+  const bendRows = stored
+    ? (guard.faces ?? []).map(face => ({ key: `${guard.row}|${face}`, name: `Use the ${face}`,
+        dice: `${face + modifier}${Number.isFinite(dc) ? ` vs DC ${dc} — ${((face + modifier) >= dc) ? "SUCCESS" : "FAILURE"}` : ""}`, tag: "", off: null, rule: row?.rule ?? "" }))
     : [{ key: guard.row, name: guard.row, dice, tag, off: null, rule: row?.rule ?? "" }];
+  const rows = [...bendRows, { key: "pass", name: "Pass just this time", dice: "", tag: "", off: null, rule: "", checked: true },
+    ...muteScopesFor(actor).map(scope => ({ key: `mute-${scope.until}`, name: scope.label, dice: "", tag: "", off: null, rule: "" }))];
+  const failed = Number.isFinite(dc) && (Number(roll?.total) < dc);
+  const said = situation(flag, message.rolls?.[0], guard, row);
   const dialog = await openMomentPopup(message, `${KEY}|${guard.uuid}`, actor, {
     title: `${guard.row} — ${self ? "your" : `${flag.rollerName}'s`} ${test}`, icon: "fa-solid fa-comment-dots", width: 460,
-    content: bfCard({ img: item?.img ?? actor?.img ?? null, eyebrow: `Reaction — ${guard.row}`, tone: "pending",
-      title: (row?.bend === "twist") ? `${self ? "You" : flag.rollerName} succeeded on a ${test}` : `${self ? "You rolled" : `${flag.rollerName} rolled`} a ${test}`,
-      subtitle: (row?.bystander === "sight") ? "on the scene" : `within ${row?.bystander ?? "?"} ft of you` })
-      + holdBarHTML(flag) + `<div style="padding:0.4rem 0.1rem;">${situation(flag, message.rolls?.[0], guard, row)}</div>`
-      + tickRowsHTML({ name: "bf-bystander-roll", rows }),
+    content: bfCard({ img: item?.img ?? actor?.img ?? null, eyebrow: stored ? `${guard.row} — no Reaction` : `Reaction — ${guard.row}`, tone: "pending",
+      title: (row?.bend === "twist") ? `${self ? "You" : flag.rollerName} succeeded on a ${test}`
+        : stored ? `${self ? "You" : flag.rollerName} ${failed ? "failed" : "succeeded on"} a ${test}` : `${self ? "You rolled" : `${flag.rollerName} rolled`} a ${test}`,
+      subtitle: stored ? `${roll?.total}${Number.isFinite(dc) ? ` vs DC ${dc}` : ""}` : (row?.bystander === "sight") ? "on the scene" : `within ${row?.bystander ?? "?"} ft of you` })
+      + holdBarHTML(flag) + (said ? `<div style="padding:0.4rem 0.1rem;">${said}</div>` : "")
+      + tickRowsHTML({ name: "bf-bystander-roll", rows, kind: "radio" }),
     buttons: [
-      { action: "answer", label: "Answer", default: true, callback: (_event, button) => {
-        const picked = button?.form?.querySelector?.('input[name="bf-bystander-roll"]:checked');
-        if ( !picked ) return;
-        void bystanderAnswer(message, guard, "roll", (row?.bend === "set") ? Number(String(picked.value).split("|")[1]) : null);
-      } },
-      { action: "pass", label: "Pass", callback: () => bystanderAnswer(message, guard, "pass") },
-      // Only where a combat runs: out of one there is nothing to mute.
-      ...(activeCombatFor(actor) ? [{ action: "mute", label: "Not this combat", callback: () => bystanderAnswer(message, guard, "mute") }] : [])
+      { action: "answer", label: "Apply", default: true, callback: (_event, button) => {
+        const picked = String(button?.form?.querySelector?.('input[name="bf-bystander-roll"]:checked')?.value ?? "pass");
+        if ( (picked === "pass") || picked.startsWith("mute-") ) { void bystanderAnswer(message, guard, picked); return; }
+        void bystanderAnswer(message, guard, "roll", (row?.bend === "set") ? Number(picked.split("|")[1]) : null);
+      } }
     ]
   });
-  const form = dialog?.element?.querySelector?.("form") ?? dialog?.element ?? null;
-  const boxes = [...(form?.querySelectorAll?.('input[name="bf-bystander-roll"]') ?? [])];
-  const answer = form?.querySelector?.('button[data-action="answer"]') ?? null;
-  if ( boxes[0] ) boxes[0].checked = true;
-  for ( const box of boxes ) box.addEventListener("change", () => {
-    if ( box.checked ) for ( const other of boxes ) if ( other !== box ) other.checked = false;
-    if ( answer ) answer.disabled = !boxes.some(b => b.checked);
-  });
+  void dialog;
 }
 
 /** The line a bent check or save carries: who bent it, and the arithmetic (a check's verdict is the DM's). */

@@ -6,6 +6,7 @@ import { readFlag, TITLE, queueFlagWrite } from "./core.js";
 import { clearStatus } from "./shared.js";
 import { exhaustionPhrase, receiptAmounts, revertPlan, traitPhrase } from "./decide/receipt.js";
 import { revertEffect } from "./effect-riders.js";
+import { esc } from "./decide/present.js";
 import { SURFACES } from "./surfaces.js";
 import { listen } from "./dispatch.js";
 
@@ -13,6 +14,21 @@ import { listen } from "./dispatch.js";
 function typeLabel(type) {
   return CONFIG.DND5E.damageTypes[type]?.label ?? CONFIG.DND5E.healingTypes?.[type]?.label;
 }
+
+// Dice rolled on an attack that ended as a miss: the card says nothing landed, and why (auto-apply.js `stampNotApplied`).
+listen("dnd5e.renderChatMessage", "receipts", (message, html) => {
+  const notApplied = readFlag(message, "notApplied");
+  if ( !notApplied?.why || html.querySelector?.(".bythebooks-not-applied") ) return;
+  const row = document.createElement("div");
+  row.className = "bythebooks-not-applied";
+  Object.assign(row.style, {
+    margin: "0.25rem 0 0", padding: "0.25rem 0.5rem",
+    border: "1px solid var(--color-border-light-2, #999a)", borderRadius: "4px",
+    fontSize: "var(--font-size-11, 11px)", lineHeight: "1.6", opacity: "0.9"
+  });
+  row.innerHTML = `<i class="fa-solid fa-ban" style="opacity:0.8;margin-right:0.3rem;"></i><strong>Not applied</strong> — ${esc(notApplied.why)}.`;
+  (html.querySelector(SURFACES.messageContent) ?? html).appendChild(row);
+});
 
 listen("dnd5e.renderChatMessage", "receipts", (message, html) => {
   const receipt = readFlag(message, "receipt");

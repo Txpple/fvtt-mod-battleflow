@@ -518,6 +518,24 @@ describe("the bystander's bend (Q2, option A) — the margin gate and the two ne
       ).toBe(true);
     }
     expect(reg.INTERRUPT_ROLLS["Cutting Words"].damage).toBe(true);
+    expect(reg.INTERRUPT_ROLLS["Cutting Words"].verb).toBe("cut"); // the damage hold's word for its answer
+  });
+
+  it("reductionKeepsUp: offered always when the die's best face keeps the creature above 0 Hit Points", () => {
+    // 9 damage on 7 HP: down; a d8 can take it to 1 → keeps up.
+    expect(r.reductionKeepsUp({ amount: 9, hp: 7, dieMax: 8 })).toBe(true);
+    // 9 damage on 12 HP: not going down — trivial.
+    expect(r.reductionKeepsUp({ amount: 9, hp: 12, dieMax: 8 })).toBe(false);
+    // 20 damage on 7 HP: a d8 cannot save it (20 − 8 = 12 ≥ 7).
+    expect(r.reductionKeepsUp({ amount: 20, hp: 7, dieMax: 8 })).toBe(false);
+    // Temporary Hit Points count first: 9 on 5 + 3 temp = 8 → down; 9 − 8 = 1 < 8 → keeps up.
+    expect(r.reductionKeepsUp({ amount: 9, hp: 5, temp: 3, dieMax: 8 })).toBe(true);
+    // Exactly the pool is down (0 HP); the die's full face is needed and suffices.
+    expect(r.reductionKeepsUp({ amount: 15, hp: 8, dieMax: 8 })).toBe(true);
+    expect(r.reductionKeepsUp({ amount: 16, hp: 8, dieMax: 8 })).toBe(false);
+    // Nothing to read.
+    expect(r.reductionKeepsUp({ amount: 9, hp: 0, dieMax: 8 })).toBe(false);
+    expect(r.reductionKeepsUp({ amount: 9, hp: 7, dieMax: null })).toBe(false);
   });
 });
 

@@ -239,11 +239,12 @@ export function protectionGuardsOf(defender, attacker) {
  * THE BYSTANDERS (RULINGS *The full release — the order*, Q2 option A), for a HIT (`on: "hit"` — creatures on the
  * DEFENDER's side, the bend turning it to a miss) or a MISS (`on: "miss"` — creatures on the ATTACKER's side,
  * the bend turning it to a hit; the attacker itself when the row is `self`, with no Reaction): within a row's
- * feet of the ATTACKER, their Reaction free, a use left, not muted this combat. ASKED (a popup) when the bend
- * can change the verdict — the margin gate; else QUIET (`passed` from the start, no popup, the card's Answer
- * only) when the row has a damage half; else not listed. Sight is never judged; the side and the distance are.
+ * feet of the ATTACKER, their Reaction free, a use left, not muted (shared.js `bystanderMuted`). ASKED (a popup)
+ * when the bend can change the verdict — the margin gate; else not listed. A row's damage half (`damage`, Cutting
+ * Words) is the DAMAGE hold's to ask, once the damage is known (damage-holds.js; RULINGS *The asks widened*).
+ * Sight is never judged; the side and the distance are.
  * @returns {{uuid: string, name: string, row: string, itemId: string, activityId: string|null, passed: boolean,
- *   bystander: boolean, quiet?: boolean, self?: boolean, die: string|null}[]}
+ *   bystander: boolean, self?: boolean, die: string|null}[]}
  */
 export function bystandersOf(defender, attacker, roll, ac, { on = "hit" } = {}) {
   const keys = bystanderRows("attack").filter(k => [on, "both"].includes(INTERRUPT_ROLLS[k].on ?? "hit"));
@@ -256,6 +257,7 @@ export function bystandersOf(defender, attacker, roll, ac, { on = "hit" } = {}) 
   const want = (on === "hit") ? "miss" : "hit";
   const facts = d20FactsOf(roll);
   if ( !Number.isFinite(facts.kept) ) return [];
+  /** @type {any[]} */
   const out = [];
   for ( const key of keys ) {
     const row = INTERRUPT_ROLLS[key];
@@ -286,7 +288,7 @@ export function bystandersOf(defender, attacker, roll, ac, { on = "hit" } = {}) 
       const pool = activity ? (poolOf(actor, activity) ?? item) : null;
       if ( row.uses && !(Number(pool?.system?.uses?.value ?? 0) > 0) ) continue;
       if ( bystanderMuted(actor, key) ) continue;
-      // A STORED face (Portent): the faces in hand that turn the verdict; asked on a critical hit, else the card's row.
+      // A STORED face (Portent): the faces in hand that turn the verdict — asked (RULINGS *The asks widened*).
       let faces = null;
       if ( row.bend === "set" ) {
         const chip = storedChipOf(actor, row.stored);
@@ -294,9 +296,8 @@ export function bystandersOf(defender, attacker, roll, ac, { on = "hit" } = {}) 
         faces = facesThatTurn({ faces: readFlag(chip, STORED_FLAG)?.faces ?? [], kept: Number(facts.kept), total: Number(roll.total),
           target: Number(ac), want, critAt: facts.critAt, fumbleAt: facts.fumbleAt });
         if ( !faces.length ) continue;
-        const asked = (row.ask !== "crit") || !!roll.isCritical;
         out.push({ uuid: actor.uuid, name: token.document?.name ?? actor.name, row: key, itemId: item.id, activityId: null,
-          passed: !asked, bystander: true, ...(asked ? {} : { quiet: true }), ...(hitSelf ? { hitSelf: true } : {}), die: null, faces });
+          passed: false, bystander: true, ...(hitSelf ? { hitSelf: true } : {}), die: null, faces });
         continue;
       }
       const die = (row.bend !== "die") ? null : inspired ? inspired.die : formulaBonusOf(actor, row) ?? bystanderDie(actor, row);
@@ -306,9 +307,9 @@ export function bystandersOf(defender, attacker, roll, ac, { on = "hit" } = {}) 
       const matters = ((row.bend === "die") && !setting(S.holdReveal)) ? !(roll.isCritical || roll.isFumble) : bystanderMatters({ bend: row.bend, sign, dieMax: dieMaxOf(die), want,
         kept: Number(facts.kept), plain: facts.plain, total: Number(roll.total), target: Number(ac), mode: facts.mode,
         isCritical: !!roll.isCritical, isFumble: !!roll.isFumble, critAt: facts.critAt, fumbleAt: facts.fumbleAt });
-      if ( !matters && !row.damage ) continue;
+      if ( !matters ) continue;
       out.push({ uuid: actor.uuid, name: token.document?.name ?? actor.name, row: key, itemId: item?.id ?? null,
-        activityId: activity?.id ?? null, passed: !matters, bystander: true, ...(matters ? {} : { quiet: true }),
+        activityId: activity?.id ?? null, passed: false, bystander: true,
         ...(self ? { self: true } : {}), ...(hitSelf ? { hitSelf: true } : {}), sign,
         ...(inspired ? { inspired: { effectId: inspired.effect.id, bard: inspired.bard.name } } : {}), die });
     }

@@ -6,7 +6,7 @@
 import { MODULE_ID, readFlag, TITLE, S, setting, isActiveGM, deadlineIsLive, canAnswerFor, keepsMessage, queueFlagWrite, DICE_WAIT_SECONDS,
   LEAD_FLAG, WINDOW_ID } from "./core.js";
 import { TONE, popupKey, bfCard, momentBarHTML, holdBarHTML, nextCascadeSlot, cascadePosition,
-  pileBackToFront, rescuePaneHTML, rescueRowsHTML } from "./decide/present.js";
+  pileBackToFront, rescuePaneHTML, rescueRowsHTML, esc } from "./decide/present.js";
 import { pendingDemands, resolveDemand } from "./decide/demand.js";
 import { abilityOf, originIdOf, rollKindOf, subKindOf } from "./decide/card.js";
 import { SURFACES } from "./surfaces.js";
@@ -244,6 +244,35 @@ listenOnce("init", "ui", () => {
   const mod = game.modules.get(MODULE_ID);
   if ( mod ) mod.api = Object.assign(mod.api ?? {}, { acknowledgeMoment });
 });
+
+/**
+ * THE BEND BANNER (RULINGS *The asks widened*): when a stored face replaces ANOTHER creature's d20
+ * (Portent on a bystander's attack, save or check), every screen flashes it — "⟨diviner⟩'s Portent bends reality!",
+ * the roll before and after, the verdict. A view of the resolved flag, drawn once per client (`flashedBends`); the
+ * resource flash's seat and fade (resources.js), stacked under any banner already up.
+ * @param {{key: string, by: string, roller: string, test: string, first: number, stood: number, firstTotal: number,
+ *   total: number, verdict: string|null}} bend
+ */
+const flashedBends = new Set();
+export function flashBend(id, { key, by, roller, test, first, stood, firstTotal, total, verdict }) {
+  if ( flashedBends.has(id) ) return;
+  flashedBends.add(id);
+  const stack = document.querySelectorAll(".bf-resource-banner, .bf-bend-banner").length;
+  const banner = document.createElement("div");
+  banner.className = "bf-bend-banner";
+  banner.innerHTML = `<div style="font-size:40px;">${esc(by)}'s ${esc(key)} bends reality!</div>`
+    + `<div style="font-size:26px;opacity:0.9;">${esc(roller)}'s ${esc(test)}: the d20 ${esc(String(first))} becomes the ${esc(String(stood))} — `
+    + `${esc(String(firstTotal))} → ${esc(String(total))}${verdict ? ` · <strong>${esc(verdict)}</strong>` : ""}</div>`;
+  Object.assign(banner.style, {
+    position: "fixed", top: `calc(26% + ${stack * 92}px)`, left: "0", width: "100%",
+    textAlign: "center", fontFamily: "var(--font-h1, inherit)", color: "#fff",
+    textShadow: "0 0 8px #000, 2px 2px 4px #000",
+    zIndex: 9998, pointerEvents: "none", transition: "opacity 1s ease-in"
+  });
+  document.body.appendChild(banner);
+  setTimeout(() => (banner.style.opacity = "0"), 5000);
+  setTimeout(() => banner.remove(), 6200);
+}
 
 export function momentButton(label, onClick, style = {}) {
   const button = document.createElement("button");
