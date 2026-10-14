@@ -21,7 +21,7 @@ import { COMPANIONS, SUMMON_AS, SUMMON_BOONS, SUMMON_CHOICES, SUMMON_COMMANDS, S
 import { profileRows, choiceRowKey, formNeeds, poolPicks, summonRecord, placedAnswer, narrowedActivities, resistanceEffectData,
   ownershipGrant, seatInitiative, rangeFeet, replacedSummons, companionEffectName, currentCompanion, companionMenu, companionAsk,
   carriedItemIds, sizesInOrder, summonEffectName, tokenLight, formName, guisesOf, boonFormula, boonHpPlan, castUsage,
-  fallenSummon, casterDeathSummons, lastFormRows, empowerRoute } from "./decide/summons.js";
+  fallenSummon, casterDeathSummons, lastFormRows, empowerRoute, staleCompanionEffect } from "./decide/summons.js";
 import { transformRecord } from "./decide/transforms.js";
 import { bfCard, esc, popupKey } from "./decide/present.js";
 import { artChanges } from "./decide/summon-art.js";
@@ -169,8 +169,9 @@ listen("dnd5e.preUseActivity", "summons", (activity, usageConfig, dialogConfig) 
       if ( needsGM(row) ) return false;
       const id = through ? null : currentCompanion(summonRecords(), activity.actor?.uuid ?? "", rulesName(activity.item.name));
       const message = id ? game.messages.get(id) : null;
-      // the menu's Summon casts again with the cause this use arrived with (a forward's free cast: Familiar Friend)
-      if ( message ) { void showCompanionMenu(message, activity, usageConfig?.cause ? foundry.utils.deepClone(usageConfig.cause) : null); return false; }
+      // the menu's Summon casts again with the cause this use arrived with (a forward's free cast: Familiar Friend); a use sent to
+      // its card (`toCard`: a macro, an automation, the live suites) is that Summon — the new form takes the old one's place
+      if ( message && !usageConfig?.[MODULE_ID]?.toCard ) { void showCompanionMenu(message, activity, usageConfig?.cause ? foundry.utils.deepClone(usageConfig.cause) : null); return false; }
     }
     // A spell that empowers a standing companion (SUMMON_EMPOWERS): the route is read before the dialog opens. A use
     // carrying the answer (`[MODULE_ID].empower`: a macro, an automation, the live suites) skips the question.
@@ -920,6 +921,7 @@ async function landSummon(message) {
       const snapshot = pocket ? foundry.utils.deepClone(tokensData[0] ?? null) : null;
       if ( snapshot ) delete snapshot._id;
       await endCompanionEffects(caster, message.id);   // a landing makes exactly one
+      await endStaleCompanionEffects(caster);          // and leaves no orphan beside it (a card gone, a record gone, a stray copy)
       const [effect] = await caster.createEmbeddedDocuments("ActiveEffect", [{
         name: companionEffectName({ noun: crow.noun, name, type, pocket }), img: tokensData[0]?.texture?.src ?? actor.img,
         type: "base", transfer: false, disabled: false, origin: activity.item.uuid, description: crow.says ?? "",
@@ -1246,6 +1248,16 @@ const companionEffectsOf = (caster, messageId) => (caster?.effects?.contents ?? 
 async function endCompanionEffects(caster, messageId) {
   const ids = companionEffectsOf(caster, messageId).map(e => e.id);
   if ( ids.length ) await caster.deleteEmbeddedDocuments("ActiveEffect", ids, { [MODULE_ID]: { companionEnd: true } });
+}
+
+/** The elect removes every stale companion effect on an owner (as its own removal, so the prompt passes; `staleCompanionEffect`). */
+async function endStaleCompanionEffects(caster) {
+  const stale = (caster?.effects?.contents ?? []).filter(e => {
+    const id = readFlag(e, "companion");
+    return !!id && staleCompanionEffect(e.id, readFlag(game.messages.get(id), SUMMON_FLAG));
+  }).map(e => e.id);
+  if ( stale.length ) await caster.deleteEmbeddedDocuments("ActiveEffect", stale, { [MODULE_ID]: { companionEnd: true } });
+  return stale.length;
 }
 
 /** The owner's effect for a companion, renamed to where it is. */

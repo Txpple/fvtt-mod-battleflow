@@ -1,0 +1,258 @@
+// Live suite: COMPANIONS (RULINGS *Summons*, call 12 and the Battle Familiar pass) — Find Familiar's whole life on one
+// caster, with ONE invariant read after every step: exactly one companion effect on the caster, exactly one familiar
+// token on the scene, exactly one standing record in the log (zero of each once dismissed). The thing a table sees as
+// "two familiar effects at once" is what this suite exists to catch: a new form landing while the old one is dismissed,
+// the pocket and the recall, a new form summoned into the pocket, two casts fired back to back, the fall at 0 HP, and an
+// orphan effect (its card gone from the log) swept at the next landing.
+//
+// Fixtures: BTB Test Sorcerer (tools/fixture-suite.mjs) is lent the PHB's Find Familiar for the run. The records are
+// answered through the pure fold and a `toCard` use (which passes the companion menu as its "Summon"), never the popup.
+// The cards, the imported beasts, the tokens, the companion effects and the lent spell are torn down.
+//
+// Sections: `--section 3`, `--list`. Fixtures and teardown ALWAYS run.
+import { announcePlan, connectSuite, finish, sectionArg, sectionPlan } from './harness.mjs';
+
+// THE COVERAGE MAP (tools/coverage-map.mjs) — ⚠ NEVER import a suite; the map is parsed.
+export const COVERS = [
+  'summons.js'   // §1 the first landing, §2 a new form replaces the old, §3 the pocket and the recall, §4 a new form into the pocket, §5 Dismiss forever, §6 two casts back to back, §7 the fall at 0 HP, §8 an orphan swept
+];
+
+const SECTIONS = {
+  1: 'THE FIRST LANDING: Find Familiar answered as an Owl lands beside the caster — one companion effect "Familiar: Owl (Fey)", one token, one standing record',
+  2: 'A NEW FORM: the spell cast again (the menu\'s Summon) answered as a Bat — the Bat lands in the Owl\'s square, the Owl\'s record is dismissed and its effect gone; one effect, one token, one record',
+  3: 'THE POCKET AND BACK: put away — one effect "· in the pocket", no token; called back — one effect, one token',
+  4: 'A NEW FORM INTO THE POCKET: put away, then cast again answered as a Cat — the Cat waits in the pocket, no token, one effect naming the Cat; called back — one token',
+  5: 'DISMISS FOREVER: no companion effect, no token, no standing record',
+  6: 'TWO CASTS BACK TO BACK: two uses fired before either is answered, both answered — the later lands, the earlier is dismissed; one effect, one token, one record',
+  7: 'THE FALL: the familiar at 0 HP disappears — no effect, no token, the card says so',
+  8: 'AN ORPHAN SWEPT: a companion effect left on the caster naming a card no longer in the log is removed by the next landing; one effect after it'
+};
+const DEPENDS = { 2: [1], 3: [2], 4: [3], 5: [4], 7: [6] };
+
+const { plan, pulled } = sectionPlan(SECTIONS, DEPENDS);
+const f = await connectSuite({ tag: 'companions', watchdogMs: 300_000 });
+announcePlan('companions', plan, pulled);
+
+const out = await f.evaluate(async ({ sections, titles }) => {
+  const MOD = 'fvtt-mod-bythebooks';
+  const results = [];
+  const log = [];
+  const skips = [];
+  const ok = (name, pass, detail = '') => results.push({ name, pass, detail });
+  const want = id => {
+    if (!sections || sections.includes(String(id))) return true;
+    skips.push(`§${id} ${titles?.[id] ?? ''}`);
+    return false;
+  };
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+  const waitFor = async (test, timeout = 8000) => {
+    const until = Date.now() + timeout;
+    while (Date.now() < until) { const v = await test(); if (v) return v; await sleep(200); }
+    return test();
+  };
+  const suiteStart = Date.now();
+
+  const modDoc = game.modules.get(MOD);
+  if (!modDoc?.active) return { fatal: `module active=${modDoc?.active}` };
+  const api = modDoc.api?.summons;
+  if (!api?.askDismiss) return { fatal: 'no summons api — OLD code (reload the box)' };
+  const { placedAnswer, companionAsk } = await import(`/modules/${MOD}/scripts/decide/summons.js`);
+  const { SUMMON_CHOICES } = await import(`/modules/${MOD}/scripts/decide/registry.js`);
+  const { poolFromPacks } = await import(`/modules/${MOD}/scripts/gallery.js`);
+
+  const caster = game.actors.getName('BTB Test Sorcerer');
+  if (!caster) return { fatal: 'missing fixture: BTB Test Sorcerer — run tools/fixture-suite.mjs' };
+  const range = game.scenes.getName('By the Books Test Range');
+  if (!range) return { fatal: 'missing fixture: scene By the Books Test Range — run tools/fixture-suite.mjs' };
+  if (canvas.scene?.id !== range.id) await range.view();
+  for (let i = 0; i < 40 && !(canvas.ready && canvas.scene?.id === range.id); i++) await sleep(250);
+  if (canvas.scene?.id !== range.id) return { fatal: 'the canvas never readied on the test range' };
+  const casterToken = canvas.scene.tokens.find(t => t.actor?.id === caster.id) ?? null;
+  if (!casterToken) return { fatal: 'the Sorcerer has no token on the scene — run tools/fixture-suite.mjs' };
+  const grid = canvas.scene.grid.size;
+
+  const lent = [];
+  const madeActors = [];
+  const madeMessages = [];
+  const madeTokens = new Set();
+  const closeDialogs = async () => {
+    for (const app of foundry.applications.instances.values()) {
+      if (/Find Familiar/.test(app.element?.textContent ?? '') && (app instanceof foundry.applications.api.DialogV2)) { try { await app.close(); } catch { /* gone */ } }
+    }
+  };
+  const familiarTokens = () => canvas.scene.tokens.filter(t => madeTokens.has(t.id) || /^(Owl|Bat|Cat|Rat)$/.test(t.name) && t.actor?.getFlag('dnd5e', 'summon'));
+  const teardown = async () => {
+    try {
+      await closeDialogs();
+      const tokens = familiarTokens().map(t => t.id);
+      if (tokens.length) await canvas.scene.deleteEmbeddedDocuments('Token', tokens);
+      for (const e of caster.effects.filter(e => /^Familiar:/.test(e.name) || e.getFlag(MOD, 'companion'))) { try { await e.delete({ [MOD]: { companionEnd: true } }); } catch { try { await e.delete(); } catch { /* gone */ } } }
+      const live = caster.items.filter(i => lent.includes(i.id) || ((i.type === 'spell') && (i.name === 'Find Familiar'))).map(i => i.id);
+      if (live.length) await caster.deleteEmbeddedDocuments('Item', live);
+      for (const a of madeActors) { if (game.actors.get(a.id)) await a.delete(); }
+      const mine = game.messages.filter(m => (m.timestamp >= suiteStart) && (m.speaker?.alias?.startsWith?.('BTB Test') || Object.keys(m.flags?.[MOD] ?? {}).length));
+      if (mine.length) await ChatMessage.deleteDocuments(mine.map(m => m.id));
+    } catch (err) { log.push(`TEARDOWN ERROR: ${err?.message}`); }
+  };
+
+  // ---- the invariant
+  const records = () => game.messages.contents.map(m => ({ id: m.id, flag: m.getFlag(MOD, 'summon') })).filter(r => r.flag);
+  const standingRecords = () => records().filter(({ flag }) => flag.applied && !flag.dismissAsked && !flag.dismissed && (flag.outcome !== 'failed') && flag.companion && (flag.companion.state !== 'gone'));
+  const companionEffects = () => caster.effects.filter(e => !!e.getFlag(MOD, 'companion'));
+  const state = () => ({ effects: companionEffects().map(e => e.name), tokens: familiarTokens().map(t => t.name), records: standingRecords().map(r => `${r.id}:${r.flag.summonName}:${r.flag.companion.state}`) });
+  const invariant = async (section, { effects = 1, tokens = 1, records: n = 1, named = null, pocket = null } = {}) => {
+    // the old one's dismissal and the new one's landing are two writes: wait for the counts to settle
+    await waitFor(() => (companionEffects().length === effects) && (familiarTokens().length === tokens) && (standingRecords().length === n) ? true : null, 15000);
+    const s = state();
+    const nameOk = named ? s.effects.some(e => e.includes(named)) : true;
+    const pocketOk = (pocket === null) ? true : s.effects.every(e => e.includes('in the pocket') === pocket);
+    ok(`§${section} invariant: ${effects} companion effect(s), ${tokens} token(s), ${n} standing record(s)${named ? `, named ${named}` : ''}${pocket === null ? '' : pocket ? ', in the pocket' : ', on the table'}`,
+      (s.effects.length === effects) && (s.tokens.length === tokens) && (s.records.length === n) && nameOk && pocketOk, JSON.stringify(s));
+    return s;
+  };
+
+  // ---- the drivers
+  let spell = null;
+  let summon = null;
+  const beast = async name => (await poolFromPacks({ crMax: 0, types: ['beast'] })).find(r => r.name === name) ?? null;
+  // a cast sent to its card; with a companion standing it is the menu's "Summon" (the new form takes the old one's place)
+  const cast = async () => {
+    const result = await summon.use({ [MOD]: { toCard: true }, create: { measuredTemplate: false, summons: false }, consume: { spellSlot: false } }, { configure: false }, { create: true });
+    const message = result?.message instanceof ChatMessage ? result.message : null;
+    if (message) madeMessages.push(message);
+    const flag = await waitFor(() => message?.getFlag(MOD, 'summon')?.status === 'asked' ? message.getFlag(MOD, 'summon') : null, 6000);
+    return { message, flag };
+  };
+  const answer = async (message, flag, name, { dx = 1, dy = 0, type = 'fey' } = {}) => {
+    const b = await beast(name);
+    // as the menu answers: a companion standing in its pocket is replaced there (`intoPocket`), one on the table in its square
+    const intoPocket = flag?.replaces?.state === 'pocket';
+    const inPlace = (flag?.replaces?.state === 'present') ? flag.replaces.placement : null;
+    const placements = intoPocket ? [{ x: 0, y: 0, elevation: 0, rotation: 0 }] : inPlace ? [inPlace] : [{ x: casterToken.x + grid * dx, y: casterToken.y + grid * dy, elevation: casterToken.elevation ?? 0, rotation: 0 }];
+    const patch = (flag && b) ? placedAnswer(flag, { profileId: flag.profiles[0]?.id ?? null, pick: { uuid: b.uuid, name: b.name }, count: 1, sceneId: canvas.scene.id,
+      creatureType: (flag.creatureTypes ?? []).includes(type) ? type : (flag.creatureTypes?.[0] ?? null), intoPocket, placements }, SUMMON_CHOICES) : null;
+    if (!patch) throw new Error(`the answer for ${name} was refused (beast=${!!b})`);
+    await message.setFlag(MOD, 'summon', { ...flag, ...patch });
+    const landed = await waitFor(() => message.getFlag(MOD, 'summon')?.applied ? message.getFlag(MOD, 'summon') : null, 20000);
+    for (const l of landed?.landed ?? []) madeTokens.add(l.tokenId);
+    for (const a of game.actors.filter(a => a.getFlag('dnd5e', 'isAutoImported') && (a.name === name))) if (!madeActors.includes(a)) madeActors.push(a);
+    return landed;
+  };
+  const summonFamiliar = async (name, opts) => { const { message, flag } = await cast(); const landed = await answer(message, flag, name, opts); return { message, landed }; };
+  const ask = async (message, kind, placement = null) => {
+    const flag = message.getFlag(MOD, 'summon');
+    const patch = companionAsk(flag.companion, placement ? { kind, placement } : { kind });
+    if (!patch) throw new Error(`the ${kind} ask was refused in state ${flag.companion?.state}`);
+    await message.setFlag(MOD, 'summon', { ...flag, companion: { ...flag.companion, ...patch } });
+    const want = (kind === 'away') ? 'pocket' : 'present';
+    await waitFor(() => (message.getFlag(MOD, 'summon')?.companion?.state === want) && !message.getFlag(MOD, 'summon')?.companion?.ask ? true : null, 15000);
+    await sleep(300);
+  };
+  const dismiss = async message => { await api.askDismiss(message); await waitFor(() => message.getFlag(MOD, 'summon')?.dismissed ? true : null, 15000); await sleep(300); };
+  const home = () => ({ x: casterToken.x + grid, y: casterToken.y, elevation: casterToken.elevation ?? 0, sceneId: canvas.scene.id });
+
+  let current = null;
+  try {
+    if (game.combat) await game.combat.delete();
+    // ---- fixtures: the PHB's Find Familiar, prepared; a familiar standing from an earlier run cleared
+    for (const e of caster.effects.filter(e => /^Familiar:/.test(e.name) || e.getFlag(MOD, 'companion'))) { try { await e.delete({ [MOD]: { companionEnd: true } }); } catch { /* gone */ } }
+    const pack = game.packs.get('dnd-players-handbook.spells');
+    const hit = (await pack.getIndex()).find(e => e.name === 'Find Familiar');
+    const src = (await pack.getDocument(hit._id)).toObject();
+    src.system.prepared = 1;
+    const [item] = await caster.createEmbeddedDocuments('Item', [src]);
+    lent.push(item.id);
+    spell = item;
+    summon = spell.system.activities.getByType('summon')[0];
+    if (!summon) return { fatal: 'the lent Find Familiar has no summon activity' };
+
+    // ---- 1. the first landing
+    if (want(1)) {
+      const { message, landed } = await summonFamiliar('Owl');
+      current = message;
+      ok('§1 the Owl landed as a companion', landed?.outcome === 'landed' && !!landed.companion, JSON.stringify({ outcome: landed?.outcome, failure: landed?.failure, companion: landed?.companion?.state }));
+      await invariant(1, { named: 'Owl', pocket: false });
+    }
+
+    // ---- 2. a new form replaces the old
+    if (want(2) && current) {
+      const old = current;
+      const { message, landed } = await summonFamiliar('Bat');
+      current = message;
+      const oldGone = await waitFor(() => old.getFlag(MOD, 'summon')?.dismissed ? true : null, 15000);
+      ok('§2 the Bat landed in the Owl\'s place and the Owl\'s record is dismissed', landed?.outcome === 'landed' && !!oldGone && (landed.replaced >= 1), JSON.stringify({ outcome: landed?.outcome, replaced: landed?.replaced, oldDismissed: !!oldGone }));
+      await invariant(2, { named: 'Bat', pocket: false });
+    }
+
+    // ---- 3. the pocket and back
+    if (want(3) && current) {
+      await ask(current, 'away');
+      await invariant('3a', { tokens: 0, named: 'Bat', pocket: true });
+      await ask(current, 'recall', home());
+      await invariant('3b', { named: 'Bat', pocket: false });
+    }
+
+    // ---- 4. a new form into the pocket
+    if (want(4) && current) {
+      await ask(current, 'away');
+      const old = current;
+      const { message, landed } = await summonFamiliar('Cat');
+      current = message;
+      await waitFor(() => old.getFlag(MOD, 'summon')?.dismissed ? true : null, 15000);
+      ok('§4 the Cat waits in the pocket as the Bat is dismissed', landed?.outcome === 'landed' && (landed.companion?.state === 'pocket') && !!old.getFlag(MOD, 'summon')?.dismissed, JSON.stringify({ outcome: landed?.outcome, state: landed?.companion?.state }));
+      await invariant('4a', { tokens: 0, named: 'Cat', pocket: true });
+      await ask(current, 'recall', home());
+      await invariant('4b', { named: 'Cat', pocket: false });
+    }
+
+    // ---- 5. dismiss forever
+    if (want(5) && current) {
+      await dismiss(current);
+      await invariant(5, { effects: 0, tokens: 0, records: 0 });
+      current = null;
+    }
+
+    // ---- 6. two casts back to back
+    if (want(6)) {
+      const first = await cast();
+      const second = await cast();
+      ok('§6 two cards asked at once', first.flag?.status === 'asked' && second.flag?.status === 'asked', JSON.stringify({ first: first.flag?.status, second: second.flag?.status }));
+      const a = await answer(first.message, first.flag, 'Rat', { dy: 1 });
+      const b = await answer(second.message, second.flag, 'Owl', { dy: 2 });
+      await waitFor(() => first.message.getFlag(MOD, 'summon')?.dismissed ? true : null, 15000);
+      ok('§6 the later cast stands, the earlier is dismissed', a?.outcome === 'landed' && b?.outcome === 'landed' && !!first.message.getFlag(MOD, 'summon')?.dismissed && !second.message.getFlag(MOD, 'summon')?.dismissed,
+        JSON.stringify({ a: a?.outcome, b: b?.outcome, firstDismissed: !!first.message.getFlag(MOD, 'summon')?.dismissed, replaced: b?.replaced }));
+      current = second.message;
+      await invariant(6, { named: 'Owl', pocket: false });
+    }
+
+    // ---- 7. the fall
+    if (want(7) && current) {
+      const tok = familiarTokens()[0] ?? null;
+      await tok?.actor?.update({ 'system.attributes.hp.value': 0 });
+      const fell = await waitFor(() => current.getFlag(MOD, 'summon')?.dismissed ? current.getFlag(MOD, 'summon') : null, 15000);
+      ok('§7 at 0 HP the familiar disappears, the record says it fell', !!fell?.companion?.fell && !!fell?.dismissed, JSON.stringify({ fell: fell?.companion?.fell, dismissed: fell?.dismissed }));
+      await invariant(7, { effects: 0, tokens: 0, records: 0 });
+      current = null;
+    }
+
+    // ---- 8. an orphan swept
+    if (want(8)) {
+      const [orphan] = await caster.createEmbeddedDocuments('ActiveEffect', [{ name: 'Familiar: Ghost (Fey)', type: 'base', transfer: false, flags: { [MOD]: { companion: 'nomessage000000' } } }]);
+      ok('§8 an orphan companion effect stands on the caster', !!orphan && companionEffects().length === 1, JSON.stringify(state()));
+      const { message, landed } = await summonFamiliar('Owl');
+      current = message;
+      ok('§8 the next landing swept the orphan', landed?.outcome === 'landed' && !caster.effects.get(orphan.id), JSON.stringify({ outcome: landed?.outcome, orphan: !!caster.effects.get(orphan.id) }));
+      await invariant(8, { named: 'Owl', pocket: false });
+      await dismiss(current);
+      current = null;
+    }
+  } catch (err) {
+    results.push({ name: 'suite threw', pass: false, detail: `${err?.message}\n${err?.stack}` });
+  } finally {
+    await teardown();
+  }
+  return { results, log, skips };
+}, sectionArg(plan, SECTIONS));
+
+await finish({ tag: 'companions', out, plan, f });

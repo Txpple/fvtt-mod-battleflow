@@ -935,6 +935,35 @@ describe("Battle Familiar: the rows, a standing summon that falls, the last form
     );
   });
 
+  it("staleCompanionEffect: a card gone, a record never landed, dismissed, failed or gone, or a stray copy — never a dismissal in flight or the record's own effect", () => {
+    const own = { applied: true, companion: { state: "pocket", effectId: "e1" } };
+    expect(s.staleCompanionEffect("e1", null)).toBe(true);
+    expect(s.staleCompanionEffect("e1", { applied: false })).toBe(true);
+    expect(
+      s.staleCompanionEffect("e1", {
+        applied: true,
+        dismissed: true,
+        companion: { effectId: "e1" }
+      })
+    ).toBe(true);
+    expect(s.staleCompanionEffect("e1", { applied: true, outcome: "failed" })).toBe(true);
+    expect(
+      s.staleCompanionEffect("e1", { applied: true, companion: { state: "gone", effectId: "e1" } })
+    ).toBe(true);
+    expect(s.staleCompanionEffect("e2", own)).toBe(true);
+    expect(s.staleCompanionEffect("e1", own)).toBe(false);
+    expect(
+      s.staleCompanionEffect("e1", {
+        applied: true,
+        dismissAsked: true,
+        companion: { state: "present", effectId: "e1" }
+      })
+    ).toBe(false);
+    expect(s.staleCompanionEffect("e1", { applied: true, companion: { state: "present" } })).toBe(
+      false
+    );
+  });
+
   it("an empowered companion cannot be put away, and its menu offers no pocket", () => {
     expect(
       s.companionAsk({ state: "present", empower: { messageId: "t1" } }, { kind: "away" })

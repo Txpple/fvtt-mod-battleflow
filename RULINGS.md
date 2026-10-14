@@ -3701,7 +3701,16 @@ forward and no pool) and Intercept Attack (an `ac` guard) stay WAITS rows. The c
 54. **The pocket and the spell never overlap**: "Put it away" is not offered while empowered (`companionMenu` `empowered`;
    `companionAsk` refuses it), the mirror of call 51's refusal.
 55. **A use carrying the answer skips the question** (`[MODULE_ID].empower` on the use: a macro, an automation, the live
-   suites), as `toCard` skips the menu.
+   suites), as `toCard` skips the menu; a `toCard` use with a companion standing is the menu's Summon (the new form takes
+   the old one's place), so a suite can drive the whole life of a familiar.
+56. **One companion effect, ever** (the user: "occasionally I see two summon effects active at once", "especially with
+   pocketed familiars"). A landing now sweeps every companion effect on the owner that names no standing companion
+   (`staleCompanionEffect`): its card gone from the log (a familiar waiting in its pocket outlives its card most easily),
+   its record never landed, dismissed or failed, its companion gone, or a stray copy beside the record's own. A dismissal
+   in flight is left to end its own. The invariant — one companion effect, one token, one standing record after every
+   step (a cast, a new form, the pocket and back, a new form into the pocket, Dismiss, two casts back to back, 0 HP, an
+   orphan) — is `smoke-companions`, green 2026-10-14. Two GM clients at once is the other road to a double; its impact
+   analysis is the suite's issue #8.
 
 | Row | Where | What it does |
 | --- | --- | --- |

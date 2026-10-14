@@ -532,6 +532,22 @@ export function casterDeathSummons(records, sourceUuid, falls, listed) {
 }
 
 /**
+ * A companion effect on an owner that names no standing companion — what a table sees as "two familiar effects
+ * at once", most often a familiar left in its pocket past its card's life in the log: its card gone, its record
+ * never landed, dismissed or failed, its companion gone, or a stray copy beside the record's own effect. A
+ * dismissal in flight is not stale: it ends its own effect. The next landing sweeps it.
+ * @param {string} effectId
+ * @param {object|null|undefined} record   the summon record the effect names, or nothing
+ */
+export function staleCompanionEffect(effectId, record) {
+  const flag = record ?? null;
+  if ( !flag ) return true;
+  if ( flag.dismissAsked && !flag.dismissed ) return false;
+  if ( !flag.applied || flag.dismissed || (flag.outcome === "failed") || (flag.companion?.state === "gone") ) return true;
+  return !!flag.companion?.effectId && (flag.companion.effectId !== effectId);
+}
+
+/**
  * The form rows with the last form taken marked (SUMMON_EMPOWERS and the conjure alike: "you decide
  * whether you summon the familiar that disappeared or a different one"): that row pre-picked and tagged,
  * else the first. Rows without a `checked` of their own only.
