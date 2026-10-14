@@ -389,14 +389,20 @@ const out = await f.evaluate(async ({ sections, titles, extra }) => {
       await closeDialogs();
       const { max: base } = await owlBaseHp();
       const oldId = owlDoc.id;
+      // its own look, given by the table so the check means something: the Owl wears a token and a portrait of its own
+      const LOOK = { token: 'icons/svg/mystery-man.svg', portrait: 'icons/svg/cowled.svg' };
+      await owlDoc.update({ 'texture.src': LOOK.token, 'texture.scaleX': 2, 'texture.scaleY': 2 });
+      await owlDoc.actor.update({ img: LOOK.portrait });
       const { message, rec } = await empower();
       const tok = canvas.scene.tokens.get(oldId) ?? null;
       const a = tok?.actor ?? null;
       const hp = a?.system?.attributes?.hp ?? {};
       const eff = casterEffect();
       const form = a?.effects?.find(e => !!e.getFlag(MOD, 'form')) ?? null;
-      ok('§9a the elect transformed the Owl in place: the same token, polymorphed, still named Owl', rec?.outcome === 'landed' && !!tok && !!a?.isPolymorphed && (a?.name === 'Owl') && (tok?.name === 'Owl'),
-        JSON.stringify({ outcome: rec?.outcome, failure: rec?.failure, token: !!tok, poly: a?.isPolymorphed, name: a?.name, tokenName: tok?.name }));
+      ok('§9a the elect transformed the Owl in place: the same token, polymorphed, still named Owl, in its own token art and portrait, one square at scale 1',
+        rec?.outcome === 'landed' && !!tok && !!a?.isPolymorphed && (a?.name === 'Owl') && (tok?.name === 'Owl') && (tok?.texture?.src === LOOK.token) && (a?.img === LOOK.portrait)
+          && (tok?.width === 1) && (tok?.height === 1) && (tok?.texture?.scaleX === 1),
+        JSON.stringify({ outcome: rec?.outcome, failure: rec?.failure, token: !!tok, poly: a?.isPolymorphed, name: a?.name, tokenName: tok?.name, texture: tok?.texture?.src, img: a?.img, width: tok?.width, scale: tok?.texture?.scaleX }));
       ok(`§9b the Brute's stat block at level 2 on its own Hit Points and type: AC 15, Str 16, Rend, HP ${base + 2 * level}, 30 temp, Celestial, PB ${PROF}, level 2 stamped`,
         (Number(a?.system?.attributes?.ac?.value) === 15) && (Number(a?.system?.abilities?.str?.value) === 16) && !!a?.items?.find(i => i.name === 'Rend')
           && (Number(hp.max) === base + 2 * level) && (Number(hp.value) === base + 2 * level) && (Number(hp.temp) === 30)

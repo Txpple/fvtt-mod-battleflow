@@ -3680,9 +3680,14 @@ forward and no pool) and Intercept Attack (an `ac` guard) stay WAITS rows. The c
    `empowerTempHp`); then the summon activity's own `getChanges` on top with its Hit Point and creature-type branches set
    aside (`empowerUpdates`): the level stamped (Rend's +level, Multiattack's and Talented's half-level), the attack and
    Proficiency matched, the AC bonus (AC 15 at 2nd). **dnd5e's own transform Proficiency override is deleted**: it carries
-   the form's PB, blank for a stat block with no CR (measured: PB null). **The familiar keeps its name and its art** (the
-   user: "keep the owl's name and art"; dnd5e names it "Owl (Battle Familiar (Brute))" — one update puts it back; the token
-   art stayed the Owl's on its own). The caster's effect **"Battle Familiar: Owl"** for the spell's hour is the lever (call
+   the form's PB, blank for a stat block with no CR (measured: PB null). **The familiar keeps its name, its token art and
+   its portrait, and stands Medium** (the user: "keep the owl's name and art"; "if I empower Crab, it should still be Crab,
+   but make it medium size for rule of cool"): dnd5e names it "Owl (Battle Familiar (Brute))" and wears the form's art
+   and portrait (the measure's Owl kept its own only by its wildcard set) — the look read before the transform is put back
+   after, the token one square at scale 1 (a Tiny beast's texture is doubled to fill its half square; at a whole square it
+   would be twice the size), snapped to its square's origin first so it fills the square it stood in (the user: "move it
+   to the center of the square it's in, so when it resizes it doesn't jut out"). The caster's effect **"Battle Familiar:
+   Owl"** for the spell's hour is the lever (call
    19's shape, `empowerEffect`): the form effect on the familiar depends on it, so the clock, a hand, a rest or the effect's
    end all revert through one road; **no Temporary Hit Points left** reverts (`noTemp`, the transforms machine's own end);
    Dismiss while empowered ends the spell with no form left to revert (the record `ended` "gone"); **0 Hit Points** is the

@@ -352,6 +352,8 @@ async function empowerOne(subject, source, { activity, flag, message }) {
   const tempHp = empowerTempHp({ formHpMax: source.system?.attributes?.hp?.max ?? 0, hpBonus });
   const name = flag.empower?.name || subject.token?.name || subject.name;
   const token = subject.token;
+  // its own look, read before the transform: dnd5e's transform wears the form's token art and portrait
+  const look = { texture: token?.texture?.src ?? null, img: subject.img ?? null };
   await subject.transformInto(source, new Setting(empowerSetting(row, tempHp)), { renderSheet: false });
   const landed = token?.actor ?? subject;
   if ( !landed?.isPolymorphed ) throw new Error(`${name} was not transformed`);
@@ -366,11 +368,16 @@ async function empowerOne(subject, source, { activity, flag, message }) {
   const profId = globalThis.dnd5e?.utils?.staticID?.("dnd5eTransformProf") ?? null;
   const profEffect = landed.effects.find(e => (e.id === profId) || ((e.name === "Proficiency") && e.changes?.some(c => c.key === "system.attributes.prof") && !e.flags?.dnd5e?.summon));
   if ( profEffect && (profEffect.id !== (globalThis.dnd5e?.utils?.staticID?.("dnd5eMatchProficiency") ?? "")) ) await profEffect.delete();
-  // its own name and art (the transform keeps the token's texture; dnd5e renames both)
-  await landed.update({ name });
-  if ( token ) await token.update({ name, lockRotation: false });
+  // its own name, art and portrait back (an empowered Crab is still the Crab), Medium for the hour — the form's one
+  // square at scale 1, not a Tiny beast's doubled texture (RULINGS *Summons*, the Battle Familiar pass)
+  await landed.update({ name, ...(look.img ? { img: look.img } : {}) });
+  // snapped to its square's origin first, so a Tiny token growing to a square fills the square it stood in
+  const grid = token?.parent?.grid;
+  const origin = (grid && token) ? { x: Math.floor(token.x / grid.sizeX) * grid.sizeX, y: Math.floor(token.y / grid.sizeY) * grid.sizeY } : {};
+  if ( token ) await token.update({ name, lockRotation: false, width: 1, height: 1, ...origin,
+    texture: { ...(look.texture ? { src: look.texture } : {}), scaleX: 1, scaleY: 1 } });
   const tokenUpdates = { ...(changes.tokenUpdates ?? {}) };
-  delete tokenUpdates.name; delete tokenUpdates.texture; delete tokenUpdates.width; delete tokenUpdates.height;
+  delete tokenUpdates.name; delete tokenUpdates.texture; delete tokenUpdates.width; delete tokenUpdates.height; delete tokenUpdates.ring;
   if ( token && Object.keys(tokenUpdates).length ) await token.update(tokenUpdates);
   // the caster's effect for the spell's life — the lever (a hand, its clock, a rest); the form effect depends on it
   const duration = activity.duration?.getEffectData?.() ?? {};
