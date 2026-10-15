@@ -54,7 +54,7 @@ const CEILING = {
   "smoke-companions": 4,
   "smoke-damage-rules": 1,
   "smoke-drop": 13,
-  "smoke-effects": 22,
+  "smoke-effects": 3,
   "smoke-expiry": 1,
   "smoke-familiar": 12,
   "smoke-gear-lights": 10,
@@ -82,11 +82,10 @@ const STANDING = new Set([
   "smoke-class-barbarian", "smoke-class-bard", "smoke-class-cleric", "smoke-class-druid",
   "smoke-class-fighter", "smoke-class-items", "smoke-class-monk", "smoke-class-paladin",
   "smoke-class-ranger", "smoke-class-rogue", "smoke-class-sorcerer", "smoke-class-warlock",
-  "smoke-class-wizard", "smoke-companions", "smoke-drop", "smoke-effects", "smoke-familiar",
-  "smoke-gear-lights", "smoke-goliath", "smoke-guards", "smoke-heal", "smoke-hitmenu",
-  "smoke-lucky", "smoke-maneuvers", "smoke-metamagic", "smoke-nogm", "smoke-reminders",
-  "smoke-resources", "smoke-riders", "smoke-saves", "smoke-shields", "smoke-spells",
-  "smoke-surfaces", "smoke-twoclient"
+  "smoke-class-wizard", "smoke-companions", "smoke-drop", "smoke-familiar", "smoke-gear-lights",
+  "smoke-goliath", "smoke-guards", "smoke-heal", "smoke-hitmenu", "smoke-lucky", "smoke-maneuvers",
+  "smoke-metamagic", "smoke-nogm", "smoke-reminders", "smoke-resources", "smoke-riders",
+  "smoke-saves", "smoke-shields", "smoke-spells", "smoke-surfaces", "smoke-twoclient"
 ]);
 
 /** A name that is a poll by what it is called. */
