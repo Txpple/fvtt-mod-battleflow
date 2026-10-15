@@ -37,7 +37,6 @@ const CEILING = {
   "class-kit": 29,
   "probe-effect-view": 12,
   "smoke-alert": 6,
-  "smoke-cast": 16,
   "smoke-class-barbarian": 32,
   "smoke-class-bard": 32,
   "smoke-class-cleric": 17,
@@ -71,13 +70,13 @@ const CEILING = {
 
 /** The suites still on their own helpers, not yet on the prelude. ⚠ Only shrinks. */
 const STANDING = new Set([
-  "check-popup-routing", "class-kit", "probe-effect-view", "smoke-alert", "smoke-cast",
-  "smoke-class-barbarian", "smoke-class-bard", "smoke-class-cleric", "smoke-class-druid",
-  "smoke-class-fighter", "smoke-class-items", "smoke-class-monk", "smoke-class-paladin",
-  "smoke-class-ranger", "smoke-class-rogue", "smoke-class-sorcerer", "smoke-class-warlock",
-  "smoke-class-wizard", "smoke-companions", "smoke-goliath", "smoke-guards", "smoke-lucky",
-  "smoke-maneuvers", "smoke-metamagic", "smoke-reminders", "smoke-resources", "smoke-riders",
-  "smoke-saves", "smoke-shields", "smoke-spells", "smoke-surfaces"
+  "check-popup-routing", "class-kit", "probe-effect-view", "smoke-alert", "smoke-class-barbarian",
+  "smoke-class-bard", "smoke-class-cleric", "smoke-class-druid", "smoke-class-fighter",
+  "smoke-class-items", "smoke-class-monk", "smoke-class-paladin", "smoke-class-ranger",
+  "smoke-class-rogue", "smoke-class-sorcerer", "smoke-class-warlock", "smoke-class-wizard",
+  "smoke-companions", "smoke-goliath", "smoke-guards", "smoke-lucky", "smoke-maneuvers",
+  "smoke-metamagic", "smoke-reminders", "smoke-resources", "smoke-riders", "smoke-saves",
+  "smoke-shields", "smoke-spells", "smoke-surfaces"
 ]);
 
 /** A name that is a poll by what it is called. */
