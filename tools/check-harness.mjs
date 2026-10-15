@@ -72,7 +72,6 @@ const CEILING = {
   "smoke-maneuvers": 31,
   "smoke-mastery-record": 3,
   "smoke-metamagic": 40,
-  "smoke-monsters": 42,
   "smoke-nogm": 14,
   "smoke-reminders": 38,
   "smoke-rescue": 8,
@@ -101,10 +100,10 @@ const STANDING = new Set([
   "smoke-companions", "smoke-d20-folds", "smoke-damage-rules", "smoke-drop", "smoke-effects",
   "smoke-expiry", "smoke-familiar", "smoke-gear-lights", "smoke-goliath", "smoke-guards",
   "smoke-heal", "smoke-heatmetal", "smoke-hitmenu", "smoke-hold", "smoke-lucky", "smoke-maneuvers",
-  "smoke-mastery-record", "smoke-metamagic", "smoke-monsters", "smoke-nogm", "smoke-reminders",
-  "smoke-rescue", "smoke-resources", "smoke-rest", "smoke-riders", "smoke-savage", "smoke-saves",
-  "smoke-shields", "smoke-spells", "smoke-summons", "smoke-surfaces", "smoke-transforms",
-  "smoke-twoclient", "smoke-volleys", "smoke-wards"
+  "smoke-mastery-record", "smoke-metamagic", "smoke-nogm", "smoke-reminders", "smoke-rescue",
+  "smoke-resources", "smoke-rest", "smoke-riders", "smoke-savage", "smoke-saves", "smoke-shields",
+  "smoke-spells", "smoke-summons", "smoke-surfaces", "smoke-transforms", "smoke-twoclient",
+  "smoke-volleys", "smoke-wards"
 ]);
 
 /** A name that is a poll by what it is called. */
