@@ -1147,6 +1147,16 @@ writes, its class, writers, documents, stat stamp, its readers in the family and
 Studio and Session Scribe test against them from the sibling clone. `npm run contracts` holds them to
 this tree offline; the battery records and reports against them (tools/README.md *The contracts*).
 
+**Dead, one rule for the family.** Three hands write the `dead` status and a combatant's defeated
+mark (dnd5e's Apply Downed Conditions; this module's downed conditions out of combat, its kills and
+its revert; Combat Plus's Auto-Defeated), and Token Art and this module's summons read it. Who writes
+what, when, and in which order is written once, in the suite (`fvtt-suite-openroll5e`,
+`contracts/dead.md`). This module's half: the out-of-combat pass writes dnd5e's own mapping under
+dnd5e's `autoDowned` flag, so the system's removal on the heal ends it; a kill and a revert write or
+clear Dead before the Hit Points, never after (the system's `updateDowned` races a later write);
+`clearDefeated` matches combatants as Combat Plus does; the summons read the Dead status as the
+caster's death, never 0 Hit Points alone.
+
 ---
 
 ## 8. The settings surface
