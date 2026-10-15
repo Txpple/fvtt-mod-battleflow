@@ -24,6 +24,63 @@ function withAliases(env) {
   return out;
 }
 
+/**
+ * THE GM-CAPABLE IDENTITIES a run may hold, each a world user named in the family .env. `suite` is the one
+ * every suite joins as; `gm2` a second user with the Gamemaster role (4); `assistant` one with the
+ * Assistant GM role (3). Each name is read FOUNDRY_* first, then BTB_*, then (the suite only) BF_*. `role`
+ * is the role the identity is for; the suite's is whatever the world gives it. A run that holds more than
+ * one of them at once declares which (`GM_CLIENTS`, read by `declaredGmClients`).
+ */
+export const GM_IDENTITIES = Object.freeze({
+  suite: { role: null, user: ['FOUNDRY_SUITE_USER', 'BTB_SUITE_USER', 'BF_SUITE_USER'],
+    password: ['FOUNDRY_SUITE_PASSWORD', 'BTB_SUITE_PASSWORD', 'BF_SUITE_PASSWORD'] },
+  gm2: { role: 4, user: ['FOUNDRY_GM2_USER', 'BTB_GM2_USER'], password: ['FOUNDRY_GM2_PASSWORD', 'BTB_GM2_PASSWORD'] },
+  assistant: { role: 3, user: ['FOUNDRY_ASSISTANT_USER', 'BTB_ASSISTANT_USER'],
+    password: ['FOUNDRY_ASSISTANT_PASSWORD', 'BTB_ASSISTANT_PASSWORD'] }
+});
+
+const firstSet = (env, keys) => keys.map(k => env?.[k]?.trim()).find(Boolean);
+
+/**
+ * One GM identity out of the env: `{ key, user, password, role }`, or null when the env names no user
+ * for it. The password is absent for a passwordless user.
+ * @param {Record<string, string>|null} env
+ * @param {string} key  a GM_IDENTITIES key
+ */
+export function gmIdentity(env, key) {
+  const spec = GM_IDENTITIES[key];
+  if ( !spec ) throw new Error(`no GM identity "${key}" — the identities are ${Object.keys(GM_IDENTITIES).join(', ')}`);
+  const user = firstSet(env, spec.user);
+  if ( !user ) return null;
+  const password = firstSet(env, spec.password);
+  return { key, user, ...(password ? { password } : {}), role: spec.role };
+}
+
+/** The `{ user, password? }` the MCP client joins as, for a GM identity the env names; a refusal naming the variable otherwise. */
+function joinAs(env, key) {
+  const id = gmIdentity(env, key);
+  if ( !id ) throw new Error(`identity "${key}" needs ${GM_IDENTITIES[key].user[0]} in the .env (tools/README.md, the live tier's table)`);
+  return id.password ? { user: id.user, password: id.password } : { user: id.user };
+}
+
+/**
+ * The GM identities a script declares it holds at once: its `export const GM_CLIENTS = [...]`, beside its
+ * SECTIONS or COVERS, read from the source text (a suite runs on import, so the text is parsed, never
+ * imported). Null when it declares none; a name that is not a GM_IDENTITIES key throws.
+ * @param {string} src  the script's source
+ * @returns {string[]|null}
+ */
+export function declaredGmClients(src) {
+  const m = /^export const GM_CLIENTS\s*=\s*\[([^\]]*)\]/m.exec(src ?? '');
+  if ( !m ) return null;
+  const keys = [...m[1].matchAll(/["']([\w-]+)["']/g)].map(x => x[1]);
+  const unknown = keys.filter(k => !(k in GM_IDENTITIES));
+  if ( unknown.length ) {
+    throw new Error(`GM_CLIENTS names ${unknown.join(', ')} — the identities are ${Object.keys(GM_IDENTITIES).join(', ')}`);
+  }
+  return keys;
+}
+
 /** Who holds the bridge seat: this machine's seat records first, then the marker on its User document. */
 function holderLines(bridgeUser, marker, env) {
   const lines = [];
@@ -41,10 +98,20 @@ function holderLines(bridgeUser, marker, env) {
   return lines.join(' ');
 }
 
-/** Resolve the Foundry connection config: the sandbox unless BTB_HOST names another preset. */
-export function foundryConfig(env) {
+/**
+ * Resolve the Foundry connection config: the sandbox unless BTB_HOST names another preset. `identity` is a
+ * GM_IDENTITIES key: the suite identity by default, another one for a run that declares it.
+ */
+export function foundryConfig(env, identity = 'suite') {
   env = withAliases(env);
   const h = host();
+  if (identity !== 'suite') {
+    const cfg = clientConfig(env, h, joinAs(env, identity));
+    console.log(h === 'local'
+      ? `[target] local sandbox (${cfg.serverUrl}) as "${cfg.user}" (${identity})`
+      : `[target] ⚠ host preset "${h}" — NOT the sandbox, as "${cfg.user}" (${identity}); this run mutates that world`);
+    return cfg;
+  }
   if (h !== 'local') {
     console.log(`[target] ⚠ host preset "${h}" — NOT the sandbox; this run mutates that world`);
     return clientConfig(env, h, 'bridge');
@@ -65,6 +132,15 @@ export function playerConfig(env) {
 }
 
 /**
+ * Another GM client's config, for a run that holds several: the same instance, joined as a GM identity
+ * (`suite`, `gm2`, `assistant`). Prints nothing; the run says who it connects.
+ */
+export function gmConfig(env, key) {
+  env = withAliases(env);
+  return key === 'suite' ? clientConfig(env, host(), 'suite') : clientConfig(env, host(), joinAs(env, key));
+}
+
+/**
  * Preflight: exactly one GM-capable client, and it is us. `game.users.activeGM` elects one of all
  * connected GM sessions, so a second one can BE the elect and the suite's assertions happen
  * somewhere this client cannot see.
@@ -77,8 +153,11 @@ export function playerConfig(env) {
  * the seat record the bridge leaves on this machine (MCP 4.4.0 and later, `listHolders`) and the marker it
  * writes on its User document (`flags.world.fvttMcpBridge`: pid, session, since) — and the cure:
  * `disconnect-bridge { all: true }` from any session, which ends every other holder's browser.
+ * THE MULTI-GM MODE: `{ gmClients }` (a script's declared GM_CLIENTS) allows exactly the users those
+ * identities name, any number of them at once, and this client must be one of them; every other
+ * GM-capable user is refused as above. With `requireElect` the elect may then be any of them.
  */
-export async function preflightSoleGM(f, { requireElect = true, allowBridge = false, env = null } = {}) {
+export async function preflightSoleGM(f, { requireElect = true, allowBridge = false, env = null, gmClients = null } = {}) {
   const bridgeUser = env?.FOUNDRY_USER ?? env?.LOCAL_FOUNDRY_USER ?? null;
   const who = await f.evaluate(async () => ({
     self: game.user.name,
@@ -95,17 +174,35 @@ export async function preflightSoleGM(f, { requireElect = true, allowBridge = fa
   }), null);
   const others = who.gms.filter(n => n !== who.self);
   const onlyTheBridge = others.length === 1 && others[0] === bridgeUser;
-  if (onlyTheBridge && allowBridge && !requireElect) {
+  const bridgeWhy = () => `The other GM is the MCP bridge "${bridgeUser}", which every open Claude session's MCP server `
+    + `joins as. ${holderLines(bridgeUser, who.markers[bridgeUser], env)} `
+    + 'disconnect-bridge { all: true } from any session ends every other holder\'s browser on this '
+    + 'machine (their servers reconnect on their next call); then re-run.';
+  let declared = null;
+  if (gmClients) {
+    declared = new Map();
+    for (const key of gmClients) {
+      const id = gmIdentity(withAliases(env), key);
+      if (id) declared.set(id.user, key);
+    }
+    if (!declared.has(who.self)) {
+      throw new Error(`PREFLIGHT: this client joined as "${who.self}", which none of the declared GM_CLIENTS `
+        + `(${gmClients.join(', ')}) names in the .env.`);
+    }
+    const foreign = others.filter(n => !declared.has(n));
+    if (foreign.length) {
+      throw new Error(`PREFLIGHT: ${foreign.length} GM-capable client(s) connected outside the declared GM_CLIENTS `
+        + `(${foreign.join(', ')}; declared: ${[...declared].map(([n, k]) => `${n} as ${k}`).join(', ')}) — `
+        + (foreign.includes(bridgeUser) ? bridgeWhy()
+          : 'Disconnect the MCP bridge (disconnect-bridge) and close any GM window, then re-run.'));
+    }
+    if (others.length) console.log(`[preflight] declared GM clients connected beside this one: ${others.map(n => `${n} (${declared.get(n)})`).join(', ')}`);
+  } else if (onlyTheBridge && allowBridge && !requireElect) {
     console.warn(`[preflight] the MCP bridge "${bridgeUser}" is connected — allowed for this read-only probe`);
     return who;
-  }
-  if (who.gms.length > 1) {
+  } else if (who.gms.length > 1) {
     const why = onlyTheBridge
-      ? `The other GM is the MCP bridge "${bridgeUser}", which every open Claude session's MCP server `
-        + `joins as. ${holderLines(bridgeUser, who.markers[bridgeUser], env)} `
-        + 'disconnect-bridge { all: true } from any session ends every other holder\'s browser on this '
-        + 'machine (their servers reconnect on their next call); then re-run. A read-only probe may pass '
-        + '{ requireElect: false, allowBridge: true }.'
+      ? `${bridgeWhy()} A read-only probe may pass { requireElect: false, allowBridge: true }.`
       : 'Disconnect the MCP bridge (disconnect-bridge) and close any GM window, then re-run. (Same '
         + 'account twice still counts twice: the elect is per-USER, so both pass isActiveGM and they '
         + 'fight over every application.)';
@@ -127,7 +224,7 @@ export async function preflightSoleGM(f, { requireElect = true, allowBridge = fa
       + ' — every suite would assert against a module that does nothing. In Manage Modules: By the Books on, '
       + 'Battle Flow off, then reload the world and re-run.');
   }
-  if (requireElect && !who.isSelf) {
+  if (requireElect && !who.isSelf && !declared?.has(who.elect)) {
     throw new Error(`PREFLIGHT: the elect is "${who.elect}", not this client ("${who.self}") — `
       + 'this run would assert on work happening elsewhere.');
   }

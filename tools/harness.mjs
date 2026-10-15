@@ -17,7 +17,7 @@ import { basename, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Foundry, loadEnv } from "fvtt-mcp-dnd5e/client";
 import { strictArgs } from "./args.mjs";
-import { foundryConfig, preflightSoleGM } from "./target.mjs";
+import { declaredGmClients, foundryConfig, preflightSoleGM } from "./target.mjs";
 
 const REPO = dirname(dirname(fileURLToPath(import.meta.url)));
 
@@ -306,6 +306,22 @@ function retireSettings() {
 const HEARTBEAT_MS = 30_000;
 
 /**
+ * The GM identities the running script declares (`GM_CLIENTS`, target.mjs `declaredGmClients`), read
+ * from its own text; null when it declares none or its text cannot be read. A declaration naming an
+ * unknown identity refuses the run before anything connects (exit 2).
+ */
+function declaredGmClientsOf(file, tag) {
+  let src;
+  try { src = readFileSync(file, "utf8"); } catch { return null; }
+  try {
+    return declaredGmClients(src);
+  } catch (err) {
+    console.error(`[${tag}] REFUSING TO START: ${err.message}`);
+    process.exit(2);
+  }
+}
+
+/**
  * Connect, preflight, arm the watchdog; returns the live `Foundry`. `watchdogMs` is per-suite
  * (measured wall clocks differ widely). ⚠ Armed BEFORE `connect()`: a launch that never
  * finishes is the hang it exists to break. When it fires it names the PHASE (connecting,
@@ -313,8 +329,19 @@ const HEARTBEAT_MS = 30_000;
  * While an `evaluate` runs longer than `heartbeatMs` a line every `heartbeatMs` says so, with the
  * world's message count and whether the page answered a concurrent peek within 5 s: a slow run
  * and a hung one no longer look the same.
+ * SEVERAL GM CLIENTS: a script that holds more than one GM identity at once declares them,
+ * `export const GM_CLIENTS = ["suite", "gm2", "assistant"]` beside its SECTIONS or COVERS
+ * (target.mjs `GM_IDENTITIES`); the preflight then allows exactly those users. `identity` joins
+ * this client as one of them (the suite identity by default); a script that names another
+ * identity without declaring it is refused before anything connects.
  */
-export async function connectSuite({ tag, watchdogMs, requireElect = true, allowBridge = false, env = loadEnv(), heartbeatMs = HEARTBEAT_MS }) {
+export async function connectSuite({ tag, watchdogMs, requireElect = true, allowBridge = false, env = loadEnv(), heartbeatMs = HEARTBEAT_MS, identity = "suite" }) {
+  const gmClients = declaredGmClientsOf(process.argv[1], tag);
+  if (identity !== "suite" && !gmClients?.includes(identity)) {
+    console.error(`[${tag}] REFUSING TO START: it joins as the "${identity}" identity, which its GM_CLIENTS `
+      + `does not declare (${gmClients ? gmClients.join(", ") : "no GM_CLIENTS"}).`);
+    process.exit(2);
+  }
   takeSuiteLock(tag);
   const started = Date.now();
   const elapsed = () => Math.round((Date.now() - started) / 1000);
@@ -330,7 +357,7 @@ export async function connectSuite({ tag, watchdogMs, requireElect = true, allow
   // ⚠ Whatever ends this process (an uncaught throw, `finish`, the watchdog) must not leave a
   // browser behind holding the GM seat: the kill is skipped only after a clean dispose.
   process.on("exit", () => { if (f && !f.__bfDisposed) killChildProcesses(tag); });
-  f = new Foundry(foundryConfig(env));
+  f = new Foundry(foundryConfig(env, identity));
   console.log(`[${tag}] connecting…`);
   await f.connect();
 
@@ -369,7 +396,7 @@ export async function connectSuite({ tag, watchdogMs, requireElect = true, allow
   beat.unref();
 
   stage = "preflight";
-  await preflightSoleGM(f, { requireElect, allowBridge, env });
+  await preflightSoleGM(f, { requireElect, allowBridge, env, gmClients });
   stage = "baseline";
 
   /**
