@@ -53,8 +53,7 @@ const CEILING = {
   "smoke-goliath": 18,
   "smoke-metamagic": 3,
   "smoke-reminders": 38,
-  "smoke-saves": 94,
-  "smoke-spells": 41
+  "smoke-saves": 94
 };
 
 /** The suites still on their own helpers, not yet on the prelude. ⚠ Only shrinks. */
@@ -62,8 +61,7 @@ const STANDING = new Set([
   "class-kit", "smoke-class-barbarian", "smoke-class-bard", "smoke-class-cleric",
   "smoke-class-druid", "smoke-class-fighter", "smoke-class-items", "smoke-class-monk",
   "smoke-class-paladin", "smoke-class-ranger", "smoke-class-rogue", "smoke-class-sorcerer",
-  "smoke-class-warlock", "smoke-class-wizard", "smoke-goliath", "smoke-reminders", "smoke-saves",
-  "smoke-spells"
+  "smoke-class-warlock", "smoke-class-wizard", "smoke-goliath", "smoke-reminders", "smoke-saves"
 ]);
 
 /** A name that is a poll by what it is called. */
