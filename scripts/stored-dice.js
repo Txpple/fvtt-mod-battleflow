@@ -11,9 +11,9 @@ import { MODULE_ID, readFlag, TITLE, canAnswerFor, decisionWindow } from "./core
 import { featureNamed, lower, resolveUuid } from "./lookup.js";
 import { STORED_DICE, listedNames, storedDiceEntries } from "./decide/registry.js";
 import { storedChipName } from "./decide/stored-dice.js";
-import { bfCard, esc, holdBarHTML, popupKey, ruleLine } from "./decide/present.js";
+import { bfCard, esc, holdBarHTML, ruleLine } from "./decide/present.js";
 import { STORED_FLAG, spendStoredFace, storedChipOf, storedFacesUsable } from "./shared.js";
-import { DialogCarried, armDeadline, disarmDeadline, livePopups, momentButton, openMomentPopup, registerResumable } from "./ui.js";
+import { DialogCarried, armDeadline, disarmDeadline, momentButton, openMomentPopup, registerResumable, closePopup } from "./ui.js";
 import { SURFACES } from "./surfaces.js";
 import { listen } from "./dispatch.js";
 
@@ -117,7 +117,7 @@ async function rollAsked(card, { timedOut = false } = {}) {
     if ( (flag?.status !== "pending") || !(actor instanceof Actor) || !actor.isOwner ) return;
     const owed = owedRows(card, flag, actor);
     if ( owed.length ) await rollRows(actor, owed, { card, restType: flag.restType, timedOut });
-    void livePopups.get(popupKey(card.id, ASK_FLAG))?.close();
+    void closePopup(card, ASK_FLAG);
     if ( card.isOwner ) await card.setFlag(MODULE_ID, ASK_FLAG, { ...flag, status: "resolved", ...(timedOut ? { timedOut: true } : {}) });
   } catch(err) {
     console.error(`${TITLE} | The stored dice could not be rolled — roll them by hand.`, err);
@@ -159,7 +159,7 @@ registerResumable(ASK_FLAG, {
 listen("createChatMessage", "stored-dice", message => {
   try {
     const forId = readFlag(message, FOR_FLAG);
-    if ( forId ) void livePopups.get(popupKey(forId, ASK_FLAG))?.close();
+    if ( forId ) void closePopup(forId, ASK_FLAG);
   } catch { /* nothing to close */ }
 });
 

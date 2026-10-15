@@ -23,13 +23,13 @@ import { profileRows, choiceRowKey, formNeeds, poolPicks, summonRecord, placedAn
   carriedItemIds, sizesInOrder, summonEffectName, tokenLight, formName, guisesOf, boonFormula, boonHpPlan, systemHpBonusOf, castUsage,
   fallenSummon, casterDeathSummons, lastFormRows, empowerRoute, staleCompanionEffect } from "./decide/summons.js";
 import { transformRecord } from "./decide/transforms.js";
-import { bfCard, esc, popupKey } from "./decide/present.js";
+import { bfCard, esc } from "./decide/present.js";
 import { artChanges } from "./decide/summon-art.js";
 import { concentrationIdOf } from "./decide/card.js";
 import { effectRecord, joinEffectReceipt } from "./decide/receipt.js";
 import { describeCreature, openPicker, pickSpots, poolFromPacks, poolRuleOf, summonArt } from "./gallery.js";
 import { CONCENTRATION_ASKED } from "./shared.js";
-import { momentButton, registerResumable, shownMoments } from "./ui.js";
+import { momentButton, registerResumable, pendingRow } from "./ui.js";
 import { SURFACES } from "./surfaces.js";
 import { listen, listenOnce } from "./dispatch.js";
 
@@ -1461,9 +1461,7 @@ function drawSummon(message, html, flag) {
   const mine = answersHere(flag.askedBy, caster);
   if ( flag.status === "asked" ) {
     if ( !mine ) return;
-    const shownKey = popupKey(message.id, SUMMON_FLAG);
-    if ( !shownMoments.has(shownKey) ) { shownMoments.add(shownKey); void showSummonPopup(message); }
-    row.appendChild(momentButton("Place the creature", () => { void showSummonPopup(message); }, { margin: "0.25rem 0 0" }));
+    pendingRow(message, row, { latch: { sub: SUMMON_FLAG, show: () => showSummonPopup(message) }, answer: { label: "Place the creature", style: { margin: "0.25rem 0 0" } } });
     html.querySelector(SURFACES.messageContent)?.appendChild(row);
     return;
   }

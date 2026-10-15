@@ -13,8 +13,8 @@ import { applyDamagesWithReceipt } from "./auto-apply.js";
 import { HEAL_REROLLS } from "./decide/registry.js";
 import { healDiceOf, slotBonus, stripRerollOnes, rerollFaces } from "./decide/damage-dice.js";
 import { rerollRise } from "./decide/dice-chips.js";
-import { bfCard, esc, popupKey, ruleLine } from "./decide/present.js";
-import { dramaticVerdictPause, momentButton, openMomentPopup, registerResumable, shownMoments } from "./ui.js";
+import { bfCard, esc, ruleLine } from "./decide/present.js";
+import { dramaticVerdictPause, momentButton, openMomentPopup, registerResumable, pendingRow } from "./ui.js";
 import { moveAppliedDamage } from "./auto-apply.js";
 import { SURFACES } from "./surfaces.js";
 import { listen } from "./dispatch.js";
@@ -414,11 +414,9 @@ listen("dnd5e.renderChatMessage", "heal-rerolls", (message, html) => {
       row.appendChild(label);
       for ( const c of candidates ) row.appendChild(momentButton(c.name, () => void pickAlso(message, found, c)));
       html.querySelector(SURFACES.messageContent)?.appendChild(row);
-      const shownKey = popupKey(message.id, "alsoHeal");
-      if ( !shownMoments.has(shownKey) && ((Date.now() - (message.timestamp ?? 0)) < 60_000) ) {
-        shownMoments.add(shownKey);
-        void showAlsoPopup(message, found, candidates);
-      }
+      pendingRow(message, row, {
+        latch: ((Date.now() - (message.timestamp ?? 0)) < 60_000) && { sub: "alsoHeal", show: () => showAlsoPopup(message, found, candidates) }
+      });
     }
   } catch(err) {
     console.warn(`${TITLE} | The second heal could not be offered — use it from the sheet.`, err);

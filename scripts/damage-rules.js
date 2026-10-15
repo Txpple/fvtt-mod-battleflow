@@ -11,14 +11,13 @@ import { DAMAGE_RULES } from "./decide/registry.js";
 import { heldOf, faceState, rollFits, raisedOf, styleLine, diceOf, chipsOf, blockDamages,
   typesInNames, typedFace, ignoredResistances, typeChoicesLeft, spellRuleFits } from "./decide/damage-rules.js";
 import { isCard, CARD, originIdInData } from "./decide/card.js";
-import { bfCard, esc, holdBarHTML, popupKey, ruleLine } from "./decide/present.js";
+import { bfCard, esc, holdBarHTML, ruleLine } from "./decide/present.js";
 import { SURFACES } from "./surfaces.js";
 import { riseDice, driftChip } from "./dice-rise.js";
 import { withTargets, resolveAttackMessage, turnChitStands, writeTurnChit } from "./shared.js";
 import { attackMessageForDamage } from "./auto-damage.js";
 import { grappledBy, tokenForUuid } from "./geometry.js";
-import { openMomentPopup, momentButton, armAskTimer, disarmAskTimer, keeperOwns, livePopups, shownMoments, scheduleBarSync,
-  registerRelay } from "./ui.js";
+import { openMomentPopup, momentButton, armAskTimer, disarmAskTimer, keeperOwns, registerRelay, pendingRow, closePopup } from "./ui.js";
 import { listen, listenOnce } from "./dispatch.js";
 
 const STYLE_FLAG = "fightingStyle";            // a damage message's record — and a face's own key
@@ -729,14 +728,13 @@ listen("dnd5e.renderChatMessage", "damage-rules", (message, html) => {
       ? ((flag.answer === "deal") ? `Unarmed Fighting — 1d4 to ${pickName}${flag.timedOut ? " (timer)" : ""}` : `Unarmed Fighting — skipped${flag.timedOut ? " (timer)" : ""}`)
       : "Unarmed Fighting — waiting for the answer");
     if ( flag.status === "pending" ) {
-      div.insertAdjacentHTML("beforeend", ` ${holdBarHTML(flag, "to answer")}`);
-      if ( canAnswerFor(resolveUuid(flag.actorUuid)) ) {
-        const shown = popupKey(message.id, GRAPPLE_FLAG);
-        if ( !shownMoments.has(shown) ) { shownMoments.add(shown); void showGrapplePopup(message); }
-        div.appendChild(momentButton("Answer", () => { void showGrapplePopup(message); }));
-      }
-      scheduleBarSync(div);
-      armGrappleTimer(message);
+      const may = canAnswerFor(resolveUuid(flag.actorUuid));
+      pendingRow(message, div, {
+        bar: holdBarHTML(flag, "to answer"),
+        latch: may && { sub: GRAPPLE_FLAG, show: () => showGrapplePopup(message) },
+        answer: may && "Answer",
+        arm: armGrappleTimer
+      });
     }
     content.appendChild(div);
   } catch(err) { console.warn(`${TITLE} | Unarmed Fighting's line could not render.`, err); }
@@ -748,8 +746,7 @@ listen("updateChatMessage", "damage-rules", message => {
   if ( !flag ) return;
   if ( flag.status === "pending" ) { armGrappleTimer(message); return; }
   disarmAskTimer(grappleTimers, message.id);
-  const open = livePopups.get(popupKey(message.id, GRAPPLE_FLAG));
-  if ( open ) { try { void open.close(); } catch { /* gone */ } }
+  void closePopup(message, GRAPPLE_FLAG);
 });
 
 listen("deleteChatMessage", "damage-rules", message => { disarmAskTimer(grappleTimers, message.id); });
@@ -890,8 +887,7 @@ listen("updateItem", "damage-rules", (item, changes) => {
       if ( !type ) continue;
       // The card's keeper settles it, once: every client sees the rename.
       if ( keepsMessage(message) ) void message.setFlag(MODULE_ID, PICK_FLAG, { ...f, chosen: type }).catch(() => {});
-      const open = livePopups.get(popupKey(message.id, PICK_FLAG));
-      if ( open ) { try { void open.close(); } catch { /* gone */ } }
+      void closePopup(message, PICK_FLAG);
     }
   } catch(err) { console.warn(`${TITLE} | The type pick could not follow the rename.`, err); }
 });
@@ -899,6 +895,5 @@ listen("updateItem", "damage-rules", (item, changes) => {
 // A made choice closes the popup everywhere (law 4).
 listen("updateChatMessage", "damage-rules", message => {
   if ( !readFlag(message, PICK_FLAG)?.chosen ) return;
-  const open = livePopups.get(popupKey(message.id, PICK_FLAG));
-  if ( open ) { try { void open.close(); } catch { /* gone */ } }
+  void closePopup(message, PICK_FLAG);
 });

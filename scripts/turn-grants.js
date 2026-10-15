@@ -17,8 +17,8 @@ import { MODULE_ID, readFlag, TITLE, drivesMomentFor, statContext, isActiveGM, q
 import { activityNamed, activityOfType, cardActivity, featureNamed, lower, resolveUuid } from "./lookup.js";
 import { chitStampOf, effectSourceOf, poolOf } from "./shared.js";
 import { endOptionsOf } from "./decide/turn-grants.js";
-import { holdBarHTML, popupKey, esc } from "./decide/present.js";
-import { livePopups, openMomentPopup, momentButton, shownMoments, scheduleBarSync, armAskTimer, disarmAskTimer, subjectOwns, registerRelay, registerResumable } from "./ui.js";
+import { holdBarHTML, esc } from "./decide/present.js";
+import { openMomentPopup, armAskTimer, disarmAskTimer, subjectOwns, registerRelay, registerResumable, pendingRow, closePopup } from "./ui.js";
 import { SURFACES } from "./surfaces.js";
 import { CARD, isCard, targetsOf } from "./decide/card.js";
 import { extendedThisTurn } from "./decide/turn-grants.js";
@@ -380,17 +380,15 @@ listen("dnd5e.renderChatMessage", "turn-grants", (message, html) => {
     const div = document.createElement("div");
     div.className = "bf-condition-end-line";
     div.style.cssText = "margin:0.25rem 0;font-size:var(--font-size-11,11px);opacity:0.85;";
-    div.innerHTML = `<i class="fa-solid fa-hand-sparkles" data-tooltip="${esc(flag.row)}"></i> ${esc(endLine(flag))}`
-      + ((flag.status === "pending") ? ` ${holdBarHTML(flag, "to answer")}` : "");
+    div.innerHTML = `<i class="fa-solid fa-hand-sparkles" data-tooltip="${esc(flag.row)}"></i> ${esc(endLine(flag))}`;
     if ( flag.status === "pending" ) {
-      const actor = resolveUuid(flag.actorUuid);
-      if ( canAnswerFor(actor) ) {
-        const shown = popupKey(message.id, END_FLAG);
-        if ( !shownMoments.has(shown) ) { shownMoments.add(shown); void showEndPopup(message); }
-        div.appendChild(momentButton("Answer", () => { void showEndPopup(message); }));
-      }
-      scheduleBarSync(div);
-      armEndTimer(message);
+      const may = canAnswerFor(resolveUuid(flag.actorUuid));
+      pendingRow(message, div, {
+        bar: holdBarHTML(flag, "to answer"),
+        latch: may && { sub: END_FLAG, show: () => showEndPopup(message) },
+        answer: may && "Answer",
+        arm: armEndTimer
+      });
     }
     content.appendChild(div);
   } catch(err) { console.warn(`${TITLE} | The condition-end line could not render.`, err); }
@@ -402,8 +400,7 @@ listen("updateChatMessage", "turn-grants", message => {
   if ( !flag ) return;
   if ( flag.status === "pending" ) { armEndTimer(message); return; }
   disarmAskTimer(endTimers, message.id);
-  const open = livePopups.get(popupKey(message.id, END_FLAG));
-  if ( open ) { try { void open.close(); } catch { /* gone */ } }
+  void closePopup(message, END_FLAG);
 });
 
 listen("deleteChatMessage", "turn-grants", message => { disarmAskTimer(endTimers, message.id); });

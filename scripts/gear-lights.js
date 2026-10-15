@@ -11,7 +11,7 @@ import { GEAR_LIT, gearLightRow, gearLightOf, gearButtons, gearToggle, gearLight
   lightChanges } from "./decide/token-lights.js";
 import { bfCard, ruleLine, popupKey } from "./decide/present.js";
 import { effectRecord, joinEffectReceipt } from "./decide/receipt.js";
-import { openManagedPopup, livePopups } from "./ui.js";
+import { openManagedPopup, frontPopup } from "./ui.js";
 import { listen } from "./dispatch.js";
 
 const GEAR_FLAG = "gearLight";
@@ -82,9 +82,8 @@ listen("dnd5e.preDisplayCard", "gear-lights", item => {
 
 /** Open the toggle for one item on this client: its rule line, and the presses its state allows. */
 async function openToggle(item, row) {
+  if ( frontPopup(item.uuid, GEAR_FLAG) ) return;
   const key = popupKey(item.uuid, GEAR_FLAG);
-  const open = livePopups.get(key);
-  if ( open ) { open.bringToFront?.(); return; }
   const lit = litEffectOf(item);
   const litState = lit ? (readFlag(lit, GEAR_FLAG)?.state ?? GEAR_LIT) : null;
   const shown = litState ? gearLightOf(row, litState) : null;

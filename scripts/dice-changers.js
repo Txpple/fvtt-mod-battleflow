@@ -15,10 +15,9 @@ import { weaponDiceOf, setFormula, setTotal, eitherOutcome, eitherPatch, eitherD
 import { DICE_CHANGE_FLAG, orderRows, birthStatus, diceChipsOf, answerPlan, buttonState, applyLabel,
   rowOffer, popupTitle, stepLine, diceChangeLines, mergeRises } from "./decide/dice-changers.js";
 import { empoweredReaches, empoweredOutcome } from "./decide/metamagic.js";
-import { bfCard, esc, holdBarHTML, popupKey, tickRowsHTML, dieMeterHTML, spendPhrase } from "./decide/present.js";
+import { bfCard, esc, holdBarHTML, tickRowsHTML, dieMeterHTML, spendPhrase } from "./decide/present.js";
 import { eitherRise, rerollRise } from "./decide/dice-chips.js";
-import { openMomentPopup, momentButton, armAskTimer, disarmAskTimer, subjectOwns, livePopups, scheduleBarSync,
-  dramaticVerdictPause, registerResumable, paintDieChip } from "./ui.js";
+import { openMomentPopup, armAskTimer, disarmAskTimer, subjectOwns, dramaticVerdictPause, registerResumable, paintDieChip, pendingRow, closePopup } from "./ui.js";
 import { attackMessageForDamage } from "./auto-damage.js";
 import { moveAppliedDamage } from "./auto-apply.js";
 import { empoweredOffer, SORCERY_POINTS } from "./metamagic.js";
@@ -114,8 +113,7 @@ listen("updateChatMessage", "dice-changers", message => {
   if ( (flag.status === "due") && message.isAuthor ) void promote(message);
   if ( flag.status === "pending" ) { armTimer(message); return; }
   disarmAskTimer(timers, message.id);
-  const open = livePopups.get(popupKey(message.id, DICE_CHANGE_FLAG));
-  if ( open ) { try { void open.close(); } catch { /* gone */ } }
+  void closePopup(message, DICE_CHANGE_FLAG);
 });
 
 async function promote(message) {
@@ -472,13 +470,13 @@ listen("dnd5e.renderChatMessage", "dice-changers", (message, html) => {
     const div = document.createElement("div");
     div.className = "bf-dice-line";
     div.style.cssText = "margin:0.25rem 0;font-size:var(--font-size-11,11px);opacity:0.85;";
-    div.innerHTML = (legacy ?? diceChangeLines(flag)).map(line => `<div><i class="fa-solid fa-dice" data-tooltip="The dice changed"></i> ${esc(line)}</div>`).join("")
-      + ((flag?.status === "pending") ? ` ${holdBarHTML(flag, "to answer")}` : "");
+    div.innerHTML = (legacy ?? diceChangeLines(flag)).map(line => `<div><i class="fa-solid fa-dice" data-tooltip="The dice changed"></i> ${esc(line)}</div>`).join("");
     if ( flag?.status === "pending" ) {
-      const actor = resolveUuid(flag.actorUuid);
-      if ( actor?.isOwner ) div.appendChild(momentButton("Answer", () => { void showPopup(message); }));
-      scheduleBarSync(div);
-      armTimer(message);
+      pendingRow(message, div, {
+        bar: holdBarHTML(flag, "to answer"),
+        answer: !!resolveUuid(flag.actorUuid)?.isOwner && { show: () => showPopup(message) },
+        arm: armTimer
+      });
     }
     content.appendChild(div);
   } catch(err) { console.warn(`${TITLE} | The dice line could not render.`, err); }

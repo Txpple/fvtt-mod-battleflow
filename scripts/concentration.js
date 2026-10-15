@@ -11,8 +11,8 @@ import { concentrationExemptEntries, damageRuleEntries, listedNames } from "./de
 import { CONCENTRATION_EXEMPTS, DAMAGE_RULES } from "./decide/registry.js";
 import { ruleLine } from "./decide/present.js";
 import { popupKey, bfCard, esc, holdBarHTML } from "./decide/present.js";
-import { livePopups, momentButton, DialogCarried, scheduleBarSync, shownMoments, armAskTimer, disarmAskTimer, electOwns, dramaticVerdictPause, registerDemand, demandAnsweredBy,
-  registerWithheld, withholds } from "./ui.js";
+import { DialogCarried, armAskTimer, disarmAskTimer, electOwns, dramaticVerdictPause, registerDemand, demandAnsweredBy, registerWithheld, withholds,
+  pendingRow, forgetShown, closePopup, frontPopup } from "./ui.js";
 import { SAVE_FOLDS, foldedSave, foldsFrom } from "./decide/verdict.js";
 import { SURFACES } from "./surfaces.js";
 import { isConcentrationPrompt } from "./decide/card.js";
@@ -482,13 +482,12 @@ async function autoRollConcentration(askMessage) {
 listen("updateChatMessage", "concentration", message => {
   const ask = readFlag(message, "concentration");
   if ( !ask ) return;
-  const dialog = livePopups.get(popupKey(message.id, "concentration"));
-  if ( dialog && (ask.status !== "pending") ) void dialog.close();
+  if ( ask.status !== "pending" ) void closePopup(message, "concentration");
   if ( ask.status !== "pending" ) {
     disarmAskTimer(concTimers, message.id);
     const next = pendingConcAsks(ask.actorUuid)[0];
     if ( next ) {
-      shownMoments.delete(popupKey(next.id, "concentration"));
+      forgetShown(next, "concentration");
       try { ui.chat?.updateMessage?.(next); } catch { /* row refreshes next render */ }
     }
   }
@@ -514,29 +513,21 @@ listen("dnd5e.renderChatMessage", "concentration", (message, html) => {
   row.className = "bythebooks-concentration";
 
   if ( ask.status === "pending" ) {
-    row.innerHTML = holdBarHTML(ask, "to roll");
-    scheduleBarSync(row);
-    armConcTimer(message);
-
     if ( drivesMomentFor(ask.actorUuid) ) {
       const landed = game.messages.find(m => readFlag(m, "respondsTo") === message.id);
       if ( landed ) void foldConcentrationRoll(message, landed);
     }
     if ( savesRollThemselves() ) void autoRollConcentration(message);
 
-    const actor = resolveUuid(ask.actorUuid);
-    if ( !savesRollThemselves() && canAnswerFor(actor) ) {
+    const may = !savesRollThemselves() && canAnswerFor(resolveUuid(ask.actorUuid));
+    const show = () => showConcPopup(message, readFlag(message, "concentration"));
+    pendingRow(message, row, {
+      bar: holdBarHTML(ask, "to roll"),
       // Auto-show only the OLDEST pending ask (asks queue); the button recalls any.
-      const shownKey = popupKey(message.id, "concentration");
-      if ( pendingConcAsks(ask.actorUuid)[0]?.id === message.id && !shownMoments.has(shownKey) ) {
-        shownMoments.add(shownKey);
-        void showConcPopup(message, readFlag(message, "concentration"));
-      }
-      row.appendChild(momentButton("Roll", () => {
-        shownMoments.delete(shownKey);
-        void showConcPopup(message, readFlag(message, "concentration"));
-      }, { margin: "0.25rem 0 0" }));
-    }
+      latch: may && (pendingConcAsks(ask.actorUuid)[0]?.id === message.id) && { sub: "concentration", show },
+      answer: may && { label: "Roll", style: { margin: "0.25rem 0 0" }, show: () => { forgetShown(message, "concentration"); return show(); } },
+      arm: armConcTimer
+    });
   } else {
     const o = ask.outcome ?? {};
     const line = document.createElement("div");
@@ -561,9 +552,8 @@ const concDialogsOpening = new Set();
  */
 async function showConcPopup(message, ask) {
   if ( !ask || (ask.status !== "pending") ) return;
+  if ( frontPopup(message, "concentration") ) return;
   const key = popupKey(message.id, "concentration");
-  const open = livePopups.get(key);
-  if ( open ) { open.bringToFront?.(); return; }
   if ( concDialogsOpening.has(key) || concRollsInFlight.has(message.id) ) return;
   concDialogsOpening.add(key);
   try {

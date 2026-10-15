@@ -9,8 +9,8 @@ import { forceStatus, rollConfigFor } from "./shared.js";
 import { popupKey, bfCard, momentBarHTML, ruleLine } from "./decide/present.js";
 import { SURFACES } from "./surfaces.js";
 import { CARD, abilityOf, isCard, originData, originIdOf } from "./decide/card.js";
-import { livePopups, DialogCarried, momentButton, scheduleBarSync, shownMoments, armAskTimer,
-  disarmAskTimer, subjectOwns, dramaticVerdictPause, registerDemand, demandAnsweredBy } from "./ui.js";
+import { DialogCarried, momentButton, armAskTimer, disarmAskTimer, subjectOwns, dramaticVerdictPause, registerDemand, demandAnsweredBy, pendingRow,
+  closePopup, frontPopup } from "./ui.js";
 import { listen } from "./dispatch.js";
 
 /* ⚠ The twin-ask supersede: `isActiveGM()` is per-USER, so two sessions on one account both stamp
@@ -39,9 +39,8 @@ const toppleDialogsOpening = new Set();
  * drawDemandFieldset). Dismissing is not an answer: the card's Roll button recalls it.
  */
 async function showTopplePopup(message, _topple, target) {
+  if ( frontPopup(message, `topple:${target.uuid}`) ) return;
   const key = popupKey(message.id, `topple:${target.uuid}`);
-  const open = livePopups.get(key);
-  if ( open ) { open.bringToFront?.(); return; }
   if ( toppleDialogsOpening.has(key) ) return;
   toppleDialogsOpening.add(key);
   try {
@@ -271,8 +270,7 @@ listen("updateChatMessage", "topple", message => {
   if ( topple ) {
     for ( const t of (topple.targets ?? []) ) {
       if ( !t.done ) continue;
-      const dialog = livePopups.get(popupKey(message.id, `topple:${t.uuid}`));
-      if ( dialog ) void dialog.close();
+      void closePopup(message, `topple:${t.uuid}`);
     }
     if ( !(topple.targets ?? []).some(t => !t.done) ) disarmToppleTimer(message.id);
     else armToppleTimer(message);
@@ -291,12 +289,8 @@ listen("dnd5e.renderChatMessage", "topple", (message, html) => {
     // The buzzer re-arms on render from the absolute deadline, so a reload resumes the clock.
     if ( topple.deadline && topple.targets.some(t => !t.done) ) {
       const bar = document.createElement("div");
-      bar.innerHTML = momentBarHTML(topple, "to roll");
-      if ( bar.innerHTML.trim() ) {
-        html.querySelector(SURFACES.messageContent)?.appendChild(bar);
-        scheduleBarSync(bar);
-      }
-      armToppleTimer(message);
+      pendingRow(message, bar, { bar: momentBarHTML(topple, "to roll"), arm: armToppleTimer });
+      if ( bar.innerHTML.trim() ) html.querySelector(SURFACES.messageContent)?.appendChild(bar);
     }
     for ( const t of topple.targets ) {
       // Crash-resume: a folded failure whose press died with its client, stale past any live pause.
@@ -307,14 +301,11 @@ listen("dnd5e.renderChatMessage", "topple", (message, html) => {
 
       // ⚠ The native [[/save]] enricher rolls for the SELECTED token (the attacker); this popup aims right.
       if ( topple.dc && canAnswerFor(actor) ) {
-        const shownKey = popupKey(message.id, `topple:${t.uuid}`);
-        if ( !shownMoments.has(shownKey) ) {
-          shownMoments.add(shownKey);
-          void showTopplePopup(message, topple, t);
-        }
-        html.querySelector(SURFACES.messageContent)?.appendChild(momentButton(`Roll save — ${t.name}`, () => {
-          void showTopplePopup(message, readFlag(message, "topple"), t);
-        }));
+        const content = html.querySelector(SURFACES.messageContent);
+        pendingRow(message, content, {
+          latch: { sub: `topple:${t.uuid}`, show: () => showTopplePopup(message, topple, t) },
+          answer: !!content && { label: `Roll save — ${t.name}`, show: () => showTopplePopup(message, readFlag(message, "topple"), t) }
+        });
       }
 
       if ( game.user.isGM ) {

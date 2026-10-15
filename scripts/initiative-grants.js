@@ -12,9 +12,8 @@ import { nearestFeet, tokenForUuid } from "./geometry.js";
 import { INITIATIVE_GRANTS, initiativeGrantEntries, listedNames } from "./decide/registry.js";
 import { initiativeGrantDue, initiativeGrantLine } from "./decide/initiative-grants.js";
 import { riderPartFormula } from "./decide/clock.js";
-import { bfCard, esc, holdBarHTML, popupKey, foldedRuleHTML } from "./decide/present.js";
-import { livePopups, openMomentPopup, momentButton, shownMoments, scheduleBarSync, armAskTimer, disarmAskTimer, subjectOwns,
-  registerRelay, registerResumable } from "./ui.js";
+import { bfCard, esc, holdBarHTML, foldedRuleHTML } from "./decide/present.js";
+import { openMomentPopup, armAskTimer, disarmAskTimer, subjectOwns, registerRelay, registerResumable, pendingRow, closePopup } from "./ui.js";
 import { applyDamagesWithReceipt } from "./auto-apply.js";
 import { SURFACES } from "./surfaces.js";
 import { listen } from "./dispatch.js";
@@ -378,17 +377,15 @@ listen("dnd5e.renderChatMessage", "initiative-grants", (message, html) => {
     const div = document.createElement("div");
     div.className = "bf-initiative-grant-line";
     div.style.cssText = "margin:0.25rem 0;font-size:var(--font-size-11,11px);opacity:0.85;";
-    div.innerHTML = `<i class="fa-solid fa-bolt" data-tooltip="${esc(flag.row)}"></i> ${esc(initiativeGrantLine(flag))}`
-      + ((flag.status === "pending") ? ` ${holdBarHTML(flag, "to answer")}` : "");
+    div.innerHTML = `<i class="fa-solid fa-bolt" data-tooltip="${esc(flag.row)}"></i> ${esc(initiativeGrantLine(flag))}`;
     if ( flag.status === "pending" ) {
-      const actor = resolveUuid(flag.actorUuid);
-      if ( canAnswerFor(actor) ) {
-        const shown = popupKey(message.id, INITIATIVE_GRANT_FLAG);
-        if ( !shownMoments.has(shown) ) { shownMoments.add(shown); void showGrantPopup(message); }
-        div.appendChild(momentButton("Answer", () => { void showGrantPopup(message); }));
-      }
-      scheduleBarSync(div);
-      armTimer(message);
+      const may = canAnswerFor(resolveUuid(flag.actorUuid));
+      pendingRow(message, div, {
+        bar: holdBarHTML(flag, "to answer"),
+        latch: may && { sub: INITIATIVE_GRANT_FLAG, show: () => showGrantPopup(message) },
+        answer: may && "Answer",
+        arm: armTimer
+      });
     }
     content.appendChild(div);
   } catch(err) { console.warn(`${TITLE} | The Initiative grant's line could not render.`, err); }
@@ -400,8 +397,7 @@ listen("updateChatMessage", "initiative-grants", message => {
   if ( !flag ) return;
   if ( flag.status === "pending" ) { armTimer(message); return; }
   disarmAskTimer(timers, message.id);
-  const open = livePopups.get(popupKey(message.id, INITIATIVE_GRANT_FLAG));
-  if ( open ) { try { void open.close(); } catch { /* gone */ } }
+  void closePopup(message, INITIATIVE_GRANT_FLAG);
 });
 
 listen("deleteChatMessage", "initiative-grants", message => { disarmAskTimer(timers, message.id); });

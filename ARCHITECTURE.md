@@ -133,6 +133,10 @@ The elect-owned clocks whose table row above names the subject as the driver (ma
 saves) are the standing choice: their expiry writes where a player may not (a monster's chip, an NPC's
 roll), so with no GM those moments open and are answered, and the clock waits for one.
 
+A card row re-arms its clock on every render (the reload's resume) through `pendingRow`'s `arm` (§5 *The
+pending row*): the machine's own clock function, so the owner is the one its `armAskTimer` call names and a
+row never starts a clock of its own; `npm run popups` fails an `arm` that does not reach `armAskTimer`.
+
 When the GM's click must make another client act, the GM **flips a flag on a message**. The
 flip replicates; the other client reacts to seeing it. That is the only cross-client channel
 that exists, and it is not a channel — it is a document.
@@ -480,7 +484,7 @@ Each was a user ruling, and each has a table finding behind it.
 3. **Acknowledge resolves.** Any notice button press resolves its card's pending presentation —
    bar gone, recall gone, popup gone.
 4. **A popup closes when its question is withdrawn.** A popup asking something the machine has
-   already answered is a lie on screen.
+   already answered is a lie on screen. Every client closes it through `closePopup` (*The pending row*).
 5. **Declaration never claims an outcome.** Buttons and cards at decision time state the
    *spend* or the *choice*; only the verdict's settle card states results. (A post-verdict
    choice may state knowns — "Take half" is legal once the save is in.)
@@ -540,6 +544,32 @@ default; an effect's or an actor's on request), and the wait answers null at its
 the module polls on a timer. A clock is armed through `armAskTimer` with its owner named (§3 *The
 clocks*; `npm run clocks`); `armDeadline` beneath it is the one `setTimeout` on a deadline, and it refuses
 one past `deadlineIsLive`'s roof.
+
+### The pending row
+
+A pending moment's card row is drawn by one helper, `pendingRow(message, row, { bar, latch, answer, arm })`
+in [ui.js](scripts/ui.js), always in one order: the **bar** off the flag's deadline (law 2's card half,
+synced, so it drains), the **latch** — the popup shown once per client, `{ sub, show }` latched on its popup
+key, so a re-render never reopens a popup the player closed (several for a row that asks several deciders) —
+the **answer**, the button that calls a closed popup back ("Answer", or the row's own words: "Roll",
+"Pick the form"), and the **arm**, the machine's own clock function, whose `armAskTimer` call names its
+owner (§3 *The clocks*). The machine says which parts its row has and who may answer (a falsy part is
+not drawn: `may && …`); how they look and when they run is the spine's. `forgetShown(message, sub)`
+releases a latch where a machine means the popup to come back: the next queued concentration ask, a save
+entry dropped from the demand, a recall that re-arms it.
+
+A machine never holds the popup registry (`livePopups`): it names a popup by its message and sub. A
+withdrawn question (law 4) closes through `closePopup(message, sub)`, which awaits the close and swallows a
+dialog already gone (`sub` may be a test over the message's open popups: a save entry dropped from the demand
+closes every popup it asked); an opener that builds its own dialog (the system's roll dialog a save or
+Topple rides, a raw DialogV2) asks `frontPopup(message, sub)` first, which brings an open one forward and
+answers whether there was one, as `openMomentPopup` does for the rest. **The static proof is `npm run popups`**
+([tools/check-popups.mjs](tools/check-popups.mjs)): outside ui.js nothing touches the latch set, no
+`momentButton` is labelled "Answer", every row's `arm` arms through `armAskTimer`, nothing reads
+`livePopups`, and nothing closes a dialog it was not handed (a render hook's app, `this`). The raw
+DialogV2's own lifecycle stands pinned there with its reason (the damage offer's and the volley's test that
+the dialog they just rendered is the one registered, the offer's buzzer closing its own dialog) until
+`openMomentPopup` can fire on dismiss and carry a buzzer. `--list` prints every row and every pin.
 
 ---
 
@@ -1223,7 +1253,10 @@ an added die, a reaction that moves AC):
    produces wrong outcomes that look fine in review.
 
 **Adding a moment:**
-1. Compose the spine (§5). Do not write a clock, a latch, a bar or a popup.
+1. Compose the spine (§5). Do not write a clock, a latch, a bar or a popup. The card's pending row is
+   `pendingRow` (bar, latch, answer, arm), a withdrawn question closes through `closePopup`, and an opener
+   of its own dialog asks `frontPopup` first (§5 *The pending row*); `npm run popups` fails a latch, an
+   Answer button, a `livePopups` read or a close the machine draws itself.
 2. Walk the six steps and the twelve laws explicitly; each is a review checkbox.
 3. Name its answer channels — a moment with one channel is usually missing the AFK fallback.
 4. Add its receipt and its expiry default. A moment with no default outcome is not finished.
