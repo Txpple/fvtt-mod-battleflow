@@ -234,6 +234,16 @@ lands per FINISHED entry, so the first entry of `--list`'s order with no file is
 start is the stamp (UTC), the eta the mean per finished entry times what is left. Exit 1 while any entry is
 red. Offline, no Foundry, safe to run mid-battery.
 
+**The line** (`--line`) is the same reading in one line, the one a release tag's body carries (the chain,
+below): the run id, the finished-green entries over the plan's, the checks, and GREEN, RED (a finished entry
+failed) or PARTIAL (an entry has no output: still running, or the run stopped). Exit 0 only for GREEN. A run
+is named by its directory or by its bare id.
+
+```
+node tools/battery-status.mjs --line 2026-10-15T13-55-32
+Battery: 2026-10-15T13-55-32 — 45/45 suites, 1691/1691 checks, GREEN
+```
+
 **`needs`** is a field on an ORDER row: the rows that suite cannot run without, each resolved to
 the **nearest row of that name above it** — which is how the three `fixture-suite` seeds each serve
 the suites below them. `smoke-hold` needs `smoke-bythebooks` (adjacent in ORDER, so nothing can
@@ -313,7 +323,8 @@ ships, never from what the party owns (DESIGN N1). Re-run after adding content.
 | `reset-fixture-state.mjs` | shared fixtures back to a known state (conditions off, pools full), and **every LINKED `BTB Test` token on the range without the `fixtureHome` stamp swept** — a killed suite's leftovers (2026-09-24). The battery's first row; run it by hand after any killed run outside the battery. |
 | `scrub-fixture-residue.mjs` | clears what a suite's 5.x restore no longer clears at dnd5e 6.0 — the AC `override` and the per-ability `save.roll.bonus` — on every BTB Test actor (`--check` reports only). Run it whenever a suite reports an AC or a save that cannot be (the dnd5e 6.0 pass, 2026-09-16). |
 | `reload-clients.mjs` | refresh every other connected client after a hot-deploy. |
-| `build-release.mjs` | the release zip: the gate, then the archive, then the archive read back. CI runs it on a pushed tag and publishes; run by hand it is the dry run. **Never use `Compress-Archive`** (why: NOTES §5 *Release*). |
+| `build-release.mjs` | the release zip: the gate, then the archive, then the archive read back. CI runs it on a pushed tag and publishes; run by hand it is the dry run. With `--tag` it first reads the annotated tag's body and refuses one without its battery line (the chain, below). **Never use `Compress-Archive`** (why: NOTES §5 *Release*). |
+| `battery-line.mjs` | **the battery line**: one run in one line (`Battery: <run id> — <n>/<n> suites, <n>/<n> checks, GREEN`), the one reading of a run directory `battery-status.mjs` draws from, and the release rule over a tag's body that `build-release.mjs --tag` runs. Not run directly; `tests/battery-line.test.js`. |
 | `world-snapshot.mjs` | `take` / `restore` / `status` / `drop` — roll the sandbox's databases back after a battery. The copy is 24 MB and takes 0.05s; the ~75s cost is the world bounce either side. **Local only.** |
 | `harness.mjs` | the twenty lines every suite used to copy — env, watchdog, connect, preflight, the section plan, one reporter, the **suite lock**, and the **hook ledger** it arms at connect and writes at teardown. Not a suite; nothing runs it directly. |
 | `hook-coverage.mjs` | ⚠ **the only measurement in the tree that is about BEHAVIOUR** (ARCHITECTURE §10 D11): which of the module's hook registrations actually FIRED during the run (it prints the count; 83 when it was built, 172 by 2026-09-05), unioned from the per-suite ledgers in `dist/hook-ledger/`. **It reports; it never fails.** A never-fired line is a coverage gap, a dead handler or a rare hook — only a person can tell which, and v1.23.0 would have printed four dead ones beside a green battery. |
@@ -345,8 +356,13 @@ Decide before simplifying (ARCHITECTURE *Decided against, and why*).
 The steps, once. Why each is there: NOTES §5 *Deploy* and *Release*. A deploy to a live world happens
 only on the maintainer's word.
 
-1. **The floor.** `npm run verify` green, and the full battery unattended
-   (`node tools/battery.mjs --snapshot`); the battery checks the settings against its own before-the-run snapshot.
+1. **The floor.** `npm run verify` green, and a green battery run the release names: for a **patch** at
+   least the change since the last release, `node tools/battery.mjs --changed v<the previous release>`
+   (before the bump: a changed `module.json` selects the full battery), for a **minor** the full battery
+   unattended (`node tools/battery.mjs --snapshot`). The battery checks the settings against its own
+   before-the-run snapshot. Then `node tools/battery-status.mjs --line` prints the run's line for the tag's
+   body (step 5). A release with no run says `Battery: none (pre-release)` instead: it is published as a
+   GitHub pre-release and never reaches prod through the installer (NOTES §5 *Release*).
 2. **The bump.** `node tools/bump-version.mjs <patch|minor>` moves both `module.json` fields;
    `--check` is part of `verify`. **The frame (2026-09-30):** 2.x carries the PHB, DMG and MM work, a minor
    per letter series or book stage; **v3.0.0 is the release where the PHB, the DMG and the MM are all done, before any
@@ -354,15 +370,23 @@ only on the maintainer's word.
 3. **The commits.** The change commit(s) — code, its suites and its docs together — then a
    `release vX.Y.Z: …` commit carrying only the bump. Commit bodies are **ASCII** — the log
    mangles non-ASCII punctuation.
-4. **The dry run.** `node tools/build-release.mjs --tag vX.Y.Z`: the gate, the tag against
-   `module.json`, the zip in `dist/`, and the read-back (no backslash entry, nothing missing, every
-   relative import resolving inside it, every entry equal to the tree). The same bytes CI builds.
+4. **The dry run.** `node tools/build-release.mjs`: the gate, the zip in `dist/`, and the read-back
+   (no backslash entry, nothing missing, every relative import resolving inside it, every entry equal
+   to the tree). The same bytes CI builds. Without `--tag` it needs no tag and no battery line.
 5. **The release.** An **annotated** tag on the release commit: its subject is the release title,
-   its body the release notes (hand-written, never NOTES.md). Push main, then the tag.
+   its body the release notes (hand-written, never NOTES.md) carrying **exactly one battery line**,
+   the one step 1 printed (`Battery: <run id> — <n>/<n> suites, <n>/<n> checks, GREEN`; an ASCII `-`
+   for the dash reads the same) or `Battery: none (pre-release)`. Before the push,
+   `node tools/build-release.mjs --tag vX.Y.Z`: the tag against `module.json`, the line's form, and
+   the line against its run under `dist/battery/`. That run is the only check that the line is true,
+   since CI has no `dist/battery/`; until the tag is pushed, a refused one is rewritten in place
+   (`git tag -a -f`). Push main, then the tag.
    [.github/workflows/release.yml](../.github/workflows/release.yml) refuses a lightweight tag, a
-   tag off main, a tag that is not `module.json`'s version and a tag already released; it runs the
-   builder (so the gate) and publishes the zip **and** a bare `module.json`. A red run publishes
-   nothing: fix, make a new release commit and tag it (a tag is never moved or deleted from here).
+   tag off main, a tag that is not `module.json`'s version, a tag already released, and a body
+   without a GREEN run's line or the pre-release line; it runs the builder (so the gate) and
+   publishes the zip **and** a bare `module.json`, the pre-release line as a GitHub pre-release that
+   is never the latest. A red run publishes nothing: fix, make a new release commit and tag it (a
+   pushed tag is never moved or deleted from here).
    The workflow run by hand (`gh workflow run release.yml`) is the dry run on CI: the zip kept as
    an artifact, nothing published.
 6. **The deploy** (run in the sibling MCP repo, `fvtt-mcp-dnd5e/scripts/deploy-house-module.mjs`):

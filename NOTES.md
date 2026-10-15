@@ -1352,6 +1352,32 @@ same bytes on Windows and on CI, and no shell tool or execution policy sits in t
 the notes, and refuses a lightweight one. The notes are hand-written — never NOTES.md, which would
 put every platform finding on a public page.
 
+⚠ **A release names the battery that proved it.** The tag's body carries exactly one battery line:
+the run's, as `node tools/battery-status.mjs --line` prints it and pasted in,
+`Battery: <run id> — <n>/<n> suites, <n>/<n> checks, GREEN`, or `Battery: none (pre-release)`.
+`build-release.mjs --tag` refuses a body with neither, with two, or with a RED or PARTIAL run
+([tools/battery-line.mjs](tools/battery-line.mjs) is the rule, and the one reading of a run
+directory). **The floor**: a patch names at least a `battery.mjs --changed v<the previous release>`
+run, everything the release changes; a minor names the full battery. A hand walk is not a battery:
+the battery before 3.4.7 found three bugs of 3.4.5, which had shipped on one.
+
+**The line meets its run only on the machine that ran it.** The by-hand `build-release.mjs --tag`,
+before the tag is pushed, reads the named run under `dist/battery/` and refuses a line the run does
+not bear out: GREEN claimed over a red or unfinished run, a count that is not the run's. CI has no
+`dist/battery/`, checks the form alone and says so in its log, so the by-hand run is the check that
+the line is true.
+
+**A release without a run is a pre-release, and the installer never sees it.** The workflow
+publishes a `Battery: none (pre-release)` body with `--prerelease --latest=false`. The family's way
+onto a world, `register-module.mjs` in the MCP repo, installs from
+`https://github.com/Txpple/fvtt-mod-bythebooks/releases/latest/download/module.json`, and a world's
+update check reads the same URL (the manifest's `manifest` field). GitHub's `latest` release is never
+a pre-release, so that URL keeps serving the last release with a run. A pre-release is followed by a
+new release with its run, never promoted by clearing its pre-release mark on GitHub, which would put
+a release with no run under `latest`. ⚠ **The URL is the whole guard**: `register-module.mjs`
+installs whatever manifest it is handed (a pre-release's own `releases/download/vX.Y.Z/module.json`
+included), and `deploy-house-module.mjs` copies the working tree and never reads a release.
+
 ### Testing against the live sandbox
 
 The sandbox is a local Foundry, often a copy of a live world, and suites MUTATE it. Every harness
