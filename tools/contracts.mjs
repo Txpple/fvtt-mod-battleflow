@@ -147,7 +147,7 @@ const MOMENT_PROSE = {
 
 const FLAGS_PROSE = {
   title: "By the Books: the flag keys",
-  description: "Every key By the Books writes under flags[\"fvtt-mod-bythebooks\"] (and read under flags[\"fvtt-mod-battleflow\"] on a document older than 3.0.0), as decide/moments.js classifies it: a `record` is a resolve the moment gate publishes (`family` its word or words), a `state` key carries the reason it is state. `writers` are the scripts/ files that write it, `on` the documents a recorded run saw it on, `stamp` where the stat stamp (`combat`, `sourceUuid`; ARCHITECTURE §4 *The data plane*) sits, `readBy` the family repos whose contracts/consumes.json name it, `fields` and `schema` its recorded shape. A chat card keeps its flags forever, so a reader must tolerate every shape a key ever had; `version` moves when a field another repo reads is renamed or removed."
+  description: "Every key By the Books writes under flags[\"fvtt-mod-bythebooks\"] (and read under flags[\"fvtt-mod-battleflow\"] on a document written before the rename), as decide/moments.js classifies it: a `record` is a resolve the moment gate publishes (`family` its word or words), a `state` key carries the reason it is state. `writers` are the scripts/ files that write it, `on` the documents a recorded run saw it on, `stamp` where the stat stamp (`combat`, `sourceUuid`; ARCHITECTURE §4 *The data plane*) sits, `readBy` the family repos whose contracts/consumes.json name it, `fields` and `schema` its recorded shape. A chat card keeps its flags forever, so a reader must tolerate every shape a key ever had; `version` moves when a field another repo reads is renamed or removed."
 };
 
 /**
