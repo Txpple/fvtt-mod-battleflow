@@ -22,7 +22,7 @@ import { bfCard, esc } from "./decide/present.js";
 import { targetsOf } from "./decide/card.js";
 import { describeCreature, formArt, openPicker, poolFromPacks } from "./gallery.js";
 import { isPartyMember } from "./shared.js";
-import { momentButton, registerRelay, registerResumable, acknowledgeMoment, momentAcknowledged, pendingRow, postCard, postAnswer } from "./ui.js";
+import { momentButton, registerRelay, registerResumable, acknowledgeMoment, momentAcknowledged, pendingRow, postCard, postAnswer, closePopup } from "./ui.js";
 import { SURFACES } from "./surfaces.js";
 import { listen } from "./dispatch.js";
 
@@ -911,6 +911,13 @@ listen("dnd5e.renderChatMessage", "transforms", (message, html) => {
   } catch(err) {
     console.error(`${TITLE} | The transform's row could not be drawn.`, err);
   }
+});
+
+// A change asked, a revert asked or the form ended withdraws the GM's change popup on every GM screen (§5 law 4):
+// each GM client opens its own.
+listen("updateChatMessage", "transforms", message => {
+  const flag = readFlag(message, TRANSFORM_FLAG);
+  if ( flag?.changeAsked || flag?.revertAsked || flag?.ended ) void closePopup(message, "transformChange");
 });
 
 listen("ready", "transforms", () => {

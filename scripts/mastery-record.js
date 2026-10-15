@@ -16,7 +16,7 @@ import { allowanceOf, fillPicks, recordState, missingPick, restList, trimList } 
 import { TONE, bfCard, esc, foldedRuleHTML, pickInputHTML } from "./decide/present.js";
 import { CARD, isCard, masteryOf } from "./decide/card.js";
 import { isPartyMember, masteryLabel } from "./shared.js";
-import { openMomentPopup, registerRelay, registerResumable, acknowledgeMoment, momentAcknowledged, pendingRow, postCard, postAnswer, pickInputs, picked, pickedAll } from "./ui.js";
+import { openMomentPopup, registerRelay, registerResumable, acknowledgeMoment, momentAcknowledged, pendingRow, postCard, postAnswer, pickInputs, picked, pickedAll, closePopup } from "./ui.js";
 import { messageActivity } from "./effect-riders.js";
 import { SURFACES } from "./surfaces.js";
 import { listen } from "./dispatch.js";
@@ -543,6 +543,12 @@ function drawSwap(message, html, flag) {
     pendingRow(message, row, { latch: { sub: "masteryDone", show: () => showSwapDone(message, flag) }, answer: { label: "OK", style: { margin: "0.25rem 0 0" } } });
   }
 }
+
+// The answer, given on any client, withdraws the swap's popup on this one (§5 law 4): every GM screen may hold one for an unowned subject, and the latch is per client.
+listen("updateChatMessage", "mastery-record", message => {
+  const flag = readFlag(message, MASTERY_SWAP_FLAG);
+  if ( flag && (flag.status !== "pending") ) void closePopup(message, MASTERY_SWAP_FLAG);
+});
 
 listen("dnd5e.renderChatMessage", "mastery-record", (message, html) => {
   try {
