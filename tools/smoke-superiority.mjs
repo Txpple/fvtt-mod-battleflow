@@ -44,16 +44,8 @@ announcePlan('superiority', plan, pulled);
 
 const out = await f.evaluate(async ({ sections, titles }) => {
   const MOD = 'fvtt-mod-bythebooks';
-  const results = [];
-  const log = [];
-  const skips = [];
-  const ok = (name, pass, detail = '') => results.push({ name, pass, detail });
-  const want = id => {
-    if (!sections || sections.includes(String(id))) return true;
-    skips.push(`§${id} ${titles?.[id] ?? ''}`);
-    return false;
-  };
-  const sleep = ms => new Promise(r => setTimeout(r, ms));
+  const { until, watch, canvasReady, tokenOn, snapshotSettings, faces, unrig } = window.__btb;
+  const { results, log, skips, ok, want, section } = window.__btb.begin({ sections, titles });
   const suiteStart = Date.now();
   // Every moment published during the run (events.js): plain facts, uuids, never documents.
   const moments = [];
@@ -74,8 +66,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   const SETTING_KEYS = ['autoDamage', 'autoApply', 'playerRollDamage', 'damageTimer', 'dramaticBeat', 'requireTarget',
     'reactionHold', 'holdTimer', 'holdReveal', 'holdSkipFutile', 'riders', 'effectRiders', 'masteryRiders', 'masteryAsk',
     'saves', 'castApply', 'concMode', 'd20FoldAsk', 'emanations'];
-  const prior = Object.fromEntries(SETTING_KEYS.map(k => [k, game.settings.get(MOD, k)]));
-  const set = (k, v) => game.settings.set(MOD, k, v);
+  const settings = snapshotSettings(SETTING_KEYS);
+  const { set } = settings;
 
   const scene = game.scenes.getName('By the Books Test Range');
   const fighter = game.actors.getName('BTB Test Fighter');
@@ -94,7 +86,6 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   const priorActor = {};
   let combat = null;
   let restored = false;
-  const realPRNG = CONFIG.Dice.randomUniform;
   const priorPoolSpent = pool.system._source.uses?.spent ?? 0;
   const refill = () => pool.update({ 'system.uses.spent': 0 });
   const poolLeft = () => fighter.items.get(pool.id)?.system.uses?.value ?? -1;
@@ -117,9 +108,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     restored = true;
     console.error = origError;
     for (const e of errors) log.push('console: ' + e);
-    CONFIG.Dice.randomUniform = realPRNG;
-    try { for (const [k, v] of Object.entries(prior)) await set(k, v); }
-    catch (err) { log.push(`TEARDOWN settings ERROR: ${err?.message}`); }
+    unrig();
+    for (const failed of await settings.restore()) log.push(`TEARDOWN settings ERROR: ${failed}`);
     try {
       await closeDialogs();
       try { if (combat && game.combats.get(combat.id)) await combat.delete(); } catch { /* gone */ }
@@ -194,7 +184,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     log.push(`pool: ${poolLeft()} superiority dice; weapon: ${sword.name}`);
 
     if (canvas.scene?.id !== scene.id) await scene.view();
-    for (let i = 0; i < 40 && !canvas.ready; i++) await sleep(250);
+    await canvasReady();
     // LINKED strays only: never the shared unlinked tokens.
     const strays = scene.tokens.filter(t => t.actorLink && [fighter.id, ranger.id, goblin.id].includes(t.actorId)).map(t => t.id);
     if (strays.length) await scene.deleteEmbeddedDocuments('Token', strays);
@@ -202,7 +192,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const [doc] = await scene.createEmbeddedDocuments('Token', [
         foundry.utils.mergeObject(actor.prototypeToken.toObject(), { x, y, actorId: actor.id, actorLink: true, hidden: false }, { inplace: false })]);
       created.tokens.push(doc.id);
-      for (let i = 0; i < 40 && !(canvas.ready && canvas.tokens.get(doc.id)); i++) await sleep(250);
+      await tokenOn(doc.id);
       const token = canvas.tokens.get(doc.id);
       if (!token) throw new Error(`${actor.name}'s token never reached the canvas`);
       return { doc, token };
@@ -224,13 +214,14 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     const healFull = async () => { for (const a of [fighter, ranger, goblin]) await a.update({ 'system.attributes.hp.value': 400, 'system.attributes.hp.temp': 0 }); };
 
     // ---- helpers
-    const waitFor = async (test, timeout = 8000) => {
-      const until = Date.now() + timeout;
-      while (Date.now() < until) { const v = test(); if (v) return v; await sleep(200); }
-      return test();
-    };
-    const face = (n, faces = 20) => { CONFIG.Dice.randomUniform = () => 1 - ((n - 0.5) / faces); };
+    const face = (n, of = 20) => faces([[n, of]]);
     const target = token => token.setTarget(true, { releaseOthers: true });
+    const targeted = token => until(() => game.user.targets.has(token), { timeout: 2000, label: `${token.name} targeted` });
+    // The gate is set at preRoll; the fieldset is drawn at render only when it has sources or a Sneak Attack.
+    const gateDrawn = app => until(() => {
+      const g = app?.options?.bfReminder;
+      return !app || !g || !((g.sources?.length > 0) || g.sneak) || app.element?.querySelector('[data-bf-reminder]');
+    }, { label: 'the gate drawn in the roll dialog' });
     const textOf = el => (el?.textContent ?? '').replace(/\s+/g, ' ').trim();
     const cardText = id => textOf(document.querySelector(`.message[data-message-id="${id}"]`));
     const attackOf = item => item.system.activities.find(a => a.type === 'attack');
@@ -251,7 +242,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     const swing = async (_actor, actorToken, weapon, victimToken, { d20 = 19 } = {}) => {
       actorToken.control({ releaseOthers: true });
       target(victimToken);
-      await sleep(80);
+      await targeted(victimToken);
       face(d20);
       const act = attackOf(weapon);
       const results = await act.use({ subsequentActions: false }, { configure: false }, {});
@@ -262,7 +253,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     const useAt = async (item, activityName, token, opts = {}) => {
       fighterToken.control({ releaseOthers: true });
       if (token) target(token); else game.user.targets.forEach(t => { t.setTarget(false, { releaseOthers: true }); });
-      await sleep(80);
+      await until(() => (token ? game.user.targets.has(token) : (game.user.targets.size === 0)),
+        { timeout: 2000, label: token ? `${token.name} targeted` : 'no target' });
       const act = actOf(item, activityName);
       if (!act) throw new Error(`${item.name} has no activity "${activityName}"`);
       const results = await act.use({ ...opts }, { configure: false }, {});
@@ -271,22 +263,22 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     const riderPart = (dmg, re) => (dmg?.rolls ?? []).find(r => re.test(r.formula));
 
     // ---- 1. Parry
-    if (want(1)) {
+    if (want(1)) await section(1, async () => {
       await clearChips(); await refill(); await healFull();
       const hpBefore = fighter.system.attributes.hp.value;
       const { msg } = await swing(goblin, goblinToken, goblinMelee, fighterToken);
-      const hold = await waitFor(() => msg?.getFlag(MOD, 'hold') ?? null, 6000);
+      const hold = await until(() => msg?.getFlag(MOD, 'hold') ?? null, { timeout: 6000 });
       const t = hold?.targets?.find(x => x.uuid === fighter.uuid);
       ok('1a. the goblin\'s melee hit on the fighter stamps a hold for Parry as a DAMAGE interrupt with the pack\'s reduction formula — the Monster Manual\'s AC Parry of the same name is not this',
         !!t && (t.reaction === 'Parry') && (t.kind === 'damage') && /superiority\.die/.test(t.reduce?.formula ?? ''), `target=${JSON.stringify(t)}`);
-      const popup = await waitFor(() => dialogWith('Maneuver — Parry'), 6000);   // the maneuver family's popup
+      const popup = await until(() => dialogWith('Maneuver — Parry'), { timeout: 6000 });   // the maneuver family's popup
       popup?.element?.querySelector('button[data-action="cast"]')?.click();
-      const resolved = await waitFor(() => (msg?.getFlag(MOD, 'hold')?.status === 'resolved') ? msg.getFlag(MOD, 'hold') : null, 10000);
+      const resolved = await until(() => (msg?.getFlag(MOD, 'hold')?.status === 'resolved') ? msg.getFlag(MOD, 'hold') : null, { timeout: 10000 });
       const rt = resolved?.targets?.find(x => x.uuid === fighter.uuid);
       const dieMsg = game.messages.contents.filter(m => (m.timestamp >= suiteStart) && /Parry — the die/.test(m.flavor ?? '')).at(-1);
       ok('1b. the answer rolls the die plus the modifier IN THE OPEN and rides the hold as the reduction', !!rt && (rt.answer === 'cast') && (Number(rt.reduceBy) > 0) && !!dieMsg && (dieMsg.rolls?.[0]?.total === rt.reduceBy),
         `reduceBy=${rt?.reduceBy} die=${dieMsg?.rolls?.[0]?.formula}=${dieMsg?.rolls?.[0]?.total}`);
-      const dmg = await waitFor(() => { const d = damageFor(msg?._source.system?.origin ?? msg?.id); return d?.getFlag(MOD, 'receipt') ? d : null; }, 12000);
+      const dmg = await until(() => { const d = damageFor(msg?._source.system?.origin ?? msg?.id); return d?.getFlag(MOD, 'receipt') ? d : null; }, { timeout: 12000 });
       const receipt = dmg?.getFlag(MOD, 'receipt')?.targets?.find(x => x.uuid === fighter.uuid);
       const total = (dmg?.rolls ?? []).reduce((n, r) => n + (r.total ?? 0), 0);
       const expected = Math.max(0, total - (rt?.reduceBy ?? 0));
@@ -307,149 +299,153 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           && Object.isFrozen(h) && plain(h) && plain(m),
         `held=${held.length} man=${man.length} h=${JSON.stringify(h)}`);
       await clearChips();
-    }
+    });
 
     // ---- 2. Feinting Attack
-    if (want(2)) {
+    if (want(2)) await section(2, async () => {
       await clearChips(); await refill(); await healFull();
       const card = await useAt(feat('Feinting Attack'), 'Damage', goblinToken);
-      const marker = await waitFor(() => goblin.effects.find(e => e.name === 'Feinting Attack') ?? null, 6000);
-      await waitFor(() => card?.getFlag(MOD, 'superiorityUse'), 4000);
+      const marker = await until(() => goblin.effects.find(e => e.name === 'Feinting Attack') ?? null, { timeout: 6000 });
+      await until(() => card?.getFlag(MOD, 'superiorityUse'), { timeout: 4000 });
       ok('2a. the use puts the pack\'s "Feinting Attack" marker on the goblin with the fighter as its source, the pool spent, the card says so',
         !!marker && (marker.getFlag(MOD, 'sourceUuid') === fighter.uuid) && (poolLeft() === 3) && !!card?.getFlag(MOD, 'superiorityUse'),
         `marker=${!!marker} source=${marker?.getFlag(MOD, 'sourceUuid')} pool=${poolLeft()} card=${JSON.stringify(card?.getFlag(MOD, 'superiorityUse'))}`);
       // The fighter's attack WITH the dialog: the gate reads the marker as Advantage.
       fighterToken.control({ releaseOthers: true });
       target(goblinToken);
-      await sleep(80);
+      await targeted(goblinToken);
       const act = attackOf(sword);
       const results = await act.use({ subsequentActions: false }, { configure: false }, {});
       const before = lastAttack()?.id ?? null;
       face(19);
       void act.rollAttack({}, {}, results?.message?.id ? { data: { 'system.origin': results.message.id } } : {});
-      const dialog = await waitFor(rollDialog, 6000);
-      await waitFor(() => dialog?.element?.querySelector('[data-bf-reminder]'), 2500);
-      const section = textOf(dialog?.element?.querySelector('[data-bf-reminder]'));
-      ok('2b. the fighter\'s attack gate lists Feinting Attack on the goblin — Net Advantage', /Feinting Attack/.test(section) && /Net Advantage/.test(section), `section="${section.slice(0, 200)}"`);
+      const dialog = await until(rollDialog, { timeout: 6000, label: 'the fighter\'s attack roll dialog' });
+      await gateDrawn(dialog);
+      const gateText = textOf(dialog?.element?.querySelector('[data-bf-reminder]'));
+      ok('2b. the fighter\'s attack gate lists Feinting Attack on the goblin — Net Advantage', /Feinting Attack/.test(gateText) && /Net Advantage/.test(gateText), `section="${gateText.slice(0, 200)}"`);
       dialog?.element?.querySelector('button[data-action="advantage"]')?.click();
-      const attackMsg = await waitFor(() => { const m = lastAttack(); return (m && (m.id !== before)) ? m : null; }, 8000);
+      const attackMsg = await until(() => { const m = lastAttack(); return (m && (m.id !== before)) ? m : null; }, { timeout: 8000 });
       const originId = attackMsg?._source.system?.origin ?? attackMsg?.id;
-      const dmg = await waitFor(() => { const d = damageFor(originId); return d?.getFlag(MOD, 'receipt') ? d : null; }, 12000);
+      const dmg = await until(() => { const d = damageFor(originId); return d?.getFlag(MOD, 'receipt') ? d : null; }, { timeout: 12000 });
       const sr = dmg?.getFlag(MOD, 'superiorityRide');
       ok('2c. the die rides the hit\'s damage as its own part in the weapon\'s type, the card says so, and the marker is spent',
         !!riderPart(dmg, SUP_DIE) && (sr?.rode?.[0]?.key === 'Feinting Attack') && !goblin.effects.some(e => e.name === 'Feinting Attack'),
         `formulas=[${(dmg?.rolls ?? []).map(r => r.formula + ':' + r.options?.type).join(' | ')}] ride=${JSON.stringify(sr?.rode)} markerLeft=${goblin.effects.some(e => e.name === 'Feinting Attack')}`);
       // Another creature's attack never reads the fighter's feint: a fresh marker, the RANGER's dialog.
       await useAt(feat('Feinting Attack'), 'Damage', goblinToken);
-      await waitFor(() => goblin.effects.find(e => e.name === 'Feinting Attack') ?? null, 6000);
+      await until(() => goblin.effects.find(e => e.name === 'Feinting Attack') ?? null, { timeout: 6000 });
       rangerToken.control({ releaseOthers: true });
       target(goblinToken);
-      await sleep(80);
+      await targeted(goblinToken);
       const ract = attackOf(rangerSword);
       const rres = await ract.use({ subsequentActions: false }, { configure: false }, {});
       face(19);
       void ract.rollAttack({}, {}, rres?.message?.id ? { data: { 'system.origin': rres.message.id } } : {});
-      const rdialog = await waitFor(rollDialog, 6000);
-      await sleep(1200);
+      const rdialog = await until(rollDialog, { timeout: 6000, label: 'the Ranger\'s attack roll dialog' });
+      await gateDrawn(rdialog);
       const rsection = textOf(rdialog?.element?.querySelector('[data-bf-reminder]'));
       ok('2d. the Ranger\'s gate does NOT read the fighter\'s feint (`only: "source"`)', !/Feinting Attack/.test(rsection), `section="${rsection.slice(0, 160)}"`);
       await closeDialogs();
-      await sleep(600);
+      await until(() => !rollDialog(), { timeout: 4000, label: 'the Ranger\'s roll dialog closed' });
       await clearChips();
-    }
+    });
 
     // ---- 3. Lunging Attack
-    if (want(3)) {
+    if (want(3)) await section(3, async () => {
       await clearChips(); await refill(); await healFull();
       await useAt(feat('Lunging Attack'), 'Damage', null);
-      const chip = await waitFor(() => fighter.effects.find(e => (e.getFlag(MOD, 'mastery') === 'use') && (e.getFlag(MOD, 'useKey') === 'Lunging Attack')) ?? null, 6000);
+      const chip = await until(() => fighter.effects.find(e => (e.getFlag(MOD, 'mastery') === 'use') && (e.getFlag(MOD, 'useKey') === 'Lunging Attack')) ?? null, { timeout: 6000 });
       ok('3a. the use writes a chip on the fighter carrying the die, the pool spent', !!chip && (chip.getFlag(MOD, 'die') === '1d8') && (poolLeft() === 3), `chip=${chip?.name} die=${chip?.getFlag(MOD, 'die')} pool=${poolLeft()}`);
       const { msg, originId } = await swing(fighter, fighterToken, sword, goblinToken);
-      const offer = await waitFor(offerEl, 6000);
+      const offer = await until(offerEl, { timeout: 6000 });
       const box = offer?.querySelector('input[name="bf-rider"][value="lunge"]');
       ok('3b. the next melee hit\'s offer opens under auto damage with Lunging Attack as a TICKED checkbox — the 5-foot straight line is the player\'s', !!box && box.checked && /Lunging Attack — 1d8/.test(textOf(offer)), `box=${!!box} checked=${box?.checked} text="${textOf(offer).slice(0, 160)}"`);
       offer?.querySelector('button[data-action="roll"]')?.click();
-      const dmg = await waitFor(() => { const d = damageFor(originId); return d?.getFlag(MOD, 'receipt') ? d : null; }, 12000);
-      await sleep(400);
+      const dmg = await until(() => { const d = damageFor(originId); return d?.getFlag(MOD, 'receipt') ? d : null; }, { timeout: 12000 });
+      // The ridden chip is spent after the damage lands.
+      await until(() => !fighter.effects.some(e => e.getFlag(MOD, 'useKey') === 'Lunging Attack'), { timeout: 4000, label: 'the Lunging Attack chip spent' });
       ok('3c. ticked, the die rides and the chip goes', !!riderPart(dmg, SUP_DIE) && (msg?.getFlag(MOD, 'lungePick') === true) && !fighter.effects.some(e => e.getFlag(MOD, 'useKey') === 'Lunging Attack'),
         `formulas=[${(dmg?.rolls ?? []).map(r => r.formula).join(' | ')}] pick=${msg?.getFlag(MOD, 'lungePick')} chipLeft=${fighter.effects.some(e => e.getFlag(MOD, 'useKey') === 'Lunging Attack')}`);
       // Unticked: nothing rides, the chip stays for a later hit this turn.
       await refill(); await healFull();
       await useAt(feat('Lunging Attack'), 'Damage', null);
-      await waitFor(() => fighter.effects.find(e => e.getFlag(MOD, 'useKey') === 'Lunging Attack') ?? null, 6000);
+      await until(() => fighter.effects.find(e => e.getFlag(MOD, 'useKey') === 'Lunging Attack') ?? null, { timeout: 6000 });
       const { msg: m2, originId: o2 } = await swing(fighter, fighterToken, sword, goblinToken);
-      const offer2 = await waitFor(offerEl, 6000);
+      const offer2 = await until(offerEl, { timeout: 6000 });
       offer2?.querySelector('input[name="bf-rider"][value="lunge"]')?.click();
-      await sleep(60);
       offer2?.querySelector('button[data-action="roll"]')?.click();
-      const dmg2 = await waitFor(() => { const d = damageFor(o2); return d?.getFlag(MOD, 'receipt') ? d : null; }, 12000);
+      const dmg2 = await until(() => { const d = damageFor(o2); return d?.getFlag(MOD, 'receipt') ? d : null; }, { timeout: 12000 });
       ok('3d. unticked, nothing rides and the chip stands', !!dmg2 && !riderPart(dmg2, SUP_DIE) && (m2?.getFlag(MOD, 'lungePick') === false) && fighter.effects.some(e => e.getFlag(MOD, 'useKey') === 'Lunging Attack'),
         `formulas=[${(dmg2?.rolls ?? []).map(r => r.formula).join(' | ')}] pick=${m2?.getFlag(MOD, 'lungePick')}`);
       await clearChips();
-    }
+    });
 
     // ---- 4. Evasive Footwork
-    if (want(4)) {
+    if (want(4)) await section(4, async () => {
       await clearChips(); await refill();
       const acBefore = fighter.system.attributes.ac.value;
       const card = await useAt(feat('Evasive Footwork'), 'Evade', null);
-      const chip = await waitFor(() => fighter.effects.find(e => (e.getFlag(MOD, 'mastery') === 'use') && (e.getFlag(MOD, 'useKey') === 'Evasive Footwork')) ?? null, 6000);
-      await sleep(300);
+      const chip = await until(() => fighter.effects.find(e => (e.getFlag(MOD, 'mastery') === 'use') && (e.getFlag(MOD, 'useKey') === 'Evasive Footwork')) ?? null, { timeout: 6000 });
+      // The card's flag is a second write after the chip (NOTES §5).
+      await until(() => card?.getFlag(MOD, 'superiorityUse'), { timeout: 4000, label: 'the card\'s superiorityUse flag' });
       const n = Number(chip?.changes?.[0]?.value);
       ok('4a. the die is rolled in the open and the number rides the fighter\'s AC as a chip until the start of the next turn; the pool spent; the card says the number',
         !!chip && (chip.changes?.[0]?.key === 'system.attributes.ac.bonus') && (n >= 1) && (n <= 8) && (fighter.system.attributes.ac.value === acBefore + n) && (poolLeft() === 3)
           && (card?.getFlag(MOD, 'superiorityUse')?.total === n),
         `chip=${chip?.name} change=${JSON.stringify(chip?.changes?.[0])} ac ${acBefore}→${fighter.system.attributes.ac.value} pool=${poolLeft()} card=${JSON.stringify(card?.getFlag(MOD, 'superiorityUse'))}`);
       await clearChips();
-    }
+    });
 
     // ---- 5. Bait and Switch
-    if (want(5)) {
+    if (want(5)) await section(5, async () => {
       await clearChips(); await refill();
       const rangerAC = ranger.system.attributes.ac.value;
       const card = await useAt(feat('Bait and Switch'), 'Switch Places', rangerToken);
-      const bs = await waitFor(() => { const b = card?.getFlag(MOD, 'baitSwitch'); return b?.total ? b : null; }, 6000);
-      const popup = await waitFor(() => dialogWith('who gains the AC'), 6000);   // the maneuver popup's words
+      const bs = await until(() => { const b = card?.getFlag(MOD, 'baitSwitch'); return b?.total ? b : null; }, { timeout: 6000 });
+      const popup = await until(() => dialogWith('who gains the AC'), { timeout: 6000 });   // the maneuver popup's words
       ok('5a. the die is rolled and a popup asks who gains the AC — the fighter and the willing Ranger', !!bs && (bs.options?.length === 2) && !!popup, `flag=${JSON.stringify(bs && { total: bs.total, options: bs.options?.map(o => o.name) })} popup=${!!popup}`);
       popup?.element?.querySelector('button[data-action="pick-1"]')?.click();
-      const chosen = await waitFor(() => card?.getFlag(MOD, 'baitSwitch')?.chosen ?? null, 6000);
-      const resolved = await waitFor(() => card?.getFlag(MOD, 'baitSwitch')?.resolved ?? null, 10000);
+      const chosen = await until(() => card?.getFlag(MOD, 'baitSwitch')?.chosen ?? null, { timeout: 6000 });
+      const resolved = await until(() => card?.getFlag(MOD, 'baitSwitch')?.resolved ?? null, { timeout: 10000 });
       log.push(`5b: chosen=${chosen} flag=${JSON.stringify(card?.getFlag(MOD, 'baitSwitch'))} rangerFx=${ranger.effects.map(e => e.name).join('|')}`);
       const baited = ranger.effects.find(e => e.name === `Baited AC +${bs?.total}`);
-      await sleep(300);
+      // A window for a second "Baited AC" effect (the cast slice's), which must not come.
+      const second = await watch(() => ranger.effects.filter(e => /^Baited AC/.test(e.name)).length > 1, { ms: 300 });
       ok('5b. the Ranger picked wears the pack\'s own "Baited AC +N" — ONE effect, receipted on the card, its AC up by the roll and nothing else (the cast slice is kept off the twelve)',
-        !!resolved?.applied && !!baited && (ranger.effects.filter(e => /^Baited AC/.test(e.name)).length === 1) && (ranger.system.attributes.ac.value === rangerAC + (bs?.total ?? 0)) && (card?.getFlag(MOD, 'effectReceipt')?.targets?.some(t => t.uuid === ranger.uuid)),
-        `resolved=${JSON.stringify(resolved)} baited=${!!baited} ac ${rangerAC}→${ranger.system.attributes.ac.value} receipt=${!!card?.getFlag(MOD, 'effectReceipt')}`);
+        !second && !!resolved?.applied && !!baited && (ranger.effects.filter(e => /^Baited AC/.test(e.name)).length === 1) && (ranger.system.attributes.ac.value === rangerAC + (bs?.total ?? 0)) && (card?.getFlag(MOD, 'effectReceipt')?.targets?.some(t => t.uuid === ranger.uuid)),
+        `resolved=${JSON.stringify(resolved)} baited=${!!baited} ac ${rangerAC}→${ranger.system.attributes.ac.value} receipt=${!!card?.getFlag(MOD, 'effectReceipt')}${second ? ' (a second Baited AC came)' : ''}`);
       await clearChips();
-    }
+    });
 
     // ---- 6. Rally — the platform's own heal
-    if (want(6)) {
+    if (want(6)) await section(6, async () => {
       await clearChips(); await refill(); await healFull();
       fighterToken.control({ releaseOthers: true });
       target(rangerToken);
-      await sleep(80);
+      await targeted(rangerToken);
       const rally = actOf(feat('Rally'), 'Heal');
       void rally.use({}, { configure: false }, {});
-      const dialog = await waitFor(rollDialog, 8000);
+      const dialog = await until(rollDialog, { timeout: 8000 });
       const btn = dialog?.element?.querySelector('button[data-action="roll"], button[type="submit"]');
       btn?.click();
-      const temp = await waitFor(() => (ranger.system.attributes.hp.temp > 0) ? ranger.system.attributes.hp.temp : null, 12000);
+      const temp = await until(() => (ranger.system.attributes.hp.temp > 0) ? ranger.system.attributes.hp.temp : null, { timeout: 12000 });
       ok('6a. Rally needs nothing built: the pack\'s heal activity rolls through the system\'s own dialog and the cast slice lands the Temporary Hit Points on the Ranger; the pool spent',
         !!dialog && (temp > 0) && (poolLeft() === 3), `dialog=${!!dialog} temp=${ranger.system.attributes.hp.temp} pool=${poolLeft()}`);
       await closeDialogs();
       await clearChips();
-    }
+    });
 
     // ---- 7. the scoped folds on checks
-    if (want(7)) {
+    if (want(7)) await section(7, async () => {
       await clearChips(); await refill();
       await closeDialogs();
       const foldOf = async (skill) => {
         const before = game.messages.size;
         const rolls = await fighter.rollSkill({ skill }, { configure: false }, {});
         const m = rolls?.[0]?.parent ?? null;
-        await sleep(600);
+        // The fold is stamped once, offers and all, after the roll's message; soft, since a check
+        // with no offer at all is never stamped.
+        await until(() => m?.getFlag(MOD, 'd20fold'), { timeout: 4000, label: `the ${skill} check's d20 fold` }).catch(() => null);
         return { m, flag: m?.getFlag(MOD, 'd20fold') ?? null, grew: game.messages.size - before };
       };
       // Every d20 fold row is live: the fighter's other resources (Heroic Inspiration, Tactical
@@ -467,98 +463,106 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       ok('7c. an Athletics check offers neither', !labels(ath.flag).includes('Ambush') && !labels(ath.flag).includes('Tactical Assessment'), `offers=${JSON.stringify(labels(ath.flag))}`);
       // Accept Ambush on a fresh Stealth check: the rescue window's row.
       const ste2 = await foldOf('ste');
-      const win = await waitFor(() => rescueWindow('Ambush'), 6000);
+      const win = await until(() => rescueWindow('Ambush'), { timeout: 6000 });
       win?.querySelector('[data-bf-rescue-action="tactical:Ambush"]')?.click();   // keyed by NAME: two tactical rows can stand
       // The other resources stay offered after the spend (a check with no DC is never "passed"), so
       // the fold may stand re-offered: the settled spend and the patched total are the witness.
-      const done = await waitFor(() => { const fl = ste2.m?.getFlag(MOD, 'd20fold'); return (fl?.spends?.some(s => (s.name === 'Ambush') && !s.pendingVerdict) && Number.isFinite(fl.foldedTotal)) ? fl : null; }, 10000);
+      const done = await until(() => { const fl = ste2.m?.getFlag(MOD, 'd20fold'); return (fl?.spends?.some(s => (s.name === 'Ambush') && !s.pendingVerdict) && Number.isFinite(fl.foldedTotal)) ? fl : null; }, { timeout: 10000 });
       ok('7d. accepting Ambush spends a Superiority Die, rolls the die in the open and patches the check\'s total; the card names Ambush, not Tactical Mind',
         ((done?.status === 'pending') || (done?.outcome === 'used')) && (done?.spends?.length === 1) && (done?.spends?.[0]?.name === 'Ambush') && (done?.spends?.[0]?.label === 'Ambush') && (done?.foldedTotal === done?.baseTotal + done?.spends?.[0]?.die) && (poolLeft() === 3)
           && !game.messages.contents.some(m => (m.timestamp >= suiteStart) && /Second Wind isn't expended/.test(m.content ?? '')),
         `flag=${JSON.stringify(done && { status: done.status, outcome: done.outcome, spends: done.spends, base: done.baseTotal, folded: done.foldedTotal })} pool=${poolLeft()}`);
-      await sleep(600);
-      // The rescue's spend USES the Ambush activity; it must not ARM a second die.
-      ok('7e. the rescue\'s spend arms nothing — no chip on the fighter, no "which check" card', !fighter.effects.some(e => (e.getFlag(MOD, 'useKey') === 'tactical') && e.getFlag(MOD, 'armed'))
+      // The rescue's spend USES the Ambush activity; it must not ARM a second die: a window for the
+      // armed chip or the "which check" card.
+      const armedLate = await watch(() => fighter.effects.some(e => (e.getFlag(MOD, 'useKey') === 'tactical') && e.getFlag(MOD, 'armed'))
+        || game.messages.contents.some(m => (m.timestamp >= suiteStart) && m.getFlag(MOD, 'tacticalArmed')), { ms: 600 });
+      ok('7e. the rescue\'s spend arms nothing — no chip on the fighter, no "which check" card', !armedLate && !fighter.effects.some(e => (e.getFlag(MOD, 'useKey') === 'tactical') && e.getFlag(MOD, 'armed'))
           && !game.messages.contents.some(m => (m.timestamp >= suiteStart) && m.getFlag(MOD, 'tacticalArmed')),
         `chip=${fighter.effects.some(e => e.getFlag(MOD, 'armed'))} armedCards=${game.messages.contents.filter(m => (m.timestamp >= suiteStart) && m.getFlag(MOD, 'tacticalArmed')).length}`);
       await closeDialogs();
-    }
+    });
 
     // ---- 8. Ambush on Initiative
-    if (want(8)) {
+    if (want(8)) await section(8, async () => {
       await clearChips(); await refill(); await closeDialogs();
       if (game.combat) await game.combat.delete();
       combat = await Combat.create({ scene: scene.id, active: true });
-      await combat.createEmbeddedDocuments('Combatant', [{ actorId: fighter.id, tokenId: fighterDoc.id, sceneId: scene.id }, { actorId: goblin.id, tokenId: goblinDoc.id, sceneId: scene.id, initiative: 5 }]);
-      await sleep(300);
-      face(10);
-      await fighter.rollInitiative({ createCombatants: false, rerollInitiative: true }, { configure: false });
-      const combatant = combat.combatants.find(c => c.actorId === fighter.id);
-      const initBefore = combatant?.initiative;
-      const initMsg = await waitFor(() => game.messages.contents.slice(-10).reverse().find(m => m.getFlag('core', 'initiativeRoll') && m.getFlag(MOD, 'd20fold')) ?? null, 6000);
-      const flag = initMsg?.getFlag(MOD, 'd20fold');
-      ok('8a. the initiative roll is offered Ambush (testKind initiative, the combatant named)', (flag?.testKind === 'initiative') && (flag?.offers?.[0]?.label === 'Ambush') && flag?.combatantIds?.includes(combatant?.id),
-        `flag=${JSON.stringify(flag && { testKind: flag.testKind, offers: flag.offers?.map(o => o.label), combatants: flag.combatantIds, base: flag.baseTotal })} init=${initBefore}`);
-      const win = await waitFor(() => rescueWindow('Ambush'), 6000);
-      win?.querySelector('[data-bf-rescue-action="tactical:Ambush"]')?.click();   // keyed by NAME: two tactical rows can stand
-      const done = await waitFor(() => { const fl = initMsg?.getFlag(MOD, 'd20fold'); return (fl?.status === 'resolved') ? fl : null; }, 10000);
-      await sleep(400);
-      ok('8b. accepting moves the combatant\'s initiative by the die and says so', (done?.outcome === 'used') && (combat.combatants.get(combatant?.id)?.initiative === initBefore + (done?.spends?.[0]?.die ?? 0)) && (poolLeft() === 3),
-        `init ${initBefore}→${combat.combatants.get(combatant?.id)?.initiative} die=${done?.spends?.[0]?.die} pool=${poolLeft()}`);
-      // ⚠ The combat tracker's roll (Combat#rollInitiative) never fires dnd5e.rollInitiative
-      // (NOTES §2); the roll's own message is the witness.
-      await closeDialogs(); await refill();
-      const before = game.messages.size;
-      face(10);
-      await combat.rollInitiative([combatant.id], { updateTurn: false });
-      const trackerMsg = await waitFor(() => game.messages.contents.slice(-10).reverse().find(m => m.getFlag('core', 'initiativeRoll') && (m.timestamp >= suiteStart) && m.getFlag(MOD, 'd20fold') && (m !== initMsg)) ?? null, 6000);
-      const tf = trackerMsg?.getFlag(MOD, 'd20fold');
-      ok('8c. the combat tracker\'s own roll is offered Ambush too — caught off the initiative message, since dnd5e\'s hook never fires on that road', (game.messages.size > before) && (tf?.testKind === 'initiative') && (tf?.offers?.[0]?.label === 'Ambush') && tf?.combatantIds?.includes(combatant?.id),
-        `msg=${!!trackerMsg} flag=${JSON.stringify(tf && { testKind: tf.testKind, offers: tf.offers?.map(o => o.label), combatants: tf.combatantIds })}`);
-      await closeDialogs();
-      await combat.delete(); combat = null;
-    }
+      // The combat goes in a finally: a wait that throws here must not leave §9 on inside it.
+      try {
+        await combat.createEmbeddedDocuments('Combatant', [{ actorId: fighter.id, tokenId: fighterDoc.id, sceneId: scene.id }, { actorId: goblin.id, tokenId: goblinDoc.id, sceneId: scene.id, initiative: 5 }]);
+        await until(() => (combat.combatants.size === 2) && (game.combat?.id === combat.id), { timeout: 4000, label: 'the combat active with both combatants' });
+        face(10);
+        await fighter.rollInitiative({ createCombatants: false, rerollInitiative: true }, { configure: false });
+        const combatant = combat.combatants.find(c => c.actorId === fighter.id);
+        const initBefore = combatant?.initiative;
+        const initMsg = await until(() => game.messages.contents.slice(-10).reverse().find(m => m.getFlag('core', 'initiativeRoll') && m.getFlag(MOD, 'd20fold')) ?? null, { timeout: 6000 });
+        const flag = initMsg?.getFlag(MOD, 'd20fold');
+        ok('8a. the initiative roll is offered Ambush (testKind initiative, the combatant named)', (flag?.testKind === 'initiative') && (flag?.offers?.[0]?.label === 'Ambush') && flag?.combatantIds?.includes(combatant?.id),
+          `flag=${JSON.stringify(flag && { testKind: flag.testKind, offers: flag.offers?.map(o => o.label), combatants: flag.combatantIds, base: flag.baseTotal })} init=${initBefore}`);
+        const win = await until(() => rescueWindow('Ambush'), { timeout: 6000 });
+        win?.querySelector('[data-bf-rescue-action="tactical:Ambush"]')?.click();   // keyed by NAME: two tactical rows can stand
+        const done = await until(() => { const fl = initMsg?.getFlag(MOD, 'd20fold'); return (fl?.status === 'resolved') ? fl : null; }, { timeout: 10000 });
+        // The combatant's initiative moves by its own write beside the fold's.
+        await until(() => combat.combatants.get(combatant?.id)?.initiative !== initBefore, { timeout: 4000, label: 'the fighter\'s initiative moved' });
+        ok('8b. accepting moves the combatant\'s initiative by the die and says so', (done?.outcome === 'used') && (combat.combatants.get(combatant?.id)?.initiative === initBefore + (done?.spends?.[0]?.die ?? 0)) && (poolLeft() === 3),
+          `init ${initBefore}→${combat.combatants.get(combatant?.id)?.initiative} die=${done?.spends?.[0]?.die} pool=${poolLeft()}`);
+        // ⚠ The combat tracker's roll (Combat#rollInitiative) never fires dnd5e.rollInitiative
+        // (NOTES §2); the roll's own message is the witness.
+        await closeDialogs(); await refill();
+        const before = game.messages.size;
+        face(10);
+        await combat.rollInitiative([combatant.id], { updateTurn: false });
+        const trackerMsg = await until(() => game.messages.contents.slice(-10).reverse().find(m => m.getFlag('core', 'initiativeRoll') && (m.timestamp >= suiteStart) && m.getFlag(MOD, 'd20fold') && (m !== initMsg)) ?? null, { timeout: 6000 });
+        const tf = trackerMsg?.getFlag(MOD, 'd20fold');
+        ok('8c. the combat tracker\'s own roll is offered Ambush too — caught off the initiative message, since dnd5e\'s hook never fires on that road', (game.messages.size > before) && (tf?.testKind === 'initiative') && (tf?.offers?.[0]?.label === 'Ambush') && tf?.combatantIds?.includes(combatant?.id),
+          `msg=${!!trackerMsg} flag=${JSON.stringify(tf && { testKind: tf.testKind, offers: tf.offers?.map(o => o.label), combatants: tf.combatantIds })}`);
+        await closeDialogs();
+      } finally {
+        if (combat && game.combats.get(combat.id)) await combat.delete().catch(() => {});
+        combat = null;
+      }
+    });
 
     // ---- 9. Commander's Strike
-    if (want(9)) {
+    if (want(9)) await section(9, async () => {
       await clearChips(); await refill(); await healFull(); await closeDialogs();
       // No driven attack: the ally's owner gets a notice, the ally
       // attacks from their own sheet, and the fighter's die rides that hit off a chip on the ally.
       const card = await useAt(feat("Commander's Strike"), 'Directed Attack', rangerToken);
-      const cmd = await waitFor(() => { const c = card?.getFlag(MOD, 'command'); return (c?.status === 'directed') ? c : null; }, 6000);
-      const chip = await waitFor(() => ranger.effects.find(e => (e.getFlag(MOD, 'useKey') === 'command') && (e.getFlag(MOD, 'cardId') === card?.id)) ?? null, 6000);
+      const cmd = await until(() => { const c = card?.getFlag(MOD, 'command'); return (c?.status === 'directed') ? c : null; }, { timeout: 6000 });
+      const chip = await until(() => ranger.effects.find(e => (e.getFlag(MOD, 'useKey') === 'command') && (e.getFlag(MOD, 'cardId') === card?.id)) ?? null, { timeout: 6000 });
       ok('9a. the use stamps the direction on the card (the Ranger as the ally, the fighter\'s die resolved on the FIGHTER, the pool spent, no damage dialog of dnd5e\'s own) and the elect puts the chip on the RANGER carrying that die',
         !!cmd && (cmd.ally?.uuid === ranger.uuid) && (cmd.dieFormula === '1d8') && (poolLeft() === 3) && !rollDialog() && !!chip && (chip.getFlag(MOD, 'die') === '1d8') && (chip.getFlag(MOD, 'sourceUuid') === fighter.uuid),
         `cmd=${JSON.stringify(cmd && { ally: cmd.ally?.name, die: cmd.dieFormula, status: cmd.status })} pool=${poolLeft()} dialog=${!!rollDialog()} chip=${!!chip} chipDie=${chip?.getFlag(MOD, 'die')}`);
-      const popup = await waitFor(() => dialogWith('directs you to strike'), 6000);
+      const popup = await until(() => dialogWith('directs you to strike'), { timeout: 6000 });
       ok('9b. the Ranger\'s owner gets the NOTICE — OK only, no weapon choice, no Attack button', !!popup && !!popup.element?.querySelector('button[data-action="ok"]') && !popup.element?.querySelector('button[data-action="attack"]') && !popup.element?.querySelector('select'),
         `popup=${!!popup} ok=${!!popup?.element?.querySelector('button[data-action="ok"]')} attack=${!!popup?.element?.querySelector('button[data-action="attack"]')}`);
       popup?.element?.querySelector('button[data-action="ok"]')?.click();
-      await sleep(300);
+      await until(() => !dialogWith('directs you to strike'), { timeout: 4000, label: 'the notice closed' });
       // The Ranger attacks the goblin from its own sheet: the chip's die rides the damage.
       const { msg: attackMsg, originId } = await swing(ranger, rangerToken, rangerSword, goblinToken);
       // The Gloom Stalker's Dreadful Strike (a live clock-rider row) opens the damage offer on the
       // hit, and with Decision Timer 0 it waits for a click: roll with the rider UNticked (the
-      // fixture's uses untouched) — the chip's die rides the base roll either way.
-      const rangerOffer = await waitFor(offerEl, 4000);
+      // fixture's uses untouched) — the chip's die rides the base roll either way. Soft: with no
+      // offer the damage rolls by itself.
+      const rangerOffer = await until(offerEl, { timeout: 4000, label: 'the Ranger\'s damage offer' }).catch(() => null);
       if (rangerOffer) {
         for (const box of rangerOffer.querySelectorAll('input[name="bf-rider"]')) if (box.checked) box.click();
-        await sleep(60);
         rangerOffer.querySelector('button[data-action="roll"]')?.click();
       }
-      const dmg = await waitFor(() => { const d = damageFor(originId); return d?.getFlag(MOD, 'receipt') ? d : null; }, 12000);
+      const dmg = await until(() => { const d = damageFor(originId); return d?.getFlag(MOD, 'receipt') ? d : null; }, { timeout: 12000 });
       const base = dmg?.rolls?.[0]?.formula ?? '';
       const ride = dmg?.getFlag(MOD, 'commandRide');
-      const struck = await waitFor(() => (card?.getFlag(MOD, 'command')?.status === 'struck') ? card.getFlag(MOD, 'command') : null, 6000);
+      const struck = await until(() => (card?.getFlag(MOD, 'command')?.status === 'struck') ? card.getFlag(MOD, 'command') : null, { timeout: 6000 });
       ok('9c. the Ranger\'s OWN attack carries the fighter\'s die in the weapon\'s roll (two dice), the chip is spent, the Reaction spent, the damage says so, and the fighter\'s card records the strike',
         !!attackMsg && (attackMsg.getAssociatedActor()?.uuid === ranger.uuid) && !!dmg && /1d8.*1d8/.test(base) && !!ride && (ride.cardId === card?.id)
           && !ranger.effects.some(e => e.getFlag(MOD, 'useKey') === 'command') && (struck?.struck?.by === ranger.name),   // the Reaction chip is combat-only (§1d's settled rule) — out of combat none is written
         `attack=${!!attackMsg} by=${attackMsg?.getAssociatedActor()?.name} dmg=${base} ride=${JSON.stringify(ride)} chipLeft=${ranger.effects.some(e => e.getFlag(MOD, 'useKey') === 'command')} reaction=${ranger.effects.some(e => /Reaction — used/.test(e.name))} card=${struck?.status}`);
       await clearChips();
-    }
+    });
 
     // ---- 11. ARMED from the sheet
-    if (want(11)) {
+    if (want(11)) await section(11, async () => {
       await clearChips(); await refill(); await closeDialogs();
       if (game.combat) await game.combat.delete();
       const armedChip = () => fighter.effects.find(e => (e.getFlag(MOD, 'useKey') === 'tactical') && e.getFlag(MOD, 'armed')) ?? null;
@@ -568,29 +572,31 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const taAct = feat('Tactical Assessment').system.activities.contents[0];
       const taUse = await taAct.use({}, { configure: false }, {});
       const taCard = taUse?.message ?? null;
-      const chip = await waitFor(armedChip, 6000);
-      const armed = await waitFor(() => taCard?.getFlag(MOD, 'tacticalArmed') ?? null, 4000);
+      const chip = await until(armedChip, { timeout: 6000 });
+      const armed = await until(() => taCard?.getFlag(MOD, 'tacticalArmed') ?? null, { timeout: 4000 });
       const dieMsg = game.messages.contents.filter(m => (m.timestamp >= suiteStart) && /Tactical Assessment — the die/.test(m.flavor ?? '')).at(-1);
       ok('11a. the use rolls the die IN THE OPEN, spends the pool, puts an ARMED chip carrying the number on the fighter (History, Investigation, Insight) and the card says which check to make',
         !!chip && !!armed && !!dieMsg && (chip.getFlag(MOD, 'armed')?.total === dieMsg.rolls?.[0]?.total) && (armed.total === chip.getFlag(MOD, 'armed')?.total)
           && (JSON.stringify(chip.getFlag(MOD, 'armed')?.skills) === JSON.stringify(['his', 'inv', 'ins'])) && (poolLeft() === 3) && /History or Investigation/.test(armed.what ?? '') && !armed.spent,
         `chip=${JSON.stringify(chip?.getFlag(MOD, 'armed'))} card=${JSON.stringify(armed)} die=${dieMsg?.rolls?.[0]?.total} pool=${poolLeft()}`);
-      const notice = await waitFor(() => dialogWith('the die rolled'), 6000);
+      const notice = await until(() => dialogWith('the die rolled'), { timeout: 6000 });
       // The checks ARE the buttons (History, Investigation, Insight); no OK.
       const skillButtons = [...(notice?.element?.querySelectorAll('button[data-action^="skill-"]') ?? [])].map(b => b.dataset.action);
       ok('11b. the popup offers the three checks as buttons — History, Investigation, Insight — and no OK', !!notice && (JSON.stringify(skillButtons) === JSON.stringify(['skill-his', 'skill-inv', 'skill-ins'])) && !notice.element?.querySelector('button[data-action="ok"]'),
         `notice=${!!notice} buttons=${JSON.stringify(skillButtons)}`);
       await closeDialogs();
-      await sleep(200);
+      await until(() => !dialogWith('the die rolled'), { timeout: 4000, label: 'the notice closed' });
       // An Athletics check leaves the chip alone; a History check spends it and folds the number in.
       const athRolls = await fighter.rollSkill({ skill: 'ath' }, { configure: false }, {});
-      await sleep(500);
-      ok('11c. an Athletics check does not spend the armed die', !!armedChip() && !(athRolls?.[0]?.parent?.getFlag(MOD, 'd20fold')?.armed), `chip=${!!armedChip()}`);
+      // A window for the armed die spent on the Athletics check, which must not happen.
+      const athSpent = await watch(() => !armedChip() || athRolls?.[0]?.parent?.getFlag(MOD, 'd20fold')?.armed, { ms: 500 });
+      ok('11c. an Athletics check does not spend the armed die', !athSpent && !!armedChip() && !(athRolls?.[0]?.parent?.getFlag(MOD, 'd20fold')?.armed), `chip=${!!armedChip()}`);
       await closeDialogs();
       const hisRolls = await fighter.rollSkill({ skill: 'his' }, { configure: false }, {});
       const hisMsg = hisRolls?.[0]?.parent ?? null;
-      const folded = await waitFor(() => { const fl = hisMsg?.getFlag(MOD, 'd20fold'); return fl?.armed ? fl : null; }, 8000);
-      await sleep(400);
+      const folded = await until(() => { const fl = hisMsg?.getFlag(MOD, 'd20fold'); return fl?.armed ? fl : null; }, { timeout: 8000 });
+      // The armed fold's last write: the arming card marked spent (after the chip goes).
+      await until(() => taCard?.getFlag(MOD, 'tacticalArmed')?.spent, { timeout: 4000, label: 'the Tactical Assessment card marked spent' });
       ok('11d. the History check folds the armed number in by itself — no rescue ask for Tactical Assessment, the total patched, the chip spent, the card marked; the pool untouched (spent at the use)',
         !!folded && (folded.spends?.[0]?.name === 'Tactical Assessment') && (folded.spends?.[0]?.die === armed?.total) && (folded.foldedTotal === folded.baseTotal + (armed?.total ?? 0))
           && !armedChip() && !(folded.offers ?? []).some(o => o.name === 'Tactical Assessment') && (poolLeft() === 3) && !!taCard?.getFlag(MOD, 'tacticalArmed')?.spent,
@@ -600,29 +606,36 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       await refill();
       const amAct = feat('Ambush').system.activities.contents[0];
       const amUse = await amAct.use({}, { configure: false }, {});
-      const amChip = await waitFor(armedChip, 6000);
+      const amChip = await until(armedChip, { timeout: 6000 });
       await closeDialogs();
       combat = await Combat.create({ scene: scene.id, active: true });
-      await combat.createEmbeddedDocuments('Combatant', [{ actorId: fighter.id, tokenId: fighterDoc.id, sceneId: scene.id }, { actorId: goblin.id, tokenId: goblinDoc.id, sceneId: scene.id, initiative: 5 }]);
-      await sleep(300);
-      face(10);
-      await fighter.rollInitiative({ createCombatants: false, rerollInitiative: true }, { configure: false });
-      const combatant = combat.combatants.find(c => c.actorId === fighter.id);
-      const initMsg = await waitFor(() => game.messages.contents.slice(-10).reverse().find(m => m.getFlag('core', 'initiativeRoll') && m.getFlag(MOD, 'd20fold')?.armed) ?? null, 8000);
-      await sleep(400);
-      const initFlag = initMsg?.getFlag(MOD, 'd20fold');
-      ok('11e. Ambush armed from the sheet moves the Initiative by the armed die with no ask, the chip spent',
-        !!amChip && !!initFlag && (initFlag.spends?.[0]?.name === 'Ambush') && (combat.combatants.get(combatant?.id)?.initiative === initFlag.baseTotal + (amChip.getFlag(MOD, 'armed')?.total ?? 0)) && !armedChip(),
-        `chip=${JSON.stringify(amChip?.getFlag(MOD, 'armed'))} flag=${JSON.stringify(initFlag && { spends: initFlag.spends, base: initFlag.baseTotal, folded: initFlag.foldedTotal })} init=${combat.combatants.get(combatant?.id)?.initiative} chipLeft=${!!armedChip()} use=${!!amUse}`);
-      await closeDialogs();
-      await combat.delete(); combat = null;
+      // The combat goes in a finally: a wait that throws here must not leave §12 on inside it.
+      try {
+        await combat.createEmbeddedDocuments('Combatant', [{ actorId: fighter.id, tokenId: fighterDoc.id, sceneId: scene.id }, { actorId: goblin.id, tokenId: goblinDoc.id, sceneId: scene.id, initiative: 5 }]);
+        await until(() => (combat.combatants.size === 2) && (game.combat?.id === combat.id), { timeout: 4000, label: 'the combat active with both combatants' });
+        face(10);
+        await fighter.rollInitiative({ createCombatants: false, rerollInitiative: true }, { configure: false });
+        const combatant = combat.combatants.find(c => c.actorId === fighter.id);
+        const initMsg = await until(() => game.messages.contents.slice(-10).reverse().find(m => m.getFlag('core', 'initiativeRoll') && m.getFlag(MOD, 'd20fold')?.armed) ?? null, { timeout: 8000 });
+        // After the fold's flag: the chip goes, then the combatant's initiative moves off the base.
+        await until(() => !armedChip() && (combat.combatants.get(combatant?.id)?.initiative !== initMsg.getFlag(MOD, 'd20fold')?.baseTotal),
+          { timeout: 4000, label: 'the armed Ambush spent and the initiative moved' });
+        const initFlag = initMsg?.getFlag(MOD, 'd20fold');
+        ok('11e. Ambush armed from the sheet moves the Initiative by the armed die with no ask, the chip spent',
+          !!amChip && !!initFlag && (initFlag.spends?.[0]?.name === 'Ambush') && (combat.combatants.get(combatant?.id)?.initiative === initFlag.baseTotal + (amChip.getFlag(MOD, 'armed')?.total ?? 0)) && !armedChip(),
+          `chip=${JSON.stringify(amChip?.getFlag(MOD, 'armed'))} flag=${JSON.stringify(initFlag && { spends: initFlag.spends, base: initFlag.baseTotal, folded: initFlag.foldedTotal })} init=${combat.combatants.get(combatant?.id)?.initiative} chipLeft=${!!armedChip()} use=${!!amUse}`);
+        await closeDialogs();
+      } finally {
+        if (combat && game.combats.get(combat.id)) await combat.delete().catch(() => {});
+        combat = null;
+      }
       await clearChips();
-    }
+    });
 
     // ---- 12. Stone's Endurance
     // INTERRUPT_REDUCTIONS' second row: the same machine as Parry, the row's own voice, the item's
     // own uses, never the heal.
-    if (want(12)) {
+    if (want(12)) await section(12, async () => {
       const goliath = game.actors.getName('BTB Test Goliath');
       const stone = goliath?.items.find(i => (i.type === 'feat') && (i.name === "Stone's Endurance"));
       if (!goliath || !stone) ok('12a. the BTB Test Goliath fixture carries Stone\'s Endurance (run tools/fixture-suite.mjs)', false, `goliath=${!!goliath} stone=${!!stone}`);
@@ -642,19 +655,19 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           const hpBefore = goliath.system.attributes.hp.value;
           const since = Date.now();
           const { msg } = await swing(goblin, goblinToken, goblinMelee, goliathToken);
-          const hold = await waitFor(() => msg?.getFlag(MOD, 'hold') ?? null, 6000);
+          const hold = await until(() => msg?.getFlag(MOD, 'hold') ?? null, { timeout: 6000 });
           const t = hold?.targets?.find(x => x.uuid === goliath.uuid);
           ok('12a. the goblin\'s hit on the Goliath stamps a DAMAGE hold for Stone\'s Endurance with the pack\'s formula, found by type (its activity\'s stored name is empty), in the Reaction voice',
             !!t && (t.reaction === "Stone's Endurance") && (t.kind === 'damage') && /1d12/.test(t.reduce?.formula ?? '') && /con\.mod/.test(t.reduce?.formula ?? '')
               && (t.reduce?.eyebrow === 'Reaction') && (t.reduce?.spend === 'use') && (t.reduce?.maneuver === false),
             `target=${JSON.stringify(t)}`);
-          const popup = await waitFor(() => dialogWith("Reaction — Stone"), 6000);
+          const popup = await until(() => dialogWith("Reaction — Stone"), { timeout: 6000 });
           const popupText = textOf(popup?.element);
           ok('12b. the popup asks in the trait\'s own words: "Reaction — Stone\'s Endurance", a use and the Reaction, 1d12 plus the Constitution modifier',
             !!popup && /Spend a use and your Reaction to reduce the damage by 1d12 plus your Constitution modifier/.test(popupText) && !/Superiority Die/.test(popupText),
             `text="${popupText.slice(0, 240)}"`);
           popup?.element?.querySelector('button[data-action="cast"]')?.click();
-          const resolved = await waitFor(() => (msg?.getFlag(MOD, 'hold')?.status === 'resolved') ? msg.getFlag(MOD, 'hold') : null, 10000);
+          const resolved = await until(() => (msg?.getFlag(MOD, 'hold')?.status === 'resolved') ? msg.getFlag(MOD, 'hold') : null, { timeout: 10000 });
           const rt = resolved?.targets?.find(x => x.uuid === goliath.uuid);
           const dieMsg = game.messages.contents.filter(m => (m.timestamp >= since) && /Stone's Endurance — the die/.test(m.flavor ?? '')).at(-1);
           const conMod = goliath.system.abilities.con.mod;
@@ -662,7 +675,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           ok('12c. the answer rolls 1d12 + CON in the open and rides the hold as the reduction',
             !!rt && (rt.answer === 'cast') && (Number(rt.reduceBy) > 0) && !!dieMsg && (dieMsg.rolls?.[0]?.total === rt.reduceBy) && (face12 !== null) && (rt.reduceBy === face12 + conMod),
             `reduceBy=${rt?.reduceBy} die=${dieMsg?.rolls?.[0]?.formula}=${dieMsg?.rolls?.[0]?.total} con=${conMod}`);
-          const dmg = await waitFor(() => { const d = damageFor(msg?._source.system?.origin ?? msg?.id); return d?.getFlag(MOD, 'receipt') ? d : null; }, 12000);
+          const dmg = await until(() => { const d = damageFor(msg?._source.system?.origin ?? msg?.id); return d?.getFlag(MOD, 'receipt') ? d : null; }, { timeout: 12000 });
           const receipt = dmg?.getFlag(MOD, 'receipt')?.targets?.find(x => x.uuid === goliath.uuid);
           const total = (dmg?.rolls ?? []).reduce((n, r) => n + (r.total ?? 0), 0);
           const expected = Math.max(0, total - (rt?.reduceBy ?? 0));
@@ -670,7 +683,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
             !!receipt && (receipt.taken === expected) && /Stone's Endurance — reduced by/.test(receipt.note ?? '') && (goliath.system.attributes.hp.value === hpBefore - expected),
             `rolled=${total} reduceBy=${rt?.reduceBy} taken=${receipt?.taken} note="${receipt?.note}" hp ${hpBefore}→${goliath.system.attributes.hp.value}`);
           const usesLeft = Number(goliath.items.get(stone.id)?.system.uses?.value ?? -1);
-          const card = await waitFor(() => /one use spent/.test(textOf(document.querySelector(`.message[data-message-id="${msg?.id}"]`))) ? true : null, 6000);
+          const card = await until(() => /one use spent/.test(textOf(document.querySelector(`.message[data-message-id="${msg?.id}"]`))) ? true : null, { timeout: 6000 });
           ok('12e. the trait\'s OWN use is spent (one of its Proficiency-Bonus uses) and the card says "one use spent", never a Superiority Die',
             (usesLeft === usesMax - 1) && !!card && !/Superiority Die/.test(cardText(msg?.id)),
             `uses ${usesMax}→${usesLeft} card="${cardText(msg?.id).slice(0, 240)}"`);
@@ -684,13 +697,13 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           await clearChips();
         }
       }
-    }
+    });
 
     // ---- 10. FIRED
-    if (want(10)) {
+    if (want(10)) await section(10, async () => {
       ok('10a. dnd5e.rollSkill fired (the scoped folds\' hook)', count('dnd5e.rollSkill') > 0, `count=${count('dnd5e.rollSkill')}`);
       ok('10b. dnd5e.rollInitiative fired (Ambush on Initiative)', count('dnd5e.rollInitiative') > 0, `count=${count('dnd5e.rollInitiative')}`);
-    }
+    });
 
     return { log, results, skips };
   } catch (err) {
