@@ -53,7 +53,6 @@ const CEILING = {
   "smoke-class-wizard": 23,
   "smoke-companions": 4,
   "smoke-damage-rules": 1,
-  "smoke-drop": 13,
   "smoke-effects": 3,
   "smoke-expiry": 1,
   "smoke-goliath": 18,
@@ -77,10 +76,9 @@ const STANDING = new Set([
   "smoke-class-barbarian", "smoke-class-bard", "smoke-class-cleric", "smoke-class-druid",
   "smoke-class-fighter", "smoke-class-items", "smoke-class-monk", "smoke-class-paladin",
   "smoke-class-ranger", "smoke-class-rogue", "smoke-class-sorcerer", "smoke-class-warlock",
-  "smoke-class-wizard", "smoke-companions", "smoke-drop", "smoke-goliath", "smoke-guards",
-  "smoke-heal", "smoke-lucky", "smoke-maneuvers", "smoke-metamagic", "smoke-reminders",
-  "smoke-resources", "smoke-riders", "smoke-saves", "smoke-shields", "smoke-spells",
-  "smoke-surfaces"
+  "smoke-class-wizard", "smoke-companions", "smoke-goliath", "smoke-guards", "smoke-heal",
+  "smoke-lucky", "smoke-maneuvers", "smoke-metamagic", "smoke-reminders", "smoke-resources",
+  "smoke-riders", "smoke-saves", "smoke-shields", "smoke-spells", "smoke-surfaces"
 ]);
 
 /** A name that is a poll by what it is called. */
@@ -153,11 +151,12 @@ export function readSuite(text, file = "suite.mjs") {
     }
   };
 
-  /** Is `node` inside a function handed to `….evaluate(…)`: page code? */
+  /** Is `node` page code: inside a function handed to `….evaluate(…)`, or a kit suite's `body`? */
   const inPage = node => {
     for (let p = node.parent; p; p = p.parent) {
-      if (ts.isFunctionLike(p) && p.parent && ts.isCallExpression(p.parent) && /.evaluate$/.test(p.parent.expression.getText())
-        && (p.parent.arguments[0] === p)) return true;
+      if (!ts.isFunctionLike(p) || !p.parent) continue;
+      if (ts.isCallExpression(p.parent) && /.evaluate$/.test(p.parent.expression.getText()) && (p.parent.arguments[0] === p)) return true;
+      if (ts.isPropertyAssignment(p.parent) && (p.parent.name.getText() === "body") && (p.parent.initializer === p)) return true;
     }
     return false;
   };
