@@ -4,17 +4,19 @@
 //   node tools/battery-status.mjs <runDir>   a named run
 //   node tools/battery-status.mjs --watch 60  redraw in place every 60 s until the run is done
 //   node tools/battery-status.mjs --watch 60 --follow   ...and keep going across runs (Ctrl-C to stop)
+//   node tools/battery-status.mjs --line [runDir]   the run in one line, for a release tag's body
 //
+// A run is named by its directory or by its bare run id (`2026-10-15T13-55-32`).
 // Reads nothing live: the battery writes one <suite>.txt per FINISHED entry into its run directory
 // (tools/battery.mjs), so a missing file is an entry still to come and the first missing one in the
-// order is the one running now. The order is `battery.mjs --list`. Offline, no Foundry.
-import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
-import { join, dirname } from "node:path";
-import { fileURLToPath } from "node:url";
-import { execFileSync } from "node:child_process";
-
-const REPO = join(dirname(fileURLToPath(import.meta.url)), "..");
-const BATTERY_DIR = join(REPO, "dist", "battery");
+// order is the one running now. The reading itself is tools/battery-line.mjs's `readRun`, the one
+// the release builder checks a tag's line against. Offline, no Foundry.
+//
+// `--line` prints `Battery: <run id> — <n>/<n> suites, <n>/<n> checks, GREEN` (RED, PARTIAL) and exits
+// 0 only for GREEN; the release tag's body carries that line (NOTES §5 *Release*).
+import { existsSync, readdirSync, statSync } from "node:fs";
+import { basename, join } from "node:path";
+import { BATTERY_DIR, lineOf, readRun, RUN_ID } from "./battery-line.mjs";
 
 const args = process.argv.slice(2);
 const w = args.indexOf("--watch");
@@ -22,9 +24,23 @@ const watchSecs = (w >= 0) ? Math.max(5, Number(args[w + 1]) || 60) : 0;
 if ( w >= 0 ) args.splice(w, (Number(args[w + 1]) ? 2 : 1));
 const follow = args.includes("--follow");
 if ( follow ) args.splice(args.indexOf("--follow"), 1);
-const named = args[0] ?? null;
+const asLine = args.includes("--line");
+if ( asLine ) args.splice(args.indexOf("--line"), 1);
+const unknown = args.filter(a => a.startsWith("--"));
+if ( unknown.length ) { console.error(`battery-status: unknown flag ${unknown.join(", ")}`); process.exit(2); }
+if ( asLine && (watchSecs || follow) ) { console.error("battery-status: --line prints once; drop --watch and --follow"); process.exit(2); }
+// A bare run id is a run under dist/battery.
+const named = (args[0] === undefined) ? null
+  : (!existsSync(args[0]) && RUN_ID.test(args[0])) ? join(BATTERY_DIR, args[0]) : args[0];
 
-const order = listOrder();
+if ( asLine ) {
+  const runDir = named ?? newestRun();
+  if ( !runDir || !existsSync(runDir) ) { console.error("battery-status: no battery run under dist/battery yet"); process.exit(1); }
+  if ( !RUN_ID.test(basename(runDir)) ) { console.error(`battery-status: ${runDir} is not a battery run directory (dist/battery/<run id>)`); process.exit(2); }
+  const run = readRun(runDir);
+  console.log(lineOf(run));
+  process.exit(run.verdict === "GREEN" ? 0 : 1);
+}
 if ( !watchSecs ) {
   const r = draw(named ?? newestRun());
   process.exit(r.failed ? 1 : 0);
@@ -44,22 +60,7 @@ function draw(runDir) {
 if ( !runDir || !existsSync(runDir) ) { console.log("no battery run under dist/battery yet"); return { finished: false, failed: 0 }; }
 const started = startOf(runDir);
 const now = Date.now();
-// The run's own plan (battery.mjs writes plan.json since 2026-10-07); an older run falls back to the full order.
-const planFile = join(runDir, "plan.json");
-const rows = existsSync(planFile) ? JSON.parse(readFileSync(planFile, "utf8"))
-  : existsSync(join(runDir, "setup-fixtures.txt")) ? ["setup-fixtures", ...order] : order;
-const entries = rows.map(name => {
-  const file = join(runDir, `${name}.txt`);
-  if ( !existsSync(file) ) return { name, state: "pending" };
-  const body = readFileSync(file, "utf8");
-  const verdict = verdictOf(body, /^(fixture-|reset-|setup-)/.test(name));
-  return { name, state: verdict.ok ? "ok" : "failed", ...verdict, at: statSync(file).mtimeMs };
-});
-const done = entries.filter(e => e.state !== "pending");
-const running = entries.find(e => e.state === "pending") ?? null;
-const total = entries.length;
-const failed = done.filter(e => e.state === "failed");
-const checks = done.reduce((a, e) => ({ pass: a.pass + (e.pass ?? 0), all: a.all + (e.all ?? 0) }), { pass: 0, all: 0 });
+const { entries, done, running, total, failed, checks } = readRun(runDir);
 const lastAt = done.length ? Math.max(...done.map(e => e.at)) : started;
 const elapsedMs = (running ? now : lastAt) - started;
 const perEntry = done.length ? elapsedMs / done.length : 0;
@@ -87,31 +88,10 @@ function newestRun() {
   return dirs.length ? join(BATTERY_DIR, dirs.at(-1)) : null;
 }
 
-/** The battery's order, from its own --list (the same table it runs). */
-function listOrder() {
-  const out = execFileSync(process.execPath, [join(REPO, "tools", "battery.mjs"), "--list"], { encoding: "utf8" });
-  return out.split(/\r?\n/).map(l => /^\s{2}(\S+)\s{2,}/.exec(l)?.[1]).filter(Boolean);
-}
-
 /** The run's start from its directory name (UTC, `2026-09-30T19-32-58`). */
 function startOf(dir) {
   const m = /(\d{4}-\d{2}-\d{2})T(\d{2})-(\d{2})-(\d{2})/.exec(dir);
   return m ? Date.parse(`${m[1]}T${m[2]}:${m[3]}:${m[4]}Z`) : statSync(dir).birthtimeMs;
-}
-
-/** A suite's verdict off its output: `N/M passed`, `ALL PASS`, `N FAILURE(S)`, `swept` (a fixture step). */
-function verdictOf(body, step = false) {
-  const lines = body.split(/\r?\n/).reverse();
-  const line = lines.find(l => /ALL PASS|FAILURE\(S\)|\d+\/\d+ passed|\d+\/\d+$|swept|FATAL/.test(l)) ?? "";
-  const ratio = /(\d+)\/(\d+)/.exec(line);
-  if ( ratio ) return { ok: ratio[1] === ratio[2] && !/FAIL/.test(line), pass: Number(ratio[1]), all: Number(ratio[2]), summary: `${ratio[1]}/${ratio[2]}` };
-  if ( /ALL PASS/.test(line) ) { const n = (body.match(/^\s*PASS /gm) ?? []).length; return { ok: true, pass: n, all: n, summary: "ALL PASS" }; }
-  if ( /swept/.test(line) && !/FAIL|FATAL/.test(line) ) return { ok: true, pass: 0, all: 0, summary: "swept" };
-  const n = (body.match(/^\s*PASS /gm) ?? []).length, f = (body.match(/^\s*FAIL /gm) ?? []).length;
-  // ⚠ No verdict line and no assertions is a crash (a setup error, a refused preflight), never a pass.
-  // A seed or sweep step asserts nothing: only a crash marker fails it.
-  const crashed = /FATAL|FAILED|PREFLIGHT|Error:/.test(body) || (!step && (n + f === 0));
-  return { ok: !f && !crashed, pass: n, all: n + f, summary: /FATAL/.test(body) ? "FATAL" : (crashed && !f) ? "crashed" : `${n}/${n + f}` };
 }
 
 function mins(ms) {
