@@ -42,10 +42,10 @@ const f = await connectSuite({ tag: 'class-items', watchdogMs: 900_000 });
 announcePlan('class-items', plan, pulled);
 
 const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ sections, titles }) => {
-  const { sleep, until, faces, unrig } = window.__btb;
+  const { until, watch, tokenOn, faces, unrig } = window.__btb;
   const { results, skips, ok, want, section } = window.__btb.begin({ sections, titles });
   const KIT = window.__btbClasses;
-  const { MOD, a2Combat, act, alwaysLine, attackOf, attacker, attackerToken, cardEl, clearDown, clearTargets, closeA1, closeDialogs, closeOffers, damageFor, dmgCard, dmgEnchant, dmgHit, dmgKeys, dmgLend, dmgSaveGate, dropEffects, dropReactionChips, findPHB, gateFor, halfling, halflingToken, healFull, hgClose, hgLend, holdOf, hp, lentBy, log, markOn, outcomeOfCard, pcAttacker, pcToken, pcWeapon, riderChits, scene, set, sorcTokC, sorcerer, spendLuck, spendLuckC, swing, unlend, victim, victimAs, victimPrior, victimToken } = KIT;
+  const { MOD, a2Combat, act, alwaysLine, attackOf, attacker, attackerToken, cardEl, clearDown, clearTargets, closeA1, closeDialogs, closeOffers, damageFor, dmgCard, dmgEnchant, dmgHit, dmgKeys, dmgLend, dmgSaveGate, dropEffects, dropReactionChips, findPHB, gateFor, halfling, halflingToken, healFull, hgClose, hgLend, holdOf, hp, lentBy, log, markOn, offerApp, outcomeOfCard, pcAttacker, pcToken, pcWeapon, popups, riderChits, scene, set, sorcTokC, sorcerer, spendLuck, spendLuckC, swing, unlend, victim, victimAs, victimPrior, victimToken } = KIT;
   try {
     await KIT.leaveA3();
     KIT.markA2();
@@ -63,7 +63,6 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
           ok('106a. the sorcerer wearing (and attuned to) the Mantle of Spell Resistance: its save against Sacred Flame lists it, net Advantage',
             g1.open && /Mantle of Spell Resistance/.test(g1.text) && (g1.net === 'advantage'), `net=${g1.net} text="${g1.text.slice(0, 200)}"`);
           await mantle.update({ 'system.equipped': false });
-          await sleep(200);
           const g2 = await dmgSaveGate(sorcerer, sTok);
           ok('106b. the Mantle taken off: nothing listed', g2.open && !/Mantle of Spell Resistance/.test(g2.text), `net=${g2.net} text="${g2.text.slice(0, 160)}"`);
           blessing = await dmgLend(sorcerer, 'dmgBlessingOfMag');
@@ -116,23 +115,24 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
           const rolls = await halfling.rollSavingThrow({ ability: 'dex' }, { configure: false }, {});
           unrig();
           const m = rolls?.[0]?.parent ?? null;
-          const flag = await until(() => m?.getFlag(MOD, 'd20fold') ?? null, { timeout: 5000 }).catch(() => null);
+          const flag = await until(() => m?.getFlag(MOD, 'd20fold') ?? null, { timeout: 5000, label: 'the d20 fold on the failed Dexterity save' });
           const offer = (flag?.offers ?? []).find(o => o.label === 'Ring of Evasion') ?? null;
           ok('108a. a failed Dexterity save offers "Ring of Evasion — succeed instead" (a charge)', !!offer && (offer.kind === 'succeed'),
             `offers=${JSON.stringify((flag?.offers ?? []).map(o => [o.kind, o.label, o.cost]))}`);
-          const win = await until(() => [...document.querySelectorAll('.application')].find(el => (el.tagName === 'DIALOG') && !prior.has(el.id) && !!el.querySelector('[data-bf-rescue-action="succeed"]')) ?? null, { timeout: 8000 }).catch(() => null);
+          const win = await until(() => [...document.querySelectorAll('.application')].find(el => (el.tagName === 'DIALOG') && !prior.has(el.id) && !!el.querySelector('[data-bf-rescue-action="succeed"]')) ?? null, { timeout: 8000, label: 'the rescue window with the succeed row' });
           win?.querySelector('[data-bf-rescue-action="succeed"]')?.click();
-          const done = await until(() => { const cur = m?.getFlag(MOD, 'd20fold'); return (cur?.spends?.length && !cur.spends.some(sp => sp.pendingVerdict)) ? cur : null; }, { timeout: 15000 }).catch(() => null);
-          await sleep(300);
+          // The ring's charge is spent before the spend is recorded.
+          const done = await until(() => { const cur = m?.getFlag(MOD, 'd20fold'); return (cur?.spends?.length && !cur.spends.some(sp => sp.pendingVerdict)) ? cur : null; }, { timeout: 15000, label: 'the Ring of Evasion spend settled' });
           ok('108b. pressed: the save succeeds instead, a charge spent', (done?.spends?.[0]?.verdict === 'saved') && (Number(halfling.items.get(ring.id)?.system?.uses?.spent) === 1),
             `spends=${JSON.stringify(done?.spends ?? null)} spent=${halfling.items.get(ring.id)?.system?.uses?.spent}`);
           passAll(); await closeA1();
           faces([[3, 20]]);
           const r2 = await halfling.rollSavingThrow({ ability: 'wis' }, { configure: false }, {});
           unrig();
-          await sleep(1200);
+          const ringOffered = () => (r2?.[0]?.parent?.getFlag(MOD, 'd20fold')?.offers ?? []).some(o => o.label === 'Ring of Evasion');
+          const stray = await watch(ringOffered, { ms: 1200 });   // a window: the ring is never offered on a Wisdom save
           const f2 = r2?.[0]?.parent?.getFlag(MOD, 'd20fold');
-          ok('108c. a failed WISDOM save: the ring is not offered', !(f2?.offers ?? []).some(o => o.label === 'Ring of Evasion'), `offers=${JSON.stringify((f2?.offers ?? []).map(o => o.label))}`);
+          ok('108c. a failed WISDOM save: the ring is not offered', !stray && !(f2?.offers ?? []).some(o => o.label === 'Ring of Evasion'), `stray=${!!stray} offers=${JSON.stringify((f2?.offers ?? []).map(o => o.label))}`);
         }
       } finally {
         passAll(); await closeA1();
@@ -153,7 +153,7 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
           const rolls = await halfling.rollSavingThrow({ ability: 'con' }, { configure: false }, {});
           unrig();
           const m = rolls?.[0]?.parent ?? null;
-          const flag = await until(() => m?.getFlag(MOD, 'd20fold') ?? null, { timeout: 5000 }).catch(() => null);
+          const flag = await until(() => m?.getFlag(MOD, 'd20fold') ?? null, { timeout: 5000, label: 'the d20 fold on the failed save' });
           ok('109b. a failed save from the sheet (no demand to read) offers "Preservation" — the roller judges', (flag?.offers ?? []).some(o => o.label === 'Preservation'),
             `offers=${JSON.stringify((flag?.offers ?? []).map(o => [o.kind, o.label]))}`);
           const g = await dmgSaveGate(halfling, halflingToken);
@@ -181,12 +181,10 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
             `net=${g1.net} text="${g1.text.slice(0, 200)}"`);
           const sup = cloak.effects.find(e => e.name === 'Displacement Suppressed');
           if (sup) await sup.update({ disabled: false });
-          await sleep(300);
           const g2 = await gateFor(attackerToken, act(), sTok);
           ok('110b. the pack\'s "Displacement Suppressed" switched on: nothing listed', g2.open && !/Cloak of Displacement/.test(g2.text), `suppressor=${!!sup} net=${g2.net} text="${g2.text.slice(0, 160)}"`);
           if (sup) await sup.update({ disabled: true });
           held = await markOn(sorcerer, 'Grappled (test)', null, ['grappled']);
-          await sleep(300);
           const g3 = await gateFor(attackerToken, act(), sTok);
           ok('110c. Grappled (its Speed 0): the cloak is suppressed — nothing listed', g3.open && !/Cloak of Displacement/.test(g3.text), `net=${g3.net} text="${g3.text.slice(0, 160)}"`);
         }
@@ -210,17 +208,17 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
           await healFull();
           attackerToken.control({ releaseOthers: true });
           halflingToken.setTarget(true, { releaseOthers: true });
-          await sleep(80);
           faces([[15, 20], [3, 6], [3, 6]]);
           const rolls = await bowAct.rollAttack({}, { configure: false }, {});
           const msg = rolls?.[0]?.parent ?? null;
-          await until(() => holdOf(msg), { timeout: 6000 }).catch(() => null);
+          await until(() => holdOf(msg), { timeout: 6000, label: "the Shortbow hit's hold" });
           const t = holdOf(msg)?.targets?.find(x => x.uuid === halfling.uuid);
           unrig();
           ok('111a. the Shortbow\'s hit on the Halfling wearing the gloves is held for "Gloves of Missile Snaring" — a damage reduction, 1d10 + Dex',
             (t?.reaction === 'Gloves of Missile Snaring') && (t?.kind === 'damage') && /1d10/.test(String(t?.reduce?.formula ?? '')),
             `hold=${JSON.stringify(t && { reaction: t.reaction, kind: t.kind, formula: t.reduce?.formula })}`);
           await closeDialogs(); await closeA1();
+          // The bow's damage rolled before the melee swing; nothing below reads it.
           await until(() => damageFor(msg?.id), { timeout: 8000 }).catch(() => null);
           await dropReactionChips(halfling);
           const m2 = await swing({ d20: [15], dmg: 1 });
@@ -273,8 +271,8 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
         else {
           const usePoison = vial.system.activities.find(a => a.type === 'save');
           await usePoison?.use({}, { configure: false }, {});
-          const chip = await until(coat, { timeout: 6000 }).catch(() => null);
-          const useCard = await until(() => game.messages.contents.find(m => (m.timestamp >= t113) && m.getFlag(MOD, 'coatUse')) ?? null, { timeout: 6000 }).catch(() => null);
+          const chip = await until(coat, { timeout: 6000, label: 'the Serpent Venom Coating chip' });
+          const useCard = await until(() => game.messages.contents.find(m => (m.timestamp >= t113) && m.getFlag(MOD, 'coatUse')) ?? null, { timeout: 6000, label: 'the Use Poison card' });
           const saveCards = () => game.messages.contents.filter(m => (m.timestamp >= t113) && m.getFlag(MOD, 'saves') && (m.getAssociatedItem?.()?.name === 'Serpent Venom'));
           ok('113a. Use Poison on the vial: the "Serpent Venom Coating" chip on the PC Attacker (60 s, the vial\'s icon), the dose spent, the use card, no save demanded',
             !!chip && (chip.name === 'Serpent Venom Coating') && (chip.img === vial.img) && (Number(chip._source.duration?.seconds) === 60)
@@ -283,25 +281,25 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
           victimPrior();
           await victim.update({ 'system.attributes.ac.override': 30, 'system.attributes.hp.value': 400 });
           pcToken.control({ releaseOthers: true }); clearTargets(); victimToken.setTarget(true, { releaseOthers: true });
-          await sleep(120);
           faces([[3, 20], [3, 20]]);
           const miss = await wAct.rollAttack({}, { configure: false }, {});
           unrig();
-          await sleep(2500);
+          const stray = await watch(() => !coat() || !pcAttacker.items.get(vialId), { ms: 2500 });   // a window: a miss spends nothing
           await closeOffers();
-          ok('113b. a MISS at AC 30 spends nothing: the coating stands, the vial still there', !!coat() && !!pcAttacker.items.get(vialId), `chip=${!!coat()} vial=${!!pcAttacker.items.get(vialId)} miss=${miss?.[0]?.total}`);
+          ok('113b. a MISS at AC 30 spends nothing: the coating stands, the vial still there', !stray && !!coat() && !!pcAttacker.items.get(vialId), `stray=${!!stray} chip=${!!coat()} vial=${!!pcAttacker.items.get(vialId)} miss=${miss?.[0]?.total}`);
           await victim.update({ 'system.attributes.ac.override': 1 });
-          await sleep(120);
+          const before = new Set(popups());
           faces([[15, 20], [15, 20]]);
           const hit = await wAct.rollAttack({}, { configure: false }, {});
           unrig();
           const hm = hit?.[0]?.parent ?? null;
-          await sleep(800);
+          // The damage offer opens when a part is due (closing it rolls the damage); without one the damage rolls itself.
+          await until(() => offerApp(before) || damageFor(hm?.id), { timeout: 4000 }).catch(() => null);
           await closeOffers();   // the offer rolls the damage
-          const dmg = await until(() => damageFor(hm?.id) ?? null, { timeout: 10000 }).catch(() => null);
-          const spentFlag = await until(() => (dmg?.getFlag(MOD, 'coatHit')?.status === 'spent') ? dmg.getFlag(MOD, 'coatHit') : null, { timeout: 10000 }).catch(() => null);
-          const saveCard = await until(() => saveCards()[0] ?? null, { timeout: 10000 }).catch(() => null);
-          const gone = await until(() => !coat(), { timeout: 8000 }).catch(() => null);
+          const dmg = await until(() => damageFor(hm?.id) ?? null, { timeout: 10000, label: "the coated hit's damage" });
+          const spentFlag = await until(() => (dmg?.getFlag(MOD, 'coatHit')?.status === 'spent') ? dmg.getFlag(MOD, 'coatHit') : null, { timeout: 10000, label: 'the coating spent on the damage' });
+          const saveCard = await until(() => saveCards()[0] ?? null, { timeout: 10000, label: "the vial's save demanded of the Victim" });
+          const gone = await until(() => !coat(), { timeout: 8000, label: 'the coating chip gone' });
           const empty = Number(pcAttacker.items.get(vialId)?.system?.uses?.spent) === 1;
           ok('113c. a HIT spends it: the chip gone, the vial\'s own DC 11 Constitution save demanded of the Victim, the last vial left on the sheet empty',
             gone && empty && !!spentFlag && (spentFlag.ability === 'con') && spentFlag.targets?.some(t => t.uuid === victim.uuid) && !!saveCard
@@ -334,19 +332,19 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
           const rolls = await halfling.rollDeathSave({}, { configure: false }, {});
           unrig();
           const r0 = rolls?.[0];
-          await until(() => Number(death().success) === 1, { timeout: 6000 }).catch(() => null);
+          await until(() => Number(death().success) === 1, { timeout: 6000, label: 'the death save counted a success' });
+          // Soft: the line reads as empty when it never draws, and the ok says so.
           const line = (await until(() => [...(cardEl(r0?.parent?.id)?.querySelectorAll?.('div') ?? [])].find(el => /counts as 10/.test(el.textContent ?? '')), { timeout: 5000 }).catch(() => null))?.textContent?.trim() ?? '';
           ok('114a. worn and attuned: the Death Saving Throw\'s 4 counts as 10 — a success, the card "Periapt of Wound Closure — the d20\'s 4 counts as 10"',
             (Number(r0?.total) >= 10) && (Number(death().success) === 1) && (Number(death().failure) === 0) && /Periapt of Wound Closure — the d20's 4 counts as 10/.test(line),
             `total=${r0?.total} minimum=${r0?.options?.minimum} death=${JSON.stringify(death())} line="${line}"`);
           await periapt.update({ 'system.attuned': false });
           await halfling.update({ 'system.attributes.death.success': 0, 'system.attributes.death.failure': 0 });
-          await sleep(200);
           faces([[4, 20]]);
           const rolls2 = await halfling.rollDeathSave({}, { configure: false }, {});
           unrig();
           const r1 = rolls2?.[0];
-          await until(() => Number(death().failure) === 1, { timeout: 6000 }).catch(() => null);
+          await until(() => Number(death().failure) === 1, { timeout: 6000, label: 'the death save counted a failure' });
           ok('114b. unattuned: the 4 stands — a failure', (Number(r1?.total) < 10) && (Number(death().failure) === 1) && !r1?.options?.bfFloor?.length,
             `total=${r1?.total} minimum=${r1?.options?.minimum} death=${JSON.stringify(death())}`);
         }
@@ -372,6 +370,8 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
           const r1 = await dmgHit(w, 15);
           ok('115a. "Vorpal Longsword", a 15: no Vorpal Sword rider', (w.name === 'Vorpal Longsword') && !dmgKeys(r1.dmg).includes('vorpal-sword'), `name=${w.name} keys=${dmgKeys(r1.dmg)}`);
           const r2 = await dmgHit(w, 20);
+          // The rider's line draws on the damage card's render.
+          await until(() => /Vorpal Sword/.test(alwaysLine(r2.dmg)), { timeout: 5000, label: "Vorpal Sword's line on the damage card" });
           const rolled = (r2.dmg?.rolls ?? []).reduce((n, r) => n + Number(r.total || 0), 0);
           const dealt = 400 - Number(victim.system.attributes.hp.value);
           ok('115b. a 20: the rider rides with no offer row, the card says the head line, and the Slashing resistance is ignored (dealt = rolled)',
@@ -396,11 +396,13 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
           await victimAs('humanoid');
           await victim.update({ 'system.attributes.exhaustion': 0 });
           const r1 = await dmgHit(w, 20);
-          const ex = await until(() => (Number(victim.system.attributes.exhaustion) === 1) ? 1 : null, { timeout: 6000 }).catch(() => null);
+          // The Exhaustion level lands after the damage receipt.
+          const ex = await until(() => (Number(victim.system.attributes.exhaustion) === 1) ? 1 : null, { timeout: 6000, label: 'the Exhaustion level on the Victim' });
           ok('116a. a 20: the Victim gains 1 Exhaustion level', ex === 1 && dmgKeys(r1.dmg).includes('sword-of-sharpness'), `exhaustion=${victim.system.attributes.exhaustion} keys=${dmgKeys(r1.dmg)}`);
           await dmgHit(w, 15);
-          await sleep(800);
-          ok('116b. a 15: no more Exhaustion', Number(victim.system.attributes.exhaustion) === 1, `exhaustion=${victim.system.attributes.exhaustion}`);
+          // a window from the damage receipt: a 15 lands no Exhaustion
+          const stray = await watch(() => Number(victim.system.attributes.exhaustion) !== 1, { ms: 1500 });
+          ok('116b. a 15: no more Exhaustion', !stray && (Number(victim.system.attributes.exhaustion) === 1), `stray=${!!stray} exhaustion=${victim.system.attributes.exhaustion}`);
         }
       } finally {
         await closeOffers();
@@ -421,13 +423,15 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
           await victimAs('humanoid');
           await pcAttacker.update({ 'system.attributes.hp.temp': 0 });
           await dmgHit(w, 20);
-          const got = await until(() => (temp() === 15) ? 15 : null, { timeout: 6000 }).catch(() => null);
+          // The Temporary Hit Points land after the damage receipt.
+          const got = await until(() => (temp() === 15) ? 15 : null, { timeout: 6000, label: "the wielder's 15 Temporary Hit Points" });
           ok('117a. a 20 on a Humanoid: the wielder gains 15 Temporary Hit Points', got === 15, `temp=${temp()}`);
           await pcAttacker.update({ 'system.attributes.hp.temp': 0 });
           await victimAs('undead');
           const r2 = await dmgHit(w, 20);
-          await sleep(800);
-          ok('117b. a 20 on an Undead: no rider, no Temporary Hit Points', !dmgKeys(r2.dmg).includes('sword-of-life-stealing') && (temp() === 0), `keys=${dmgKeys(r2.dmg)} temp=${temp()}`);
+          // a window from the damage receipt: no Temporary Hit Points off an Undead
+          const stray = await watch(() => temp() !== 0, { ms: 1500 });
+          ok('117b. a 20 on an Undead: no rider, no Temporary Hit Points', !stray && !dmgKeys(r2.dmg).includes('sword-of-life-stealing') && (temp() === 0), `stray=${!!stray} keys=${dmgKeys(r2.dmg)} temp=${temp()}`);
         }
       } finally {
         await closeOffers();
@@ -449,10 +453,11 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
           await victimAs('humanoid');
           const t1 = Date.now();
           await dmgHit(pcAttacker.items.get(w.id), 20, { hpTo: 50, after: [[1, 20]] });
-          const card = await until(() => { const c = dmgCard('Life Stealing', t1); return outcomeOfCard(c) ? c : null; }, { timeout: 12000 }).catch(() => null);
-          const dead = await until(() => victim.statuses?.has?.('dead') ? true : null, { timeout: 8000 }).catch(() => null);
+          // The save card is demanded after the damage receipt.
+          const card = await until(() => { const c = dmgCard('Life Stealing', t1); return outcomeOfCard(c) ? c : null; }, { timeout: 12000, label: 'the Life Stealing save card, settled' });
+          const dead = await until(() => victim.statuses?.has?.('dead') ? true : null, { timeout: 8000, label: 'the Victim slain (Dead)' });
           const spentNow = () => Number(pcAttacker.items.get(w.id)?.system?.activities?.get?.(ls.id)?.uses?.spent ?? -1);
-          await until(() => (spentNow() === 1) ? true : null, { timeout: 6000 }).catch(() => null);   // the charge goes after the 0 Hit Points
+          await until(() => (spentNow() === 1) ? true : null, { timeout: 6000, label: 'a Life Stealing charge spent' });   // the charge goes after the 0 Hit Points
           const spent = spentNow();
           ok('118a. a 20 on a Humanoid at 50 HP: the Life Stealing save demanded, failed — slain (0 HP, Dead) and a charge spent',
             (outcomeOfCard(card) === 'failed') && !!dead && (Number(victim.system.attributes.hp.value) === 0) && (spent === 1),
@@ -479,13 +484,13 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
           await victimAs('giant');
           const t1 = Date.now();
           await dmgHit(w, 20, { after: [[1, 20]] });
-          const card = await until(() => { const c = dmgCard("Giants' Bane (On Crit)", t1); return outcomeOfCard(c) ? c : null; }, { timeout: 12000 }).catch(() => null);
+          // The save card is demanded after the damage receipt.
+          const card = await until(() => { const c = dmgCard("Giants' Bane (On Crit)", t1); return outcomeOfCard(c) ? c : null; }, { timeout: 12000, label: "the Giants' Bane save card, settled" });
           ok("119a. a 20 on a Giant: the Giants' Bane save demanded (DC 17 Con), failed", outcomeOfCard(card) === 'failed', `outcome=${outcomeOfCard(card)}`);
           await clearDown(victim);
           unrig();
           const bane = pcAttacker.items.get(w.id)?.effects?.find(e => e.name === "Giant's Bane: Paired Attunement Bonuses");
           if (bane) await bane.delete();
-          await sleep(300);
           const r2 = await dmgHit(pcAttacker.items.get(w.id), 20);
           ok("119b. the paired enchantment removed: no Giants' Bane", !dmgKeys(r2.dmg).includes('hammer-of-thunderbolts'), `keys=${dmgKeys(r2.dmg)} bane=${!!bane}`);
         }
@@ -509,7 +514,8 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
           ok('120a. a 20 on a Humanoid: a 7 Bludgeoning part rides', parts(r1.dmg).includes('7') && dmgKeys(r1.dmg).includes('mace-of-smiting'), `parts=${JSON.stringify(parts(r1.dmg))} keys=${dmgKeys(r1.dmg)}`);
           await victimAs('construct');
           const r2 = await dmgHit(w, 20, { hpTo: 30 });
-          const dead = await until(() => victim.statuses?.has?.('dead') ? true : null, { timeout: 8000 }).catch(() => null);
+          // The destroy lands after the damage receipt.
+          const dead = await until(() => victim.statuses?.has?.('dead') ? true : null, { timeout: 8000, label: 'the Construct destroyed (Dead)' });
           ok('120b. a 20 on a Construct at 30 HP: 14 Bludgeoning, and left at 25 or fewer it is destroyed (0 HP, Dead)',
             parts(r2.dmg).includes('14') && !!dead && (Number(victim.system.attributes.hp.value) === 0),
             `parts=${JSON.stringify(parts(r2.dmg))} hp=${victim.system.attributes.hp.value} dead=${!!dead}`);
@@ -554,8 +560,7 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
           [cart] = await Actor.createDocuments([{ name: 'BTB Test Cart', type: 'vehicle', system: { attributes: { ac: { flat: 5, calc: 'flat' }, hp: { value: 100, max: 100 } } } }]);
           const td = await cart.getTokenDocument({ x: pcToken.document.x + scene.grid.size, y: pcToken.document.y });
           [cartToken] = await scene.createEmbeddedDocuments('Token', [td.toObject()]);
-          await sleep(400);
-          const placed = cartToken?.object ?? canvas.tokens.get(cartToken?.id);
+          const placed = await tokenOn(cartToken.id, { label: "the cart's token on the canvas" });
           const r1 = await dmgHit(w, 15, { target: placed });
           ok('122a. a 15 on a vehicle: a Critical Hit, the crit naming Adamantine',
             (r1.dmg?.rolls?.[0]?.isCritical === true) && (r1.dmg?.getFlag(MOD, 'autoCrit')?.sources ?? []).some(x => x.status === 'adamantine'),
@@ -582,19 +587,21 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
           await victimAs('humanoid');
           const t1 = Date.now();
           await dmgHit(w, 15, { hpTo: 300, after: [[1, 20]] });
-          const card = await until(() => { const c = dmgCard('Sword of Wounding Save', t1); return outcomeOfCard(c) ? c : null; }, { timeout: 12000 }).catch(() => null);
-          const fx = await until(wounded, { timeout: 8000 }).catch(() => null);
+          // The save card is demanded after the damage receipt; its failure lands the effect.
+          const card = await until(() => { const c = dmgCard('Sword of Wounding Save', t1); return outcomeOfCard(c) ? c : null; }, { timeout: 12000, label: 'the Sword of Wounding save card, settled' });
+          const fx = await until(wounded, { timeout: 8000, label: 'Wounded and Cannot Heal on the Victim' });
           unrig();
           ok('123a. a hit: the Sword of Wounding save demanded, failed — Wounded and Cannot Heal lands', (outcomeOfCard(card) === 'failed') && !!fx, `outcome=${outcomeOfCard(card)} fx=${!!fx}`);
           const hp0 = Number(victim.system.attributes.hp.value);
           await victim.applyDamage([{ value: 10, type: 'healing' }]);
-          await sleep(300);
-          ok('123b. a heal does nothing while it stands', Number(victim.system.attributes.hp.value) === hp0, `hp ${hp0} → ${victim.system.attributes.hp.value}`);
+          const stray = await watch(() => Number(victim.system.attributes.hp.value) !== hp0, { ms: 300 });   // a window: the heal does nothing
+          ok('123b. a heal does nothing while it stands', !stray && (Number(victim.system.attributes.hp.value) === hp0), `stray=${!!stray} hp ${hp0} → ${victim.system.attributes.hp.value}`);
           const t2 = Date.now();
           combat = await a2Combat();          // the PC Attacker's turn, then the Victim's
-          await combat.nextTurn(); await sleep(400);
+          await combat.nextTurn();
+          await until(() => combat.combatant?.actorId === victim.id, { label: "the Victim's turn" });
           await combat.nextTurn();            // the Victim's turn ENDS: its listed effect repeats
-          const rep = await until(() => game.messages.contents.find(m => (m.timestamp >= t2) && (m.getFlag(MOD, 'repeatSave')?.effectUuid === wounded()?.uuid)) ?? null, { timeout: 10000 }).catch(() => null);
+          const rep = await until(() => game.messages.contents.find(m => (m.timestamp >= t2) && (m.getFlag(MOD, 'repeatSave')?.effectUuid === wounded()?.uuid)) ?? null, { timeout: 10000, label: 'the repeat save at the Victim\'s turn end' });
           ok('123c. the Victim\'s turn end repeats the save (the enchanted weapon read as Sword of Wounding)', !!rep, `repeat=${!!rep}`);
         }
       } finally {
@@ -620,13 +627,14 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
           faces([[3, 20]]);
           const rolls = await pcAttacker.rollSavingThrow({ ability: 'wis' }, { configure: false }, {});
           const m = rolls?.[0]?.parent ?? null;
-          const flag = await until(() => m?.getFlag(MOD, 'd20fold') ?? null, { timeout: 5000 }).catch(() => null);
+          const flag = await until(() => m?.getFlag(MOD, 'd20fold') ?? null, { timeout: 5000, label: 'the d20 fold on the failed save' });
           const re = (flag?.offers ?? []).find(o => (o.kind === 'reroll') && (o.label === 'Luck Blade')) ?? null;
           ok('124a. a failed save offers Luck Blade\'s reroll', !!re, `offers=${JSON.stringify((flag?.offers ?? []).map(o => [o.kind, o.label]))}`);
-          const pop = await until(() => [...document.querySelectorAll('.application')].find(el => (el.tagName === 'DIALOG') && !prior.has(el.id) && !!el.querySelector('[data-bf-rescue-action="reroll"]')) ?? null, { timeout: 8000 }).catch(() => null);
+          const pop = await until(() => [...document.querySelectorAll('.application')].find(el => (el.tagName === 'DIALOG') && !prior.has(el.id) && !!el.querySelector('[data-bf-rescue-action="reroll"]')) ?? null, { timeout: 8000, label: 'the rescue window with the reroll row' });
           faces([[15, 20]]);
           pop?.querySelector('[data-bf-rescue-action="reroll"]')?.click();
-          const done = await until(() => { const cur = m?.getFlag(MOD, 'd20fold'); return (cur?.spends?.length && !cur.spends.some(sp => sp.pendingVerdict)) ? cur : null; }, { timeout: 15000 }).catch(() => null);
+          // The Luck use is spent before the spend is recorded.
+          const done = await until(() => { const cur = m?.getFlag(MOD, 'd20fold'); return (cur?.spends?.length && !cur.spends.some(sp => sp.pendingVerdict)) ? cur : null; }, { timeout: 15000, label: 'the Luck Blade reroll settled' });
           unrig();
           const spent = Number(pcAttacker.items.get(w.id)?.system?.activities?.get?.(luck.id)?.uses?.spent ?? -1);
           ok('124b. pressed: the reroll stands (15) and the Luck use is spent', (done?.spends?.[0]?.kind === 'reroll') && (spent === 1),
