@@ -413,6 +413,23 @@ describe("the contract files — built from a recording, checked against the cod
     ).toBe(true);
   });
 
+  it("a key the module does not write (a tool's stamp, a table's lever) is noted, never failed", () => {
+    const committed = tool.buildMoment(null, tool.readRecordings(DIR));
+    const flags = tool.buildFlags(null, tool.readRecordings(DIR), {}, null);
+    const run = {
+      suites: ["x"],
+      errors: 0,
+      hooks: {},
+      moments: {},
+      flags: { noCover: { count: 3, on: { Scene: 3 }, schema: { type: "boolean" } } }
+    };
+    const { fail, note } = tool.checkRun(committed, flags, run);
+    expect(fail).toEqual([]);
+    expect(note.some(n => n.startsWith("noCover seen on Scene: not a key the module writes"))).toBe(
+      true
+    );
+  });
+
   it("a write unions into the committed file: a schema only grows, a sample once there stays", () => {
     const first = tool.buildMoment(null, tool.readRecordings(DIR));
     const again = tool.buildMoment(first, {

@@ -359,6 +359,9 @@ export function checkRun(moment, flags, run) {
   }
   for (const [key, f] of Object.entries(run.flags)) {
     const doc = flags?.keys?.[key];
+    // A key the module does not write (decide/moments.js classifies every one it does): a tool's
+    // stamp or a table's lever under the scope, such as the harness's noCover and fixtureHome.
+    if (!doc && !MOMENT_RECORDS[key] && !STATE_KEYS[key]) { note.push(`${key} seen on ${Object.keys(f.on).join(", ")}: not a key the module writes (a tool's or a table's flag), not in the contract`); continue; }
     if (!doc) { fail.push(`NEW flag key ${key} (seen ${f.count} time(s) on ${Object.keys(f.on).join(", ")}) — not in card-flags.json`); continue; }
     if (!doc.recorded) { fail.push(`NEW shape for ${key}: the contract has none — run node tools/contracts.mjs --write`); continue; }
     const d = diffSchemas(doc.schema, f.schema);
