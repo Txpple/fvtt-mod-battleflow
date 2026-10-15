@@ -38,10 +38,10 @@ const f = await connectSuite({ tag: 'class-sorcerer', watchdogMs: 900_000 });
 announcePlan('class-sorcerer', plan, pulled);
 
 const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ sections, titles }) => {
-  const { sleep, until, faces, unrig } = window.__btb;
+  const { until, watch, faces, unrig } = window.__btb;
   const { results, skips, ok, want, section } = window.__btb.begin({ sections, titles });
   const KIT = window.__btbClasses;
-  const { MOD, a1Damage, a1Victim, act, attackOf, attacker, attackerToken, balance, bard, bystanderPopup, cardEl, cardText, castSpell, clearTargets, closeA1, closeDialogs, closeOffers, created, dropFx, dropReactionChips, findPHB, fxNamed, gateFor, halfling, halflingToken, healFull, hgKeep, hgLend, holdOf, hp, lend, lentBy, log, markOn, missSide, missTarget, modOf, pcAttacker, pcToken, pcWeapon, pickApply, popupTitled, popups, refillDivinity, refillInspiration, resolvedTarget, rollDialog, rollFlag, rollPopup, scene, sorcTokC, sorcerer, sorcererDoc, spendLuck, suiteStart, surgeLineOf, swing, swingAt, textOf, unlend, useFeature, victim } = KIT;
+  const { MOD, a1Damage, a1Victim, act, attackOf, attacker, attackerToken, balance, bard, bystanderPopup, cardEl, cardText, castSpell, clearTargets, closeA1, closeDialogs, closeOffers, created, dropFx, dropReactionChips, findPHB, fxNamed, gateDrawn, gateFor, halfling, halflingToken, healFull, hgKeep, hgLend, holdOf, hp, lend, lentBy, log, markOn, missSide, missTarget, modOf, pcAttacker, pcToken, pcWeapon, pickApply, popupTitled, popups, refillDivinity, refillInspiration, resolvedTarget, rollDialog, rollFlag, rollPopup, scene, sorcTokC, sorcerer, sorcererDoc, spendLuck, suiteStart, surgeLineOf, swing, swingAt, textOf, unlend, useFeature, victim } = KIT;
   try {
 
     // ---- 4. Restore Balance on an Advantage hit
@@ -49,7 +49,7 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
       await closeDialogs(); await spendLuck(); await refillInspiration();
       await balance.update({ 'system.uses.spent': 0 });
       const msg = await swing({ d20: [9, 18], advantage: true });
-      const pop = await until(bystanderPopup, { timeout: 6000 }).catch(() => null);
+      const pop = await until(bystanderPopup, { timeout: 6000, label: 'the Sorcerer\'s Restore Balance popup' });
       const guards = holdOf(msg)?.targets?.[0]?.guards ?? [];
       ok('4a. the Sorcerer\'s popup: "Restore Balance … the first d20 (9) stands"; Cutting Words (margin 8) not listed — the quiet road is gone',
         !!pop && /Restore Balance/.test(textOf(pop?.element)) && /first d20 \(9\)/.test(textOf(pop?.element))
@@ -70,13 +70,14 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
       const pcMod = await modOf(pcAttacker, pcWeapon);
       await victim.update({ 'system.attributes.ac.override': pcMod + 10 });
       const msg = await swingAt(pcAttacker, pcToken, pcWeapon, { d20: [18, 3], disadvantage: true });
-      const rb = await until(() => popupTitled(/Restore Balance/), { timeout: 6000 }).catch(() => null);
+      const rb = await until(() => popupTitled(/Restore Balance/), { timeout: 6000, label: 'the Sorcerer\'s Restore Balance popup' });
       const gs = popupTitled(/Guided Strike/);
       ok('9a. the Sorcerer\'s popup ("the first d20 (18) stands") beside the Cleric\'s', !!rb && /first d20 \(18\)/.test(textOf(rb?.element)) && !!gs,
         `rb=${textOf(rb?.element).slice(0, 200)} gs=${!!gs}`);
       pickApply(rb);
       const t = await missTarget(msg);
-      await sleep(600);
+      // The answered hold closes the other bystander's popup.
+      await until(() => !popupTitled(/Guided Strike/), { timeout: 6000, label: 'the Cleric\'s Guided Strike popup closed' });
       ok('9b. the 18 stands: a HIT, rescue Restore Balance; the Cleric\'s popup closed', (t?.verdict === 'hit') && (t?.rescue === 'Restore Balance')
         && (t?.bent?.stood === 18) && !popupTitled(/Guided Strike/),
         JSON.stringify({ verdict: t?.verdict, rescue: t?.rescue, bent: t?.bent, gs: !!popupTitled(/Guided Strike/) }));
@@ -97,27 +98,28 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
         await healFull();
         attackerToken.control({ releaseOthers: true });
         halflingToken.setTarget(true, { releaseOthers: true });
-        await sleep(100);
         const use = await flameAct.use({ consume: { spellSlot: false } }, { configure: false }, {});
         const card = use?.message ?? null;
-        await until(() => card?.getFlag(MOD, 'saves'), { timeout: 6000 }).catch(() => null);
+        await until(() => card?.getFlag(MOD, 'saves'), { timeout: 6000, label: 'the Sacred Flame demand stamped' });
         const dc = Number(card?.getFlag(MOD, 'saves')?.dc);
         faces([[10, 20]]);
         const probeSave = await halfling.rollSavingThrow({ ability: 'dex' }, { configure: false }, { create: false });
         const smod = Number(probeSave?.[0]?.total) - 10;
         const hi = Math.min(20, Math.max(1, dc - smod + 2)), lo = Math.max(1, dc - smod - 6);
-        await sleep(600);
+        // The demand rolls its damage after it stamps, from the same dice: it lands before they are rigged for the save.
+        // Soft: the assertions read the save alone, and a demand that rolls nothing leaves nothing to wait for.
+        await until(() => game.messages.contents.find(m => (m.type === 'damage') && ((m.system?.origin === card?.id) || (m._source?.system?.origin === card?.id))), { timeout: 6000 }).catch(() => null);
         faces([[hi, 20], [lo, 20]]);
         const rolls = await halfling.rollSavingThrow({ ability: 'dex', disadvantage: true }, { configure: false }, {});
         const rollMsg = rolls?.[0]?.parent ?? null;
-        const pop = await until(() => rollPopup(/Restore Balance/), { timeout: 8000 }).catch(() => null);
+        const pop = await until(() => rollPopup(/Restore Balance/), { timeout: 8000, label: 'the Sorcerer\'s Restore Balance popup on the save' });
         const entry0 = card?.getFlag(MOD, 'saves')?.targets?.find(x => x.uuid === halfling.uuid);
         ok('10a. the failed save is WITHHELD while the Sorcerer is asked: "Restore Balance — BTB Test Halfling\'s saving throw", the first d20 named',
           !!pop && new RegExp(`first d20 \\(${hi}\\)`).test(textOf(pop?.element)) && (rollFlag(rollMsg)?.status === 'pending') && !entry0?.done,
           `dc=${dc} mod=${smod} faces=${hi},${lo} pop=${textOf(pop?.element).slice(0, 200)} flag=${rollFlag(rollMsg)?.status} done=${entry0?.done}`);
         pickApply(pop);
-        const entry = await until(() => { const e = card?.getFlag(MOD, 'saves')?.targets?.find(x => x.uuid === halfling.uuid); return e?.done ? e : null; }, { timeout: 10000 }).catch(() => null);
-        await sleep(600);
+        const entry = await until(() => { const e = card?.getFlag(MOD, 'saves')?.targets?.find(x => x.uuid === halfling.uuid); return e?.done ? e : null; }, { timeout: 10000, label: 'the Halfling\'s save folded after the answer' });
+        await until(() => /Restore Balance \(BTB Test Sorcerer\)/.test(cardText(rollMsg?.id)), { timeout: 5000, label: 'the bent line on the save\'s card' });
         ok('10b. the first die stands: SAVED at the bent total; the roll\'s card names Restore Balance',
           (entry?.outcome === 'saved') && (entry?.total === hi + smod) && /Restore Balance \(BTB Test Sorcerer\)/.test(cardText(rollMsg?.id)),
           `entry=${JSON.stringify({ outcome: entry?.outcome, total: entry?.total })} card=${cardText(rollMsg?.id).slice(0, 200)}`);
@@ -139,14 +141,15 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
         const boxOf = dlg => [...(dlg?.element?.querySelectorAll('[data-bf-buy]') ?? [])].find(b => /Tides of Chaos/.test(textOf(b))) ?? null;
         const tickOf = dlg => dlg?.element?.querySelector('input[name="bf-buy"][data-bf-buy-name="Tides of Chaos"]') ?? null;
         const netOf = dlg => dlg?.element?.querySelector('[data-bf-reminder-head] [data-bf-mode]')?.dataset?.bfMode ?? null;
-        const openDlg = async () => { const d = await until(rollDialog, { timeout: 6000 }).catch(() => null); await until(() => boxOf(d), { timeout: 3000 }).catch(() => null); await sleep(150); return d; };
+        // The box and the gate's head are drawn in the dialog's render, the gate first.
+        const openDlg = async () => { const d = await until(rollDialog, { timeout: 6000, label: 'the roll dialog' }); await until(() => boxOf(d), { timeout: 3000, label: 'the Tides of Chaos buy box in the dialog' }); await gateDrawn(d); return d; };
         const left = () => Number(pcAttacker.items.get(tides.id)?.system?.uses?.value ?? -1);
         const maxN = Number(pcAttacker.items.get(tides.id)?.system?.uses?.max ?? 0);
         const FULL = new RegExp(`Tides of Chaos — 1 use · ${maxN} left`);
         // The attack: the box, closed unrolled (nothing targeted, nothing lands).
         if (!pcWeapon) log.push('§26a skipped: BTB Test PC Attacker has no weapon');
         else {
-          pcToken.control({ releaseOthers: true }); clearTargets(); await sleep(80);
+          pcToken.control({ releaseOthers: true }); clearTargets();
           const p = attackOf(pcAttacker, pcWeapon).rollAttack({}, {}, {});
           const d = await openDlg();
           ok('26a. an attack dialog: the box "Tides of Chaos — 1 use · 1 left" with an Advantage tick', FULL.test(textOf(boxOf(d))) && !!tickOf(d),
@@ -161,12 +164,13 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
           const d = await openDlg();
           const box = textOf(boxOf(d));
           const tick = tickOf(d);
+          // The tick's change handler redraws the box and re-nets the head inside the dispatch.
           if (tick) { tick.checked = true; tick.dispatchEvent(new Event('change', { bubbles: true })); }
-          await sleep(200);
           const net = netOf(d);
           d?.element?.querySelector('button[data-action="advantage"]')?.click();
-          const msg = await until(() => game.messages.contents.find(m => (m.timestamp >= t1) && (m.getFlag(MOD, 'poolSpend')?.ability === 'Tides of Chaos')) ?? null, { timeout: 8000 }).catch(() => null);
-          await sleep(400);
+          const msg = await until(() => game.messages.contents.find(m => (m.timestamp >= t1) && (m.getFlag(MOD, 'poolSpend')?.ability === 'Tides of Chaos')) ?? null, { timeout: 8000, label: 'the save\'s card recording the Tides of Chaos spend' });
+          // The record rides the card's creation; the use is spent on the item beside it.
+          await until(() => left() < maxN, { timeout: 5000, label: 'the Tides of Chaos use spent' });
           const rec = msg?.getFlag(MOD, 'reminder');
           ok('26b. a save dialog: the box; ticked, the net Advantage; pressed, the save rolls at Advantage, the use spent, the record names Tides of Chaos',
             FULL.test(box) && (net === 'advantage') && (Number(msg?.rolls?.[0]?.options?.advantageMode) === 1) && (left() === maxN - 1)
@@ -227,8 +231,9 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
           await armor.update({ 'system.sourceItem': 'class:wizard' });
           faces([[14, 20]]);
           const c4 = await castSpell(sorcerer, sorcTok, armor, 1);
-          await sleep(1500);
-          ok('39d. a Wizard spell rolls nothing', !cardEl(c4?.id)?.querySelector('.bf-surge-line') && !c4?.getFlag(MOD, 'castRider'), `line="${await surgeLineOf(c4)}"`);
+          // The window: a Wizard spell rolls no surge.
+          const surged4 = await watch(() => cardEl(c4?.id)?.querySelector('.bf-surge-line') || c4?.getFlag(MOD, 'castRider'), { ms: 1500 });
+          ok('39d. a Wizard spell rolls nothing', !surged4 && !cardEl(c4?.id)?.querySelector('.bf-surge-line') && !c4?.getFlag(MOD, 'castRider'), `line="${await surgeLineOf(c4)}"`);
           await armor.update({ 'system.sourceItem': 'class:sorcerer' });
           // e. once per turn in a combat
           await sorcerer.update({ 'system.spells.spell1.value': 4 });   // a–d spent the level-1 slots
@@ -239,9 +244,10 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
           faces([[5, 20], [6, 20]]);
           const c5 = await castSpell(sorcerer, sorcTok, armor, 1);
           const c6 = await castSpell(sorcerer, sorcTok, armor, 1);
-          await sleep(1500);
+          // The window: the second cast in the same turn rolls no surge.
+          const surged6 = await watch(() => c6?.getFlag(MOD, 'castRider'), { ms: 1500 });
           ok('39e. in a combat, once per turn: the first cast rolls, the second in the same turn rolls nothing',
-            /d20: 5/.test(await surgeLineOf(c5)) && !c6?.getFlag(MOD, 'castRider'), `first="${await surgeLineOf(c5)}" second=${JSON.stringify(c6?.getFlag(MOD, 'castRider') ?? null)}`);
+            /d20: 5/.test(await surgeLineOf(c5)) && !surged6 && !c6?.getFlag(MOD, 'castRider'), `first="${await surgeLineOf(c5)}" second=${JSON.stringify(c6?.getFlag(MOD, 'castRider') ?? null)}`);
         }
       } finally {
         await closeA1();
@@ -268,7 +274,7 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
           await dropReactionChips(sorcerer);
           // a. a foe's hit on the Halfling by 2: the sorcerer's popup "−1d4"
           const msg = await swing({ d20: [12] });
-          const pop = await until(() => popups().find(app => app.element?.querySelector?.('[data-bf-ticks="bf-bystander"]') && /Bend Luck/.test(textOf(app.element))) ?? null, { timeout: 8000 }).catch(() => null);
+          const pop = await until(() => popups().find(app => app.element?.querySelector?.('[data-bf-ticks="bf-bystander"]') && /Bend Luck/.test(textOf(app.element))) ?? null, { timeout: 8000, label: 'the Sorcerer\'s Bend Luck popup on the hit' });
           const guard = holdOf(msg)?.targets?.[0]?.guards?.find(g => g.row === 'Bend Luck') ?? null;
           ok('51a. the Attacker hits the Halfling by 2: the sorcerer\'s popup "Bend Luck — −1d4", the guard\'s sign −1',
             !!pop && /−1d4/.test(textOf(pop?.element)) && (guard?.sign === -1) && !guard?.quiet, `pop=${!!pop} text="${textOf(pop?.element).slice(0, 160)}" guard=${JSON.stringify(guard && { sign: guard.sign, die: guard.die, quiet: guard.quiet })}`);
@@ -276,7 +282,7 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
           pickApply(pop);
           const t = await resolvedTarget(msg);
           unrig();
-          await sleep(900);   // the pool's spend lands after the answer
+          await until(() => points() < fontMax(), { timeout: 5000, label: 'the Sorcery Point spent with the answer' });
           ok('51b. Answer: the d4 (3) off the attack — a MISS, a Sorcery Point spent (Font of Magic one down)',
             (t?.verdict === 'miss') && (t?.bent?.add === -3) && (t?.rescue === 'Bend Luck') && (points() === fontMax() - 1),
             `verdict=${t?.verdict} bent=${JSON.stringify(t?.bent)} points=${points()}`);
@@ -285,16 +291,16 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
           await a1Victim();
           await victim.update({ 'system.attributes.ac.override': (await modOf(pcAttacker, pcWeapon)) + 13 });
           const miss = await swingAt(pcAttacker, pcToken, pcWeapon, { d20: [10] });
-          const pop2 = await until(() => popups().find(app => app.element?.querySelector?.('[data-bf-ticks="bf-bystander"]') && /Bend Luck/.test(textOf(app.element))) ?? null, { timeout: 8000 }).catch(() => null);
+          const pop2 = await until(() => popups().find(app => app.element?.querySelector?.('[data-bf-ticks="bf-bystander"]') && /Bend Luck/.test(textOf(app.element))) ?? null, { timeout: 8000, label: 'the Sorcerer\'s Bend Luck popup on the miss' });
           const guard2 = holdOf(miss)?.targets?.[0]?.guards?.find(g => g.row === 'Bend Luck') ?? null;
           ok('51c. the PC Attacker misses the Victim by 3: the sorcerer\'s popup "Bend Luck — +1d4", the guard\'s sign +1',
             !!pop2 && /\+1d4/.test(textOf(pop2?.element)) && (guard2?.sign === 1), `pop=${!!pop2} text="${textOf(pop2?.element).slice(0, 160)}" guard=${JSON.stringify(guard2 && { sign: guard2.sign })} hold=${!!holdOf(miss)}`);
           faces([[4, 4]]);
           pickApply(pop2);
-          const h2 = await until(() => (holdOf(miss)?.status === 'resolved') ? holdOf(miss) : null, { timeout: 12000 }).catch(() => null);
+          const h2 = await until(() => (holdOf(miss)?.status === 'resolved') ? holdOf(miss) : null, { timeout: 12000, label: 'the miss\'s hold resolved' });
           const t2 = h2?.targets?.find(x => x.uuid === victim.uuid) ?? null;
           unrig();
-          await sleep(900);
+          await until(() => points() < fontMax() - 1, { timeout: 5000, label: 'the second Sorcery Point spent with the answer' });
           ok('51d. Answer: +4 — a HIT, another point (two down)', (t2?.verdict === 'hit') && (t2?.bent?.add === 4) && (points() === fontMax() - 2),
             `verdict=${t2?.verdict} bent=${JSON.stringify(t2?.bent)} points=${points()}`);
         }
@@ -327,10 +333,9 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
           const create = sorcerer.items.get(bastion.id).system.activities.find(a => a.name === 'Create Shield');
           const sorcTok = canvas.tokens.get(sorcererDoc.id);
           sorcTok?.control({ releaseOthers: true }); clearTargets(); halflingToken.setTarget(true, { releaseOthers: true });
-          await sleep(100);
           faces([[4, 8], [4, 8], [4, 8]]);
           await create.use({ scaling: 2, subsequentActions: false }, { configure: false }, {});
-          const fx = await until(lawFx, { timeout: 8000 }).catch(() => null);
+          const fx = await until(lawFx, { timeout: 8000, label: 'Warded by Law on the Halfling' });
           unrig(); clearTargets();
           ok('61a. Create Shield (3 points) at the Halfling: "Warded by Law (12)" on it, the pool 12 of 12',
             !!fx && (fx.name === 'Warded by Law (12)') && (fx.getFlag(MOD, 'wardPool')?.left === 12) && (fx.getFlag(MOD, 'wardPool')?.feature === 'Bastion of Law'),
@@ -339,15 +344,17 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
           await halfling.update({ 'system.attributes.hp.value': 400, 'system.attributes.hp.temp': 0 });
           const msg = await swing({ d20: [19], dmg: 4 });
           const dmg = await a1Damage(msg);
-          await sleep(600);
+          // The take is written on the effect beside the damage's own update; a ward that took nothing leaves the HP lower.
+          await until(() => (Number(lawFx()?.getFlag(MOD, 'wardPool')?.left ?? 0) < 12) || (hp() < 400), { timeout: 5000, label: 'the ward\'s take written on Warded by Law' });
           const took1 = Number(dmg?.getFlag(MOD, 'receipt')?.targets?.find(x => x.uuid === halfling.uuid)?.ward?.took ?? NaN);
           ok('61b. a hit: the ward takes it all — the Halfling\'s HP untouched, "Warded by Law (12 − took)" left, the receipt says what it took',
             (hp() === 400) && (took1 > 0) && (lawFx()?.name === `Warded by Law (${12 - took1})`) && (lawFx()?.getFlag(MOD, 'wardPool')?.left === 12 - took1),
             `hp=${hp()} took=${took1} fx=${lawFx()?.name ?? null} receipt=${JSON.stringify(dmg?.getFlag(MOD, 'receipt')?.targets?.map(x => [x.name, x.taken, x.ward ?? null]) ?? null)}`);
           // c. a bigger hit: the rest of the ward goes, the remainder lands, the effect gone
           const msg2 = await swing({ d20: [19], dmg: 6 });
+          // The receipt is written after the Hit Points: the HP read below are the landed ones.
           const dmg2 = await a1Damage(msg2);
-          await until(() => !lawFx(), { timeout: 6000 }).catch(() => null); await sleep(400);
+          await until(() => !lawFx(), { timeout: 6000, label: 'Warded by Law gone with its last hit points' });
           const took2 = Number(dmg2?.getFlag(MOD, 'receipt')?.targets?.find(x => x.uuid === halfling.uuid)?.ward?.took ?? NaN);
           const total2 = (dmg2?.rolls ?? []).reduce((n, r) => n + (Number(r.total) || 0), 0);
           ok('61c. a second hit: the last of the ward absorbed, the rest lands, the effect gone',
@@ -357,13 +364,14 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
           await dropReactionChips(sorcerer); await healFull();
           const t3 = Date.now();
           const msg3 = await swing({ d20: [19], dmg: 4 });
-          const pop = await until(() => popups().find(app => /Projected Ward/.test(textOf(app.element)) && app.element?.querySelector?.('button[data-action="cast"]')) ?? null, { timeout: 8000 }).catch(() => null);
+          const pop = await until(() => popups().find(app => /Projected Ward/.test(textOf(app.element)) && app.element?.querySelector?.('button[data-action="cast"]')) ?? null, { timeout: 8000, label: 'the Projected Ward popup' });
           ok('61d. the Halfling hit with the sorcerer within 30 ft: the guard popup "Projected Ward … within 30 ft of you · a Reaction", the button Absorb',
             !!pop && /within 30 ft of you/.test(textOf(pop?.element)) && (textOf(pop?.element?.querySelector('button[data-action="cast"]')) === 'Absorb'),
             `pop=${!!pop} text="${textOf(pop?.element).slice(0, 220)}"`);
           pop?.element?.querySelector('button[data-action="cast"]')?.click();
-          const held = await until(() => { const m = game.messages.contents.find(x => (x.timestamp >= t3) && (x.getFlag(MOD, 'damageHold')?.status === 'resolved')); return m?.getFlag(MOD, 'damageHold') ?? null; }, { timeout: 12000 }).catch(() => null);
-          await sleep(800);
+          const held = await until(() => { const m = game.messages.contents.find(x => (x.timestamp >= t3) && (x.getFlag(MOD, 'damageHold')?.status === 'resolved')); return m?.getFlag(MOD, 'damageHold') ?? null; }, { timeout: 12000, label: 'the damage hold resolved by Absorb' });
+          // The ward is spent before the hold resolves; the reduced damage lands after it, then the hold is marked applied.
+          await until(() => game.messages.contents.some(x => (x.timestamp >= t3) && x.getFlag(MOD, 'damageHold')?.applied), { timeout: 10000, label: 'the held damage landed' });
           const took = Number(held?.reduceBy);
           ok('61e. Absorb: the whole share taken by the Arcane Ward (8 down by it), nothing lands on the Halfling',
             (held?.answer === 'cast') && (took >= 1) && (arcaneLeft() === 8 - took) && (hp() === 400) && !!msg3,
@@ -390,7 +398,7 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
         if (!trance || !sTok) log.push(`§75 skipped: trance=${!!trance} token=${!!sTok}`);
         else {
           await useFeature(sTok, trance, 'Enter Trance (Free)');
-          const fx = await until(() => fxNamed(sorcerer, ['Trance of Order'])[0] ?? null, { timeout: 6000 }).catch(() => null);
+          const fx = await until(() => fxNamed(sorcerer, ['Trance of Order'])[0] ?? null, { timeout: 6000, label: 'Trance of Order on the Sorcerer' });
           const gate = await gateFor(attackerToken, act(), sTok);
           ok('75a. the Reckless Attacker\'s gate at the sorcerer in its Trance: "attack rolls against it cannot have Advantage", Reckless cancelled, net Normal',
             !!fx && gate.open && /cannot have Advantage/.test(gate.text) && /cancelled \(Trance of Order\)/.test(gate.text) && (gate.net === 'normal'),
@@ -403,7 +411,7 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
           const rolls = await sorcerer.rollSavingThrow({ ability: 'wis' }, { configure: false }, {});
           unrig();
           const r0 = rolls?.[0];
-          const line = (await until(() => [...(cardEl(r0?.parent?.id)?.querySelectorAll?.('div') ?? [])].find(el => /counts as 10/.test(el.textContent ?? '')), { timeout: 5000 }).catch(() => null))?.textContent?.trim() ?? '';
+          const line = (await until(() => [...(cardEl(r0?.parent?.id)?.querySelectorAll?.('div') ?? [])].find(el => /counts as 10/.test(el.textContent ?? '')), { timeout: 5000, label: 'the Trance of Order floor line on the save\'s card' }))?.textContent?.trim() ?? '';
           ok('75b. the sorcerer\'s own save with a 3 on the d20: the total counts it as 10 (the floor), the card "Trance of Order — the d20\'s 3 counts as 10"',
             (Number(r0?.total) === 10 + mod) && /the d20's 3 counts as 10/.test(line), `total=${r0?.total} mod=${mod} minimum=${r0?.options?.minimum} line="${line}"`);
         }
@@ -432,15 +440,16 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
           const tables0 = game.messages.contents.filter(m => (m.timestamp >= suiteStart) && m.getFlag('core', 'RollTable')).length;
           const c1 = await castSpell(sorcerer, sTok, armor, 1);
           const line = await surgeLineOf(c1);
-          const rec = await until(() => (c1?.getFlag(MOD, 'castRider')?.results?.length === 2) ? c1.getFlag(MOD, 'castRider') : null, { timeout: 8000 }).catch(() => null);
+          const rec = await until(() => (c1?.getFlag(MOD, 'castRider')?.results?.length === 2) ? c1.getFlag(MOD, 'castRider') : null, { timeout: 8000, label: 'the surge\'s two table results on the cast card' });
           const buttons = [...(cardEl(c1?.id)?.querorAll?.('.bf-surge-line button') ?? cardEl(c1?.id)?.querySelectorAll?.('.bf-surge-line button') ?? [])].map(b => textOf(b));
           const tables = game.messages.contents.filter(m => (m.timestamp >= suiteStart) && m.getFlag('core', 'RollTable')).length;
           ok('76a. Tides spent, the surge rolls the table TWICE (two table cards), the line "Controlled Chaos — pick one:" with a button each',
             !!rec && (tables - tables0 === 2) && /Controlled Chaos — pick one/.test(cardText(c1?.id)) && (buttons.length === 2),
             `line="${line}" results=${JSON.stringify(rec?.results ?? null)} tables=${tables - tables0} buttons=${JSON.stringify(buttons)}`);
           cardEl(c1?.id)?.querySelector('.bf-surge-line button')?.click();
-          const chosen = await until(() => c1?.getFlag(MOD, 'castRider')?.chosen ?? null, { timeout: 6000 }).catch(() => null);
-          await sleep(300);
+          const chosen = await until(() => c1?.getFlag(MOD, 'castRider')?.chosen ?? null, { timeout: 6000, label: 'the Controlled Chaos pick recorded' });
+          // The card redraws after the record: the line says the pick, the buttons gone with the redraw.
+          await until(() => /Controlled Chaos — chosen:/.test(cardText(c1?.id)), { timeout: 5000, label: 'the chosen line on the cast card' });
           ok('76b. the pick recorded: "Controlled Chaos — chosen: …", the buttons gone', !!chosen && (chosen === rec?.results?.[0]) && /Controlled Chaos — chosen:/.test(cardText(c1?.id)) && !cardEl(c1?.id)?.querySelector('.bf-surge-line button'),
             `chosen="${chosen}" card="${cardText(c1?.id).slice(-200)}"`);
         }
@@ -466,8 +475,8 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
           faces([[5, 20]]);
           const c1 = await castSpell(sorcerer, sTok, armor, 1);
           unrig();
-          const rec = await until(() => c1?.getFlag(MOD, 'castRider')?.tamed ?? null, { timeout: 8000 }).catch(() => null);
-          const select = await until(() => cardEl(c1?.id)?.querySelector('select[data-bf-tamed-surge]'), { timeout: 6000 }).catch(() => null);
+          const rec = await until(() => c1?.getFlag(MOD, 'castRider')?.tamed ?? null, { timeout: 8000, label: 'the Tamed Surge offer on the cast card' });
+          const select = await until(() => cardEl(c1?.id)?.querySelector('select[data-bf-tamed-surge]'), { timeout: 6000, label: 'the Tamed Surge select drawn on the card' });
           const table = await fromUuid('Compendium.dnd-players-handbook.tables.RollTable.phbWildMagicSurg');
           ok('100a. a Sorcerer slot cast: the surge line offers "Tamed Surge — choose an effect instead (1 use)" with every table row but the last',
             !!rec && !!select && (rec.options.length === (table?.results?.size ?? 0) - 1) && /Tamed Surge — choose an effect instead/.test(cardText(c1?.id)),
@@ -475,8 +484,10 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
           const want3 = rec?.options?.[3];
           if (select) { select.value = want3; select.dispatchEvent(new Event('change', { bubbles: true })); }
           [...(cardEl(c1?.id)?.querySelectorAll('.bf-surge-line button') ?? [])].find(b => /Choose/.test(textOf(b)))?.click();
-          const chosen = await until(() => c1?.getFlag(MOD, 'castRider')?.tamed?.chosen ?? null, { timeout: 6000 }).catch(() => null);
-          await sleep(400);
+          const chosen = await until(() => c1?.getFlag(MOD, 'castRider')?.tamed?.chosen ?? null, { timeout: 6000, label: 'the Tamed Surge pick recorded' });
+          // The pick is recorded first, then the feature's use spent; the card's line redraws after the record.
+          await until(() => /Tamed Surge — chosen:/.test(cardText(c1?.id)) && (Number(sorcerer.items.get(tamed.id)?.system?.uses?.spent) > 0),
+            { timeout: 5000, label: 'the chosen line drawn and the Tamed Surge use spent' });
           ok('100b. chosen: the record holds the pick, the line says it, the feature\'s use spent',
             (chosen === want3) && /Tamed Surge — chosen:/.test(cardText(c1?.id)) && (Number(sorcerer.items.get(tamed.id)?.system?.uses?.spent) === 1),
             `chosen="${chosen}" want="${want3}" spent=${sorcerer.items.get(tamed.id)?.system?.uses?.spent}`);
