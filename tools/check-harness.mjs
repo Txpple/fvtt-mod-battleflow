@@ -71,8 +71,7 @@ const CEILING = {
   "smoke-saves": 94,
   "smoke-shields": 13,
   "smoke-spells": 41,
-  "smoke-surfaces": 5,
-  "smoke-twoclient": 30
+  "smoke-surfaces": 5
 };
 
 /** The suites still on their own helpers, not yet on the prelude. ⚠ Only shrinks. */
@@ -84,7 +83,7 @@ const STANDING = new Set([
   "smoke-class-wizard", "smoke-companions", "smoke-drop", "smoke-familiar", "smoke-gear-lights",
   "smoke-goliath", "smoke-guards", "smoke-heal", "smoke-lucky", "smoke-maneuvers",
   "smoke-metamagic", "smoke-nogm", "smoke-reminders", "smoke-resources", "smoke-riders",
-  "smoke-saves", "smoke-shields", "smoke-spells", "smoke-surfaces", "smoke-twoclient"
+  "smoke-saves", "smoke-shields", "smoke-spells", "smoke-surfaces"
 ]);
 
 /** A name that is a poll by what it is called. */

@@ -20,6 +20,7 @@
 // Sections: `--section relay`, `--section close`, `--section ack`, `--section pull`, `--list`.
 import { announcePlan, connectSuite, disposeSafely, loadEnv, report, sectionPlan }
   from './harness.mjs';
+import { installPrelude } from './prelude.mjs';
 import { playerConfig } from './target.mjs';
 import { Foundry } from 'fvtt-mcp-dnd5e/client';
 
@@ -62,6 +63,7 @@ const note = l => out.log.push(l);
 console.log('[2client] player connecting…');
 const player = new Foundry(playerConfig(env));
 await player.connect();
+await installPrelude(player);
 const who = await player.evaluate(async () => ({ name: game.user.name, id: game.user.id }), null);
 console.log(`[2client] player "${who.name}" connected`);
 
@@ -69,19 +71,21 @@ console.log(`[2client] player "${who.name}" connected`);
 
 const setup = await gm.evaluate(async ({ playerId }) => {
   const MODULE = 'fvtt-mod-bythebooks';
-  const sleep = ms => new Promise(r => setTimeout(r, ms));
+  const { tokenOn, viewScene, snapshotSettings } = window.__btb;
   const log = [];
   const KEYS = ['reactionHold', 'holdReveal', 'holdTimer', 'holdSkipFutile', 'holdApplyEffect',
     'autoDamage', 'autoApply', 'requireTarget', 'dramaticBeat', 'riders', 'effectRiders',
     'masteryRiders', 'masteryAsk', 'saves', 'concMode', 'castApply', 'volleys', 'resourceNotices'];
-  const prior = Object.fromEntries(KEYS.map(k => [k, game.settings.get(MODULE, k)]));
-  const set = (k, v) => game.settings.set(MODULE, k, v);
+  // Kept on the page for the teardown's own evaluate.
+  const settings = snapshotSettings(KEYS);
+  const { set } = settings;
 
   const scene = game.scenes.getName('By the Books Test Range');
   const attacker = game.actors.getName('BTB Test Attacker');
   const mage = game.actors.getName('BTB Test Mage');
   if (!scene || !attacker || !mage) return { fatal: 'missing fixture: scene, BTB Test Attacker or the Mage' };
-  if (canvas.scene?.id !== scene.id) { await scene.view(); await sleep(800); }
+  // Soft: the token wait below names a canvas that never readied.
+  await viewScene(scene).catch(() => null);
 
   await set('reactionHold', true);
   // ⚠ holdReveal OFF: the futility skip follows it (hold/trigger.js holdWouldMatter), and with it on
@@ -133,13 +137,14 @@ const setup = await gm.evaluate(async ({ playerId }) => {
       shielder.prototypeToken.toObject(),
       { x: 1700, y: 1000, actorId: shielder.id, actorLink: true }, { inplace: false })]);
   }
-  for (let i = 0; i < 40 && !(canvas.ready && canvas.tokens.get(tok.id)); i++) await sleep(250);
+  // Soft: the fatal below names it (a throw here would end the run before the teardown).
+  await tokenOn(tok.id).catch(() => null);
   if (!canvas.tokens.get(tok.id)) return { fatal: 'the shielder token never reached the canvas' };
 
   const weapon = attacker.items.find(i => i.system.activities?.some?.(a => a.type === 'attack'));
   if (!weapon) return { fatal: 'BTB Test Attacker has no attack activity' };
 
-  globalThis.__bf2c = { prior, shielderId: shielder.id, tokenId: tok.id, weaponId: weapon.id,
+  globalThis.__bf2c = { settings, shielderId: shielder.id, tokenId: tok.id, weaponId: weapon.id,
     suiteStart: Date.now() };
   return { log, shielderUuid: shielder.uuid, shielderName: shielder.name,
     ac: shielder.system.attributes.ac.value, hasPlayerOwner: shielder.hasPlayerOwner };
@@ -159,13 +164,14 @@ note(`shielder ${setup.shielderName} AC ${setup.ac}, playerOwned=${setup.hasPlay
 /** Attack until a plain (non-crit, non-fumble) hit stamps a pending hold. Returns its ids. */
 const holdOnShielder = () => gm.evaluate(async () => {
   const MODULE = 'fvtt-mod-bythebooks';
-  const sleep = ms => new Promise(r => setTimeout(r, ms));
+  const { until } = window.__btb;
   const st = globalThis.__bf2c;
   const attacker = game.actors.getName('BTB Test Attacker');
   const shielder = game.actors.get(st.shielderId);
   const token = canvas.tokens.get(st.tokenId);
   const activity = () => attacker.items.get(st.weaponId).system.activities.find(a => a.type === 'attack');
   const tried = [];
+  // A retry loop: each try swings again at once; nothing the next swing reads is left pending by the last.
   for (let i = 0; i < 25; i++) {
     token.setTarget(true, { releaseOthers: true });
     const usage = await activity().use({ subsequentActions: false }, { configure: false }, {});
@@ -175,20 +181,17 @@ const holdOnShielder = () => gm.evaluate(async () => {
     const msg = roll?.parent;
     const ac = shielder.system.attributes.ac.value;
     if (roll && !roll.isCritical && !roll.isFumble && (roll.total >= ac)) {
-      // The stamp is written by the attacker's own client.
-      for (let w = 0; w < 40; w++) {
-        const hold = game.messages.get(msg.id)?.getFlag(MODULE, 'hold');
-        if (hold?.status === 'pending') {
-          return { attackId: msg.id, usageId: usage?.message?.id, total: roll.total, ac,
-            reaction: hold.targets?.[0]?.reaction ?? null, tried };
-        }
-        await sleep(150);
+      // The stamp is written by the attacker's own client. Soft: a hit that stamps none is a try, logged.
+      const hold = await until(() => { const h = game.messages.get(msg.id)?.getFlag(MODULE, 'hold'); return (h?.status === 'pending') ? h : null; },
+        { timeout: 6000, label: 'the hit stamps a pending hold' }).catch(() => null);
+      if (hold) {
+        return { attackId: msg.id, usageId: usage?.message?.id, total: roll.total, ac,
+          reaction: hold.targets?.[0]?.reaction ?? null, tried };
       }
       tried.push(`hit ${roll.total} vs AC ${ac} stamped NO hold`);
       continue;
     }
     tried.push(`total=${roll?.total} crit=${roll?.isCritical} fumble=${roll?.isFumble} ac=${ac}`);
-    await sleep(120);
   }
   return { fatal: `no plain hit stamped a hold in 25 attempts: ${tried.slice(-6).join(' | ')}` };
 }, null);
@@ -217,17 +220,16 @@ if (want('relay')) {
   } else {
     note(`relay: attack ${hold.attackId} total ${hold.total} vs AC ${hold.ac}, holding ${hold.reaction}`);
     const before = await player.evaluate(async ({ id }) => {
-      for (let i = 0; i < 40; i++) {
-        const dlg = [...foundry.applications.instances.values()]
-          .find(a => (a instanceof foundry.applications.api.DialogV2) && a.rendered
-            && /Shield/i.test(a.options?.window?.title ?? ''));
-        if (dlg) {
-          // The relay is exercised only when the player CANNOT write the attack message.
-          const m = game.messages.get(id);
-          return { found: true, title: dlg.options?.window?.title ?? null, attackIsOwner: m?.isOwner ?? null,
-            attackAuthor: m?.author?.name ?? null, speaker: m?.speaker?.alias ?? null };
-        }
-        await new Promise(r => setTimeout(r, 200));
+      const { until } = window.__btb;
+      // Soft: no popup is relay/1's failure, and the diagnostics below are its detail.
+      const dlg = await until(() => [...foundry.applications.instances.values()]
+        .find(a => (a instanceof foundry.applications.api.DialogV2) && a.rendered
+          && /Shield/i.test(a.options?.window?.title ?? '')), { timeout: 8000, label: "the Shield popup on the player's client" }).catch(() => null);
+      if (dlg) {
+        // The relay is exercised only when the player CANNOT write the attack message.
+        const m = game.messages.get(id);
+        return { found: true, title: dlg.options?.window?.title ?? null, attackIsOwner: m?.isOwner ?? null,
+          attackAuthor: m?.author?.name ?? null, speaker: m?.speaker?.alias ?? null };
       }
       const seen = game.messages.get(id)?.getFlag('fvtt-mod-bythebooks', 'hold');
       return { found: false, holdSeen: !!seen, status: seen?.status ?? null };
@@ -238,6 +240,7 @@ if (want('relay')) {
 
     // Pass, not Cast: the relay is the same, and Pass leaves no effect to clean up.
     const answered = await player.evaluate(async () => {
+      const { until } = window.__btb;
       const before = new Set(game.messages.contents.map(m => m.id));
       const dlg = [...foundry.applications.instances.values()]
         .find(a => (a instanceof foundry.applications.api.DialogV2) && a.rendered
@@ -255,21 +258,17 @@ if (want('relay')) {
       const holdBefore = holdSnap();
       const passBtn = dlg.element.querySelector('button[data-action="pass"]');
       passBtn?.click();
-      // Wait for the player's OWN message: that is the relay.
-      for (let i = 0; i < 40; i++) {
-        const mine = caught ?? game.messages.contents.find(m => !before.has(m.id)
-          && (m.author?.id === game.user.id));
-        if (mine) {
-          Hooks.off('createChatMessage', hook);
-          return { clicked: true, msgId: mine.id, author: mine.author?.name ?? null,
-            respondsTo: mine.getFlag('fvtt-mod-bythebooks', 'respondsTo') ?? null,
-            answer: mine.getFlag('fvtt-mod-bythebooks', 'answer') ?? null,
-            uuid: mine.getFlag('fvtt-mod-bythebooks', 'uuid') ?? null,
-            flags: Object.keys(mine.flags?.['fvtt-mod-bythebooks'] ?? {}) };
-        }
-        await new Promise(r => setTimeout(r, 200));
-      }
+      // Wait for the player's OWN message: that is the relay. Soft: none is relay/2's failure, with the click's detail.
+      const mine = await until(() => caught ?? game.messages.contents.find(m => !before.has(m.id)
+        && (m.author?.id === game.user.id)), { timeout: 8000, label: "the player's own answer message" }).catch(() => null);
       Hooks.off('createChatMessage', hook);
+      if (mine) {
+        return { clicked: true, msgId: mine.id, author: mine.author?.name ?? null,
+          respondsTo: mine.getFlag('fvtt-mod-bythebooks', 'respondsTo') ?? null,
+          answer: mine.getFlag('fvtt-mod-bythebooks', 'answer') ?? null,
+          uuid: mine.getFlag('fvtt-mod-bythebooks', 'uuid') ?? null,
+          flags: Object.keys(mine.flags?.['fvtt-mod-bythebooks'] ?? {}) };
+      }
       return { clicked: !!passBtn, msgId: null, buttons, holdAtClick: holdBefore };
     }, null);
 
@@ -282,17 +281,17 @@ if (want('relay')) {
     // The GM is the CONTINUING CLIENT (its own attack), so the fold happens there.
     const folded = await gm.evaluate(async ({ id }) => {
       const MODULE = 'fvtt-mod-bythebooks';
-      for (let i = 0; i < 60; i++) {
-        const h = game.messages.get(id)?.getFlag(MODULE, 'hold');
-        // The answer lands before the verdict: wait for the resolution, falling back to
-        // answered-but-pending at the deadline.
-        if (h?.targets?.[0]?.answer && ((h.status === 'resolved') || (i === 59))) {
-          return { answer: h.targets[0].answer, status: h.status,
-            verdict: h.targets[0].verdict ?? null, timedOut: !!h.targets[0].timedOut };
-        }
-        await new Promise(r => setTimeout(r, 250));
+      const { until } = window.__btb;
+      const holdNow = () => game.messages.get(id)?.getFlag(MODULE, 'hold');
+      // The answer lands before the verdict: wait for the resolution, falling back to
+      // answered-but-pending at the deadline (soft: relay/4 and relay/5 read which).
+      await until(() => (holdNow()?.targets?.[0]?.answer && (holdNow().status === 'resolved')),
+        { timeout: 15_000, label: 'the folded answer resolves the hold' }).catch(() => null);
+      const h = holdNow();
+      if (h?.targets?.[0]?.answer) {
+        return { answer: h.targets[0].answer, status: h.status,
+          verdict: h.targets[0].verdict ?? null, timedOut: !!h.targets[0].timedOut };
       }
-      const h = game.messages.get(id)?.getFlag(MODULE, 'hold');
       return { answer: null, status: h?.status ?? null };
     }, { id: hold.attackId });
 
@@ -321,14 +320,12 @@ if (want('close')) {
   } else {
     note(`close: attack ${hold.attackId} total ${hold.total} vs AC ${hold.ac}`);
     const open = await player.evaluate(async () => {
-      for (let i = 0; i < 40; i++) {
-        const dlg = [...foundry.applications.instances.values()]
-          .find(a => (a instanceof foundry.applications.api.DialogV2) && a.rendered
-            && /Shield/i.test(a.options?.window?.title ?? ''));
-        if (dlg) return { found: true, title: dlg.options?.window?.title ?? null };
-        await new Promise(r => setTimeout(r, 200));
-      }
-      return { found: false };
+      const { until } = window.__btb;
+      // Soft: no popup is close/1's failure.
+      const dlg = await until(() => [...foundry.applications.instances.values()]
+        .find(a => (a instanceof foundry.applications.api.DialogV2) && a.rendered
+          && /Shield/i.test(a.options?.window?.title ?? '')), { timeout: 8000, label: "the Shield popup on the player's client" }).catch(() => null);
+      return dlg ? { found: true, title: dlg.options?.window?.title ?? null } : { found: false };
     }, null);
     ok('close/1. the popup is open on the PLAYER client, unanswered',
       open.found === true, JSON.stringify(open));
@@ -337,13 +334,13 @@ if (want('close')) {
     // the player's own client closes its popup on seeing the update.
     const buzzed = await gm.evaluate(async ({ id }) => {
       const MODULE = 'fvtt-mod-bythebooks';
-      for (let i = 0; i < 60; i++) {
-        const h = game.messages.get(id)?.getFlag(MODULE, 'hold');
-        if (h && (h.status !== 'pending')) {
-          return { status: h.status, answer: h.targets?.[0]?.answer ?? null,
-            timedOut: h.targets?.[0]?.timedOut ?? null };
-        }
-        await new Promise(r => setTimeout(r, 250));
+      const { until } = window.__btb;
+      // The buzzer's own clock runs out inside this wait. Soft: a hold still pending is close/2's failure.
+      const h = await until(() => { const now = game.messages.get(id)?.getFlag(MODULE, 'hold'); return (now && (now.status !== 'pending')) ? now : null; },
+        { timeout: 15_000, label: "the GM's buzzer answers the hold" }).catch(() => null);
+      if (h) {
+        return { status: h.status, answer: h.targets?.[0]?.answer ?? null,
+          timedOut: h.targets?.[0]?.timedOut ?? null };
       }
       return { status: game.messages.get(id)?.getFlag(MODULE, 'hold')?.status ?? null };
     }, { id: hold.attackId });
@@ -351,14 +348,13 @@ if (want('close')) {
       (buzzed.status === 'resolved') && (buzzed.answer === 'pass'), JSON.stringify(buzzed));
 
     const closed = await player.evaluate(async () => {
-      for (let i = 0; i < 40; i++) {
-        const dlg = [...foundry.applications.instances.values()]
-          .find(a => (a instanceof foundry.applications.api.DialogV2) && a.rendered
-            && /Shield/i.test(a.options?.window?.title ?? ''));
-        if (!dlg) return { open: false, at: i * 200 };
-        await new Promise(r => setTimeout(r, 200));
-      }
-      return { open: true };
+      const { until } = window.__btb;
+      const t0 = Date.now();
+      // The other client's resolution reaching this one. Soft: a popup still open is close/3's failure.
+      const gone = await until(() => ![...foundry.applications.instances.values()]
+        .some(a => (a instanceof foundry.applications.api.DialogV2) && a.rendered
+          && /Shield/i.test(a.options?.window?.title ?? '')), { timeout: 8000, label: "the player's popup closes" }).catch(() => false);
+      return gone ? { open: false, at: Date.now() - t0 } : { open: true };
     }, null);
     ok('close/3. THE PLAYER\'S POPUP CLOSED — the other client\'s resolution reached it (D2)',
       closed.open === false, JSON.stringify(closed));
@@ -392,12 +388,9 @@ if (want('ack')) {
   // Not the author and not a GM, so the direct write is unavailable: the relay path.
   const relayed = await player.evaluate(async cardId => {
     const MODULE = 'fvtt-mod-bythebooks';
-    // ⚠ WAIT FOR THE CARD TO REPLICATE: the GM just created it.
-    let msg = null;
-    for (let i = 0; i < 50 && !msg; i++) {
-      msg = game.messages.get(cardId) ?? null;
-      if (!msg) await new Promise(r => setTimeout(r, 200));
-    }
+    const { until } = window.__btb;
+    // ⚠ WAIT FOR THE CARD TO REPLICATE: the GM just created it. Soft: the error below names it.
+    const msg = await until(() => game.messages.get(cardId), { timeout: 10_000, label: 'the card on the player client' }).catch(() => null);
     if (!msg) return { error: 'the card never reached the player client' };
     const isOwner = msg.isOwner;
     await game.modules.get(MODULE)?.api?.acknowledgeMoment?.(msg, 'masteryNotice');
@@ -408,21 +401,19 @@ if (want('ack')) {
 
   const landed = await gm.evaluate(async cardId => {
     const MODULE = 'fvtt-mod-bythebooks';
-    for (let i = 0; i < 50; i++) {
-      const m = game.messages.get(cardId);
-      if (m?.getFlag(MODULE, 'masteryNotice')?.acknowledged === true) {
-        // ⚠ The envelope's delete is chained AFTER the flag write: wait for it as its own event.
-        let envelopes = 1;
-        for (let j = 0; j < 25 && envelopes > 0; j++) {
-          envelopes = game.messages.contents.filter(x => x.getFlag(MODULE, 'momentAck')).length;
-          if (envelopes > 0) await new Promise(r => setTimeout(r, 200));
-        }
-        return { acked: true, at: i * 200, envelopes };
-      }
-      await new Promise(r => setTimeout(r, 200));
+    const { until } = window.__btb;
+    const envelopes = () => game.messages.contents.filter(x => x.getFlag(MODULE, 'momentAck')).length;
+    const t0 = Date.now();
+    // The player's relayed OK reaching the card. Soft: an unacknowledged card is ack/3's failure.
+    const acked = await until(() => game.messages.get(cardId)?.getFlag(MODULE, 'masteryNotice')?.acknowledged === true,
+      { timeout: 10_000, label: "the player's OK on the GM's card" }).catch(() => false);
+    if (acked) {
+      const at = Date.now() - t0;
+      // ⚠ The envelope's delete is chained AFTER the flag write: wait for it as its own event (soft: ack/4 counts what is left).
+      await until(() => envelopes() === 0, { timeout: 5000, label: 'the relay envelope deletes itself' }).catch(() => null);
+      return { acked: true, at, envelopes: envelopes() };
     }
-    return { acked: false, envelopes: game.messages.contents
-      .filter(x => x.getFlag(MODULE, 'momentAck')).length };
+    return { acked: false, envelopes: envelopes() };
   }, card.id);
   ok('ack/3. THE PLAYER\'S OK REACHED THE GM\'S CARD — the bar stops, no timeout',
     landed.acked === true, JSON.stringify(landed));
@@ -437,7 +428,7 @@ if (want('ack')) {
 
 if (want('bystander')) {
   const setupB = await gm.evaluate(async () => {
-    const sleep = ms => new Promise(r => setTimeout(r, ms));
+    const { tokenOn } = window.__btb;
     const st = globalThis.__bf2c;
     const scene = game.scenes.getName('By the Books Test Range');
     const attacker = game.actors.getName('BTB Test Attacker');
@@ -459,7 +450,8 @@ if (want('bystander')) {
         { x: 1600, y: 1000, actorId: attacker.id, actorLink: true, disposition: -1 }, { inplace: false })]);
       st.bystander.attackerTokenId = atk.id;
     }
-    for (let i = 0; i < 40 && !(canvas.ready && canvas.tokens.get(atk.id)); i++) await sleep(250);
+    // Soft: the check below falls back to the actor when the token is not on the canvas.
+    await tokenOn(atk.id).catch(() => null);
     st.bystander.rollerTokenId = atk.id;   // ⚠ an unlinked token's actor is its own: the check rolls from the TOKEN
     return { ok: true, ac: shielder.system.attributes.ac.value };
   }, null);
@@ -468,34 +460,28 @@ if (want('bystander')) {
     // The GM's attack with Advantage, the FIRST die a miss and the second a hit (the PRNG pinned on the GM).
     const atk = await gm.evaluate(async () => {
       const MOD = 'fvtt-mod-bythebooks';
-      const sleep = ms => new Promise(r => setTimeout(r, ms));
+      const { until, faces, unrig } = window.__btb;
       const st = globalThis.__bf2c;
       const attacker = game.actors.getName('BTB Test Attacker');
       const token = canvas.tokens.get(st.tokenId);
       const act = attacker.items.get(st.weaponId).system.activities.find(a => a.type === 'attack');
-      const real = CONFIG.Dice.randomUniform;
-      const queue = [2, 19, 3, 3].map(n => 1 - ((n - 0.5) / 20));
-      let i = 0;
-      CONFIG.Dice.randomUniform = () => queue[Math.min(i++, queue.length - 1)];
+      faces([[2, 20], [19, 20], [3, 20], [3, 20]]);
       try {
         token.setTarget(true, { releaseOthers: true });
         const usage = await act.use({ subsequentActions: false }, { configure: false }, {});
         const rolls = await act.rollAttack({ advantage: true }, { configure: false }, { data: { 'system.origin': usage?.message?.id } });
         const msg = rolls?.[0]?.parent;
-        for (let w = 0; w < 40; w++) { if (game.messages.get(msg?.id)?.getFlag(MOD, 'hold')) break; await sleep(150); }
-        const hold = game.messages.get(msg?.id)?.getFlag(MOD, 'hold');
+        // Soft: no hold is bystander/1's failure, read from the guards below.
+        const hold = await until(() => game.messages.get(msg?.id)?.getFlag(MOD, 'hold'), { timeout: 6000, label: 'the attack stamps its hold' }).catch(() => null);
         return { id: msg?.id, total: rolls?.[0]?.total, guards: (hold?.targets?.[0]?.guards ?? []).map(g => `${g.row}:${g.quiet ? 'quiet' : 'asked'}`) };
-      } finally { CONFIG.Dice.randomUniform = real; }
+      } finally { unrig(); }
     }, null);
     ok('bystander/1. the GM\'s Advantage hit (2 and 19) holds for the player\'s Restore Balance', (atk.guards ?? []).includes('Restore Balance:asked'), JSON.stringify(atk));
     const answered = await player.evaluate(async ({ id }) => {
-      const sleep = ms => new Promise(r => setTimeout(r, ms));
-      let dlg = null;
-      for (let i = 0; i < 40 && !dlg; i++) {
-        dlg = [...foundry.applications.instances.values()].find(a => (a instanceof foundry.applications.api.DialogV2) && a.rendered
-          && /Restore Balance/i.test(a.options?.window?.title ?? ''));
-        if (!dlg) await sleep(200);
-      }
+      const { until } = window.__btb;
+      // Soft: no popup is bystander/2's failure (found: false).
+      const dlg = await until(() => [...foundry.applications.instances.values()].find(a => (a instanceof foundry.applications.api.DialogV2) && a.rendered
+        && /Restore Balance/i.test(a.options?.window?.title ?? '')), { timeout: 8000, label: "the Restore Balance popup on the player's client" }).catch(() => null);
       if (!dlg) return { found: false };
       const before = new Set(game.messages.contents.map(m => m.id));
       let caught = null;
@@ -504,7 +490,8 @@ if (want('bystander')) {
       const row = [...dlg.element.querySelectorAll('[data-bf-ticks] input')].find(i => !i.disabled && !/^(pass|mute-)/.test(i.value)) ?? null;
       if (row) { row.checked = true; row.dispatchEvent(new Event('change', { bubbles: true })); }
       dlg.element.querySelector('button[data-action="answer"]')?.click();
-      for (let i = 0; i < 40 && !caught; i++) await sleep(200);
+      // The answer travelling as the player's own message, caught at its creation. Soft: none is bystander/2's failure (msg: null).
+      await until(() => caught, { timeout: 8000, label: "the player's own answer message" }).catch(() => null);
       Hooks.off('createChatMessage', hook);
       return { found: true, title: dlg.options?.window?.title, isOwner: game.messages.get(id)?.isOwner ?? null,
         msg: caught ? { respondsTo: caught.getFlag('fvtt-mod-bythebooks', 'respondsTo'), by: caught.getFlag('fvtt-mod-bythebooks', 'by') ?? null,
@@ -514,11 +501,11 @@ if (want('bystander')) {
       answered.found && (answered.isOwner === false) && (answered.msg?.respondsTo === atk.id) && !!answered.msg?.by && (answered.msg?.rescue === 'Restore Balance'),
       JSON.stringify(answered));
     const folded = await gm.evaluate(async ({ id }) => {
-      for (let i = 0; i < 60; i++) {
-        const h = game.messages.get(id)?.getFlag('fvtt-mod-bythebooks', 'hold');
-        if (h?.status === 'resolved') { const t = h.targets[0]; return { verdict: t.verdict, answer: t.answer, rescue: t.rescue, by: t.guardedBy?.name ?? null, stood: t.bent?.stood ?? null }; }
-        await new Promise(r => setTimeout(r, 250));
-      }
+      const { until } = window.__btb;
+      // The player's envelope folded on the GM's client. Soft: a hold still open is bystander/3's failure.
+      const h = await until(() => { const now = game.messages.get(id)?.getFlag('fvtt-mod-bythebooks', 'hold'); return (now?.status === 'resolved') ? now : null; },
+        { timeout: 15_000, label: 'the GM folds the answer and resolves the hold' }).catch(() => null);
+      if (h) { const t = h.targets[0]; return { verdict: t.verdict, answer: t.answer, rescue: t.rescue, by: t.guardedBy?.name ?? null, stood: t.bent?.stood ?? null }; }
       return { status: game.messages.get(id)?.getFlag('fvtt-mod-bythebooks', 'hold')?.status ?? null };
     }, { id: atk.id });
     ok('bystander/3. the GM folded it: the first d20 (2) stands — a MISS, answered by the player\'s creature',
@@ -527,18 +514,15 @@ if (want('bystander')) {
     // The GM's CHECK with Advantage (3 then 18): bystanders.js's relay.
     const chk = await gm.evaluate(async () => {
       const MOD = 'fvtt-mod-bythebooks';
-      const sleep = ms => new Promise(r => setTimeout(r, ms));
+      const { until, faces, unrig } = window.__btb;
       const attacker = game.actors.getName('BTB Test Attacker');
-      const real = CONFIG.Dice.randomUniform;
-      const queue = [3, 18].map(n => 1 - ((n - 0.5) / 20));
-      let i = 0;
-      CONFIG.Dice.randomUniform = () => queue[Math.min(i++, queue.length - 1)];
+      faces([[3, 20], [18, 20]]);
       try {
         const roller = canvas.tokens.get(globalThis.__bf2c.bystander.rollerTokenId)?.actor ?? attacker;
         const rolls = await roller.rollSkill({ skill: 'ath', advantage: true }, { configure: false }, {});
         const msg = rolls?.[0]?.parent;
-        for (let w = 0; w < 40; w++) { if (game.messages.get(msg?.id)?.getFlag(MOD, 'bystanderRoll')) break; await sleep(150); }
-        const f = game.messages.get(msg?.id)?.getFlag(MOD, 'bystanderRoll');
+        // Soft: no offer is bystander/4's failure, with the reader's view below as its detail.
+        const f = await until(() => game.messages.get(msg?.id)?.getFlag(MOD, 'bystanderRoll'), { timeout: 6000, label: 'the check stamps its bystander offer' }).catch(() => null);
         // Diagnostics for a miss: what the reader sees.
         const L = await import(`/modules/${MOD}/scripts/lookup.js`);
         const G = await import(`/modules/${MOD}/scripts/geometry.js`);
@@ -550,17 +534,15 @@ if (want('bystander')) {
           rb: rbItem ? `${rbItem.system.uses?.value}/${rbItem.system.uses?.max}` : null, isAuthor: msg?.isAuthor ?? null,
           mode: L.d20FactsOf(rolls?.[0]), hp: shielder.system.attributes.hp.value };
         return { id: msg?.id, status: f?.status ?? null, guards: (f?.guards ?? []).map(g => g.row), diag };
-      } finally { CONFIG.Dice.randomUniform = real; }
+      } finally { unrig(); }
     }, null);
     ok('bystander/4. the GM\'s Advantage check stamps the offer for the player\'s Restore Balance', (chk.status === 'pending') && chk.guards.includes('Restore Balance'), JSON.stringify(chk));
     const answered2 = await player.evaluate(async () => {
-      const sleep = ms => new Promise(r => setTimeout(r, ms));
-      let dlg = null;
-      for (let i = 0; i < 40 && !dlg; i++) {
-        dlg = [...foundry.applications.instances.values()].find(a => (a instanceof foundry.applications.api.DialogV2) && a.rendered
-          && /Restore Balance/i.test(a.options?.window?.title ?? '') && /check/i.test(a.options?.window?.title ?? ''));
-        if (!dlg) await sleep(200);
-      }
+      const { until } = window.__btb;
+      // Soft: no popup is bystander/5's failure (found: false).
+      const dlg = await until(() => [...foundry.applications.instances.values()].find(a => (a instanceof foundry.applications.api.DialogV2) && a.rendered
+        && /Restore Balance/i.test(a.options?.window?.title ?? '') && /check/i.test(a.options?.window?.title ?? '')),
+      { timeout: 8000, label: "the Restore Balance check popup on the player's client" }).catch(() => null);
       if (!dlg) return { found: false };
       const before = new Set(game.messages.contents.map(m => m.id));
       let caught = null;
@@ -569,18 +551,19 @@ if (want('bystander')) {
       const row = [...dlg.element.querySelectorAll('[data-bf-ticks] input')].find(i => !i.disabled && !/^(pass|mute-)/.test(i.value)) ?? null;
       if (row) { row.checked = true; row.dispatchEvent(new Event('change', { bubbles: true })); }
       dlg.element.querySelector('button[data-action="answer"]')?.click();
-      for (let i = 0; i < 40 && !caught; i++) await sleep(200);
+      // The answer travelling as the player's own envelope, caught at its creation. Soft: none is bystander/5's failure (envelope: null).
+      await until(() => caught, { timeout: 8000, label: "the player's own answer envelope" }).catch(() => null);
       Hooks.off('createChatMessage', hook);
       return { found: true, envelope: caught?.getFlag('fvtt-mod-bythebooks', 'bystanderRollAnswer') ?? null, author: caught?.author?.name ?? null };
     }, null);
     ok('bystander/5. the check\'s answer travelled as the player\'s own message (a bystanderRollAnswer envelope)',
       answered2.found && (answered2.envelope?.answer === 'roll') && (answered2.author === who.name), JSON.stringify(answered2));
     const folded2 = await gm.evaluate(async ({ id }) => {
-      for (let i = 0; i < 60; i++) {
-        const f = game.messages.get(id)?.getFlag('fvtt-mod-bythebooks', 'bystanderRoll');
-        if (f?.status === 'resolved') return { answer: f.answer, rescue: f.rescue, stood: f.bent?.stood ?? null, total: f.bent?.total ?? null };
-        await new Promise(r => setTimeout(r, 250));
-      }
+      const { until } = window.__btb;
+      // The player's envelope folded by the roll's keeper. Soft: an offer still open is bystander/6's failure.
+      const f = await until(() => { const now = game.messages.get(id)?.getFlag('fvtt-mod-bythebooks', 'bystanderRoll'); return (now?.status === 'resolved') ? now : null; },
+        { timeout: 15_000, label: 'the GM folds the answer and resolves the offer' }).catch(() => null);
+      if (f) return { answer: f.answer, rescue: f.rescue, stood: f.bent?.stood ?? null, total: f.bent?.total ?? null };
       return { status: game.messages.get(id)?.getFlag('fvtt-mod-bythebooks', 'bystanderRoll')?.status ?? null };
     }, { id: chk.id });
     ok('bystander/6. the GM folded it: the first d20 (3) stands on the check', (folded2.answer === 'roll') && (folded2.stood === 3), JSON.stringify(folded2));
@@ -603,7 +586,7 @@ if (want('pull')) {
   // the PLAYER goes back to the range, so the player's view is the only thing making it live.
   const setupPull = await gm.evaluate(async () => {
     const MOD = 'fvtt-mod-bythebooks';
-    const sleep = ms => new Promise(r => setTimeout(r, ms));
+    const { until } = window.__btb;
     const scene = game.scenes.getName('By the Books Test Range');
     const paladin = game.actors.getName('BTB Test Paladin');
     const ranger = game.actors.getName('BTB Test Ranger');
@@ -620,7 +603,8 @@ if (want('pull')) {
     await rgrTok.update({ x: palTok.x, y: palTok.y - (2 * grid) }, { teleport: true, animate: false });
     const rings = () => scene.regions.filter(r => r.getFlag(MOD, 'emanation')?.kind === 'feature' && r.getFlag(MOD, 'emanation')?.tokenId === palTok.id).length;
     const fx = () => ranger.effects.filter(e => e.getFlag(MOD, 'emanation')).length;
-    for (let i = 0; (i < 60) && ((rings() > 0) || (fx() > 0)); i++) await sleep(250);
+    // The range's rings come down once nobody is on it. Soft: a ring left standing is pull/1's failure.
+    await until(() => (rings() === 0) && (fx() === 0), { timeout: 15_000, label: 'the range empty of rings and auras' }).catch(() => null);
     return { rings: rings(), fx: fx(), active: game.scenes.active?.name, gmViews: game.scenes.get(game.user.viewedScene)?.name ?? null };
   }, null);
   if (setupPull.fatal) {
@@ -632,42 +616,47 @@ if (want('pull')) {
     // while no player is connected).
     const preview = await gm.evaluate(async () => {
       const MOD = 'fvtt-mod-bythebooks';
-      const sleep = ms => new Promise(r => setTimeout(r, ms));
+      const { until, watch } = window.__btb;
       const scene = game.scenes.getName('By the Books Test Range');
       const ranger = game.actors.getName('BTB Test Ranger');
       const elsewhere = game.scenes.get(globalThis.__bf2c.pull.elsewhereId);
+      const rings = () => scene.regions.filter(r => r.getFlag(MOD, 'emanation')?.kind === 'feature').length;
+      const fx = () => ranger.effects.filter(e => e.getFlag(MOD, 'emanation')).length;
       // ⚠ Scene#view REFUSES while the canvas is loading (a warning, no throw): wait the load out and
-      // confirm the view took.
-      for (let i = 0; (i < 40) && canvas.loading; i++) await sleep(250);
+      // confirm the view took. Soft: a view that never takes is pull/1b's failure (gmViews).
+      await until(() => !canvas.loading, { timeout: 10_000, label: 'the canvas done loading' }).catch(() => null);
+      // A retry loop: the view asked again until it takes.
       for (let i = 0; (i < 3) && (game.user.viewedScene !== scene.id); i++) {
         await scene.view();
-        for (let j = 0; (j < 40) && (game.user.viewedScene !== scene.id || canvas.loading); j++) await sleep(250);
+        await until(() => (game.user.viewedScene === scene.id) && !canvas.loading, { timeout: 10_000, label: 'the GM views the range' }).catch(() => null);
       }
-      await sleep(3000);   // load-bearing: rings that were going to rise on the GM's view have risen
+      // ⚠ A window: a ring or an aura the GM's view must not raise rises within it.
+      const stray = await watch(() => (rings() > 0) || (fx() > 0), { ms: 3000 });
       const out = { gmViews: game.scenes.get(game.user.viewedScene)?.name ?? null,
-        rings: scene.regions.filter(r => r.getFlag(MOD, 'emanation')?.kind === 'feature').length,
-        fx: ranger.effects.filter(e => e.getFlag(MOD, 'emanation')).length,
+        rings: rings(), fx: fx(), stray,
         players: game.users.filter(u => u.active && !u.isGM).map(u => u.name) };
-      for (let i = 0; (i < 40) && canvas.loading; i++) await sleep(250);
+      // Back to the other scene before the player's view. Soft: pull/2 reads where the GM stands (gmViews).
+      await until(() => !canvas.loading, { timeout: 10_000, label: 'the canvas done loading' }).catch(() => null);
       await elsewhere.view();
-      for (let i = 0; (i < 40) && (game.user.viewedScene !== elsewhere.id); i++) await sleep(250);
+      await until(() => game.user.viewedScene === elsewhere.id, { timeout: 10_000, label: 'the GM views the other scene' }).catch(() => null);
       return out;
     }, null);
     ok('pull/1b. the GM previews the range while a player is connected: no ring rises and the Ranger inside wears nothing (a GM\'s view counts only when no player is on)',
-      (preview.gmViews === 'By the Books Test Range') && (preview.rings === 0) && (preview.fx === 0) && (preview.players.length > 0), JSON.stringify(preview));
+      (preview.gmViews === 'By the Books Test Range') && !preview.stray && (preview.rings === 0) && (preview.fx === 0) && (preview.players.length > 0), JSON.stringify(preview));
     const navBefore = await gm.evaluate(async () => globalThis.__bfHookLedger?.renderSceneNavigation ?? 0, null);
     await player.evaluate(async () => { await game.scenes.getName('By the Books Test Range')?.view(); }, null);
     const pulled = await gm.evaluate(async ({ playerId, navBefore }) => {
       const MOD = 'fvtt-mod-bythebooks';
-      const sleep = ms => new Promise(r => setTimeout(r, ms));
+      const { until } = window.__btb;
       const scene = game.scenes.getName('By the Books Test Range');
       const ranger = game.actors.getName('BTB Test Ranger');
       const palTok = scene.tokens.find(t => t.actorId === game.actors.getName('BTB Test Paladin')?.id);
       const rings = () => scene.regions.filter(r => r.getFlag(MOD, 'emanation')?.kind === 'feature' && r.getFlag(MOD, 'emanation')?.tokenId === palTok.id).length;
       const fx = () => ranger.effects.filter(e => e.getFlag(MOD, 'emanation')).length;
-      let i = 0;
-      for (; (i < 80) && !((rings() === 3) && (fx() === 3)); i++) await sleep(250);
-      return { rings: rings(), fx: fx(), ms: i * 250, playerViews: game.scenes.get(game.users.get(playerId)?.viewedScene)?.name ?? null,
+      const t0 = Date.now();
+      // The player's view reaching the GM through the activity broadcast raises the rings. Soft: pull/2 counts them.
+      await until(() => (rings() === 3) && (fx() === 3), { timeout: 20_000, label: "the Paladin's three rings and the Ranger's three auras" }).catch(() => null);
+      return { rings: rings(), fx: fx(), ms: Date.now() - t0, playerViews: game.scenes.get(game.users.get(playerId)?.viewedScene)?.name ?? null,
         gmViews: game.scenes.get(game.user.viewedScene)?.name ?? null, active: game.scenes.active?.name,
         navFired: (globalThis.__bfHookLedger?.renderSceneNavigation ?? 0) - navBefore };
     }, { playerId: who.id, navBefore });
@@ -679,14 +668,15 @@ if (want('pull')) {
     await player.evaluate(async () => { await game.scenes.active?.view(); }, null);
     const left = await gm.evaluate(async playerId => {
       const MOD = 'fvtt-mod-bythebooks';
-      const sleep = ms => new Promise(r => setTimeout(r, ms));
+      const { until } = window.__btb;
       const scene = game.scenes.getName('By the Books Test Range');
       const ranger = game.actors.getName('BTB Test Ranger');
       const rings = () => scene.regions.filter(r => r.getFlag(MOD, 'emanation')?.kind === 'feature').length;
       const fx = () => ranger.effects.filter(e => e.getFlag(MOD, 'emanation')).length;
-      let i = 0;
-      for (; (i < 80) && ((rings() > 0) || (fx() > 0)); i++) await sleep(250);
-      return { rings: rings(), fx: fx(), ms: i * 250, playerViews: game.scenes.get(game.users.get(playerId)?.viewedScene)?.name ?? null };
+      const t0 = Date.now();
+      // The player's leaving reaching the GM brings the rings down. Soft: pull/4 counts what is left.
+      await until(() => (rings() === 0) && (fx() === 0), { timeout: 20_000, label: 'the range empty of rings and auras' }).catch(() => null);
+      return { rings: rings(), fx: fx(), ms: Date.now() - t0, playerViews: game.scenes.get(game.users.get(playerId)?.viewedScene)?.name ?? null };
     }, who.id);
     ok('pull/4. the player back on the active scene: nobody is on the range, its rings come down and the Ranger\'s three are lifted',
       (left.rings === 0) && (left.fx === 0) && (left.playerViews !== 'By the Books Test Range'), JSON.stringify(left));
@@ -701,8 +691,7 @@ const torn = await gm.evaluate(async () => {
   const MODULE = 'fvtt-mod-bythebooks';
   const st = globalThis.__bf2c;
   const errs = [];
-  try { for (const [k, v] of Object.entries(st.prior)) await game.settings.set(MODULE, k, v); }
-  catch (err) { errs.push(`settings: ${err?.message}`); }
+  for (const failed of await st.settings.restore()) errs.push(`settings: ${failed}`);
   // §pull: the Ranger home, the prior active scene back (every client follows it), the scene gone.
   try {
     if (st.pull) {
