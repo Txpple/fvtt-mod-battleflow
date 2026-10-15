@@ -21,6 +21,10 @@
 // claim through the serializer), and tools/check-writers.mjs proves every write reachable from a hook
 // every client receives sits behind an elect. An unpinned site fails, a pin whose count moved fails, and
 // a stale pin (no such site) fails.
+// THE LANDING CLAIM, beside it: a record's claim (`applying`, `fallbackApplying`) is the stamp core.js
+// `claimLanding` writes, naming its claimant, and a claim whose claimant left is dead (`claimHolds`). Outside
+// core.js a claim field is only released (`= false`, `applying: false`) or read through `claimHolds`: a raw
+// `applying = true` is a claim nobody can re-drive, and a bare `!flag.applying` reads a dead claim as live.
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { dirname, join, relative } from "node:path";
@@ -53,13 +57,18 @@ const ALLOW = new Map([
   ["transforms.js showChangePopup gate", { n: 1, tag: "presentation", why: "presentation — the GM's change of a landed form, a popup on the GM's own click; the ask folds once (`changeAsked`), and every GM's open change popup closes once a change, a revert or the end lands" }],
   ["transforms.js drawTransform gate", { n: 2, tag: "presentation", why: "presentation — the Revert and Change the form buttons for a GM; each ask folds through the serializer once" }],
   ["ui.js claimLead gate", { n: 1, tag: "own", why: "the leading window: each GM window claims its own user's lead flag (core.js leadsWindow); every GM user has its own" }],
-  ["ui.js listen:ready gate", { n: 1, tag: "own", why: "the leading window hands its own user's lead back as it closes" }]
+  ["ui.js listen:ready gate", { n: 2, tag: "own", why: "the leading window: whether this window leads its own user at ready, and its lead handed back as it closes" }],
+  ["ui.js listen:updateUser gate", { n: 1, tag: "own", why: "the re-drive: a GM window handed its own user's lead resumes the recent cards as a window taking it does; each resumable drives under its own `drives`" }]
 ]);
 
 const list = process.argv.includes("--list");
 const failures = [];
 const seen = new Map();
 const lines = [];
+
+/** The claim fields core.js `claimLanding` stamps. */
+const CLAIM_FIELDS = new Set(["applying", "fallbackApplying"]);
+let claimSites = 0;
 
 const isFn = n => ts.isFunctionDeclaration(n) || ts.isFunctionExpression(n) || ts.isArrowFunction(n) || ts.isMethodDeclaration(n);
 
@@ -92,9 +101,30 @@ for (const path of jsFiles(SCRIPTS)) {
       site.at.push(at);
       seen.set(pin, site);
     }
+    if (rel !== "core.js") claimSite(node, rel, sf);
     ts.forEachChild(node, visit);
   };
   visit(sf);
+}
+
+/** A claim field written or read outside core.js: a release, or a read through `claimHolds`; anything else fails. */
+function claimSite(node, rel, sf) {
+  const at = () => `${rel}:${sf.getLineAndCharacterOfPosition(node.getStart()).line + 1}`;
+  const isFalse = n => n?.kind === ts.SyntaxKind.FalseKeyword;
+  if (ts.isPropertyAssignment(node) && ts.isIdentifier(node.name) && CLAIM_FIELDS.has(node.name.text)) {
+    claimSites++;
+    if (!isFalse(node.initializer)) failures.push(`${at()} writes the claim \`${node.name.text}\` as ${node.initializer.getText()} — a landing is claimed by core.js claimLanding, with the claimant's stamp; outside it a claim is only released (false)`);
+    return;
+  }
+  if (!ts.isPropertyAccessExpression(node) || !CLAIM_FIELDS.has(node.name.text)) return;
+  claimSites++;
+  const p = node.parent;
+  if (ts.isBinaryExpression(p) && (p.left === node) && (p.operatorToken.kind === ts.SyntaxKind.EqualsToken)) {
+    if (!isFalse(p.right)) failures.push(`${at()} writes the claim \`${node.name.text}\` as ${p.right.getText()} — a landing is claimed by core.js claimLanding, with the claimant's stamp; outside it a claim is only released (false)`);
+    return;
+  }
+  if (ts.isCallExpression(p) && ts.isIdentifier(p.expression) && (p.expression.text === "claimHolds") && (p.arguments[0] === node)) return;
+  failures.push(`${at()} reads the claim \`${node.name.text}\` bare (${p.getText().slice(0, 60)}) — read it through core.js claimHolds, so a claim whose claimant left reads as none`);
 }
 
 for (const [pin, site] of seen) {
@@ -123,4 +153,5 @@ if (failures.length) {
 }
 const count = tag => [...seen].filter(([pin]) => ALLOW.get(pin)?.tag === tag).reduce((n, [, s]) => n + s.n, 0);
 console.log(`PASS every isGM read in scripts/ is tagged (${[...seen.values()].reduce((n, s) => n + s.n, 0)} reads at ${seen.size} sites: `
-  + `${count("presentation")} presentation, ${count("own")} own, ${count("role")} role; no consequence behind isGM — ARCHITECTURE §4).`);
+  + `${count("presentation")} presentation, ${count("own")} own, ${count("role")} role; no consequence behind isGM; ${claimSites} claim-field sites, `
+  + `each a release or a claimHolds read — ARCHITECTURE §4).`);

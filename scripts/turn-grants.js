@@ -13,7 +13,7 @@
  * Rage); `while: "raging"` pays only while the Rage stands; `to: "ally"` rolls the amount and GIVES it to one
  * creature within reach — the owner's pick, the rest song's popup (Life-Giving Force).
  */
-import { MODULE_ID, readFlag, TITLE, drivesMomentFor, statContext, isActiveGM, queueFlagWrite, canAnswerFor, decisionWindow } from "./core.js";
+import { MODULE_ID, readFlag, TITLE, drivesMomentFor, statContext, isActiveGM, queueFlagWrite, canAnswerFor, decisionWindow, claimLanding, claimHolds } from "./core.js";
 import { activityNamed, activityOfType, cardActivity, featureNamed, lower, resolveUuid } from "./lookup.js";
 import { chitStampOf, effectSourceOf, poolOf } from "./shared.js";
 import { endOptionsOf } from "./decide/turn-grants.js";
@@ -296,13 +296,7 @@ registerRelay("conditionEndAnswer", {
 
 /** The GM lands a pick: the effects carrying the status go from the bearer, the activity pays, the card says so. */
 async function landEnd(message) {
-  let claimed = false;
-  await queueFlagWrite(message, END_FLAG, current => {
-    if ( (current.status !== "resolved") || (current.answer === "keep") || current.applied || current.applying ) return false;
-    current.applying = true;
-    claimed = true;
-  });
-  if ( !claimed ) return;
+  if ( !(await claimLanding(message, END_FLAG, current => (current.status === "resolved") && (current.answer !== "keep"))) ) return;
   const flag = readFlag(message, END_FLAG);
   const record = {};
   try {
@@ -331,7 +325,7 @@ async function landEnd(message) {
 }
 
 registerResumable(END_FLAG, {
-  pending: flag => (flag?.status === "resolved") && (flag.answer !== "keep") && !flag.applied && !flag.applying,
+  pending: flag => (flag?.status === "resolved") && (flag.answer !== "keep") && !flag.applied && !claimHolds(flag.applying),
   drives: () => isActiveGM(),
   drive: landEnd
 });

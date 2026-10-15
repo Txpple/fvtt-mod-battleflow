@@ -4,7 +4,7 @@
  * die size (a Pass leaves the kit's use as it was); the flow elect spends the creature's die and rolls
  * the feature's OWN heal activity of that size at it, so the healing rerolls and cast applier carry the rest.
  */
-import { MODULE_ID, readFlag, TITLE, isActiveGM, queueFlagWrite, canAnswerFor, canApplyTo, drivesMomentFor, statContext, whisperNoGM, decisionWindow } from "./core.js";
+import { MODULE_ID, readFlag, TITLE, isActiveGM, queueFlagWrite, canAnswerFor, canApplyTo, drivesMomentFor, statContext, whisperNoGM, decisionWindow, claimLanding, claimHolds } from "./core.js";
 import { featureNamed, lower, resolveUuid } from "./lookup.js";
 import { answers, kitTendEntries, listedNames } from "./decide/registry.js";
 import { KIT_TENDS } from "./decide/registry.js";
@@ -122,13 +122,7 @@ registerRelay("kitTendAnswer", {
 
 /** The landing, on the flow elect: the target's die spent, then the feature's own heal of that size rolled at it. */
 async function landTend(message) {
-  let claimed = false;
-  await queueFlagWrite(message, TEND_FLAG, current => {
-    if ( (current.status !== "resolved") || (current.answer !== "tend") || current.applied || current.applying ) return false;
-    current.applying = true;
-    claimed = true;
-  });
-  if ( !claimed ) return;
+  if ( !(await claimLanding(message, TEND_FLAG, current => (current.status === "resolved") && (current.answer === "tend"))) ) return;
   const flag = readFlag(message, TEND_FLAG);
   const record = {};
   try {
@@ -163,7 +157,7 @@ async function landTend(message) {
 }
 
 registerResumable(TEND_FLAG, {
-  pending: flag => (flag?.status === "resolved") && (flag.answer === "tend") && !flag.applied && !flag.applying,
+  pending: flag => (flag?.status === "resolved") && (flag.answer === "tend") && !flag.applied && !claimHolds(flag.applying),
   drives: flag => drivesMomentFor(flag?.actorUuid ?? null),
   drive: landTend
 });

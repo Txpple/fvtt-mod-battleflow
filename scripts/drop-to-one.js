@@ -12,7 +12,7 @@
  * THE KEEPER of an ask is the client that applied the damage, or the GM once it has gone; any
  * other answer is relayed to it.
  */
-import { MODULE_ID, S, readFlag, TITLE, keepsMessage, queueFlagWrite, canAnswerFor, statContext, decisionWindow, isActiveGM, setting } from "./core.js";
+import { MODULE_ID, S, readFlag, TITLE, keepsMessage, queueFlagWrite, canAnswerFor, statContext, decisionWindow, isActiveGM, setting, claimLanding, claimHolds } from "./core.js";
 import { featureNamed, lower, resolveUuid, activityNamed, activityOfType, applicableProfiles, wearsEffectNamed } from "./lookup.js";
 import { poolOf } from "./shared.js";
 import { nearestFeet } from "./geometry.js";
@@ -493,13 +493,7 @@ registerRelay("dropToOneAnswer", {
 
 /** The keeper lands the answer: the use spent, or the 0 the damage would have left. */
 async function land(message) {
-  let claimed = false;
-  await queueFlagWrite(message, DROP_FLAG, current => {
-    if ( (current.status !== "resolved") || current.applied || current.applying ) return false;
-    current.applying = true;
-    claimed = true;
-  });
-  if ( !claimed ) return;
+  if ( !(await claimLanding(message, DROP_FLAG, current => current.status === "resolved")) ) return;
   const flag = readFlag(message, DROP_FLAG);
   const actor = resolveUuid(flag.actorUuid);
   let fell = false;
@@ -536,7 +530,7 @@ async function land(message) {
 }
 
 registerResumable(DROP_FLAG, {
-  pending: flag => (flag?.status === "resolved") && !flag.applied && !flag.applying,
+  pending: flag => (flag?.status === "resolved") && !flag.applied && !claimHolds(flag.applying),
   drives: (_flag, message) => keepsMessage(message),
   drive: land
 });
@@ -724,13 +718,7 @@ registerRelay("deathSaveOfferAnswer", {
 
 /** The keeper lands a Yes: half the maximum back, the use spent, the burst rolled once and landed on the enemies around. */
 async function landOffer(message) {
-  let claimed = false;
-  await queueFlagWrite(message, DEATH_OFFER_FLAG, current => {
-    if ( (current.status !== "resolved") || current.applied || current.applying || (current.answer !== "use") ) return false;
-    current.applying = true;
-    claimed = true;
-  });
-  if ( !claimed ) return;
+  if ( !(await claimLanding(message, DEATH_OFFER_FLAG, current => (current.status === "resolved") && (current.answer === "use"))) ) return;
   const flag = readFlag(message, DEATH_OFFER_FLAG);
   const record = {};
   try {
@@ -771,7 +759,7 @@ async function landOffer(message) {
 }
 
 registerResumable(DEATH_OFFER_FLAG, {
-  pending: flag => (flag?.status === "resolved") && (flag.answer === "use") && !flag.applied && !flag.applying,
+  pending: flag => (flag?.status === "resolved") && (flag.answer === "use") && !flag.applied && !claimHolds(flag.applying),
   drives: (_flag, message) => keepsMessage(message),
   drive: landOffer
 });

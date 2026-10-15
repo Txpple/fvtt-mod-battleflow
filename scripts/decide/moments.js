@@ -885,6 +885,7 @@ export const STATE_KEYS = Object.freeze({
   companionEnd: "a delete option, not a flag — the elect's own removal of a companion's effect, which the owner's removal prompt lets pass (summons.js)",
   commandOf: "an Item flag on a summoned creature's command spell — the spell whose command it is (summons.js); a marker, nothing is published",
   restEnded: "a rest card's line — what the rest ended on the rester (rest-grants.js); the deletions are the system's own, nothing is published",
+  summonCard: "a token flag on a landed summon and an ActiveEffect flag on its caster's shared resistance — the message id of the summon card; a landing re-driven after its claimant left removes what carries it first, the card's record is the resolve (summons.js)",
   summonEffect: "an ActiveEffect flag on the caster of a summon without Concentration — the message id of the summon card; removing the effect asks the dismissal, the card's record is the resolve (summons.js)",
   summonEnd: "a delete option, not a flag — the elect's own removal of a summon's standing effect, which asks no second dismissal (summons.js)",
   lightOn: "a use option, not a flag — where the summon menu put a light spell (token or object), read by summons.js and token-lights.js at the use",

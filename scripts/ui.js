@@ -4,7 +4,7 @@
  * ⚠ Imports NO machine (ARCHITECTURE §7).
  */
 import { MODULE_ID, readFlag, TITLE, S, setting, isActiveGM, deadlineIsLive, canAnswerFor, keepsMessage, queueFlagWrite, DICE_WAIT_SECONDS,
-  LEAD_FLAG, WINDOW_ID, drivesMomentFor, isContinuingClient, gmIds, selfIds } from "./core.js";
+  LEAD_FLAG, WINDOW_ID, leadsWindow, CLAIM_CEILING_MS, drivesMomentFor, isContinuingClient, gmIds, selfIds } from "./core.js";
 import { TONE, popupKey, bfCard, momentBarHTML, holdBarHTML, nextCascadeSlot, cascadePosition,
   pileBackToFront, rescuePaneHTML, rescueRowsHTML, esc, tickRowsHTML, choiceRows } from "./decide/present.js";
 import { pendingDemands, resolveDemand } from "./decide/demand.js";
@@ -1064,14 +1064,32 @@ function resume(message, cause) {
 // the window loaded or focused last leads and the others stand down, so a consequence lands once. Taking
 // the lead resumes what the last leader left pending; closing the leader hands the lead back (the flag
 // cleared, so whichever window is left leads), and a window that lost it takes it again on focus.
+/** Did this window lead at the last look (the re-drive reads a lead it was handed)? */
+let ledBefore = false;
 const claimLead = () => {
   try {
     if ( !game.user?.isGM || (game.user.flags?.[MODULE_ID]?.[LEAD_FLAG] === WINDOW_ID) ) return;
     void game.user.setFlag(MODULE_ID, LEAD_FLAG, WINDOW_ID)
-      .then(() => { for ( const message of game.messages.contents.slice(-60) ) resume(message, "lead"); })
+      .then(() => resumeAsLeader())
       .catch(err => console.warn(`${TITLE} | This window could not take the lead.`, err));
   } catch(err) { console.warn(`${TITLE} | This window could not take the lead.`, err); }
 };
+/** The recent cards a resume reads beyond the one that changed: what the lead and the re-drive pick up. */
+function resumeRecent(cause) {
+  for ( const message of game.messages.contents.slice(-60) ) resume(message, cause);
+}
+
+let ceilingRecheck = null;
+/**
+ * Resume what the last leader left pending, now and once more past the claim ceiling: a claim made in a window
+ * that closed while its user stays on, in this window, holds until then (core.js `claimHolds`).
+ */
+function resumeAsLeader() {
+  resumeRecent("lead");
+  clearTimeout(ceilingRecheck);
+  ceilingRecheck = setTimeout(() => resumeRecent("lead"), CLAIM_CEILING_MS + 1000);
+}
+
 /** The renders set aside before `ready`, resumed on the documents as `ready` finds them. */
 function resumeAfterReady() {
   const ids = [...beforeReady];
@@ -1084,12 +1102,25 @@ function resumeAfterReady() {
 
 listen("ready", "ui", () => {
   resumeAfterReady();
+  ledBefore = !!game.user?.isGM && leadsWindow();
   claimLead();
   window.addEventListener("focus", claimLead);
   document.addEventListener("visibilitychange", () => { if ( document.visibilityState === "visible" ) claimLead(); });
   window.addEventListener("beforeunload", () => {
     if ( game.user?.isGM && (game.user.flags?.[MODULE_ID]?.[LEAD_FLAG] === WINDOW_ID) ) void game.user.unsetFlag(MODULE_ID, LEAD_FLAG).catch(() => {});
   });
+});
+
+// THE RE-DRIVE (ARCHITECTURE §4 *The flow elect*): a claim whose user left is dead (core.js `claimHolds`) and every
+// resumable's `pending` reads it as no claim, so a user leaving resumes the recent cards wherever their drive now
+// falls; a window handed the lead by its user's closing leader resumes as a window taking it does.
+listen("userConnected", "ui", (_user, active) => { if ( !active ) resumeRecent("lead"); });
+listen("updateUser", "ui", user => {
+  if ( !user?.isSelf || !game.user?.isGM ) return;
+  const leads = leadsWindow();
+  const handed = leads && !ledBefore && (game.user.flags?.[MODULE_ID]?.[LEAD_FLAG] !== WINDOW_ID);
+  ledBefore = leads;
+  if ( handed ) resumeAsLeader();
 });
 
 listen("createChatMessage", "ui", message => resume(message, "create"));

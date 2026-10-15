@@ -10,7 +10,7 @@
  * an over-long list is trimmed there first); the RECORD on the Weapon Mastery feature's card; the PARTY VIEW
  * in the group sheet's header controls. Nothing here decides who may use a mastery — the system does.
  */
-import { MODULE_ID, readFlag, TITLE, isActiveGM, queueFlagWrite, canAnswerFor, statContext, gmIds } from "./core.js";
+import { MODULE_ID, readFlag, TITLE, isActiveGM, queueFlagWrite, canAnswerFor, statContext, gmIds, claimLanding, claimHolds } from "./core.js";
 import { cardItem, lower, resolveUuid } from "./lookup.js";
 import { allowanceOf, fillPicks, recordState, missingPick, restList, trimList } from "./decide/mastery-record.js";
 import { TONE, bfCard, esc, foldedRuleHTML, pickInputHTML } from "./decide/present.js";
@@ -357,13 +357,7 @@ registerRelay("masterySwapAnswer", {
 
 /** The elect lands the answer on the sheet, judged against the list as it stands now. */
 async function landSwap(message) {
-  let claimed = false;
-  await queueFlagWrite(message, MASTERY_SWAP_FLAG, current => {
-    if ( (current.status !== "resolved") || current.applied || current.applying ) return false;
-    current.applying = true;
-    claimed = true;
-  });
-  if ( !claimed ) return;
+  if ( !(await claimLanding(message, MASTERY_SWAP_FLAG, current => current.status === "resolved")) ) return;
   const flag = readFlag(message, MASTERY_SWAP_FLAG);
   let outcome = "kept";
   let after = null;
@@ -390,7 +384,7 @@ async function landSwap(message) {
 }
 
 registerResumable(MASTERY_SWAP_FLAG, {
-  pending: flag => (flag?.status === "resolved") && !flag.applied && !flag.applying,
+  pending: flag => (flag?.status === "resolved") && !flag.applied && !claimHolds(flag.applying),
   drives: () => isActiveGM(),
   drive: landSwap
 });

@@ -5,7 +5,7 @@
  * spent, a card; an `ask` row is OFFERED to the owner (the use is theirs to keep) and the clock answers No. The
  * sheet writes are the GM's; a player's answer relays.
  */
-import { MODULE_ID, readFlag, TITLE, isActiveGM, queueFlagWrite, canAnswerFor, statContext, decisionWindow } from "./core.js";
+import { MODULE_ID, readFlag, TITLE, isActiveGM, queueFlagWrite, canAnswerFor, statContext, decisionWindow, claimLanding, claimHolds } from "./core.js";
 import { activityNamed, featureNamed, lower, resolveUuid } from "./lookup.js";
 import { poolOf, spendPoolUses } from "./shared.js";
 import { nearestFeet, tokenForUuid } from "./geometry.js";
@@ -214,21 +214,10 @@ async function landFallback(message, flag) {
 
 /** The GM lands a Yes (or a plain row): the uses back, the heal rolled and receipted, the feature's use spent. */
 async function landGrant(message) {
-  let claimed = false;
-  let fallback = false;
-  await queueFlagWrite(message, INITIATIVE_GRANT_FLAG, current => {
-    if ( current.status !== "resolved" ) return false;
-    if ( (current.answer === "no") && current.fallback && !current.fallbackApplied && !current.fallbackApplying ) {
-      current.fallbackApplying = true;
-      fallback = true;
-      return;
-    }
-    if ( (current.answer === "no") || current.applied || current.applying ) return false;
-    current.applying = true;
-    claimed = true;
-  });
-  if ( fallback ) return landFallback(message, readFlag(message, INITIATIVE_GRANT_FLAG));
-  if ( !claimed ) return;
+  // a No with a fallback lands the fallback, under its own claim; a Yes (or a plain row) lands the grant
+  if ( await claimLanding(message, INITIATIVE_GRANT_FLAG, current => (current.status === "resolved") && (current.answer === "no") && !!current.fallback,
+    { field: "fallbackApplying", done: "fallbackApplied" }) ) return landFallback(message, readFlag(message, INITIATIVE_GRANT_FLAG));
+  if ( !(await claimLanding(message, INITIATIVE_GRANT_FLAG, current => (current.status === "resolved") && (current.answer !== "no"))) ) return;
   const flag = readFlag(message, INITIATIVE_GRANT_FLAG);
   const record = {};
   try {
@@ -283,8 +272,8 @@ async function landGrant(message) {
 }
 
 registerResumable(INITIATIVE_GRANT_FLAG, {
-  pending: flag => (flag?.status === "resolved") && ((flag.answer !== "no") ? (!flag.applied && !flag.applying)
-    : (!!flag.fallback && !flag.fallbackApplied && !flag.fallbackApplying)),
+  pending: flag => (flag?.status === "resolved") && ((flag.answer !== "no") ? (!flag.applied && !claimHolds(flag.applying))
+    : (!!flag.fallback && !flag.fallbackApplied && !claimHolds(flag.fallbackApplying))),
   drives: () => isActiveGM(),
   drive: landGrant
 });
