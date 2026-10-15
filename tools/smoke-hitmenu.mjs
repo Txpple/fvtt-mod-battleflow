@@ -40,16 +40,8 @@ announcePlan('hitmenu', plan, pulled);
 
 const out = await f.evaluate(async ({ sections, titles }) => {
   const MOD = 'fvtt-mod-bythebooks';
-  const results = [];
-  const log = [];
-  const skips = [];
-  const ok = (name, pass, detail = '') => results.push({ name, pass, detail });
-  const want = id => {
-    if (!sections || sections.includes(String(id))) return true;
-    skips.push(`§${id} ${titles?.[id] ?? ''}`);
-    return false;
-  };
-  const sleep = ms => new Promise(r => setTimeout(r, ms));
+  const { until, watch, tokenOn, viewScene, snapshotSettings, faces, unrig } = window.__btb;
+  const { results, log, skips, ok, want, section } = window.__btb.begin({ sections, titles });
   const suiteStart = Date.now();
   // Every moment payload published during the run (plain facts: uuids, never documents).
   const moments = [];
@@ -71,8 +63,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   const SETTING_KEYS = ['autoDamage', 'autoApply', 'playerRollDamage', 'damageTimer', 'dramaticBeat', 'requireTarget',
     'reactionHold', 'riders', 'effectRiders', 'masteryRiders', 'masteryAsk', 'saves', 'saveTimer', 'castApply',
     'concMode', 'reminderList', 'maneuverFolds', 'hitMenuList', 'clockRiderList', 'holdTimer', 'fightingStyleList'];
-  const prior = Object.fromEntries(SETTING_KEYS.map(k => [k, game.settings.get(MOD, k)]));
-  const set = (k, v) => game.settings.set(MOD, k, v);
+  const settings = snapshotSettings(SETTING_KEYS);
+  const { set } = settings;
 
   const scene = game.scenes.getName('By the Books Test Range');
   const victim = game.actors.getName('BTB Test Victim');
@@ -90,7 +82,6 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   const created = { items: [], tokens: [] };
   const priorActor = {};
   let restored = false;
-  const realPRNG = CONFIG.Dice.randomUniform;
   const STATUSES = ['prone', 'frightened'];
   const clearChips = async () => {
     for (const a of [victim, second, fighter]) {
@@ -117,9 +108,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     console.error = origError;
     console.warn = origWarn;
     for (const e of errors) log.push('console: ' + e);
-    CONFIG.Dice.randomUniform = realPRNG;
-    try { for (const [k, v] of Object.entries(prior)) await set(k, v); }
-    catch (err) { log.push(`TEARDOWN settings ERROR: ${err?.message}`); }
+    unrig();
+    for (const failed of await settings.restore()) log.push(`TEARDOWN settings ERROR: ${failed}`);
     try {
       await closeDialogs();
       await clearChips();
@@ -191,8 +181,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     await refill();
     log.push(`pool: ${poolLeft()} superiority dice`);
 
-    if (canvas.scene?.id !== scene.id) await scene.view();
-    for (let i = 0; i < 40 && !canvas.ready; i++) await sleep(250);
+    await viewScene(scene);
     // LINKED strays only: the shared fixture's unlinked tokens belong to every other suite.
     const strays = scene.tokens.filter(t => t.actorLink && [victim.id, second.id, fighter.id].includes(t.actorId)).map(t => t.id);
     if (strays.length) await scene.deleteEmbeddedDocuments('Token', strays);
@@ -200,7 +189,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const [doc] = await scene.createEmbeddedDocuments('Token', [
         foundry.utils.mergeObject(actor.prototypeToken.toObject(), { x, y, actorId: actor.id, actorLink: true, hidden: false }, { inplace: false })]);
       created.tokens.push(doc.id);
-      for (let i = 0; i < 40 && !(canvas.ready && canvas.tokens.get(doc.id)); i++) await sleep(250);
+      await tokenOn(doc.id);
       const token = canvas.tokens.get(doc.id);
       if (!token) throw new Error(`${actor.name}'s token never reached the canvas`);
       return { doc, token };
@@ -233,12 +222,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     const attack = sword.system.activities.find(a => a.type === 'attack');
 
     // -------------------------------------------------- helpers
-    const waitFor = async (test, timeout = 8000) => {
-      const until = Date.now() + timeout;
-      while (Date.now() < until) { const v = test(); if (v) return v; await sleep(200); }
-      return test();
-    };
-    const face = (n, faces = 20) => { CONFIG.Dice.randomUniform = () => 1 - ((n - 0.5) / faces); };
+    const face = (n, of = 20) => faces([[n, of]]);
     const target = token => token.setTarget(true, { releaseOthers: true });
     const textOf = el => (el?.textContent ?? '').replace(/\s+/g, ' ').trim();
     // The NEWEST open offer: a stale one left open (a 0 s Decision Timer waits for a press) must never stand in.
@@ -255,7 +239,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     const swing = async ({ d20 = 19 } = {}) => {
       await healFull();
       target(victimToken);
-      await sleep(80);
+      await until(() => game.user.targets.has(victimToken), { label: 'the victim targeted' });
       face(d20);
       const results = await attack.use({ subsequentActions: false }, { configure: false }, {});
       const usageId = results?.message?.id ?? null;
@@ -267,27 +251,33 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     const box = (offer, key) => offer?.querySelector(`input[name="bf-hit"][value="${key}"]`) ?? null;
     const rollButton = offer => offer?.querySelector('button[data-action="roll"]') ?? null;
     const answerSave = async () => {
-      const el = await waitFor(saveDialogEl, 8000);
+      // the callers read the boolean: a dialog that never opened is reported, not thrown
+      const el = await until(saveDialogEl, { timeout: 8000 }).catch(() => null);
       el?.querySelector('button[data-action="normal"]')?.click();
       return !!el;
     };
     /** Swing, pick one maneuver on the offer, roll; return the attack, the damage message and its stamp. */
     const swingWith = async (key, { d20 = 19 } = {}) => {
       const { msg, originId } = await swing({ d20 });
-      const offer = await waitFor(offerEl, 6000);
-      if (key) box(offer, key)?.click();
-      await sleep(60);
+      const offer = await until(offerEl, { timeout: 6000 });
+      if (key) box(offer, key)?.click();   // the tick's change handler runs inside the click
       rollButton(offer)?.click();
-      const dmg = await waitFor(() => { const d = damageFor(originId); return d?.getFlag(MOD, 'receipt') ? d : null; }, 12000);
+      const dmg = await until(() => { const d = damageFor(originId); return d?.getFlag(MOD, 'receipt') ? d : null; }, { timeout: 12000 });
       return { msg, originId, dmg, hm: firstPick(dmg) };
     };
-    const settle = async () => { await sleep(400); await clearChips(); await healFull(); };
+    // Between sections: no offer or save dialog left open (the next swing's `offerEl` must find its own),
+    // then the chips and the pool. A dialog that stays open is not this section's failure: the wait tolerates it.
+    const settle = async () => {
+      await until(() => !offerEl() && !saveDialogEl(), { timeout: 4000, label: 'the offers and save dialogs closed' }).catch(() => null);
+      await clearChips();
+      await healFull();
+    };
 
     // ================================================== 1. the offer and the rows
-    if (want(1)) {
+    if (want(1)) await section(1, async () => {
       await refill();
       const { msg } = await swing();
-      const offer = await waitFor(offerEl, 6000);
+      const offer = await until(offerEl, { timeout: 6000 });
       const menu = menuOf(offer);
       const rows = [...(menu?.querySelectorAll('[data-bf-hit-row]') ?? [])].map(r => r.dataset.bfHitRow);
       ok('1a. a hit with a Superiority Die left opens the damage offer under AUTO damage, and the offer carries the hit menu',
@@ -305,40 +295,38 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       ok('1e. the offer\'s line says what the menu is for',
         /Maneuvers/.test(textOf(offer)) && /one maneuver per attack/.test(textOf(offer)), textOf(offer).slice(0, 200));
       rollButton(offer)?.click();
-      await waitFor(() => damageFor(msg?._source.system?.origin ?? msg?.id)?.getFlag(MOD, 'receipt'), 12000);
+      await until(() => damageFor(msg?._source.system?.origin ?? msg?.id)?.getFlag(MOD, 'receipt'), { timeout: 12000 });
       await settle();
-    }
+    });
 
     // ================================================== 2. one pick per group
-    if (want(2)) {
+    if (want(2)) await section(2, async () => {
       await refill();
       const { msg } = await swing();
-      const offer = await waitFor(offerEl, 6000);
+      const offer = await until(offerEl, { timeout: 6000 });
       const noneTicked = () => [...(offer?.querySelectorAll('input[name="bf-hit"]') ?? [])].every(b => !b.checked);
       const before = noneTicked();
+      // each tick's change handler runs inside the click
       box(offer, 'trip-attack')?.click();
-      await sleep(50);
       const afterTrip = !!box(offer, 'trip-attack')?.checked;
       box(offer, 'goading-attack')?.click();
-      await sleep(50);
       ok('2a. nothing ticked to start; Trip ticks — and there is no summary line under the groups (user, 2026-09-04: "superfluous")',
         before && afterTrip && !offer?.querySelector('[data-bf-hit-summary]'), `before=${before} trip=${afterTrip} summary=${!!offer?.querySelector('[data-bf-hit-summary]')}`);
       ok('2b. a second tick in the group unticks the first — one maneuver per attack',
         !box(offer, 'trip-attack')?.checked && !!box(offer, 'goading-attack')?.checked,
         `trip=${box(offer, 'trip-attack')?.checked} goading=${box(offer, 'goading-attack')?.checked}`);
       box(offer, 'goading-attack')?.click();
-      await sleep(50);
       ok('2c. untick it: nothing ticked again', noneTicked(), `noneTicked=${noneTicked()}`);
       rollButton(offer)?.click();
-      const dmg = await waitFor(() => { const d = damageFor(msg?._source.system?.origin ?? msg?.id); return d?.getFlag(MOD, 'receipt') ? d : null; }, 12000);
+      const dmg = await until(() => { const d = damageFor(msg?._source.system?.origin ?? msg?.id); return d?.getFlag(MOD, 'receipt') ? d : null; }, { timeout: 12000 });
       ok('2d. no pick: no maneuver on the damage message, the pool untouched, the attack message records the empty pick',
         !!dmg && !dmg.getFlag(MOD, 'hitManeuver') && (poolLeft() === 4) && (game.messages.get(msg?.id)?.getFlag(MOD, 'hitPick')?.key === null),
         `hm=${!!dmg?.getFlag(MOD, 'hitManeuver')} pool=${poolLeft()} pick=${JSON.stringify(game.messages.get(msg?.id)?.getFlag(MOD, 'hitPick'))}`);
       await settle();
-    }
+    });
 
     // ================================================== 3. Trip Attack
-    if (want(3)) {
+    if (want(3)) await section(3, async () => {
       await refill();
       const { msg, dmg, hm } = await swingWith('trip-attack');
       const formulas = (dmg?.rolls ?? []).map(r => r.formula);
@@ -353,11 +341,12 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const receipt = dmg?.getFlag(MOD, 'receipt')?.targets?.find(t => t.uuid === victim.uuid);
       const total = (dmg?.rolls ?? []).reduce((n, r) => n + (r.total ?? 0), 0);
       ok('3d. one roll, one receipt: the victim took the weapon and the die together', !!receipt && (receipt.taken === total), `taken=${receipt?.taken} total=${total}`);
-      const cardText = await waitFor(() => { const t = textOf(document.querySelector(`.message[data-message-id="${dmg?.id}"]`)); return /rode this roll/.test(t) ? t : null; }, 4000);
+      // the line comes with the card's render; 3e reads it through `?? ''` and says what it saw
+      const cardText = await until(() => { const t = textOf(document.querySelector(`.message[data-message-id="${dmg?.id}"]`)); return /rode this roll/.test(t) ? t : null; }, { timeout: 4000 }).catch(() => null);
       ok('3e. the damage card says what rode: Trip Attack — 1d8 slashing rode this roll · one Superiority Die spent · Combat Superiority: 3 of 4 remaining (the one wording, 2026-09-05)',
         /Trip Attack — 1d8 slashing rode this roll/.test(cardText ?? '') && /one Superiority Die spent/.test(cardText ?? '') && /Combat Superiority: 3 of 4 remaining/.test(cardText ?? ''),
         (cardText ?? '').slice(0, 220));
-      const card = await waitFor(() => cardsWith('hitManeuverCard').find(m => m.getFlag(MOD, 'hitManeuverCard')?.key === 'trip-attack' && m.getFlag(MOD, 'saves')), 10000);
+      const card = await until(() => cardsWith('hitManeuverCard').find(m => m.getFlag(MOD, 'hitManeuverCard')?.key === 'trip-attack' && m.getFlag(MOD, 'saves')), { timeout: 10000 });
       const saves = card?.getFlag(MOD, 'saves');
       ok('3f. the save goes through the saves machine: the demand on Trip Attack\'s own Strength Save activity, at the victim, a DC read off the sheet',
         !!card && (saves?.abilities?.join() === 'str') && (saves?.dc > 0) && (saves?.targets?.[0]?.uuid === victim.uuid)
@@ -365,9 +354,9 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         `card=${!!card} abilities=${saves?.abilities?.join()} dc=${saves?.dc} target=${saves?.targets?.[0]?.name}`);
       log.push(`Trip Attack save DC on the demand: ${saves?.dc} (fighter prof ${fighter.system.attributes.prof}, str ${fighter.system.abilities.str.mod}, dex ${fighter.system.abilities.dex.mod})`);
       const answered = await answerSave();
-      await waitFor(() => card?.getFlag(MOD, 'saves')?.targets?.every(t => t.done), 15000);
+      await until(() => card?.getFlag(MOD, 'saves')?.targets?.every(t => t.done), { timeout: 15000 });
       // The receipt is a QUEUED write that lands after the press: wait on it.
-      const er = await waitFor(() => game.messages.get(card?.id)?.getFlag(MOD, 'effectReceipt')?.targets?.find(t => (t.uuid === victim.uuid) && t.effects?.length), 12000);
+      const er = await until(() => game.messages.get(card?.id)?.getFlag(MOD, 'effectReceipt')?.targets?.find(t => (t.uuid === victim.uuid) && t.effects?.length), { timeout: 12000 });
       const applied = card?.getFlag(MOD, 'hitManeuverCard')?.applied?.includes?.(victim.uuid) && victim.statuses?.has?.('prone');
       const entry = card?.getFlag(MOD, 'saves')?.targets?.[0];
       ok('3g. the victim fails (-30) and Prone — the effect the pack left on the ITEM, unlinked — is pressed by the follow-up, receipted on the demand card',
@@ -387,52 +376,52 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const fxs = game.modules.get('fvtt-mod-fxstudio')?.active ? game.modules.get('fvtt-mod-fxstudio').api : null;
       if (fxs?.ledger) { const fe = fxs.ledger.find(x => x.id === `${dmg?.id}:maneuver`); log.push(`FX Studio (observed, not asserted): ${fe ? `${fe.played ? 'PLAYED' : 'did not play'} ${fe.fx ?? '(no fx)'} on "${fe.when}" via ${fe.key ?? '-'}${fe.why ? ` — ${fe.why}` : ''}` : 'no ledger entry for the published moment'}`); }
       await settle();
-    }
+    });
 
     // ================================================== 4. Menacing Attack
-    if (want(4)) {
+    if (want(4)) await section(4, async () => {
       await refill();
       const { hm } = await swingWith('menacing-attack');
       ok('4a. Menacing Attack rides and demands', !!hm && (hm.key === 'menacing-attack') && hm.rides && hm.save && !hm.onFail, JSON.stringify(hm));
-      const card = await waitFor(() => cardsWith('hitManeuverCard').find(m => m.getFlag(MOD, 'hitManeuverCard')?.key === 'menacing-attack' && m.getFlag(MOD, 'saves')), 10000);
+      const card = await until(() => cardsWith('hitManeuverCard').find(m => m.getFlag(MOD, 'hitManeuverCard')?.key === 'menacing-attack' && m.getFlag(MOD, 'saves')), { timeout: 10000 });
       ok('4b. the Wisdom save through the saves machine', card?.getFlag(MOD, 'saves')?.abilities?.join() === 'wis', `abilities=${card?.getFlag(MOD, 'saves')?.abilities?.join()}`);
       await answerSave();
-      await waitFor(() => card?.getFlag(MOD, 'saves')?.targets?.every(t => t.done && t.applied), 15000);
+      await until(() => card?.getFlag(MOD, 'saves')?.targets?.every(t => t.done && t.applied), { timeout: 15000 });
       ok('4c. the failure lands Frightened — the activity\'s own effect, through the saves machine', victim.statuses?.has?.('frightened'), `frightened=${victim.statuses?.has?.('frightened')}`);
       await settle();
-    }
+    });
 
     // ================================================== 5. Distracting Strike
-    if (want(5)) {
+    if (want(5)) await section(5, async () => {
       await refill();
       const { dmg, hm } = await swingWith('distracting-strike');
       ok('5a. Distracting Strike rides, no save, effects on the hit', !!hm && (hm.key === 'distracting-strike') && hm.rides && !hm.save && hm.effects, JSON.stringify(hm));
       // The receipt is a QUEUED write that lands after the effect: wait on it.
-      const er = await waitFor(() => game.messages.get(dmg?.id)?.getFlag(MOD, 'effectReceipt')?.targets?.find(t => (t.uuid === victim.uuid) && t.effects?.length), 12000);
+      const er = await until(() => game.messages.get(dmg?.id)?.getFlag(MOD, 'effectReceipt')?.targets?.find(t => (t.uuid === victim.uuid) && t.effects?.length), { timeout: 12000 });
       const applied = game.messages.get(dmg?.id)?.getFlag(MOD, 'hitManeuver')?.effectsApplied && victim.effects.some(e => e.name === 'Distracted');
       ok('5b. Distracted lands on the victim on the elect, receipted on the damage card', !!applied && !!er?.effects?.some(e => /Distracted/.test(e.name)),
         `applied=${!!applied} distracted=${victim.effects.some(e => e.name === 'Distracted')} receipt=${JSON.stringify(er?.effects?.map(e => e.name))}`);
       ok('5c. no demand card — nothing to save against', !cardsWith('hitManeuverCard').some(m => m.getFlag(MOD, 'hitManeuverCard')?.key === 'distracting-strike'), '');
       await settle();
-    }
+    });
 
     // ================================================== 6. Sweeping Attack
-    if (want(6)) {
+    if (want(6)) await section(6, async () => {
       await refill();
       const { dmg, hm } = await swingWith('sweeping-attack');
       const formulas = (dmg?.rolls ?? []).map(r => r.formula);
       ok('6a. nothing rides the damage roll — the die is not on it; the pool is spent',
         !!hm && (hm.key === 'sweeping-attack') && (hm.mode === 'sweep') && !hm.rides && !formulas.some(f => /^1d8$/.test(f)) && (poolLeft() === 3),
         `formulas=[${formulas.join(' | ')}] pool=${poolLeft()} hm=${JSON.stringify(hm)}`);
-      const card = await waitFor(() => cardsWith('sweepCard')[0], 10000);
+      const card = await until(() => cardsWith('sweepCard')[0], { timeout: 10000 });
       const sc = card?.getFlag(MOD, 'sweepCard');
       ok('6b. the sweep card lists the creature within 5 feet of the target — the second goblin, not the fighter, not the victim',
         !!sc && (sc.candidates?.length === 1) && (sc.candidates[0].uuid === second.uuid) && !sc.chosen,
         `candidates=${JSON.stringify(sc?.candidates?.map(c => c.name))}`);
       // The pick is a popup: a button per creature and Nobody, the bar, the card's reopen button.
       // Read the DIALOG, not the chat log (which also carries the card's words).
-      const popup = await waitFor(() => [...foundry.applications.instances.values()]
-        .find(app => (app instanceof foundry.applications.api.DialogV2) && app.rendered && /pick the second creature/.test(app.element?.innerHTML ?? '')), 6000);
+      const popup = await until(() => [...foundry.applications.instances.values()]
+        .find(app => (app instanceof foundry.applications.api.DialogV2) && app.rendered && /pick the second creature/.test(app.element?.innerHTML ?? '')), { timeout: 6000 });
       const pickButton = popup?.element?.querySelector('button[data-action="pick-0"]');
       const nobody = popup?.element?.querySelector('button[data-action="none"]');
       const cardText6 = textOf(document.querySelector(`.message[data-message-id="${card?.id}"]`));
@@ -443,7 +432,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         `popup=${!!popup} pick="${textOf(pickButton)}" nobody=${!!nobody} bar=${!!popup?.element?.querySelector('[data-bf-deadline]')} card="${cardText6.slice(-160)}"`);
       const hpBefore = second.system.attributes.hp.value;
       pickButton?.click();
-      const resolved = await waitFor(() => game.messages.get(card?.id)?.getFlag(MOD, 'sweepCard')?.resolved, 12000);
+      const resolved = await until(() => game.messages.get(card?.id)?.getFlag(MOD, 'sweepCard')?.resolved, { timeout: 12000 });
       const rollMsg = game.messages.contents.find(m => (m.timestamp >= suiteStart) && /Sweeping Attack — the die/.test(m.flavor ?? ''));
       const receipt = game.messages.get(card?.id)?.getFlag(MOD, 'receipt')?.targets?.find(t => t.uuid === second.uuid);
       ok('6d. the pick rolls the die in the open, judges the ORIGINAL attack roll against the second creature (AC 1 — a hit), and applies it with a receipt',
@@ -453,38 +442,39 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const cardText = textOf(document.querySelector(`.message[data-message-id="${card?.id}"]`));
       ok('6e. the card says it', /the die rolled/.test(cardText) && /would hit — applied/.test(cardText), cardText.slice(0, 200));
       await settle();
-    }
+    });
 
     // ================================================== 7. no dice left
-    if (want(7)) {
+    if (want(7)) await section(7, async () => {
       await pool.update({ 'system.uses.spent': pool.system.uses.max });
       ok('7. (setup) the pool is empty', poolLeft() === 0, `pool=${poolLeft()}`);
       const { msg, originId } = await swing();
-      const offer = await waitFor(offerEl, 2500);
-      const dmg = await waitFor(() => { const d = damageFor(originId); return d?.getFlag(MOD, 'receipt') ? d : null; }, 12000);
+      // a window for a WRONG offer
+      const offer = await watch(offerEl, { ms: 2500 });
+      const dmg = await until(() => { const d = damageFor(originId); return d?.getFlag(MOD, 'receipt') ? d : null; }, { timeout: 12000 });
       ok('7a. under AUTO damage the offer does not open for a menu nobody can afford — the damage rolls itself, no maneuver on it',
         !offer && !!dmg && !dmg.getFlag(MOD, 'hitManeuver'), `offer=${!!offer} dmg=${!!dmg} hm=${!!dmg?.getFlag(MOD, 'hitManeuver')} attack=${!!msg}`);
       await settle();
       await set('playerRollDamage', true);
       const { originId: o2 } = await swing();
-      const offer2 = await waitFor(offerEl, 6000);
+      const offer2 = await until(offerEl, { timeout: 6000 });
       const menu = menuOf(offer2);
       const boxes = [...(menu?.querySelectorAll('input[name="bf-hit"]') ?? [])];
       ok('7b. asked for, the offer shows the group with "no dice left" and every row greyed',
         !!menu && /no dice left/.test(textOf(menu)) && (boxes.length === 8) && boxes.every(b => b.disabled),
         `menu=${!!menu} text="${textOf(menu).slice(0, 80)}" boxes=${boxes.length} disabled=${boxes.filter(b => b.disabled).length}`);
       rollButton(offer2)?.click();
-      await waitFor(() => damageFor(o2)?.getFlag(MOD, 'receipt'), 12000);
+      await until(() => damageFor(o2)?.getFlag(MOD, 'receipt'), { timeout: 12000 });
       await set('playerRollDamage', false);
       await settle();
-    }
+    });
 
     // ================================================== 8. RETIRED
     // The Hit Menu list is gone (the table is the only list). Its swing also left an unanswered offer
     // open under a 0 s Decision Timer, which §9 onward then pressed in place of their own.
 
     // ================================================== 9. the crit
-    if (want(9)) {
+    if (want(9)) await section(9, async () => {
       await refill();
       const { dmg, hm } = await swingWith('goading-attack', { d20: 20 });
       // The crit rewrites the part's formula (1d8 → 2d8) rather than adding a die.
@@ -492,10 +482,10 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const eights = part?.dice?.filter(d => d.faces === 8).reduce((n, d) => n + d.number, 0) ?? 0;
       ok('9. a forced 20: the die is crit-doubled by the same stamp — the maneuver part rolls 2d8',
         !!hm && dmg?.rolls?.[0]?.isCritical && (eights === 2), `crit=${dmg?.rolls?.[0]?.isCritical} eights=${eights} formulas=[${(dmg?.rolls ?? []).map(r => r.formula).join(' | ')}]`);
-      const card = await waitFor(() => cardsWith('hitManeuverCard').find(m => m.getFlag(MOD, 'hitManeuverCard')?.key === 'goading-attack' && m.getFlag(MOD, 'saves')), 10000);
-      if (card) { await answerSave(); await waitFor(() => card.getFlag(MOD, 'saves')?.targets?.every(t => t.done && t.applied), 15000); }
+      const card = await until(() => cardsWith('hitManeuverCard').find(m => m.getFlag(MOD, 'hitManeuverCard')?.key === 'goading-attack' && m.getFlag(MOD, 'saves')), { timeout: 10000 }).catch(() => null);
+      if (card) { await answerSave(); await until(() => card.getFlag(MOD, 'saves')?.targets?.every(t => t.done && t.applied), { timeout: 15000 }); }
       // Goaded ships with transfer:true; it must still land on the failure.
-      const goaded = await waitFor(() => victim.effects.find(e => e.name === 'Goaded'), 8000);
+      const goaded = await until(() => victim.effects.find(e => e.name === 'Goaded'), { timeout: 8000 });
       const gr = game.messages.get(card?.id)?.getFlag(MOD, 'effectReceipt')?.targets?.find(t => t.uuid === victim.uuid);
       ok('9b. the failure lands Goaded on the TARGET, receipted on the demand card',
         !!goaded && !!gr?.effects?.some(e => /Goaded/.test(e.name)),
@@ -509,10 +499,10 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         `itemEffect=${!!itemEffect} transfer=${itemEffect?.transfer} onFighter=${onFighter}`);
       face(19);
       await settle();
-    }
+    });
 
     // ================================================== 11. the lost effect, pressed from the compendium
-    if (want(11)) {
+    if (want(11)) await section(11, async () => {
       await clearChips();
       await refill();
       const goadingItem = fighter.items.find(i => i.name === 'Goading Attack');
@@ -520,22 +510,22 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       if (eff) await eff.delete();   // the table's shape: the item on the sheet has lost its Goaded
       ok('11. (setup) the fighter\'s Goading Attack has no Goaded effect of its own', !!goadingItem && !goadingItem.effects.size, `effects=${goadingItem?.effects.size}`);
       const { hm } = await swingWith('goading-attack');
-      const card = await waitFor(() => cardsWith('hitManeuverCard').filter(m => m.getFlag(MOD, 'hitManeuverCard')?.key === 'goading-attack' && m.getFlag(MOD, 'saves')).pop(), 10000);
+      const card = await until(() => cardsWith('hitManeuverCard').filter(m => m.getFlag(MOD, 'hitManeuverCard')?.key === 'goading-attack' && m.getFlag(MOD, 'saves')).pop(), { timeout: 10000 });
       const hc = card?.getFlag(MOD, 'hitManeuverCard');
       ok('11a. the demand carries the compendium copy to press', !!hm && !!hc?.pressUuids?.length && /Compendium\./.test(hc.pressUuids[0]), JSON.stringify(hc?.pressUuids));
       await answerSave();
-      const goaded = await waitFor(() => victim.effects.find(e => e.name === 'Goaded'), 10000);
-      const gr = await waitFor(() => game.messages.get(card?.id)?.getFlag(MOD, 'effectReceipt')?.targets?.find(t => (t.uuid === victim.uuid) && t.effects?.length), 10000);
+      const goaded = await until(() => victim.effects.find(e => e.name === 'Goaded'), { timeout: 10000 });
+      const gr = await until(() => game.messages.get(card?.id)?.getFlag(MOD, 'effectReceipt')?.targets?.find(t => (t.uuid === victim.uuid) && t.effects?.length), { timeout: 10000 });
       ok('11b. the failure still lands Goaded on the target — from the compendium\'s own effect, receipted',
         !!goaded && !!gr?.effects?.some(e => /Goaded/.test(e.name)) && (goaded?.transfer === false),
         `goaded=${!!goaded} transfer=${goaded?.transfer} receipt=${JSON.stringify(gr?.effects?.map(e => e.name))}`);
       await settle();
-    }
+    });
 
     // ================================================== 12-13. Giant Ancestry
     // Hill's Tumble joins the Goliath for these sections. Fire's Burn and Frost's Chill are clock
     // riders (smoke-clock); this suite's Clock Riders list is empty.
-    if (want(12) || want(13)) {
+    if (want(12) || want(13)) await section('12-13', async () => {
       const EIGHT = 'Trip Attack, Goading Attack, Menacing Attack, Pushing Attack, Disarming Attack, Distracting Strike, Maneuvering Attack, Sweeping Attack';
       const goliath = game.actors.getName('BTB Test Goliath');
       const axe = goliath?.items.find(i => (i.type === 'weapon') && (i.name === 'Greataxe'));
@@ -582,7 +572,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
             await healFull();
             goliathToken.control({ releaseOthers: true });
             target(victimToken);
-            await sleep(80);
+            await until(() => game.user.targets.has(victimToken), { label: 'the victim targeted' });
             face(19);
             const results = await gAttack.use({ subsequentActions: false }, { configure: false }, {});
             const usageId = results?.message?.id ?? null;
@@ -592,66 +582,65 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           };
           const goliathWith = async key => {
             const { msg, originId } = await swingGoliath();
-            const offer = await waitFor(offerEl, 6000);
+            const offer = await until(offerEl, { timeout: 6000 });
             const offerText = textOf(offer);
-            if (key) box(offer, key)?.click();
-            await sleep(60);
+            if (key) box(offer, key)?.click();   // the tick's change handler runs inside the click
             rollButton(offer)?.click();
-            const dmg = await waitFor(() => { const d = damageFor(originId); return d?.getFlag(MOD, 'receipt') ? d : null; }, 12000);
+            const dmg = await until(() => { const d = damageFor(originId); return d?.getFlag(MOD, 'receipt') ? d : null; }, { timeout: 12000 });
             return { msg, dmg, hm: firstPick(dmg), offerText };
           };
           const cardOf = m => textOf(document.querySelector(`.message[data-message-id="${m?.id}"]`));
 
-          if (want(12)) {
+          if (want(12)) await section(12, async () => {
             await refillBoons();
             const before = usesOf("Hill's Tumble");
             const { dmg, hm } = await goliathWith('hills-tumble');
-            const er = await waitFor(() => game.messages.get(dmg?.id)?.getFlag(MOD, 'effectReceipt')?.targets?.find(t => (t.uuid === victim.uuid) && t.effects?.length), 12000);
+            const er = await until(() => game.messages.get(dmg?.id)?.getFlag(MOD, 'effectReceipt')?.targets?.find(t => (t.uuid === victim.uuid) && t.effects?.length), { timeout: 12000 });
             ok('12a. Hill\'s Tumble: nothing rides, one use spent, Prone pressed with NO save card, receipted on the damage card',
               !!hm && (hm.key === 'hills-tumble') && !hm.rides && (hm.press === 'prone') && (usesOf("Hill's Tumble") === before - 1)
                 && victim.statuses?.has?.('prone') && !!er?.effects?.some(e => /Prone/i.test(e.name)) && !cardsWith('hitManeuverCard').some(m => m.getFlag(MOD, 'hitManeuverCard')?.key === 'hills-tumble'),
               `hm=${JSON.stringify(hm && { key: hm.key, rides: hm.rides, press: hm.press })} uses ${before}→${usesOf("Hill's Tumble")} prone=${victim.statuses?.has?.('prone')} receipt=${JSON.stringify(er?.effects?.map(e => e.name))}`);
-            await waitFor(() => /has the Prone condition/.test(cardOf(dmg)), 4000);
+            await until(() => /has the Prone condition/.test(cardOf(dmg)), { timeout: 4000 });
             ok('12b. the card says what it pressed, in the Giant Ancestry voice', /Giant Ancestry — Hill's Tumble/.test(cardOf(dmg)) && /has the Prone condition/.test(cardOf(dmg)), cardOf(dmg).slice(0, 240));
             await settle();
             // A Huge target: nothing affordable, so AUTO damage opens no offer; ASKED, the size judge greys the row.
             await victim.update({ 'system.traits.size': 'huge' });
             const auto = await swingGoliath();
-            const autoOffer = await waitFor(offerEl, 1500);
-            const autoDmg = await waitFor(() => damageFor(auto.originId)?.getFlag(MOD, 'receipt') ? damageFor(auto.originId) : null, 12000);
+            // a window for a WRONG offer
+            const autoOffer = await watch(offerEl, { ms: 1500 });
+            const autoDmg = await until(() => damageFor(auto.originId)?.getFlag(MOD, 'receipt') ? damageFor(auto.originId) : null, { timeout: 12000 });
             await set('playerRollDamage', true);
             const { msg } = await swingGoliath();
-            const offer = await waitFor(offerEl, 6000);
+            const offer = await until(offerEl, { timeout: 6000 });
             const row = offer?.querySelector('[data-bf-hit-row="hills-tumble"]');
             ok('12c. against a Huge target: under auto damage no offer opens and nothing is pressed; asked for, the row is greyed, its tag "too large"',
               !autoOffer && !!autoDmg && !autoDmg.getFlag(MOD, 'hitManeuver') && !victim.statuses?.has?.('prone')
                 && !!row && !!box(offer, 'hills-tumble')?.disabled && /too large/i.test(textOf(row)),
               `autoOffer=${!!autoOffer} autoHm=${!!autoDmg?.getFlag(MOD, 'hitManeuver')} row=${textOf(row).slice(0, 120)} disabled=${box(offer, 'hills-tumble')?.disabled}`);
             rollButton(offer)?.click();
-            await waitFor(() => damageFor(msg?._source.system?.origin ?? msg?.id)?.getFlag(MOD, 'receipt'), 12000);
+            await until(() => damageFor(msg?._source.system?.origin ?? msg?.id)?.getFlag(MOD, 'receipt'), { timeout: 12000 });
             await set('playerRollDamage', false);
             await victim.update({ 'system.traits.size': priorSize });
             await settle();
-          }
+          });
 
-          if (want(13)) {
+          if (want(13)) await section(13, async () => {
             await refill();
             const d = await boonData("Hill's Tumble");
             if (d && !fighter.items.some(i => i.name === "Hill's Tumble")) fItems.push(...(await fighter.createEmbeddedDocuments('Item', [d])).map(x => x.id));
             const { msg } = await swing();
-            const offer = await waitFor(offerEl, 6000);
+            const offer = await until(offerEl, { timeout: 6000 });
             const groups = [...(offer?.querySelectorAll('[data-bf-hit] > [data-bf-hit-group]') ?? [])].map(g => g.dataset.bfHitGroup);
+            // each tick's change handler runs inside the click
             box(offer, 'trip-attack')?.click();
-            await sleep(50);
             box(offer, 'hills-tumble')?.click();
-            await sleep(50);
             ok('13a. both groups on one offer, and a tick in each STANDS — one pick per group, said on the line',
               (groups.join() === 'combat-superiority,giant-ancestry') && !!box(offer, 'trip-attack')?.checked && !!box(offer, 'hills-tumble')?.checked && /one pick per group/.test(textOf(offer)),
               `groups=${groups.join()} trip=${box(offer, 'trip-attack')?.checked} hill=${box(offer, 'hills-tumble')?.checked} line="${textOf(offer).slice(0, 200)}"`);
             const since13 = Date.now();
             rollButton(offer)?.click();
-            const dmg = await waitFor(() => { const x = damageFor(msg?._source.system?.origin ?? msg?.id); return x?.getFlag(MOD, 'receipt') ? x : null; }, 12000);
-            await waitFor(() => victim.statuses?.has?.('prone'), 6000);
+            const dmg = await until(() => { const x = damageFor(msg?._source.system?.origin ?? msg?.id); return x?.getFlag(MOD, 'receipt') ? x : null; }, { timeout: 12000 });
+            await until(() => victim.statuses?.has?.('prone'), { timeout: 6000 });
             const picks13 = (dmg?.getFlag(MOD, 'hitManeuver')?.picks ?? []).map(p => p.key);
             const formulas13 = (dmg?.rolls ?? []).map(r => r.formula);
             ok('13b. both picks ride the one hit: Trip Attack\'s 1d8 on the roll and a Superiority Die spent, Hill\'s Tumble\'s Prone on the victim',
@@ -661,7 +650,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
             ok('13c. one resolve per pick: maneuver for Trip Attack, rider for Hill\'s Tumble',
               pub13.join() === 'maneuver:trip-attack,rider:hills-tumble', pub13.join());
             await settle();
-          }
+          });
         } finally {
           await victim.update({ 'system.traits.size': priorSize }).catch(() => {});
           for (const [n, spent] of Object.entries(riderSpent)) await goliath.items.find(i => (i.type === 'feat') && (i.name === n))?.update({ 'system.uses.spent': spent }).catch(() => {});
@@ -672,12 +661,12 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           await set('hitMenuList', EIGHT);
         }
       }
-    }
+    });
 
     // ================================================== 10. the registration FIRED
-    if (want(10)) {
+    if (want(10)) await section(10, async () => {
       ok('10. dnd5e.preRollDamage fired (the rider\'s hook)', count('dnd5e.preRollDamage') > 0, `count=${count('dnd5e.preRollDamage')}`);
-    }
+    });
 
     return { log, results, skips };
   } catch (err) {
