@@ -8,7 +8,7 @@
 // What it reads (the repo's TypeScript parser), over every battery suite in ORDER
 // (tools/coverage-map.mjs) and every suite kit (`tools/*-kit.mjs`):
 //   1. Bare waits: every `sleep(…)` call and every `new Promise(r => setTimeout(r, …))` outside a
-//      `sleep` definition. Each suite's count is pinned in CEILING: above it fails, below it fails
+//      `sleep` definition (a timer that rejects is a deadline raced against a call, and passes). Each suite's count is pinned in CEILING: above it fails, below it fails
 //      until the ceiling is lowered to the count, so a ceiling only goes down. A suite with no row
 //      has a ceiling of 0.
 //   2. Private helpers: a suite's own `sleep`, poll (`until`, `waitFor`, any function that loops
@@ -46,7 +46,7 @@ const CEILING = {
   "smoke-damage-rules": 37,
   "smoke-drop": 13,
   "smoke-effects": 22,
-  "smoke-emanations": 89,
+  "smoke-emanations": 87,
   "smoke-expiry": 14,
   "smoke-familiar": 12,
   "smoke-gear-lights": 10,
@@ -107,9 +107,18 @@ function targets() {
   return out;
 }
 
-/** Is `node` a `new Promise(r => setTimeout(r, …))`? */
-const isTimeoutPromise = node => ts.isNewExpression(node) && (node.expression.getText() === "Promise")
-  && /\bsetTimeout\s*\(/.test(node.arguments?.[0]?.getText() ?? "");
+/**
+ * Is `node` a `new Promise(r => setTimeout(r, …))`: a timer that RESOLVES? A timer that rejects is a
+ * deadline raced against a call, not a wait.
+ */
+const isTimeoutPromise = node => {
+  if (!ts.isNewExpression(node) || (node.expression.getText() !== "Promise")) return false;
+  const executor = node.arguments?.[0];
+  const resolve = executor && ts.isFunctionLike(executor) && executor.parameters[0]?.name?.getText();
+  if (!resolve) return false;
+  const text = executor.getText();
+  return new RegExp(`\\bsetTimeout\\s*\\(\\s*(${resolve}\\s*,|\\(\\)\\s*=>\\s*${resolve}\\s*\\()`).test(text);
+};
 
 /** Is `node` a bare wait: a `sleep(…)` call or a timeout promise? */
 const isWait = node => (ts.isCallExpression(node)

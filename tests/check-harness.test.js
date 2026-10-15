@@ -69,3 +69,13 @@ describe("readSuite — the private helpers", () => {
     ).toEqual(["settings snapshot"]);
   });
 });
+
+describe("readSuite — a deadline is not a wait", () => {
+  it("a timer that rejects, raced against a call, is not counted", () => {
+    const { waits } = readSuite(`
+      await Promise.race([act.use(), new Promise((_, rej) => setTimeout(() => rej(new Error('late')), 8000))]);
+      await new Promise(resolve => setTimeout(() => resolve(), 300));
+    `);
+    expect(waits.map(w => w.ms)).toEqual([300]);
+  });
+});
