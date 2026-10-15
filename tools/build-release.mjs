@@ -1,11 +1,20 @@
-// THE RELEASE ZIP — the gate first, then the archive, then the archive read back (NOTES §5 *Release*).
+// THE RELEASE ZIP — the tag's checks, the gate, then the archive, then the archive read back (NOTES §5
+// *Release*).
 //
 //   node tools/build-release.mjs                 build dist/fvtt-mod-bythebooks.zip from the tree
-//   node tools/build-release.mjs --tag v2.6.0    and refuse unless module.json's version is 2.6.0
+//   node tools/build-release.mjs --tag v2.6.0    and refuse unless the annotated tag v2.6.0 is
+//                                                module.json's version and its body names its battery
 //
 // CI runs it on a pushed tag (.github/workflows/release.yml) and publishes what it builds; run by
 // hand it is the dry run. There is no skip flag for the gate: a zip from a tree that fails
 // `npm run verify` is not a release.
+//
+// With --tag, the tag's body carries exactly one battery line (tools/battery-line.mjs): the run's
+// line `battery-status.mjs --line` prints, GREEN, or `Battery: none (pre-release)`. When the named
+// run is under dist/battery/ here, the run's own reading must agree with the line; CI has no
+// dist/battery/, so there the form alone is checked. Under GitHub Actions the builder writes
+// `prerelease=true|false` to GITHUB_OUTPUT for the publish step. The tag's checks run before the
+// gate: they take a second, and a refused tag builds nothing.
 //
 // The zip is written here, not by a shell tool: `Compress-Archive` writes backslash separators
 // (the module installs as an empty shell) and the execution policy can refuse a PowerShell script.
@@ -15,11 +24,12 @@
 // The read-back proves what ships loads: no backslash entry, nothing missing, every relative
 // import inside a packed script resolving to another entry, and every entry inflating to the
 // tree's own bytes.
-import { execSync } from "node:child_process";
-import { mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { execFileSync, execSync } from "node:child_process";
+import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { dirname, join, posix, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 import { crc32, deflateRawSync, inflateRawSync } from "node:zlib";
+import { BATTERY_DIR, checkTagBody, readRun, RUN_ID } from "./battery-line.mjs";
 
 const REPO = dirname(dirname(fileURLToPath(import.meta.url)));
 const OUT = join(REPO, "dist", "fvtt-mod-bythebooks.zip");
@@ -34,17 +44,42 @@ const tagAt = process.argv.indexOf("--tag");
 const tag = tagAt > 0 ? process.argv[tagAt + 1] : null;
 if (tagAt > 0 && !tag) fail("--tag needs a value, e.g. --tag v2.6.0");
 
+const manifest = JSON.parse(readFileSync(join(REPO, "module.json"), "utf8"));
+const version = manifest.version;
+if (tag && tag !== `v${version}`) fail(`the tag is ${tag} but module.json says ${version} - run tools/bump-version.mjs`);
+if (!manifest.download.includes(`/v${version}/`)) fail(`module.json's download URL does not name v${version}`);
+
+/** One git query's output; null when git refuses it (no such tag). */
+function git(args) {
+  try {
+    return execFileSync("git", args, { cwd: REPO, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
+  } catch {
+    return null;
+  }
+}
+
+if (tag) {
+  // A lightweight tag's contents are its commit's message, so the body is read only off an annotated tag.
+  const type = git(["cat-file", "-t", tag])?.trim();
+  if (!type) fail(`there is no tag ${tag} in this clone. The battery line is read from the annotated tag's body: write the tag first (tools/README.md, the release chain), or build without --tag for the dry run of the zip alone`);
+  if (type !== "tag") fail(`${tag} is a lightweight tag; a release tag is annotated (its body is the notes and carries the battery line)`);
+  const body = git(["tag", "-l", "--format=%(contents:body)", tag]) ?? "";
+  const runOf = id => {
+    const dir = join(BATTERY_DIR, id);
+    return (RUN_ID.test(id) && existsSync(dir)) ? readRun(dir) : null;
+  };
+  const verdict = checkTagBody(body, { runOf });
+  if (!verdict.ok) fail(`${tag} cannot be released: ${verdict.error}`);
+  console.log(`build-release: ${verdict.line}\nbuild-release: ${verdict.note}`);
+  if (process.env.GITHUB_OUTPUT) appendFileSync(process.env.GITHUB_OUTPUT, `prerelease=${verdict.prerelease}\n`);
+}
+
 console.log("build-release: running the gate (npm run verify)...");
 try {
   execSync("npm run verify", { cwd: REPO, stdio: "inherit" });
 } catch {
   fail("npm run verify failed - refusing to build a release from this tree");
 }
-
-const manifest = JSON.parse(readFileSync(join(REPO, "module.json"), "utf8"));
-const version = manifest.version;
-if (tag && tag !== `v${version}`) fail(`the tag is ${tag} but module.json says ${version} - run tools/bump-version.mjs`);
-if (!manifest.download.includes(`/v${version}/`)) fail(`module.json's download URL does not name v${version}`);
 
 /** Every .js file under scripts/, recursively, as a forward-slash path from the repo root. */
 function scriptFiles(dir) {

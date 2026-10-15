@@ -1,7 +1,13 @@
 # The release: a pushed version tag builds the zip and publishes it (NOTES §5 *Release*).
 # The tag must be annotated, name module.json's version, and sit on main. The builder runs the
-# whole static gate first, so only a green commit is published. The tag's subject is the
-# release title and its body the release notes.
+# whole static gate, so only a green commit is published. The tag's subject is the release title
+# and its body the release notes.
+#
+# The body names the battery run behind the release (tools/battery-line.mjs): the line
+# `battery-status.mjs --line` prints, GREEN, or `Battery: none (pre-release)`. The builder refuses a
+# body with neither; here, with no dist/battery/, it checks the line's form alone. A release with
+# no run is published as a GitHub pre-release, which is never the repo's latest release, so the
+# manifest URL every world installs from (releases/latest/download/module.json) never serves it.
 #
 # Run by hand (workflow_dispatch) it is the dry run: the same checks and the same build, the zip
 # kept as a workflow artifact, nothing published.
@@ -49,7 +55,8 @@ jobs:
           fi
         env:
           GH_TOKEN: ${{ github.token }}
-      - name: Build (the gate, the zip, the read-back)
+      - name: Build (the battery line, the gate, the zip, the read-back)
+        id: build
         run: |
           if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
             node tools/build-release.mjs --tag "${GITHUB_REF_NAME}"
@@ -70,8 +77,15 @@ jobs:
           tag="${GITHUB_REF_NAME}"
           git tag -l --format='%(contents:body)' "${tag}" > "${RUNNER_TEMP}/notes.md"
           title="$(git tag -l --format='%(contents:subject)' "${tag}")"
-          gh release create "${tag}" --verify-tag --title "${title}" \
+          # The builder read the body's battery line and said which form it is.
+          case "${PRERELEASE}" in
+            true) kind=(--prerelease --latest=false) ;;
+            false) kind=() ;;
+            *) echo "::error::the builder did not say whether ${tag} is a pre-release"; exit 1 ;;
+          esac
+          gh release create "${tag}" --verify-tag "${kind[@]}" --title "${title}" \
             --notes-file "${RUNNER_TEMP}/notes.md" \
             dist/fvtt-mod-bythebooks.zip module.json
         env:
           GH_TOKEN: ${{ github.token }}
+          PRERELEASE: ${{ steps.build.outputs.prerelease }}
