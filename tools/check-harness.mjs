@@ -58,7 +58,7 @@ const CEILING = {
   "smoke-damage-rules": 37,
   "smoke-drop": 13,
   "smoke-effects": 22,
-  "smoke-expiry": 14,
+  "smoke-expiry": 1,
   "smoke-familiar": 12,
   "smoke-gear-lights": 10,
   "smoke-goliath": 18,
@@ -95,12 +95,12 @@ const STANDING = new Set([
   "smoke-class-druid", "smoke-class-fighter", "smoke-class-items", "smoke-class-monk",
   "smoke-class-paladin", "smoke-class-ranger", "smoke-class-rogue", "smoke-class-sorcerer",
   "smoke-class-warlock", "smoke-class-wizard", "smoke-clock", "smoke-companions", "smoke-d20-folds",
-  "smoke-damage-rules", "smoke-drop", "smoke-effects", "smoke-expiry", "smoke-familiar",
-  "smoke-gear-lights", "smoke-goliath", "smoke-guards", "smoke-heal", "smoke-heatmetal",
-  "smoke-hitmenu", "smoke-hold", "smoke-lucky", "smoke-maneuvers", "smoke-mastery-record",
-  "smoke-metamagic", "smoke-nogm", "smoke-reminders", "smoke-rescue", "smoke-resources",
-  "smoke-rest", "smoke-riders", "smoke-saves", "smoke-shields", "smoke-spells", "smoke-summons",
-  "smoke-surfaces", "smoke-transforms", "smoke-twoclient", "smoke-volleys", "smoke-wards"
+  "smoke-damage-rules", "smoke-drop", "smoke-effects", "smoke-familiar", "smoke-gear-lights",
+  "smoke-goliath", "smoke-guards", "smoke-heal", "smoke-heatmetal", "smoke-hitmenu", "smoke-hold",
+  "smoke-lucky", "smoke-maneuvers", "smoke-mastery-record", "smoke-metamagic", "smoke-nogm",
+  "smoke-reminders", "smoke-rescue", "smoke-resources", "smoke-rest", "smoke-riders", "smoke-saves",
+  "smoke-shields", "smoke-spells", "smoke-summons", "smoke-surfaces", "smoke-transforms",
+  "smoke-twoclient", "smoke-volleys", "smoke-wards"
 ]);
 
 /** A name that is a poll by what it is called. */
