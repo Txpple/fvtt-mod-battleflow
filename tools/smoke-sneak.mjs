@@ -43,16 +43,8 @@ announcePlan('sneak', plan, pulled);
 
 const out = await f.evaluate(async ({ sections, titles }) => {
   const MOD = 'fvtt-mod-bythebooks';
-  const results = [];
-  const log = [];
-  const skips = [];
-  const ok = (name, pass, detail = '') => results.push({ name, pass, detail });
-  const want = id => {
-    if (!sections || sections.includes(String(id))) return true;
-    skips.push(`§${id} ${titles?.[id] ?? ''}`);
-    return false;
-  };
-  const sleep = ms => new Promise(r => setTimeout(r, ms));
+  const { until, watch, canvasReady, tokenOn, snapshotSettings, faces, unrig } = window.__btb;
+  const { results, log, skips, ok, want, section } = window.__btb.begin({ sections, titles });
   const suiteStart = Date.now();
   // Every moment payload published during the run (plain facts: uuids, never documents).
   const moments = [];
@@ -74,8 +66,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   const SETTING_KEYS = ['autoDamage', 'autoApply', 'playerRollDamage', 'damageTimer', 'dramaticBeat', 'requireTarget',
     'reactionHold', 'riders', 'effectRiders', 'masteryRiders', 'masteryAsk', 'saves', 'saveTimer', 'castApply',
     'concMode', 'reminderList', 'conditionList', 'effectList', 'fightingStyleList'];
-  const prior = Object.fromEntries(SETTING_KEYS.map(k => [k, game.settings.get(MOD, k)]));
-  const set = (k, v) => game.settings.set(MOD, k, v);
+  const settings = snapshotSettings(SETTING_KEYS);
+  const { prior, set } = settings;
 
   const scene = game.scenes.getName('By the Books Test Range');
   const victim = game.actors.getName('BTB Test Victim');
@@ -86,7 +78,6 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   const priorActor = {};
   let combat = null;
   let restored = false;
-  const realPRNG = CONFIG.Dice.randomUniform;
   const STATUSES = ['prone', 'poisoned', 'unconscious', 'blinded'];
   const clearChips = async () => {
     for (const a of [victim, rogue]) {
@@ -111,9 +102,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     console.error = origError;
     console.warn = origWarn;
     for (const e of errors) log.push('console: ' + e);
-    CONFIG.Dice.randomUniform = realPRNG;
-    try { for (const [k, v] of Object.entries(prior)) await set(k, v); }
-    catch (err) { log.push(`TEARDOWN settings ERROR: ${err?.message}`); }
+    unrig();
+    for (const failed of await settings.restore()) log.push(`TEARDOWN settings ERROR: ${failed}`);
     try {
       await closeDialogs();
       await clearChips();
@@ -157,14 +147,14 @@ const out = await f.evaluate(async ({ sections, titles }) => {
 
     // -------------------------------------------------- fixtures
     if (canvas.scene?.id !== scene.id) await scene.view();
-    for (let i = 0; i < 40 && !canvas.ready; i++) await sleep(250);
+    await canvasReady();
     const strays = scene.tokens.filter(t => [victim.id, rogue.id].includes(t.actorId)).map(t => t.id);
     if (strays.length) await scene.deleteEmbeddedDocuments('Token', strays);
     const placeToken = async (actor, x, y) => {
       const [doc] = await scene.createEmbeddedDocuments('Token', [
         foundry.utils.mergeObject(actor.prototypeToken.toObject(), { x, y, actorId: actor.id, actorLink: true }, { inplace: false })]);
       created.tokens.push(doc.id);
-      for (let i = 0; i < 40 && !(canvas.ready && canvas.tokens.get(doc.id)); i++) await sleep(250);
+      await tokenOn(doc.id);
       const token = canvas.tokens.get(doc.id);
       if (!token) throw new Error(`${actor.name}'s token never reached the canvas`);
       return { doc, token };
@@ -196,15 +186,11 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     const attackOf = item => item.system.activities.find(a => a.type === 'attack');
 
     // -------------------------------------------------- helpers
-    const waitFor = async (test, timeout = 8000) => {
-      const until = Date.now() + timeout;
-      while (Date.now() < until) { const v = test(); if (v) return v; await sleep(200); }
-      return test();
-    };
-    const face = (n, faces = 20) => { CONFIG.Dice.randomUniform = () => 1 - ((n - 0.5) / faces); };
+    const face = (n, of = 20) => faces([[n, of]]);
     const target = token => token.setTarget(true, { releaseOthers: true });
+    const targeted = token => until(() => game.user.targets.has(token), { timeout: 2000, label: `${token.name} targeted` });
     const lastAttack = () => game.messages.contents.filter(m => (m.timestamp >= suiteStart) && (m.type === 'attack')).pop() ?? null;
-    const waitAttackAfter = async id => waitFor(() => { const m = lastAttack(); return (m && (m.id !== id)) ? m : null; }, 8000);
+    const waitAttackAfter = async id => until(() => { const m = lastAttack(); return (m && (m.id !== id)) ? m : null; }, { timeout: 8000 });
     const rollDialog = () => [...foundry.applications.instances.values()]
       .find(app => /RollConfigurationDialog/.test(app.constructor?.name ?? '') && app.rendered && app.element) ?? null;
     // The NEWEST open offer: a stale one left open (a 0 s Decision Timer waits for a press) must never stand in.
@@ -218,17 +204,21 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     const openGate = async (item, { d20 = 19 } = {}) => {
       await healFull();
       target(victimToken);
-      await sleep(80);
+      await targeted(victimToken);
       const act = attackOf(item);
       const results = await act.use({ subsequentActions: false }, { configure: false }, {});
       const usageId = results?.message?.id ?? null;
       const before = lastAttack()?.id ?? null;
       face(d20);
       void act.rollAttack({}, {}, usageId ? { data: { 'system.origin': usageId } } : {});
-      const dialog = await waitFor(rollDialog, 6000);
-      // The section rides the render hook: wait for it (a bare dialog, §2's shape, may time out here).
-      await waitFor(() => dialog?.element?.querySelector('[data-bf-reminder]'), 2500);
-      await sleep(100);
+      // Soft: a caller reads a missing dialog as its own finding (§2's `dialog=`, §6's `if (d3)`).
+      const dialog = await until(rollDialog, { timeout: 6000, label: 'the attack roll dialog' }).catch(() => null);
+      // The section rides the render hook: the gate is set at preRoll, and the fieldset is drawn at
+      // render only when it has sources or a Sneak Attack (a bare dialog, §2's shape, has none).
+      await until(() => {
+        const g = dialog?.options?.bfReminder;
+        return !dialog || !g || !((g.sources?.length > 0) || g.sneak) || dialog.element?.querySelector('[data-bf-reminder]');
+      }, { label: 'the gate drawn in the roll dialog' });
       return { dialog, usageId, before };
     };
     const press = (dlg, mode) => { const b = dlg?.element?.querySelector(`button[data-action="${mode}"]`); b?.click(); return !!b; };
@@ -258,7 +248,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const rolls = await act.rollAttack({}, { configure: false }, results?.message?.id ? { data: { 'system.origin': results.message.id } } : {});
       const attackMsg = rolls?.[0]?.parent ?? null;
       const originId = attackMsg?._source.system?.origin ?? attackMsg?.id;
-      await waitFor(() => damageFor(originId)?.getFlag(MOD, 'receipt'), 10000);
+      await until(() => damageFor(originId)?.getFlag(MOD, 'receipt'), { timeout: 10000 });
       // ⚠ masteryRiders is OFF: press Vexed by hand (the gate reads the chip, not who wrote it).
       const [vexed] = await victim.createEmbeddedDocuments('ActiveEffect', [{
         name: 'Vexed', img: 'icons/svg/eye.svg', origin: rapier.uuid, transfer: false,
@@ -268,14 +258,14 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       return vexed;
     };
     const answerSave = async () => {
-      const el = await waitFor(saveDialogEl, 8000);
+      const el = await until(saveDialogEl, { timeout: 8000, label: 'the save dialog' });
       el?.querySelector('button[data-action="normal"]')?.click();
       return !!el;
     };
     const cardsWith = flagKey => game.messages.contents.filter(m => (m.timestamp >= suiteStart) && m.getFlag(MOD, flagKey));
 
     // ================================================== 1. the gate
-    if (want(1)) {
+    if (want(1)) await section(1, async () => {
       await clearChips();
       const vexed = await ensureVexed();
       ok('1. (setup) the victim is Vexed by the rogue', !!vexed, `vexed=${!!vexed}`);
@@ -292,40 +282,44 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         !!s && (s.armed === true) && (s.dice === '7d6') && (s.number === 7) && (s.faces === 6) && (s.type === 'piercing')
           && (s.weaponName === 'Rapier') && (s.mode === 'advantage') && ('combat' in s) && (s.sourceUuid === rogue.uuid),
         JSON.stringify(s));
-      const cardText = await waitFor(() => { const t = textOf(document.querySelector(`.message[data-message-id="${msg?.id}"]`)); return /Sneak Attack armed/.test(t) ? t : null; }, 4000);
+      const cardText = await until(() => { const t = textOf(document.querySelector(`.message[data-message-id="${msg?.id}"]`)); return /Sneak Attack armed/.test(t) ? t : null; }, { timeout: 4000 });
       ok('1d. the attack card says it: Sneak Attack armed — 7d6 on the hit', /Sneak Attack armed — 7d6 on the hit, once per turn/.test(cardText ?? ''), (cardText ?? '').slice(0, 200));
       // the offer opened (auto damage): dismiss it to roll and let the chain land before §2
-      const offer = await waitFor(offerEl, 6000);
+      const offer = await until(offerEl, { timeout: 6000 });
       offer?.querySelector('button[data-action="roll"]')?.click();
-      await waitFor(() => damageFor(msg?._source.system?.origin ?? msg?.id)?.getFlag(MOD, 'receipt'), 10000);
-      await sleep(500);
-    }
+      await until(() => damageFor(msg?._source.system?.origin ?? msg?.id)?.getFlag(MOD, 'receipt'), { timeout: 10000 });
+      // The pressed offer closes before §2 opens its gate.
+      await until(() => !offerEl(), { timeout: 4000, label: '§1\'s damage offer closed' });
+    });
 
     // ================================================== 2. the switches
-    if (want(2)) {
+    if (want(2)) await section(2, async () => {
       await clearChips();
       // 2a: a longsword (neither Finesse nor ranged) offers no box; with no other source the dialog is not forced.
       const { dialog: d2a, before: b2a } = await openGate(longsword);
       const noBox = !boxOf(d2a);
       ok('2a. a longsword offers no Sneak Attack — no box', !!d2a && noBox, `dialog=${!!d2a} box=${!noBox}`);
-      if (d2a) { press(d2a, 'normal'); await waitAttackAfter(b2a); }
-      await waitFor(() => cardsWith('receipt').length, 8000);
-      await sleep(400);
+      let a2a = null;
+      if (d2a) { press(d2a, 'normal'); a2a = await waitAttackAfter(b2a); }
+      // The longsword's chain lands (its damage receipt) before §3 swings.
+      const o2a = a2a?._source.system?.origin ?? a2a?.id ?? null;
+      await until(() => (o2a ? damageFor(o2a)?.getFlag(MOD, 'receipt') : cardsWith('receipt').length),
+        { timeout: 8000, label: 'the longsword\'s damage receipt' });
       // (2b retired: the Reminder Sources list is gone — the table is the only list, Sneak Attack always offered.
       //  Its armed rapier swing left an unanswered offer open under a 0 s Decision Timer, which every later
       //  section then read and pressed in place of its own.)
-    }
+    });
 
     // ================================================== 3. the offer and the menu
     let msg3 = null;
     let originId3 = null;
-    if (want(3)) {
+    if (want(3)) await section(3, async () => {
       await clearChips();
       await ensureVexed();
       const { msg } = await armedSwing(rapier, { mode: 'advantage', tick: true });
       msg3 = msg;
       originId3 = msg?._source.system?.origin ?? msg?.id;
-      const offer = await waitFor(offerEl, 6000);
+      const offer = await until(offerEl, { timeout: 6000 });
       const menu = offer?.querySelector('[data-bf-cunning]');
       const rows = [...(menu?.querySelectorAll('[data-bf-cunning-row]') ?? [])].map(r => r.dataset.bfCunningRow);
       ok('3a. an armed Sneak Attack opens the damage offer under AUTO damage, and the offer carries the Cunning Strike menu',
@@ -336,13 +330,10 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const box = key => offer?.querySelector(`input[name="bf-cunning"][value="${key}"]`);
       const button = () => offer?.querySelector('button[data-action="roll"]');
       box('knockOut')?.click();
-      await sleep(50);
       const afterKnockOut = textOf(button());
       box('poison')?.click();
-      await sleep(50);
       const afterBoth = textOf(button());
       box('trip')?.click();   // a third pick: the OLDEST (Knock Out) gives way
-      await sleep(50);
       ok('3c. the button names the formula the pick leaves: Knock Out → 1d6; Knock Out + Poison → every die forgone',
         /Sneak Attack 1d6/.test(afterKnockOut) && /every Sneak Attack die forgone/.test(afterBoth),
         `knockOut="${afterKnockOut}" both="${afterBoth}"`);
@@ -351,14 +342,13 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         `knockOut=${box('knockOut')?.checked} poison=${box('poison')?.checked} trip=${box('trip')?.checked} button="${textOf(button())}"`);
       // settle on Trip alone for §4
       box('poison')?.click();
-      await sleep(50);
       ok('3e. …and untick Poison: Trip alone, 6d6 left', !box('poison')?.checked && /Sneak Attack 6d6/.test(textOf(button())), textOf(button()));
       button()?.click();
-    }
+    });
 
     // ================================================== 4. the dice and the Trip
-    if (want(4)) {
-      const dmg = await waitFor(() => { const d = damageFor(originId3); return d?.getFlag(MOD, 'receipt') ? d : null; }, 12000);
+    if (want(4)) await section(4, async () => {
+      const dmg = await until(() => { const d = damageFor(originId3); return d?.getFlag(MOD, 'receipt') ? d : null; }, { timeout: 12000 });
       const sd = dmg?.getFlag(MOD, 'sneakDamage');
       const formulas = (dmg?.rolls ?? []).map(r => r.formula);
       ok('4a. the sneak dice ride the weapon\'s damage roll as their own part — 6d6 piercing after Trip\'s 1d6',
@@ -372,17 +362,17 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const total = (dmg?.rolls ?? []).reduce((n, r) => n + (r.total ?? 0), 0);
       ok('4c. one roll, one receipt: the victim took the weapon and the sneak dice together',
         !!receipt && (receipt.taken === total) && (total > 6), `taken=${receipt?.taken} total=${total}`);
-      const cardText = await waitFor(() => { const t = textOf(document.querySelector(`.message[data-message-id="${dmg?.id}"]`)); return /rode this roll/.test(t) ? t : null; }, 4000);
+      const cardText = await until(() => { const t = textOf(document.querySelector(`.message[data-message-id="${dmg?.id}"]`)); return /rode this roll/.test(t) ? t : null; }, { timeout: 4000 });
       ok('4d. the damage card says what rode and what was forgone', /6d6 rode this roll/.test(cardText ?? '') && /1d forgone for Trip/.test(cardText ?? ''), (cardText ?? '').slice(0, 200));
       // the Trip: a save demand on the Cunning Strike item's own activity
-      const tripCard = await waitFor(() => cardsWith('cunning').find(m => m.getFlag(MOD, 'cunning')?.key === 'trip' && m.getFlag(MOD, 'saves')), 10000);
+      const tripCard = await until(() => cardsWith('cunning').find(m => m.getFlag(MOD, 'cunning')?.key === 'trip' && m.getFlag(MOD, 'saves')), { timeout: 10000 });
       const saves = tripCard?.getFlag(MOD, 'saves');
       ok('4e. the Trip effect goes through the saves machine: the demand on Cunning Strike\'s own Trip activity, Dex save DC 17, at the victim',
         !!tripCard && (saves?.abilities?.join() === 'dex') && (saves?.dc === 17) && (saves?.targets?.[0]?.uuid === victim.uuid)
           && (tripCard.getFlag(MOD, 'cunning')?.attackId === msg3?.id),
         `card=${!!tripCard} abilities=${saves?.abilities?.join()} dc=${saves?.dc} target=${saves?.targets?.[0]?.name}`);
       const answered = await answerSave();
-      await waitFor(() => tripCard?.getFlag(MOD, 'saves')?.targets?.every(t => t.done && t.applied), 15000);
+      await until(() => tripCard?.getFlag(MOD, 'saves')?.targets?.every(t => t.done && t.applied), { timeout: 15000 });
       const entry = tripCard?.getFlag(MOD, 'saves')?.targets?.[0];
       const er = tripCard?.getFlag(MOD, 'effectReceipt')?.targets?.find(t => t.uuid === victim.uuid);
       ok('4f. the victim fails (-30) and lands Prone through the pack\'s own effect, receipted on the demand card',
@@ -399,36 +389,35 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const fxs = game.modules.get('fvtt-mod-fxstudio')?.active ? game.modules.get('fvtt-mod-fxstudio').api : null;
       if (fxs?.ledger) { const fe = fxs.ledger.find(x => x.id === `${dmg?.id}:sneak`); log.push(`FX Studio (observed, not asserted): ${fe ? `${fe.played ? 'PLAYED' : 'did not play'} ${fe.fx ?? '(no fx)'} on "${fe.when}" via ${fe.key ?? '-'}${fe.why ? ` — ${fe.why}` : ''}` : 'no ledger entry for the published moment'}`); }
       await clearChips();
-    }
+    });
 
     // ================================================== 5. the crit
-    if (want(5)) {
+    if (want(5)) await section(5, async () => {
       await clearChips();
       await ensureVexed();
       const { msg } = await armedSwing(rapier, { mode: 'advantage', tick: true, d20: 20 });
       const originId = msg?._source.system?.origin ?? msg?.id;
       ok('5. (setup) the forced 20 crit', msg?.rolls?.[0]?.isCritical === true, `crit=${msg?.rolls?.[0]?.isCritical}`);
-      const offer = await waitFor(offerEl, 6000);
+      const offer = await until(offerEl, { timeout: 6000 });
       offer?.querySelector('input[name="bf-cunning"][value="knockOut"]')?.click();
-      await sleep(50);
       offer?.querySelector('button[data-action="roll"]')?.click();
-      const dmg = await waitFor(() => { const d = damageFor(originId); return d?.getFlag(MOD, 'receipt') ? d : null; }, 12000);
+      const dmg = await until(() => { const d = damageFor(originId); return d?.getFlag(MOD, 'receipt') ? d : null; }, { timeout: 12000 });
       const sneakRoll = (dmg?.rolls ?? []).find(r => r.dice.some(d => d.faces === 6));
       const sixes = sneakRoll?.dice?.filter(d => d.faces === 6).reduce((n, d) => n + d.number, 0) ?? 0;
       ok('5a. Knock Out forgoes six dice; the crit doubles the ONE that is left — two d6 rolled, not fourteen',
         !!sneakRoll && (sixes === 2) && (dmg?.getFlag(MOD, 'sneakDamage')?.formula === '1d6') && dmg?.rolls?.[0]?.isCritical,
         `sixes=${sixes} formula=${dmg?.getFlag(MOD, 'sneakDamage')?.formula} crit=${dmg?.rolls?.[0]?.isCritical} rolls=[${(dmg?.rolls ?? []).map(r => r.formula).join(' | ')}]`);
-      const koCard = await waitFor(() => cardsWith('cunning').find(m => m.getFlag(MOD, 'cunning')?.key === 'knockOut' && m.getFlag(MOD, 'saves')), 10000);
+      const koCard = await until(() => cardsWith('cunning').find(m => m.getFlag(MOD, 'cunning')?.key === 'knockOut' && m.getFlag(MOD, 'saves')), { timeout: 10000 });
       ok('5b. Knock Out demands its Con save through the saves machine', (koCard?.getFlag(MOD, 'saves')?.abilities?.join() === 'con'), `abilities=${koCard?.getFlag(MOD, 'saves')?.abilities?.join()}`);
       await answerSave();
-      await waitFor(() => koCard?.getFlag(MOD, 'saves')?.targets?.every(t => t.done && t.applied), 15000);
+      await until(() => koCard?.getFlag(MOD, 'saves')?.targets?.every(t => t.done && t.applied), { timeout: 15000 });
       ok('5c. …and the failure lands Unconscious', victim.statuses?.has?.('unconscious'), `unconscious=${victim.statuses?.has?.('unconscious')}`);
       await clearChips();
       face(19);
-    }
+    });
 
     // ================================================== 6. once per turn
-    if (want(6)) {
+    if (want(6)) await section(6, async () => {
       await clearChips();
       if (game.combat) await game.combat.delete();
       combat = await Combat.create({ scene: scene.id });
@@ -436,40 +425,51 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         { actorId: rogue.id, tokenId: rogueDoc.id, sceneId: scene.id, initiative: 30 },
         { actorId: victim.id, tokenId: victimDoc.id, sceneId: scene.id, initiative: 20 }
       ]);
-      await combat.startCombat();
-      await sleep(500);
-      await ensureVexed();
-      const { msg: m1 } = await armedSwing(rapier, { mode: 'advantage', tick: true });
-      const o1 = m1?._source.system?.origin ?? m1?.id;
-      (await waitFor(offerEl, 6000))?.querySelector('button[data-action="roll"]')?.click();
-      await waitFor(() => damageFor(o1)?.getFlag(MOD, 'receipt'), 12000);
-      const chit = await waitFor(() => rogue.effects.find(e => e.getFlag(MOD, 'mastery') === 'sneak'), 6000);
-      ok('6a. dealing the damage in combat writes the once-per-turn chit on the rogue, stamped with the turn in progress',
-        !!chit && (chit.name === 'Sneak Attack — used this turn') && (chit.start?.round === combat.round) && (chit.start?.turn === combat.turn),
-        `chit=${chit?.name} start=${JSON.stringify(chit?.start ? { round: chit.start.round, turn: chit.start.turn } : null)} combat=r${combat.round}t${combat.turn}`);
-      await ensureVexed();
-      const { msg: m2, seen: seen2 } = await armedSwing(rapier, { mode: 'advantage' });
-      ok('6b. the second swing this turn shows the box greyed with the reason, and no tick',
-        !!seen2.boxText && /used this turn/.test(seen2.boxText) && !seen2.hasTick, `text="${seen2.boxText.slice(0, 120)}" tick=${seen2.hasTick}`);
-      const o2 = m2?._source.system?.origin ?? m2?.id;
-      const dmg2 = await waitFor(() => { const d = damageFor(o2); return d?.getFlag(MOD, 'receipt') ? d : null; }, 12000);
-      ok('6c. …not armed: auto damage rolls straight (no offer), and no sneak dice ride',
-        (m2?.getFlag(MOD, 'sneak')?.armed === false) && !!dmg2 && !dmg2.getFlag(MOD, 'sneakDamage') && !offerEl(),
-        `armed=${m2?.getFlag(MOD, 'sneak')?.armed} sneakDamage=${!!dmg2?.getFlag(MOD, 'sneakDamage')} offer=${!!offerEl()}`);
-      await combat.nextTurn(); await sleep(600);   // the victim's turn
-      await combat.nextTurn(); await sleep(600);   // the rogue's next turn — round 2
-      await ensureVexed();
-      const { dialog: d3, before: b3 } = await openGate(rapier);
-      ok('6d. the next turn offers the tick again — the chit died with the turn it was written in',
-        !!tickOf(d3) && (combat.round === 2), `tick=${!!tickOf(d3)} round=${combat.round}`);
-      if (d3) { const t = tickOf(d3); if (t?.checked) t.click(); press(d3, 'advantage'); await waitAttackAfter(b3); }
-      await sleep(800);
-      await combat.delete(); combat = null;
+      // The combat goes in a finally: a wait that throws here must not leave §7 on swinging inside it.
+      try {
+        await combat.startCombat();
+        await until(() => combat.started && (combat.round === 1) && (combat.turn === 0),
+          { timeout: 4000, label: 'the combat started on the rogue\'s turn' });
+        await ensureVexed();
+        const { msg: m1 } = await armedSwing(rapier, { mode: 'advantage', tick: true });
+        const o1 = m1?._source.system?.origin ?? m1?.id;
+        (await until(offerEl, { timeout: 6000 }))?.querySelector('button[data-action="roll"]')?.click();
+        await until(() => damageFor(o1)?.getFlag(MOD, 'receipt'), { timeout: 12000 });
+        const chit = await until(() => rogue.effects.find(e => e.getFlag(MOD, 'mastery') === 'sneak'), { timeout: 6000 });
+        ok('6a. dealing the damage in combat writes the once-per-turn chit on the rogue, stamped with the turn in progress',
+          !!chit && (chit.name === 'Sneak Attack — used this turn') && (chit.start?.round === combat.round) && (chit.start?.turn === combat.turn),
+          `chit=${chit?.name} start=${JSON.stringify(chit?.start ? { round: chit.start.round, turn: chit.start.turn } : null)} combat=r${combat.round}t${combat.turn}`);
+        await ensureVexed();
+        const { msg: m2, seen: seen2 } = await armedSwing(rapier, { mode: 'advantage' });
+        ok('6b. the second swing this turn shows the box greyed with the reason, and no tick',
+          !!seen2.boxText && /used this turn/.test(seen2.boxText) && !seen2.hasTick, `text="${seen2.boxText.slice(0, 120)}" tick=${seen2.hasTick}`);
+        const o2 = m2?._source.system?.origin ?? m2?.id;
+        const dmg2 = await until(() => { const d = damageFor(o2); return d?.getFlag(MOD, 'receipt') ? d : null; }, { timeout: 12000 });
+        ok('6c. …not armed: auto damage rolls straight (no offer), and no sneak dice ride',
+          (m2?.getFlag(MOD, 'sneak')?.armed === false) && !!dmg2 && !dmg2.getFlag(MOD, 'sneakDamage') && !offerEl(),
+          `armed=${m2?.getFlag(MOD, 'sneak')?.armed} sneakDamage=${!!dmg2?.getFlag(MOD, 'sneakDamage')} offer=${!!offerEl()}`);
+        await combat.nextTurn();   // the victim's turn
+        await until(() => (combat.round === 1) && (combat.turn === 1), { timeout: 4000, label: 'the victim\'s turn' });
+        await combat.nextTurn();   // the rogue's next turn — round 2
+        await until(() => (combat.round === 2) && (combat.turn === 0), { timeout: 4000, label: 'the rogue\'s turn in round 2' });
+        await ensureVexed();
+        const { dialog: d3, before: b3 } = await openGate(rapier);
+        ok('6d. the next turn offers the tick again — the chit died with the turn it was written in',
+          !!tickOf(d3) && (combat.round === 2), `tick=${!!tickOf(d3)} round=${combat.round}`);
+        let m3 = null;
+        if (d3) { const t = tickOf(d3); if (t?.checked) t.click(); press(d3, 'advantage'); m3 = await waitAttackAfter(b3); }
+        // The round-2 swing's damage lands before the combat goes.
+        const o3 = m3?._source.system?.origin ?? m3?.id ?? null;
+        if (o3) await until(() => damageFor(o3)?.getFlag(MOD, 'receipt'), { timeout: 12000, label: 'the round-2 swing\'s damage receipt' });
+      } finally {
+        if (combat && game.combats.get(combat.id)) await combat.delete().catch(() => {});
+        combat = null;
+      }
       await clearChips();
-    }
+    });
 
     // ================================================== 7. Envenom Weapons
-    if (want(7)) {
+    if (want(7)) await section(7, async () => {
       await clearChips();
       const pack = game.packs.get('dnd-players-handbook.classes');
       const idx = await pack.getIndex();
@@ -483,14 +483,13 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         await ensureVexed();
         const { msg } = await armedSwing(rapier, { mode: 'advantage', tick: true });
         const originId = msg?._source.system?.origin ?? msg?.id;
-        const offer = await waitFor(offerEl, 6000);
+        const offer = await until(offerEl, { timeout: 6000 });
         const label = textOf(offer?.querySelector('[data-bf-cunning-row="poison"]'));
         ok('7a. the menu shows Poison upgraded by Envenom Weapons', /Poison \(Envenom Weapons\)/.test(label), label.slice(0, 120));
         offer?.querySelector('input[name="bf-cunning"][value="poison"]')?.click();
-        await sleep(50);
         offer?.querySelector('button[data-action="roll"]')?.click();
-        await waitFor(() => damageFor(originId)?.getFlag(MOD, 'receipt'), 12000);
-        const card = await waitFor(() => cardsWith('cunning').find(m => m.getFlag(MOD, 'cunning')?.key === 'poison' && m.getFlag(MOD, 'saves')), 10000);
+        await until(() => damageFor(originId)?.getFlag(MOD, 'receipt'), { timeout: 12000 });
+        const card = await until(() => cardsWith('cunning').find(m => m.getFlag(MOD, 'cunning')?.key === 'poison' && m.getFlag(MOD, 'saves')), { timeout: 10000 });
         const c = card?.getFlag(MOD, 'cunning');
         const s = card?.getFlag(MOD, 'saves');
         ok('7b. the demand is Envenom Weapons\' own Poison activity — Con save, its 2d8 on a failure — and the follow-up is armed: Poisoned on top',
@@ -499,10 +498,10 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           `abilities=${s?.abilities?.join()} hasDamage=${s?.hasDamage} onSave=${s?.damageOnSave} onFail=${c?.onFail} item=${card?.getAssociatedItem?.()?.name}`);
         const hpBefore = victim.system.attributes.hp.value;
         await answerSave();
-        await waitFor(() => card?.getFlag(MOD, 'saves')?.targets?.every(t => t.done && t.applied), 15000);
-        await waitFor(() => card?.getFlag(MOD, 'cunning')?.applied?.includes?.(victim.uuid) && victim.statuses?.has?.('poisoned'), 10000);
+        await until(() => card?.getFlag(MOD, 'saves')?.targets?.every(t => t.done && t.applied), { timeout: 15000 });
+        await until(() => card?.getFlag(MOD, 'cunning')?.applied?.includes?.(victim.uuid) && victim.statuses?.has?.('poisoned'), { timeout: 10000 });
         const er = card?.getFlag(MOD, 'effectReceipt')?.targets?.find(t => t.uuid === victim.uuid);
-        const poisonDmg = await waitFor(() => damageFor(card?.id)?.getFlag(MOD, 'receipt'), 8000);
+        const poisonDmg = await until(() => damageFor(card?.id)?.getFlag(MOD, 'receipt'), { timeout: 8000 });
         ok('7c. the failure takes the 2d8 (the saves machine) AND Poisoned (the follow-up), both receipted on the demand card',
           victim.statuses?.has?.('poisoned') && !!er?.effects?.some(e => /Poisoned/.test(e.name)) && !!poisonDmg
             && (victim.system.attributes.hp.value < hpBefore),
@@ -510,10 +509,10 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         await rogue.deleteEmbeddedDocuments('Item', [envenom.id]);
         await clearChips();
       }
-    }
+    });
 
     // ================================================== 8. Death Strike
-    if (want(8)) {
+    if (want(8)) await section(8, async () => {
       await clearChips();
       const pack = game.packs.get('dnd-players-handbook.classes');
       const idx = await pack.getIndex();
@@ -530,33 +529,39 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           { actorId: rogue.id, tokenId: rogueDoc.id, sceneId: scene.id, initiative: 30 },
           { actorId: victim.id, tokenId: victimDoc.id, sceneId: scene.id, initiative: 20 }
         ]);
-        await combat.startCombat();
-        await sleep(500);
-        await ensureVexed();
-        const { msg } = await armedSwing(rapier, { mode: 'advantage', tick: true });
-        const originId = msg?._source.system?.origin ?? msg?.id;
-        (await waitFor(offerEl, 6000))?.querySelector('button[data-action="roll"]')?.click();
-        const dmg = await waitFor(() => { const d = damageFor(originId); return d?.getFlag(MOD, 'receipt') ? d : null; }, 12000);
-        const taken = dmg?.getFlag(MOD, 'receipt')?.targets?.find(t => t.uuid === victim.uuid)?.taken ?? 0;
-        const card = await waitFor(() => cardsWith('cunning').find(m => m.getFlag(MOD, 'cunning')?.key === 'deathStrike' && m.getFlag(MOD, 'saves')), 10000);
-        ok('8a. a Sneak Attack hit on round one demands Death Strike\'s Con save — from the feature\'s own activity',
-          !!card && (card.getFlag(MOD, 'saves')?.abilities?.join() === 'con') && (card.getFlag(MOD, 'cunning')?.onFail === 'double') && (combat.round === 1),
-          `card=${!!card} abilities=${card?.getFlag(MOD, 'saves')?.abilities?.join()} round=${combat.round}`);
-        const hpBefore = victim.system.attributes.hp.value;
-        await answerSave();
-        await waitFor(() => card?.getFlag(MOD, 'saves')?.targets?.every(t => t.done && t.applied), 15000);
-        const again = await waitFor(() => card?.getFlag(MOD, 'receipt')?.targets?.find(t => t.uuid === victim.uuid), 10000);
-        ok('8b. the failure lands the attack\'s damage AGAIN — the same amount, receipted on the demand card and said',
-          !!again && (again.taken === taken) && /Death Strike/.test(again.note ?? '') && (victim.system.attributes.hp.value === hpBefore - taken),
-          `first=${taken} again=${again?.taken} note="${again?.note}" hp=${hpBefore}→${victim.system.attributes.hp.value}`);
-        await combat.delete(); combat = null;
+        // The combat goes in a finally: a wait that throws here must not leave §10 on swinging inside it.
+        try {
+          await combat.startCombat();
+          await until(() => combat.started && (combat.round === 1) && (combat.turn === 0),
+            { timeout: 4000, label: 'the combat started on the rogue\'s turn' });
+          await ensureVexed();
+          const { msg } = await armedSwing(rapier, { mode: 'advantage', tick: true });
+          const originId = msg?._source.system?.origin ?? msg?.id;
+          (await until(offerEl, { timeout: 6000 }))?.querySelector('button[data-action="roll"]')?.click();
+          const dmg = await until(() => { const d = damageFor(originId); return d?.getFlag(MOD, 'receipt') ? d : null; }, { timeout: 12000 });
+          const taken = dmg?.getFlag(MOD, 'receipt')?.targets?.find(t => t.uuid === victim.uuid)?.taken ?? 0;
+          const card = await until(() => cardsWith('cunning').find(m => m.getFlag(MOD, 'cunning')?.key === 'deathStrike' && m.getFlag(MOD, 'saves')), { timeout: 10000 });
+          ok('8a. a Sneak Attack hit on round one demands Death Strike\'s Con save — from the feature\'s own activity',
+            !!card && (card.getFlag(MOD, 'saves')?.abilities?.join() === 'con') && (card.getFlag(MOD, 'cunning')?.onFail === 'double') && (combat.round === 1),
+            `card=${!!card} abilities=${card?.getFlag(MOD, 'saves')?.abilities?.join()} round=${combat.round}`);
+          const hpBefore = victim.system.attributes.hp.value;
+          await answerSave();
+          await until(() => card?.getFlag(MOD, 'saves')?.targets?.every(t => t.done && t.applied), { timeout: 15000 });
+          const again = await until(() => card?.getFlag(MOD, 'receipt')?.targets?.find(t => t.uuid === victim.uuid), { timeout: 10000 });
+          ok('8b. the failure lands the attack\'s damage AGAIN — the same amount, receipted on the demand card and said',
+            !!again && (again.taken === taken) && /Death Strike/.test(again.note ?? '') && (victim.system.attributes.hp.value === hpBefore - taken),
+            `first=${taken} again=${again?.taken} note="${again?.note}" hp=${hpBefore}→${victim.system.attributes.hp.value}`);
+        } finally {
+          if (combat && game.combats.get(combat.id)) await combat.delete().catch(() => {});
+          combat = null;
+        }
         await rogue.deleteEmbeddedDocuments('Item', [ds.id]);
         await clearChips();
       }
-    }
+    });
 
     // ================================================== 10. Steady Aim, a use chip
-    if (want(10)) {
+    if (want(10)) await section(10, async () => {
       await clearChips();
       const steady = rogue.items.find(i => i.name === 'Steady Aim');
       const steadyAct = steady ? [...steady.system.activities][0] : null;
@@ -566,9 +571,9 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         rogueToken.control({ releaseOthers: true });
         const walkBefore = rogue.system.attributes.movement.walk;
         const useResults = await steadyAct.use({}, { configure: false }, {});
-        const chip = await waitFor(() => rogue.effects.find(e => (e.name === 'Steady Aim') && (e.getFlag(MOD, 'mastery') === 'use')), 6000);
+        const chip = await until(() => rogue.effects.find(e => (e.name === 'Steady Aim') && (e.getFlag(MOD, 'mastery') === 'use')), { timeout: 6000 });
         // The card's flag is a SECOND write after the chip (NOTES §5): wait for it.
-        await waitFor(() => useResults?.message?.getFlag(MOD, 'useChip') ? true : null, 4000);
+        await until(() => useResults?.message?.getFlag(MOD, 'useChip') ? true : null, { timeout: 4000 });
         ok('10a. using Steady Aim (text-only in the pack) writes the chip on the rogue: named as the feature, Speed 0, the card says so',
           !!chip && (rogue.system.attributes.movement.walk === 0) && !!useResults?.message?.getFlag(MOD, 'useChip'),
           `chip=${!!chip} walk=${walkBefore}→${rogue.system.attributes.movement.walk} card=${!!useResults?.message?.getFlag(MOD, 'useChip')}`);
@@ -576,19 +581,19 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         ok('10b. the gate reads the chip: Steady Aim as Advantage, net Advantage, the Sneak Attack tick armed by it',
           /Steady Aim/.test(seen.sectionText) && /Net Advantage/.test(seen.sectionText) && seen.ticked,
           `section="${seen.sectionText.slice(0, 160)}" ticked=${seen.ticked}`);
-        const spend = await waitFor(() => game.messages.get(msg?.id ?? '')?.getFlag(MOD, 'chipSpend'), 8000);
-        const gone = await waitFor(() => !rogue.effects.get(chip?.id), 6000);
+        const spend = await until(() => game.messages.get(msg?.id ?? '')?.getFlag(MOD, 'chipSpend'), { timeout: 8000 });
+        const gone = await until(() => !rogue.effects.get(chip?.id), { timeout: 6000 });
         ok('10c. the roll SPENDS it — the receipt on the attack card, the chip gone, the Speed back',
           !!spend?.spent?.some(s => (s.id === chip?.id) && (s.key === 'effect')) && gone && (rogue.system.attributes.movement.walk === walkBefore),
           `spend=${JSON.stringify(spend?.spent?.map(x => x.name))} gone=${gone} walk=${rogue.system.attributes.movement.walk}`);
-        (await waitFor(offerEl, 6000))?.querySelector('button[data-action="roll"]')?.click();
-        await waitFor(() => damageFor(msg?._source.system?.origin ?? msg?.id)?.getFlag(MOD, 'receipt'), 12000);
+        (await until(offerEl, { timeout: 6000 }))?.querySelector('button[data-action="roll"]')?.click();
+        await until(() => damageFor(msg?._source.system?.origin ?? msg?.id)?.getFlag(MOD, 'receipt'), { timeout: 12000 });
         await clearChips();
       }
-    }
+    });
 
     // ================================================== 12. the Poison Coating
-    if (want(12)) {
+    if (want(12)) await section(12, async () => {
       await clearChips();
       const featPack = game.packs.get('dnd-players-handbook.feats');
       const fsrc = featPack ? (await featPack.getIndex()).find(e => e.name === 'Poisoner') : null;
@@ -609,13 +614,15 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           // no dose left: nothing is written
           await poisoner.update({ 'system.uses.spent': max });
           await apply()?.use({}, { configure: false }, {});
-          await sleep(1200);
-          ok('12a. no dose left: no chip, no card, the doses untouched', !coat() && !useCards().length && (Number(poisoner.system.uses.spent) === max),
-            `chip=${!!coat()} cards=${useCards().length} spent=${poisoner.system.uses.spent}/${max}`);
+          // A window for a chip, a card or a spent dose that must not come.
+          const wrote = await watch(() => (coat() ? 'chip' : null) ?? (useCards().length ? 'card' : null)
+            ?? ((Number(poisoner.system.uses.spent) !== max) ? 'dose' : null), { ms: 1200 });
+          ok('12a. no dose left: no chip, no card, the doses untouched', !wrote && !coat() && !useCards().length && (Number(poisoner.system.uses.spent) === max),
+            `chip=${!!coat()} cards=${useCards().length} spent=${poisoner.system.uses.spent}/${max}${wrote ? ` (a ${wrote} came in the window)` : ''}`);
           await poisoner.update({ 'system.uses.spent': 0 });
           await apply()?.use({}, { configure: false }, {});
-          const chip = await waitFor(coat, 6000);
-          const card = await waitFor(() => useCards().at(-1) ?? null, 6000);
+          const chip = await until(coat, { timeout: 6000 });
+          const card = await until(() => useCards().at(-1) ?? null, { timeout: 6000 });
           ok('12b. Apply Poison: the Poison Coating on the ROGUE (60 s, the poisoned dagger), a dose spent, the card says Bonus Action — no enchantment card',
             !!chip && (chip.name === 'Poison Coating') && (chip.img === 'icons/weapons/daggers/dagger-poisoned.webp')
               && (Number(chip.duration?.seconds ?? chip._source.duration?.value) === 60) && (Number(poisoner.system.uses.spent) === 1)
@@ -624,13 +631,14 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           // a MISS: the natural 1 misses, and the coating stands
           await healFull();
           target(victimToken);
-          await sleep(80);
+          await targeted(victimToken);
           face(1);
           const act = attackOf(rapier);
           const u1 = await act.use({ subsequentActions: false }, { configure: false }, {});
           await act.rollAttack({}, { configure: false }, u1?.message?.id ? { data: { 'system.origin': u1.message.id } } : {});
-          await sleep(2500);
-          ok('12c. a MISS spends nothing: the coating stands', !!coat(), `chip=${!!coat()}`);
+          // A window for the coating to be spent on the miss, which must not happen.
+          const spentOnMiss = await watch(() => !coat(), { ms: 2500 });
+          ok('12c. a MISS spends nothing: the coating stands', !spentOnMiss && !!coat(), `chip=${!!coat()}`);
           // a HIT: the coating is spent through the feat's own save
           await victim.update({ 'system.traits.dr.value': ['poison'] });
           await healFull();
@@ -639,23 +647,23 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           const rolls = await act.rollAttack({}, { configure: false }, u2?.message?.id ? { data: { 'system.origin': u2.message.id } } : {});
           const attackMsg = rolls?.[0]?.parent ?? null;
           const originId = attackMsg?._source.system?.origin ?? attackMsg?.id;
-          const dmg = await waitFor(() => damageFor(originId), 10000);
-          const spentFlag = await waitFor(() => (dmg?.getFlag(MOD, 'coatHit')?.status === 'spent') ? dmg.getFlag(MOD, 'coatHit') : null, 10000);
-          const saveCard = await waitFor(() => game.messages.contents.find(m => (m.timestamp >= suiteStart) && m.getFlag(MOD, 'saves')
-            && (m.getAssociatedItem?.()?.name === 'Poisoner')) ?? null, 10000);
-          const gone = await waitFor(() => !coat(), 6000);
+          const dmg = await until(() => damageFor(originId), { timeout: 10000 });
+          const spentFlag = await until(() => (dmg?.getFlag(MOD, 'coatHit')?.status === 'spent') ? dmg.getFlag(MOD, 'coatHit') : null, { timeout: 10000 });
+          const saveCard = await until(() => game.messages.contents.find(m => (m.timestamp >= suiteStart) && m.getFlag(MOD, 'saves')
+            && (m.getAssociatedItem?.()?.name === 'Poisoner')) ?? null, { timeout: 10000 });
+          const gone = await until(() => !coat(), { timeout: 6000 });
           ok('12d. a HIT spends it: the chip gone, the damage card says so, the feat\'s own Constitution save demanded of the victim',
             gone && !!spentFlag && spentFlag.targets?.some(t => t.uuid === victim.uuid) && !!saveCard
               && (saveCard.getFlag(MOD, 'saves')?.abilities?.join() === 'con'),
             `gone=${gone} flag=${JSON.stringify(spentFlag ? { status: spentFlag.status, ability: spentFlag.ability } : null)} save=${!!saveCard} abilities=${saveCard?.getFlag(MOD, 'saves')?.abilities?.join()}`);
-          await waitFor(() => dmg?.getFlag(MOD, 'receipt'), 10000);
+          await until(() => dmg?.getFlag(MOD, 'receipt'), { timeout: 10000 });
           const hpBefore = Number(victim.system.attributes.hp.value);
           face(1);   // the save a natural 1 (its 2d8 was rolled with the demand)
           await answerSave();
-          await waitFor(() => saveCard?.getFlag(MOD, 'saves')?.targets?.every(t => t.done && t.applied), 15000);
-          const poisonDmg = await waitFor(() => damageFor(saveCard?.id)?.getFlag(MOD, 'receipt') ? damageFor(saveCard.id) : null, 10000);
-          const poisoned = await waitFor(() => victim.effects.find(e => e.statuses?.has?.('poisoned')) ?? null, 8000);
-          CONFIG.Dice.randomUniform = realPRNG;
+          await until(() => saveCard?.getFlag(MOD, 'saves')?.targets?.every(t => t.done && t.applied), { timeout: 15000 });
+          const poisonDmg = await until(() => damageFor(saveCard?.id)?.getFlag(MOD, 'receipt') ? damageFor(saveCard.id) : null, { timeout: 10000 });
+          const poisoned = await until(() => victim.effects.find(e => e.statuses?.has?.('poisoned')) ?? null, { timeout: 8000 });
+          unrig();
           const dealt = hpBefore - Number(victim.system.attributes.hp.value);
           const rolled = Number(poisonDmg?.rolls?.[0]?.total);
           ok('12e. the failure: the 2d8 poison lands WHOLE through Poison Resistance (Potent Poison — dealt equals rolled, not half)',
@@ -665,7 +673,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
             !!poisoned && (poisoned._source.duration?.expiry === 'sourceEnd'),
             `poisoned=${!!poisoned} duration=${JSON.stringify(poisoned?._source?.duration)}`);
         } finally {
-          CONFIG.Dice.randomUniform = realPRNG;
+          unrig();
           await victim.update({ 'system.traits.dr.value': drBefore }).catch(() => {});
           const c = coat();
           if (c) await c.delete().catch(() => {});
@@ -673,12 +681,12 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           await clearChips();
         }
       }
-    }
+    });
 
     // ================================================== 11. the ally clause, off the map
     // At a Normal roll the box ticks itself when an ally of the rogue (an unlinked token, not the
     // target) stands within 5 feet of the target; not when none does, nor under Disadvantage.
-    if (want(11)) {
+    if (want(11)) await section(11, async () => {
       await clearChips();
       const priorSides = { victim: victimDoc.disposition, rogue: rogueDoc.disposition };
       const squarePx = scene.grid.size;
@@ -688,13 +696,13 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         const seen = { hasTick: !!tickOf(dialog), ticked: !!tickOf(dialog)?.checked,
           section: textOf(dialog?.element?.querySelector('[data-bf-reminder]')) };
         await closeDialogs();
-        await sleep(300);
+        await until(() => !rollDialog(), { timeout: 4000, label: 'the roll dialog closed' });
         return seen;
       };
       try {
         await rogueDoc.update({ disposition: 1 });
         await victimDoc.update({ disposition: -1 });
-        await sleep(200);
+        await until(() => (rogueDoc.disposition === 1) && (victimDoc.disposition === -1), { timeout: 4000, label: 'the sides set' });
         const alone = await tickAt();
         ok('11a. a Normal roll with no ally of the rogue beside the target: the box is offered, unticked',
           alone.hasTick && !alone.ticked, JSON.stringify(alone).slice(0, 240));
@@ -702,14 +710,14 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           foundry.utils.mergeObject(victim.prototypeToken.toObject(),
             { x: 1400, y: 1600 + squarePx, actorId: victim.id, actorLink: false, disposition: 1, name: 'BTB Test Ally' }, { inplace: false })]);
         created.tokens.push(allyDoc.id);
-        for (let i = 0; i < 40 && !(canvas.ready && canvas.tokens.get(allyDoc.id)); i++) await sleep(250);
+        await tokenOn(allyDoc.id);
         rogueToken.control({ releaseOthers: true });
         const flanked = await tickAt();
         ok('11b. …an ally of the rogue within 5 feet of the target: the box ticks itself at a Normal roll',
           flanked.hasTick && flanked.ticked && !/Net (Advantage|Disadvantage)/.test(flanked.section),
           JSON.stringify(flanked).slice(0, 240));
         await rogue.toggleStatusEffect('poisoned', { active: true });
-        await sleep(200);
+        await until(() => rogue.statuses?.has?.('poisoned'), { timeout: 4000, label: 'the rogue Poisoned' });
         const poisoned = await tickAt();
         ok("11c. …and the rogue Poisoned — Disadvantage: unticked (\"you don't have Disadvantage on the attack roll\")",
           poisoned.hasTick && !poisoned.ticked && /Net Disadvantage/.test(poisoned.section), JSON.stringify(poisoned).slice(0, 240));
@@ -720,13 +728,13 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         await victimDoc.update({ disposition: priorSides.victim }).catch(() => {});
         await rogueDoc.update({ disposition: priorSides.rogue }).catch(() => {});
       }
-    }
+    });
 
     // ================================================== 9. the registrations FIRED
-    if (want(9)) {
+    if (want(9)) await section(9, async () => {
       ok('9a. dnd5e.preRollDamage fired (the rider\'s hook)', count('dnd5e.preRollDamage') > 0, `count=${count('dnd5e.preRollDamage')}`);
       ok('9b. dnd5e.rollDamage fired (the effects\' hook)', count('dnd5e.rollDamage') > 0, `count=${count('dnd5e.rollDamage')}`);
-    }
+    });
 
     return { log, results, skips };
   } catch (err) {
