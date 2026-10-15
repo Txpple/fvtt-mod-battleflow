@@ -245,9 +245,10 @@ export function killChildProcesses(tag) {
  * `Foundry#dispose()` raced against a ceiling. ⚠ Never awaited bare: the watchdog hard-aborts
  * (exit 3), so a hanging dispose would turn a green run into an abort; after the ceiling the
  * browser is KILLED (#12: a close that never settles used to leave a chrome holding the seat).
+ * `dispose` is the close to race: the bridge's own by default; the harness's teardown passes the
+ * one it saved, since its `f.dispose` is the teardown itself.
  */
-export async function disposeSafely(f, tag) {
-  const dispose = f?.dispose?.bind(f);
+export async function disposeSafely(f, tag, dispose = f?.dispose?.bind(f)) {
   if (!dispose) return;
   const { settled } = await withCeiling(
     dispose().catch(err => { console.warn(`[${tag}] dispose() failed — ${err.message}`); }),
@@ -463,6 +464,11 @@ export async function connectSuite({ tag, watchdogMs, requireElect = true, allow
   // One teardown under both names: suites call `disconnect`, `dispose` is the real one.
   // ⚠ Each step under a ceiling: a page that stopped answering must not hold the teardown
   // (and so the lock and the seat) past the browser kill at the end.
+  // ⚠ The bridge's own close is saved BEFORE `f.dispose` becomes the teardown: called through
+  // `f.dispose` it would be the teardown again, which returns at once, and the browser (and the
+  // user's seat) would live until the process exits — a script that connects twice sees its
+  // first client still on.
+  const closeBridge = f.dispose.bind(f);
   let hungUp = false;
   const teardown = async () => {
     if (hungUp) return;
@@ -476,7 +482,7 @@ export async function connectSuite({ tag, watchdogMs, requireElect = true, allow
     }
     const { settled } = await withCeiling(dumpHookLedger(tag, f), TEARDOWN_STEP_CEILING_MS);
     if (!settled) console.warn(`[${tag}] the hook ledger dump did not finish in ${TEARDOWN_STEP_CEILING_MS / 1000}s — not written`);
-    await disposeSafely(f, tag);
+    await disposeSafely(f, tag, closeBridge);
   };
   f.disconnect = teardown;
   f.dispose = teardown;
