@@ -125,6 +125,9 @@ const out = await f.evaluate(async ({ sections, titles, extra }) => {
       { timeout: 6000, label: `${name}'s casting window with the metamagic group` }).catch(() => null);
     return { act, app, fs: app?.element?.querySelector('[data-bf-metamagic-field]') ?? null, pendingUse };
   };
+  // The 2024 options taken at the cast (Empowered and Seeking are later moments). A free class-feature row a
+  // feature adds joins the window: the checks read these rows by key, never the row count.
+  const CAST_TIME = ['careful', 'distant', 'extended', 'heightened', 'quickened', 'subtle', 'transmuted', 'twinned'];
   const rowsOf = fs => [...(fs?.querySelectorAll('[data-bf-metamagic-row]') ?? [])].map(r => ({
     key: r.dataset.bfMetamagicRow, off: r.dataset.bfOff === '1', tag: r.querySelector('span')?.textContent?.trim() ?? '',
     box: r.querySelector('input[name="bf-metamagic"]'), rule: r.querySelector('details[data-bf-rule-fold]')
@@ -191,7 +194,8 @@ const out = await f.evaluate(async ({ sections, titles, extra }) => {
       const { app, fs } = await openWindow('Fireball');
       const rows = rowsOf(fs);
       ok('1a. the casting window carries a By the Books fieldset', !!fs, `dialog=${app?.constructor?.name}`);
-      ok('1b. eight cast-time rows (Empowered and Seeking are later moments)', rows.length === 8, rows.map(r => r.key).join(','));
+      ok('1b. the eight cast-time options are rows; Empowered and Seeking are not (later moments)',
+        CAST_TIME.every(k => rows.some(r => r.key === k)) && !rows.some(r => ['empowered', 'seeking'].includes(r.key)), rows.map(r => r.key).join(','));
       const fit = rows.filter(r => !r.off).map(r => r.key).sort();
       ok('1c. Careful, Distant, Heightened, Quickened, Subtle, Transmuted fit Fireball', fit.join(',') === 'careful,distant,heightened,quickened,subtle,transmuted', fit.join(','));
       ok('1d. Extended greyed: "instantaneous"', rows.find(r => r.key === 'extended')?.tag === 'instantaneous', rows.find(r => r.key === 'extended')?.tag);
@@ -287,7 +291,8 @@ const out = await f.evaluate(async ({ sections, titles, extra }) => {
       await p.update({ 'system.uses.spent': p.system.uses.max });
       const { app, fs } = await openWindow('Fireball');
       const rows = rowsOf(fs);
-      ok('6a. with no points every row stays, greyed', rows.length === 8 && rows.every(r => r.off && r.box?.disabled), rows.map(r => `${r.key}:${r.off}`).join(' '));
+      ok('6a. with no points every metamagic row stays, greyed',
+        CAST_TIME.every(k => { const r = rows.find(x => x.key === k); return !!r && r.off && r.box?.disabled; }), rows.map(r => `${r.key}:${r.off}`).join(' '));
       ok('6b. an affordable-by-fit row says "1 SP — 0 left"', rows.find(r => r.key === 'subtle')?.tag === '1 SP — 0 left', rows.find(r => r.key === 'subtle')?.tag);
       const poolLine = fs?.querySelector('[data-bf-metamagic-pool]')?.textContent ?? '';
       ok('6c. the pool line says 0 of 5', /Sorcery Points: 0 of 5/.test(poolLine), poolLine.trim());

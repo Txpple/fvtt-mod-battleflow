@@ -21,7 +21,7 @@ export const COVERS = [
 ];
 
 const SECTIONS = {
-  1: "settings — the thirteen settings, registered and shown in the ruled order: ten world, then three client",
+  1: "settings — the named settings registered in the ruled order and scope, the DM's world settings before the per-client preferences, and the pane showing every registered setting in that order",
   2: "usage dialog — a real ActivityUsageDialog renders and carries the target block",
   3: "templates — the pinned platform fact: v14 dispatches Region hooks, never MeasuredTemplate"
 };
@@ -40,29 +40,34 @@ const out = await f.evaluate(async ({ sections, titles }) => {
 
   try {
     /* --- 1: the settings form ---------------------------------------------------------- */
-    // RULINGS *The settings*: thirteen plain settings (ten, then Roll Results and Bloodied for All with
-    // the Visibility menu's two, #4, then Going Down Costs a Level of Exhaustion), the ten world configs for the DM then the three per-client
-    // preferences, in that order; no dividers, no interlock (every machine is always on).
+    // RULINGS *The settings*: the named settings (ten, then Roll Results and Bloodied for All with the Visibility
+    // menu's two, #4, then Going Down Costs a Level of Exhaustion), the world configs for the DM then the
+    // per-client preferences; no dividers, no interlock (every machine is always on). A setting a feature adds
+    // joins the registry and the pane: the checks read membership and order, never a count.
     if (want(1)) await section(1, async () => {
-      const TEN = ["decisionTimer", "dramaticBeat", "saveRolls", "concVisibility", "holdReveal",
+      const NAMED = ["decisionTimer", "dramaticBeat", "saveRolls", "concVisibility", "holdReveal",
         "masteryAsk", "resourceNotices", "rollResults", "bloodiedAll", "goingDownCosts", "playerRollDamage", "effectBar", "effectHover"];
-      const WORLD = TEN.slice(0, 10);
+      const NAMED_WORLD = NAMED.slice(0, 10);
+      // Registration: the module's config settings, in the order registered.
+      const registered = [...game.settings.settings.values()]
+        .filter(st => (st.namespace === MODULE_ID) && st.config);
+      const keys = registered.map(st => st.key);
       // ⚠ The hook FIRED is the first assertion; everything below depends on it.
       let fired = 0;
       const hid = Hooks.on("renderSettingsConfig", () => { fired++; });
       const sheet = game.settings.sheet;
       // The no-write guard, read BEFORE the form opens: §1 must never reach the world.
-      const values = () => snapshotSettings(TEN).prior;
+      const values = () => snapshotSettings(keys).prior;
       const before = values();
       try {
-        // Registration: the module's config settings, in the order registered.
-        const registered = [...game.settings.settings.values()]
-          .filter(st => (st.namespace === MODULE_ID) && st.config);
-        ok("exactly the thirteen settings are registered, in the ruled order",
-          JSON.stringify(registered.map(st => st.key)) === JSON.stringify(TEN),
-          registered.map(st => st.key).join(", "));
-        ok("grouped as registered: the ten DM settings are world, the three preferences client",
-          registered.every(st => (st.scope === (WORLD.includes(st.key) ? "world" : "client"))),
+        const missing = NAMED.filter(k => !keys.includes(k));
+        ok("every named setting is registered, in the ruled order among them",
+          !missing.length && (JSON.stringify(keys.filter(k => NAMED.includes(k))) === JSON.stringify(NAMED)),
+          `missing=${missing.join(", ") || "none"} registered=${keys.join(", ")}`);
+        const firstClient = registered.findIndex(st => st.scope === "client");
+        ok("grouped as registered: the DM's world settings before the per-client preferences, each named one in its ruled scope",
+          ((firstClient < 0) || registered.slice(firstClient).every(st => st.scope === "client"))
+            && NAMED.every(k => registered.find(st => st.key === k)?.scope === (NAMED_WORLD.includes(k) ? "world" : "client")),
           registered.map(st => `${st.key}:${st.scope}`).join(", "));
 
         await sheet.render(true);
@@ -80,13 +85,13 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           // The form's controls, by first appearance: the ten, in registration order.
           const shown = [...new Set([...el.querySelectorAll(`[name^="${MODULE_ID}."]`)]
             .map(n => n.getAttribute("name").slice(MODULE_ID.length + 1)))];
-          ok("the pane shows the thirteen settings and nothing else, in the registered order",
-            JSON.stringify(shown) === JSON.stringify(TEN), shown.join(", "));
-          ok("no section dividers are drawn (thirteen settings need none)",
+          ok("the pane shows every registered setting and nothing else, in the registered order",
+            JSON.stringify(shown) === JSON.stringify(keys), shown.join(", "));
+          ok("no section dividers are drawn",
             !el.querySelector("h4.bf-divider"), `${el.querySelectorAll("h4.bf-divider").length} found`);
           ok("no control of the pane is greyed (no interlock left)",
-            TEN.every(k => !el.querySelector(`[name="${MODULE_ID}.${k}"]`)?.disabled),
-            TEN.filter(k => el.querySelector(`[name="${MODULE_ID}.${k}"]`)?.disabled).join(", ") || "none");
+            keys.every(k => !el.querySelector(`[name="${MODULE_ID}.${k}"]`)?.disabled),
+            keys.filter(k => el.querySelector(`[name="${MODULE_ID}.${k}"]`)?.disabled).join(", ") || "none");
         }
         ok("the form was read, not written — no setting moved",
           JSON.stringify(values()) === JSON.stringify(before),
