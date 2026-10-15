@@ -170,12 +170,15 @@ export async function resolveUuidAsync(uuid) {
 export const canApplyTo = actor => !!actor?.isOwner;
 
 /**
- * The targets this client may write: each row's actor (`t.actor`, else its `uuid` resolved) owned here.
+ * The targets this client may write: each row's actor owned here — the actor document a row carries (a mastery
+ * payout's), else its `uuid` resolved. ⚠ A card's target row (decide/card.js `targetsOf`) carries the actor's uuid
+ * as `actor`, a string: it is resolved, never read as the document.
  * @template {{uuid?: string, actor?: any}} T
  * @param {T[]|null|undefined} targets
  * @returns {T[]}
  */
-export const writableTargets = targets => (targets ?? []).filter(t => canApplyTo(t.actor ?? resolveUuid(t.uuid)));
+export const writableTargets = targets => (targets ?? []).filter(t =>
+  canApplyTo(((t.actor !== null) && (typeof t.actor === "object")) ? t.actor : resolveUuid(t.uuid)));
 
 // THE RECIPIENTS (ARCHITECTURE §5): who a whispered card reaches, one named set each; ui.js `postCard`
 // takes one as `to`, and a card with none is public.

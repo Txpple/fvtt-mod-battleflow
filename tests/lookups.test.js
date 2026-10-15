@@ -190,4 +190,11 @@ describe("writableTargets — the rows this client may write", () => {
     expect(writableTargets([mine, theirs, gone, carried])).toEqual([mine, carried]);
     expect(writableTargets(null)).toEqual([]);
   });
+
+  it("resolves a card's target row, whose `actor` is the actor's uuid as a string (decide/card.js targetsOf)", () => {
+    installLookups();
+    const row = { uuid: "Actor.mine", actor: "Actor.mine", name: "Mine" };
+    const other = { uuid: "Actor.theirs", actor: "Actor.theirs", name: "Theirs" };
+    expect(writableTargets([row, other])).toEqual([row]);
+  });
 });
