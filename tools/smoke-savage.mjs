@@ -33,16 +33,8 @@ announcePlan('savage', plan, pulled);
 
 const out = await f.evaluate(async ({ sections, titles }) => {
   const MOD = 'fvtt-mod-bythebooks';
-  const results = [];
-  const log = [];
-  const skips = [];
-  const ok = (name, pass, detail = '') => results.push({ name, pass, detail });
-  const want = id => {
-    if (!sections || sections.includes(String(id))) return true;
-    skips.push(`§${id} ${titles?.[id] ?? ''}`);
-    return false;
-  };
-  const sleep = ms => new Promise(r => setTimeout(r, ms));
+  const { until, watch, canvasReady, tokenOn, snapshotSettings, faces, unrig } = window.__btb;
+  const { results, log, skips, ok, want, section } = window.__btb.begin({ sections, titles });
   const moments = [];
   const momentHookId = Hooks.on('bythebooks.moment', p => moments.push(p));
   const momentsOf = (event, since = 0) => moments.filter(p => (p.event === event) && (p.at >= since));
@@ -57,8 +49,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   const SETTING_KEYS = ['autoDamage', 'autoApply', 'playerRollDamage', 'damageTimer', 'dramaticBeat', 'requireTarget',
     'reactionHold', 'interruptList', 'holdTimer', 'holdReveal', 'holdSkipFutile', 'riders', 'effectRiders', 'masteryRiders',
     'masteryAsk', 'saves', 'saveTimer', 'castApply', 'concMode', 'reminderList', 'clockRiderList', 'damageEitherList', 'metamagicList'];
-  const prior = Object.fromEntries(SETTING_KEYS.map(k => [k, game.settings.get(MOD, k)]));
-  const set = (k, v) => game.settings.set(MOD, k, v);
+  const settings = snapshotSettings(SETTING_KEYS);
+  const { prior, set } = settings;
 
   const scene = game.scenes.getName('By the Books Test Range');
   const victim = game.actors.getName('BTB Test Victim');
@@ -78,13 +70,6 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     savageSaved = null;
     if (!halfling.items.find(i => i.name === 'Savage Attacker')) await halfling.createEmbeddedDocuments('Item', [data], { keepId: true });
   };
-  const realPRNG = CONFIG.Dice.randomUniform;
-  /** The PRNG as a queue of faces: `[20, 19]` then `[6, 6]` → each die takes the next face; past the end, the last. */
-  const faces = spec => {
-    const queue = spec.map(([n, of]) => 1 - ((n - 0.5) / of));
-    let i = 0;
-    CONFIG.Dice.randomUniform = () => queue[Math.min(i++, queue.length - 1)];
-  };
   const clearChips = async () => {
     for (const a of [victim, halfling]) {
       const chips = a.effects.filter(e => e.getFlag(MOD, 'mastery') || /Savage Attacker|Reaction — used/.test(e.name));
@@ -103,9 +88,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   const teardown = async () => {
     if (restored) return;
     restored = true;
-    CONFIG.Dice.randomUniform = realPRNG;
-    try { for (const [k, v] of Object.entries(prior)) await set(k, v); }
-    catch (err) { log.push(`TEARDOWN settings ERROR: ${err?.message}`); }
+    unrig();
+    for (const failed of await settings.restore()) log.push(`TEARDOWN settings ERROR: ${failed}`);
     try {
       await closeDialogs();
       await restoreSavage();
@@ -150,14 +134,14 @@ const out = await f.evaluate(async ({ sections, titles }) => {
 
     // ---- fixtures
     if (canvas.scene?.id !== scene.id) await scene.view();
-    for (let i = 0; i < 40 && !canvas.ready; i++) await sleep(250);
+    await canvasReady();
     const strays = scene.tokens.filter(t => [victim.id, halfling.id].includes(t.actorId)).map(t => t.id);
     if (strays.length) await scene.deleteEmbeddedDocuments('Token', strays);
     const placeToken = async (actor, x, y) => {
       const [doc] = await scene.createEmbeddedDocuments('Token', [
         foundry.utils.mergeObject(actor.prototypeToken.toObject(), { x, y, actorId: actor.id, actorLink: true }, { inplace: false })]);
       created.tokens.push(doc.id);
-      for (let i = 0; i < 40 && !(canvas.ready && canvas.tokens.get(doc.id)); i++) await sleep(250);
+      await tokenOn(doc.id);
       const token = canvas.tokens.get(doc.id);
       if (!token) throw new Error(`${actor.name}'s token never reached the canvas`);
       return { doc, token };
@@ -174,11 +158,6 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     const healFull = async () => victim.update({ 'system.attributes.hp.value': victim.system.attributes.hp.max, 'system.attributes.hp.temp': 0 });
 
     // ---- helpers
-    const waitFor = async (test, timeout = 8000) => {
-      const until = Date.now() + timeout;
-      while (Date.now() < until) { const v = test(); if (v) return v; await sleep(200); }
-      return test();
-    };
     const textOf = el => (el?.textContent ?? '').replace(/\s+/g, ' ').trim();
     const cardText = id => textOf(document.querySelector(`.message[data-message-id="${id}"]`));
     const shortsword = halfling.items.find(i => (i.type === 'weapon') && (i.name === 'Shortsword'));
@@ -191,13 +170,12 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       await healFull();
       halflingToken.control({ releaseOthers: true });
       victimToken.setTarget(true, { releaseOthers: true });
-      await sleep(80);
       faces([[crit ? 20 : d20, 20], ...(Array.isArray(die) ? die : [die]).map(n => [n, 6])]);
       const results = await act.use({ subsequentActions: false }, { configure: false }, {});
       const rolls = await act.rollAttack({}, { configure: false }, results?.message?.id ? { data: { 'system.origin': results.message.id } } : {});
       const attackMsg = rolls?.[0]?.parent ?? null;
       const originId = attackMsg?._source.system?.origin ?? attackMsg?.id;
-      const dmg = await waitFor(() => damageFor(originId), 8000);
+      const dmg = await until(() => damageFor(originId), { timeout: 8000 });
       return { attackMsg, dmg, originId };
     };
     // Savage's row of the one `diceChange` record; a row still asking speaks with the record's status.
@@ -224,15 +202,15 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         { actorId: halfling.id, tokenId: halflingDoc.id, sceneId: scene.id, initiative: 20 },
         { actorId: victim.id, tokenId: victimDoc.id, sceneId: scene.id, initiative: 5 }]);
       await combat.startCombat();
-      await sleep(500);
+      await until(() => combat.started && (combat.combatant?.actorId === halfling.id), { label: 'the combat started on the halfling\'s turn' });
     };
 
     // ---- 1. the popup asks, the damage waits
     let s1 = null;
-    if (want(1) || want(2)) {
+    if (want(1) || want(2)) await section('1-2', async () => {
       await clearChips();
       s1 = await swing({ d20: 15, die: 2 });
-      const popup = await waitFor(eitherPopup, 6000);
+      const popup = await until(eitherPopup, { timeout: 6000 });
       const rollBtn = popup?.element?.querySelector('button[data-action="apply"]');
       const box = popup?.element?.querySelector('input[name="bf-dice"]');
       ok('1a. the popup asks: the tick row names Savage Attacker with "1d6 again" and "once per turn", the rule folded under; a 2 is under the average, so the die meter reads low, the row starts TICKED and "Roll again" is live (the hint, option D)',
@@ -250,21 +228,21 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         (either(s1.dmg)?.status === 'pending') && !receiptOf(s1.dmg), `either=${JSON.stringify(either(s1.dmg))} receipt=${!!receiptOf(s1.dmg)}`);
       ok('1c. the weapon\'s roll count is stamped before any rider (auto-damage.js): one roll, the shortsword\'s',
         s1.dmg?.getFlag(MOD, 'weaponRolls') === 1, `weaponRolls=${s1.dmg?.getFlag(MOD, 'weaponRolls')}`);
-      const text = await waitFor(() => { const t = cardText(s1.dmg?.id); return /Savage Attacker/.test(t) ? t : null; }, 4000);
+      const text = await until(() => { const t = cardText(s1.dmg?.id); return /Savage Attacker/.test(t) ? t : null; }, { timeout: 4000 });
       ok('1d. the damage card says it is offered', /Savage Attacker — offered/.test(text ?? ''), (text ?? '').slice(0, 200));
       tick(popup);
       ok('1f. ticked again, "Roll again" live and "Keep the roll" greyed', rollBtn?.disabled === false && keepBtn1?.disabled === true,
         `again=${rollBtn?.disabled} keep=${keepBtn1?.disabled}`);
-    }
+    });
 
     // ---- 2. roll again, higher
-    if (want(2) && s1) {
+    if (want(2) && s1) await section(2, async () => {
       const popup = eitherPopup();
       const since = Date.now();
       faces([[5, 6]]);
       tick(popup);
       press(popup, 'again');
-      const used = await waitFor(() => (either(game.messages.get(s1.dmg.id))?.status === 'used') ? game.messages.get(s1.dmg.id) : null, 12000);
+      const used = await until(() => (either(game.messages.get(s1.dmg.id))?.status === 'used') ? game.messages.get(s1.dmg.id) : null, { timeout: 12000 });
       const flag = either(used);
       const total = used?.rolls?.reduce((n, r) => n + r.total, 0);
       ok('2a. the second set (5) beats the first (2): the higher stands, the total is 5 + the modifier once',
@@ -273,7 +251,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const faceRow = used?.rolls?.[0]?.dice?.[0]?.results ?? [];
       ok('2b. both sets on the roll: the 2 struck (inactive), the 5 active', faceRow.some(r => (r.result === 2) && (r.active === false)) && faceRow.some(r => (r.result === 5) && (r.active !== false)),
         JSON.stringify(faceRow));
-      const receipt = await waitFor(() => receiptOf(game.messages.get(s1.dmg.id)), 8000);
+      const receipt = await until(() => receiptOf(game.messages.get(s1.dmg.id)), { timeout: 8000 });
       ok('2c. the damage landed ONCE with the new total — one receipt entry, no "moved" note', (receipt?.targets?.length === 1) && !(receipt.targets[0].note ?? '').includes('reroll'),
         JSON.stringify(receipt?.targets?.map(t => ({ taken: t.taken, note: t.note }))));
       const announce = game.messages.contents.find(m => (m.timestamp >= since) && (m.getFlag(MOD, 'respondsTo') === s1.dmg.id));
@@ -281,13 +259,13 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const ev = momentsOf('fold', since).filter(p => (p.kind === 'diceChange') && (p.messageId === s1.dmg.id));
       ok('2e. the resolve was PUBLISHED as `fold` (kind diceChange), once', ev.length === 1, JSON.stringify(ev.map(p => p.marker)));
       ok('2f. out of combat no chit is written — the next hit asks again', !halfling.effects.some(e => e.getFlag(MOD, 'mastery') === 'rider'), '');
-    }
+    });
 
     // ---- 3. roll again, lower
-    if (want(3)) {
+    if (want(3)) await section(3, async () => {
       await clearChips();
       const s = await swing({ d20: 15, die: 5 });
-      const popup = await waitFor(eitherPopup, 6000);
+      const popup = await until(eitherPopup, { timeout: 6000 });
       const box = popup?.element?.querySelector('input[name="bf-dice"]');
       const keepBtn = popup?.element?.querySelector('button[data-action="keep"]');
       ok('3c. a 5 is above the average: the meter reads high, the row starts UNTICKED, "Keep the roll" live and "Roll again" greyed (the hint, option D)',
@@ -297,61 +275,68 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       faces([[2, 6]]);
       tick(popup);
       press(popup, 'again');
-      const used = await waitFor(() => (either(game.messages.get(s.dmg.id))?.status === 'used') ? game.messages.get(s.dmg.id) : null, 12000);
+      const used = await until(() => (either(game.messages.get(s.dmg.id))?.status === 'used') ? game.messages.get(s.dmg.id) : null, { timeout: 12000 });
       const flag = either(used);
       const total = used?.rolls?.reduce((n, r) => n + r.total, 0);
       ok('3a. the second set (2) loses to the first (5): the first stands, the 2 joins struck, the total unmoved',
         (flag?.stands === 'first') && (total === 5 + dexMod) && (used?.rolls?.[0]?.dice?.[0]?.results ?? []).some(r => (r.result === 2) && (r.active === false)),
         `flag=${JSON.stringify(flag)} total=${total}`);
-      const receipt = await waitFor(() => receiptOf(game.messages.get(s.dmg.id)), 8000);
+      const receipt = await until(() => receiptOf(game.messages.get(s.dmg.id)), { timeout: 8000 });
       ok('3b. the damage landed with the first total', !!receipt, JSON.stringify(receipt?.targets?.map(t => t.taken)));
-    }
+    });
 
     // ---- 4. keep the roll
-    if (want(4)) {
+    if (want(4)) await section(4, async () => {
       await clearChips();
       const s = await swing({ d20: 15, die: 4 });
-      const popup = await waitFor(eitherPopup, 6000);
+      const popup = await until(eitherPopup, { timeout: 6000 });
       press(popup, 'keep');
-      const kept = await waitFor(() => (either(game.messages.get(s.dmg.id))?.status === 'kept') ? game.messages.get(s.dmg.id) : null, 8000);
-      const receipt = await waitFor(() => receiptOf(game.messages.get(s.dmg.id)), 8000);
+      const kept = await until(() => (either(game.messages.get(s.dmg.id))?.status === 'kept') ? game.messages.get(s.dmg.id) : null, { timeout: 8000 });
+      const receipt = await until(() => receiptOf(game.messages.get(s.dmg.id)), { timeout: 8000 });
       ok('4a. Keep the roll: the record is kept, the damage lands as rolled', !!kept && !!receipt, `status=${either(game.messages.get(s.dmg.id))?.status} receipt=${!!receipt}`);
-      const text = await waitFor(() => { const t = cardText(s.dmg?.id); return /still ready/.test(t) ? t : null; }, 4000);
+      const text = await until(() => { const t = cardText(s.dmg?.id); return /still ready/.test(t) ? t : null; }, { timeout: 4000 });
       ok('4b. the card says it was not used and is still ready this turn', /not used, still ready this turn/.test(text ?? ''), (text ?? '').slice(0, 200));
-    }
+    });
 
     // ---- 5. once per turn
-    if (want(5)) {
+    if (want(5)) await section(5, async () => {
       await clearChips();
-      await startCombat();
-      const first = await swing({ d20: 15, die: 2 });
-      const popup = await waitFor(eitherPopup, 6000);
-      faces([[6, 6]]);
-      tick(popup);
-      press(popup, 'again');
-      await waitFor(() => either(game.messages.get(first.dmg.id))?.status === 'used', 12000);
-      const chit = await waitFor(() => halfling.effects.find(e => (e.getFlag(MOD, 'mastery') === 'rider') && (e.getFlag(MOD, 'riderKey') === 'savage-attacker')), 5000);
-      ok('5a. used in combat: the rider chit is written for the turn (riderKey savage-attacker)', !!chit, `chit=${chit?.name}`);
-      const second = await swing({ d20: 15, die: 3 });
-      await sleep(1200);
-      const receipt2 = await waitFor(() => receiptOf(game.messages.get(second.dmg.id)), 8000);
-      ok('5b. the second hit the same turn is born spent — no popup, the damage lands at once',
-        (either(second.dmg)?.status === 'spent') && !eitherPopup() && !!receipt2,
-        `either=${JSON.stringify(either(second.dmg))} popup=${!!eitherPopup()} receipt=${!!receipt2}`);
-      const text = await waitFor(() => { const t = cardText(second.dmg?.id); return /used this turn/.test(t) ? t : null; }, 4000);
-      ok('5c. the card carries the one tag: "Savage Attacker — used this turn"', /Savage Attacker — used this turn/.test(text ?? ''), (text ?? '').slice(0, 200));
-      await combat.nextTurn(); await sleep(600);   // the victim
-      await combat.nextTurn(); await sleep(600);   // round 2, the halfling again
-      const third = await swing({ d20: 15, die: 3 });
-      const again = await waitFor(eitherPopup, 6000);
-      ok('5d. the next turn offers again', !!again && (either(game.messages.get(third.dmg.id))?.status === 'pending'), `popup=${!!again}`);
-      press(again, 'keep');
-      await combat.delete(); combat = null;
-      await clearChips();
-    }
+      try {
+        await startCombat();
+        const first = await swing({ d20: 15, die: 2 });
+        const popup = await until(eitherPopup, { timeout: 6000 });
+        faces([[6, 6]]);
+        tick(popup);
+        press(popup, 'again');
+        await until(() => either(game.messages.get(first.dmg.id))?.status === 'used', { timeout: 12000 });
+        const chit = await until(() => halfling.effects.find(e => (e.getFlag(MOD, 'mastery') === 'rider') && (e.getFlag(MOD, 'riderKey') === 'savage-attacker')), { timeout: 5000 });
+        ok('5a. used in combat: the rider chit is written for the turn (riderKey savage-attacker)', !!chit, `chit=${chit?.name}`);
+        const second = await swing({ d20: 15, die: 3 });
+        // The window a wrong popup on the spent hit would open in.
+        const strayPopup = await watch(eitherPopup, { ms: 1200 });
+        const receipt2 = await until(() => receiptOf(game.messages.get(second.dmg.id)), { timeout: 8000 });
+        ok('5b. the second hit the same turn is born spent — no popup, the damage lands at once',
+          (either(second.dmg)?.status === 'spent') && !strayPopup && !eitherPopup() && !!receipt2,
+          `either=${JSON.stringify(either(second.dmg))} popup=${!!eitherPopup()} stray=${!!strayPopup} receipt=${!!receipt2}`);
+        const text = await until(() => { const t = cardText(second.dmg?.id); return /used this turn/.test(t) ? t : null; }, { timeout: 4000 });
+        ok('5c. the card carries the one tag: "Savage Attacker — used this turn"', /Savage Attacker — used this turn/.test(text ?? ''), (text ?? '').slice(0, 200));
+        await combat.nextTurn();   // the victim
+        await until(() => (combat.round === 1) && (combat.combatant?.actorId === victim.id), { label: 'the victim\'s turn' });
+        await combat.nextTurn();   // round 2, the halfling again
+        await until(() => (combat.round === 2) && (combat.combatant?.actorId === halfling.id), { label: 'round 2, the halfling\'s turn' });
+        const third = await swing({ d20: 15, die: 3 });
+        const again = await until(eitherPopup, { timeout: 6000 });
+        ok('5d. the next turn offers again', !!again && (either(game.messages.get(third.dmg.id))?.status === 'pending'), `popup=${!!again}`);
+        press(again, 'keep');
+      } finally {
+        if (combat && game.combats.get(combat.id)) await combat.delete();
+        combat = null;
+        await clearChips();
+      }
+    });
 
     // ---- 6. the hold first
-    if (want(6)) {
+    if (want(6)) await section(6, async () => {
       await clearChips();
       await set('reactionHold', true);
       await set('holdTimer', 0);
@@ -360,55 +345,63 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       // A text-only feature on the victim, the 2024 Uncanny Dodge's shape (smoke-hold §8's stand-in).
       const [ud] = await victim.createEmbeddedDocuments('Item', [{ name: 'Uncanny Dodge', type: 'feat', system: { description: { value: '<p>Halve it.</p>' } } }]);
       created.items.push([victim.id, ud.id]);
-      const s = await swing({ d20: 15, die: 2 });
-      const hold = await waitFor(() => (s.attackMsg?.getFlag(MOD, 'hold')?.status === 'pending') ? s.attackMsg.getFlag(MOD, 'hold') : null, 6000);
-      await sleep(1000);
-      ok('6a. while the defender\'s hold is open the offer stays DUE — no popup, no receipt',
-        !!hold && (either(game.messages.get(s.dmg.id))?.status === 'due') && !eitherPopup() && !receiptOf(game.messages.get(s.dmg.id)),
-        `hold=${hold?.status} either=${either(game.messages.get(s.dmg.id))?.status} popup=${!!eitherPopup()}`);
-      const { answerHold } = await import('/modules/fvtt-mod-bythebooks/scripts/hold/answer.js');
-      await answerHold(s.attackMsg, victim.uuid, 'pass');
-      const popup = await waitFor(eitherPopup, 10000);
-      ok('6b. the hold answered (a pass), the damage stands and the offer asks', !!popup && (either(game.messages.get(s.dmg.id))?.status === 'pending'),
-        `either=${either(game.messages.get(s.dmg.id))?.status}`);
-      press(popup, 'keep');
-      await waitFor(() => receiptOf(game.messages.get(s.dmg.id)), 8000);
-      // The reaction hold is always on now: the stand-in Uncanny Dodge must LEAVE the victim, or every later
-      // hit holds for it (a 0 s Decision Timer waits for ever) and the dice popup never asks.
-      if (victim.items.get(ud.id)) await victim.deleteEmbeddedDocuments('Item', [ud.id]);
-    }
+      try {
+        const s = await swing({ d20: 15, die: 2 });
+        const hold = await until(() => (s.attackMsg?.getFlag(MOD, 'hold')?.status === 'pending') ? s.attackMsg.getFlag(MOD, 'hold') : null, { timeout: 6000 });
+        // The window a popup or a receipt must NOT arrive in while the hold stands.
+        const stray = await watch(() => (eitherPopup() ? 'popup' : null) ?? (receiptOf(game.messages.get(s.dmg.id)) ? 'receipt' : null), { ms: 1000 });
+        ok('6a. while the defender\'s hold is open the offer stays DUE — no popup, no receipt',
+          !!hold && !stray && (either(game.messages.get(s.dmg.id))?.status === 'due') && !eitherPopup() && !receiptOf(game.messages.get(s.dmg.id)),
+          `hold=${hold?.status} either=${either(game.messages.get(s.dmg.id))?.status} popup=${!!eitherPopup()} stray=${stray}`);
+        const { answerHold } = await import('/modules/fvtt-mod-bythebooks/scripts/hold/answer.js');
+        await answerHold(s.attackMsg, victim.uuid, 'pass');
+        const popup = await until(eitherPopup, { timeout: 10000 });
+        ok('6b. the hold answered (a pass), the damage stands and the offer asks', !!popup && (either(game.messages.get(s.dmg.id))?.status === 'pending'),
+          `either=${either(game.messages.get(s.dmg.id))?.status}`);
+        press(popup, 'keep');
+        await until(() => receiptOf(game.messages.get(s.dmg.id)), { timeout: 8000 });
+      } finally {
+        // The reaction hold is always on now: the stand-in Uncanny Dodge must LEAVE the victim, or every later
+        // hit holds for it (a 0 s Decision Timer waits for ever) and the dice popup never asks.
+        if (victim.items.get(ud.id)) await victim.deleteEmbeddedDocuments('Item', [ud.id]);
+      }
+    });
 
     // ---- 7. a crit's doubled set
-    if (want(7)) {
+    if (want(7)) await section(7, async () => {
       await clearChips();
       const s = await swing({ crit: true, die: [1, 2] });
-      const popup = await waitFor(eitherPopup, 6000);
+      const popup = await until(eitherPopup, { timeout: 6000 });
       ok('7a. a crit offers the doubled set: "2d6 again"', /2d6 again/.test(textOf(popup?.element)), textOf(popup?.element).slice(0, 200));
       faces([[6, 6], [5, 6]]);
       tick(popup);
       press(popup, 'again');
-      const used = await waitFor(() => (either(game.messages.get(s.dmg.id))?.status === 'used') ? game.messages.get(s.dmg.id) : null, 12000);
+      const used = await until(() => (either(game.messages.get(s.dmg.id))?.status === 'used') ? game.messages.get(s.dmg.id) : null, { timeout: 12000 });
       ok('7b. both dice rolled again as one set: 3 against 11, the 11 stands', (either(used)?.first === 3) && (either(used)?.second === 11) && (either(used)?.stands === 'second'),
         JSON.stringify(either(used)));
-    }
+    });
 
     // ---- 8. the clock keeps the roll
-    if (want(8)) {
+    if (want(8)) await section(8, async () => {
       await clearChips();
       await set('holdTimer', 2);
-      const s = await swing({ d20: 15, die: 3 });
-      await waitFor(eitherPopup, 6000);
-      const kept = await waitFor(() => either(game.messages.get(s.dmg.id))?.status === 'kept', 8000);
-      const receipt = await waitFor(() => receiptOf(game.messages.get(s.dmg.id)), 8000);
-      ok('8a. unanswered, the clock keeps the roll (timedOut) and the damage lands', kept && !!receipt && either(game.messages.get(s.dmg.id))?.timedOut === true,
-        JSON.stringify(either(game.messages.get(s.dmg.id))));
-      await set('holdTimer', 0);
-    }
+      try {
+        const s = await swing({ d20: 15, die: 3 });
+        await until(eitherPopup, { timeout: 6000 });
+        // The Decision Timer's buzzer is the clock here: its end is the record turning kept.
+        const kept = await until(() => either(game.messages.get(s.dmg.id))?.status === 'kept', { timeout: 8000 });
+        const receipt = await until(() => receiptOf(game.messages.get(s.dmg.id)), { timeout: 8000 });
+        ok('8a. unanswered, the clock keeps the roll (timedOut) and the damage lands', kept && !!receipt && either(game.messages.get(s.dmg.id))?.timedOut === true,
+          JSON.stringify(either(game.messages.get(s.dmg.id))));
+      } finally {
+        await set('holdTimer', 0);
+      }
+    });
 
     // ---- 9. RETIRED: the Damage Rolled Twice list is gone (the table is the only list).
 
     // ---- 11. Piercer's Puncture
-    if (want(11)) {
+    if (want(11)) await section(11, async () => {
       await clearChips();
       let piercer = null;
       for (const pack of game.packs.filter(pk => (pk.metadata.packageName === 'dnd-players-handbook') && (pk.documentName === 'Item'))) {
@@ -426,25 +419,25 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         if (savage) await halfling.deleteEmbeddedDocuments('Item', [savage.id]);
         try {
           const s = await swing({ d20: 15, die: 1 });
-          const popup = await waitFor(eitherPopup, 6000);
+          const popup = await until(eitherPopup, { timeout: 6000 });
           ok('11a. a 1 on the Shortsword\'s d6: the popup asks "roll the 1 on the d6 again?", Piercer\'s row, ticked (a 1 is under the average)',
             !!popup && /roll the 1 on the d6 again\?/.test(textOf(popup.element)) && /Piercer/.test(textOf(popup.element))
               && (popup.element.querySelector('input[name="bf-dice"]')?.checked === true) && (either(s.dmg)?.one === true),
             `text="${textOf(popup?.element).slice(0, 200)}" flag=${JSON.stringify(either(s.dmg))}`);
           faces([[5, 6]]);
           press(popup, 'again');
-          const used = await waitFor(() => (either(game.messages.get(s.dmg.id))?.status === 'used') ? game.messages.get(s.dmg.id) : null, 12000);
+          const used = await until(() => (either(game.messages.get(s.dmg.id))?.status === 'used') ? game.messages.get(s.dmg.id) : null, { timeout: 12000 });
           const total = used?.rolls?.reduce((n, r) => n + r.total, 0);
-          const line = await waitFor(() => { const t = cardText(s.dmg.id); return /the new roll stands/.test(t) ? t : null; }, 4000);
+          const line = await until(() => { const t = cardText(s.dmg.id); return /the new roll stands/.test(t) ? t : null; }, { timeout: 4000 });
           ok('11b. Roll again → 5: the new roll stands, the total 5 + the modifier, the card says "the 1 on the d6 again → 5 — the new roll stands"',
             (either(used)?.second === 5) && (total === 5 + dexMod) && /Piercer — the 1 on the d6 again → 5 — the new roll stands/.test(line ?? ''),
             `flag=${JSON.stringify(either(used))} total=${total} line="${(line ?? '').slice(0, 160)}"`);
           await closeDialogs();
           const s2 = await swing({ d20: 15, die: 4 });
-          const popup2 = await waitFor(eitherPopup, 6000);
+          const popup2 = await until(eitherPopup, { timeout: 6000 });
           faces([[2, 6]]);
           press(popup2, 'again');
-          const used2 = await waitFor(() => (either(game.messages.get(s2.dmg.id))?.status === 'used') ? game.messages.get(s2.dmg.id) : null, 12000);
+          const used2 = await until(() => (either(game.messages.get(s2.dmg.id))?.status === 'used') ? game.messages.get(s2.dmg.id) : null, { timeout: 12000 });
           const total2 = used2?.rolls?.reduce((n, r) => n + r.total, 0);
           ok('11c. a 4 rolled again to a 2: the new roll stands, LOWER ("you must use the new roll")', (either(used2)?.second === 2) && (total2 === 2 + dexMod),
             `flag=${JSON.stringify(either(used2))} total=${total2}`);
@@ -453,10 +446,10 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           await restoreSavage();
         }
       }
-    }
+    });
 
     // ---- 12. Savage and Piercer on one hit
-    if (want(12)) {
+    if (want(12)) await section(12, async () => {
       await clearChips();
       let piercer = halfling.items.find(i => i.name === 'Piercer') ?? null;
       if (!piercer) {
@@ -471,17 +464,19 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         try {
           const since = Date.now();
           const s = await swing({ d20: 15, die: 1 });
-          const popup = await waitFor(eitherPopup, 6000);
-          await sleep(400);
-          const popups = [...foundry.applications.instances.values()].filter(app => app.rendered && app.element?.querySelector?.('[data-bf-ticks="bf-dice"]'));
+          const popup = await until(eitherPopup, { timeout: 6000 });
+          const dicePopups = () => [...foundry.applications.instances.values()].filter(app => app.rendered && app.element?.querySelector?.('[data-bf-ticks="bf-dice"]'));
+          // The window a second popup for the same hit would open in.
+          const second = await watch(() => dicePopups().length > 1, { ms: 400 });
+          const popups = dicePopups();
           const boxes = [...(popup?.element?.querySelectorAll('input[name="bf-dice"]') ?? [])];
           ok('12a. ONE popup with both rows — Savage Attacker then Piercer — "change the dice?", both ticked (a 1 is under both averages), "Apply" live',
-            (popups.length === 1) && (boxes.map(b => b.value).join(',') === 'savage-attacker,piercer') && boxes.every(b => b.checked)
+            !second && (popups.length === 1) && (boxes.map(b => b.value).join(',') === 'savage-attacker,piercer') && boxes.every(b => b.checked)
               && /change the dice\?/.test(textOf(popup?.element)) && (popup?.element?.querySelector('button[data-action="apply"]')?.textContent?.trim() === 'Apply'),
-            `popups=${popups.length} rows=${boxes.map(b => `${b.value}:${b.checked}`).join(',')} text="${textOf(popup?.element).slice(0, 160)}"`);
+            `popups=${popups.length} second=${!!second} rows=${boxes.map(b => `${b.value}:${b.checked}`).join(',')} text="${textOf(popup?.element).slice(0, 160)}"`);
           faces([[5, 6], [6, 6]]);
           popup?.element?.querySelector('button[data-action="apply"]')?.click();
-          const used = await waitFor(() => (game.messages.get(s.dmg.id)?.getFlag(MOD, 'diceChange')?.status === 'used') ? game.messages.get(s.dmg.id) : null, 15000);
+          const used = await until(() => (game.messages.get(s.dmg.id)?.getFlag(MOD, 'diceChange')?.status === 'used') ? game.messages.get(s.dmg.id) : null, { timeout: 15000 });
           const sv = either(used, 'savage-attacker');
           const pc = either(used, 'piercer');
           const total = used?.rolls?.reduce((n, r) => n + r.total, 0);
@@ -489,10 +484,10 @@ const out = await f.evaluate(async ({ sections, titles }) => {
             (sv?.status === 'used') && (sv.first === 1) && (sv.second === 5) && (sv.stands === 'second')
               && (pc?.status === 'used') && (pc.first === 5) && (pc.second === 6) && (total === 6 + dexMod),
             `savage=${JSON.stringify(sv)} piercer=${JSON.stringify(pc)} total=${total}`);
-          const receipt = await waitFor(() => receiptOf(game.messages.get(s.dmg.id)), 8000);
+          const receipt = await until(() => receiptOf(game.messages.get(s.dmg.id)), { timeout: 8000 });
           ok('12c. the damage landed ONCE with the final total', (receipt?.targets?.length === 1) && (receipt.targets[0].taken === 6 + dexMod),
             JSON.stringify(receipt?.targets?.map(t => t.taken)));
-          const line = await waitFor(() => { const t = cardText(s.dmg.id); return /Piercer — the 5 on the d6 again → 6/.test(t) ? t : null; }, 4000);
+          const line = await until(() => { const t = cardText(s.dmg.id); return /Piercer — the 5 on the d6 again → 6/.test(t) ? t : null; }, { timeout: 4000 });
           ok('12d. the card says both, source then result', /Savage Attacker — 1d6 → 1, again → 5/.test(line ?? '') && /Piercer — the 5 on the d6 again → 6/.test(line ?? ''), (line ?? '').slice(0, 240));
           const ev = momentsOf('fold', since).filter(p => (p.kind === 'diceChange') && (p.messageId === s.dmg.id)).map(p => p.marker).sort();
           ok('12e. two `fold` resolves, one per row', ev.join(',') === 'piercer,savage-attacker', ev.join(','));
@@ -501,13 +496,13 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           await set('damageEitherList', prior.damageEitherList);
         }
       }
-    }
+    });
 
     // ---- 10. FIRED
-    if (want(10)) {
+    if (want(10)) await section(10, async () => {
       ok('10a. dnd5e.preRollDamage and dnd5e.rollDamage fired', (count('dnd5e.preRollDamage') > 0) && (count('dnd5e.rollDamage') > 0),
         `pre=${count('dnd5e.preRollDamage')} roll=${count('dnd5e.rollDamage')}`);
-    }
+    });
 
     return { log, results, skips };
   } catch (err) {
