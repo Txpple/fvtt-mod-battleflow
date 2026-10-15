@@ -16,9 +16,11 @@
 //                                                 dist/contract-recordings): a field, pair, key or hook
 //                                                 the run saw and the file does not name FAILS; a
 //                                                 documented field the run never saw is REPORTED
-//   node tools/contracts.mjs --write [--run dir]  the recordings unioned into the committed files
+//   node tools/contracts.mjs --write [dir]        the recordings unioned into the committed files
 //                                                 (a schema only grows; a sample, once there, stays)
 //   node tools/contracts.mjs --write --fresh      the files rebuilt from the run alone
+//   --prefer <suffix>                             with --write: read a consumer's <repo>.<suffix>
+//                                                 worktree before its clone, for `readBy`
 //
 // The schemas are derived by shape (tools/contract-shapes.mjs); the version and the prose are
 // hand-written and kept across writes. ⚠ The version moves when a shape another repo reads changes:
@@ -269,15 +271,16 @@ export function buildFlags(committed, run, writers, readBy, fresh = false) {
 
 /**
  * The consumers beside this repo that name the card-flag keys: key → repo names, or null when no
- * consumer is cloned (the committed `readBy` then stands). A consumer's main clone is read first,
- * else a worktree of it (`<repo>.<name>`).
+ * consumer is cloned (the committed `readBy` then stands). A consumer's `<repo>.<prefer>` worktree is
+ * read first when named, then its main clone, else any worktree of it (`<repo>.<name>`).
+ * @param {string|null} [prefer]
  */
-function readByFromConsumers() {
+function readByFromConsumers(prefer = null) {
   const parent = dirname(REPO);
   const out = {};
   let found = 0;
   for (const repo of CONSUMERS) {
-    const dirs = [repo, ...(existsSync(parent) ? readdirSync(parent).filter(n => n.startsWith(`${repo}.`)) : [])];
+    const dirs = [...(prefer ? [`${repo}.${prefer}`] : []), repo, ...(existsSync(parent) ? readdirSync(parent).filter(n => n.startsWith(`${repo}.`)) : [])];
     const file = dirs.map(d => join(parent, d, "contracts", "consumes.json")).find(p => existsSync(p));
     if (!file) continue;
     found++;
@@ -389,7 +392,7 @@ const write = (p, obj) => writeFileSync(p, `${JSON.stringify(obj, null, 2)}\n`);
 async function main() {
   const { values, positionals } = strictArgs({
     usage: usageOf(fileURLToPath(import.meta.url)),
-    options: { check: { type: "boolean" }, write: { type: "boolean" }, run: { type: "boolean" }, fresh: { type: "boolean" } },
+    options: { check: { type: "boolean" }, write: { type: "boolean" }, run: { type: "boolean" }, fresh: { type: "boolean" }, prefer: { type: "string" } },
     allowPositionals: true
   });
   const dir = positionals[0] ? resolve(process.cwd(), positionals[0]) : RECORDING_DIR;
@@ -404,7 +407,7 @@ async function main() {
     // with no shape: a new key is listed offline, and a recording run gives it its shape.
     if (!run.suites.length) console.log(`no recordings in ${shown}: the files list the code, shapes kept from the committed files`);
     const moment = buildMoment(readJson(MOMENT_FILE), run, !!values.fresh);
-    const flags = buildFlags(readJson(FLAGS_FILE), run, await writersByKey(), readByFromConsumers(), !!values.fresh);
+    const flags = buildFlags(readJson(FLAGS_FILE), run, await writersByKey(), readByFromConsumers(values.prefer ?? null), !!values.fresh);
     write(MOMENT_FILE, moment);
     write(FLAGS_FILE, flags);
     const recordedKinds = Object.values(moment.kinds).filter(k => k.recorded).length;
