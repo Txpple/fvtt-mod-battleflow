@@ -1,7 +1,10 @@
 # Plan — several GM clients: the measurement (Pass 2, first brief)
 
 **Status.** Section 1 written offline (2026-10-15) from the installed Foundry 14.369 and dnd5e 6.0.6 sources and this
-repo's `scripts/`. Sections 2 and 3 wait for the sandbox run of `tools/probe-multi-gm.mjs`. **Nothing in the module is
+repo's `scripts/`; sections 2 and 3 from the sandbox run of `tools/probe-multi-gm.mjs` the same day (56 cycles, two of
+the four orderings: the Gamemaster identity waits for the owner). **The finding:** no overlap ever, a 1.1 s gap when the
+elect moves, every record landed once, and one narrow path to a doubled landing (the newcomer's stale snapshot) that
+the next brief closes first. **Nothing in the module is
 built or changed by this brief**: the harness mode (`GM_CLIENTS`, three GM identities, `tools/seed-gm-identities.mjs`)
 and the probe are tooling. The goal it serves, in the owner's words: *"ultimately, we need to support multiple gm
 clients, of varying or same privilege level (full vs assistant)"*. The analysis it measures is suite issue #8 (items 2,
@@ -125,8 +128,130 @@ the other cut issue #8 names, presentation versus consequence (every `isGM` site
 
 ## 2. The measurement
 
-*(Written from the sandbox run of `tools/probe-multi-gm.mjs`: the identities, the orderings, the table and its reading.)*
+Run on the sandbox on 2026-10-15: Foundry 14.369, dnd5e 6.0.6, By the Books `main`'s bytes (the worktree deployed
+`--local`, byte-identical), one machine for the server and every client, so the network costs well under a millisecond.
+The cycles are in `dist/probe-multi-gm/run-4e.json` and `run-4e-aim.json`; the logs beside them.
+
+### 2.1 What ran, and what did not
+
+- **The identities.** `suite` holds the Assistant GM role (3), not Gamemaster. `assistant` was created by
+  `tools/seed-gm-identities.mjs` with role 3; its id sorts below the suite's, so it leads a tie. **`gm2` (a Gamemaster)
+  could not be created**: an Assistant may create users of its own role or below only (§1.2), and no Gamemaster's
+  credentials are in the family `.env`. Its user waits for the owner (Configure Players, Create User, `Gamemaster Tester`,
+  Gamemaster, the password on the `.env`'s `FOUNDRY_GM2_PASSWORD` line), and with it the two mixed-role orderings:
+  `node tools/probe-multi-gm.mjs --orderings full-assistant,assistant-full`. Mechanically they are the same two cases as the
+  same-role rows (the elect stays, the elect moves; §1.1), so the expectation is the same numbers.
+- **The world's table:** `SETTINGS_MODIFY` and `FILES_UPLOAD` both `[3, 4]`, the defaults (§1.3's reading holds here).
+- **The runs.** The default schedule (16 offsets, −150 ms to +5 s) on `same-stays` and `same-moves`: 32 cycles. Then an
+  aimed series on `same-moves` (`--aim=-8 --cycles 24`), every cycle fired a few ms before W hears X arrive, to sample
+  the narrow window §1.4 predicts: 24 cycles. **56 cycles**, none failed; four shakedown cycles before them are not
+  counted.
+- **A harness defect found on the way** and fixed (commit `be5315c`): the harness's teardown called itself instead of the
+  bridge's close, so every suite's browser, and its user's seat, lived until the process exited. A script that connects
+  twice found its first client still on 20 s later; the first full run stopped on it.
+
+### 2.2 The table
+
+| Ordering | W → X (role) | Cycles | Fired pre / boot / setup / ready | Landed once | Doubled | Not landed | Claims by W / X | Overlap > 0 (max ms) | Gap median / max ms | Fire → claim median ms (pre / boot / setup / ready) | X arrival → setup / ready median ms |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| full-assistant | — | skipped: no Gamemaster identity (gm2 waits for the owner) | | | | | | | | | |
+| assistant-full | — | skipped: the same | | | | | | | | | |
+| same-stays | assistant (3) → suite (3) | 16 | 2 / 11 / 1 / 2 | 16 | 0 | 0 | 16 / 0 | 0 (0) | 0 / 0 | 8 / 12 / 13 / 7 | 1101 / 2006 |
+| same-moves | suite (3) → assistant (3) | 16 | 5 / 8 / 1 / 2 | 16 | 0 | 0 | 5 / 11 | 0 (0) | 1109 / 1236 | 7 / 2421 / 1307 / 897 | 1111 / 2116 |
+| same-moves, aimed −8 ms | suite (3) → assistant (3) | 24 | 12 / 12 / 0 / 0 | 24 | 0 | 0 | 11 / 13 | 0 (0) | 1083 / 1151 | 11 / 2423 / — / — | 1084 / 2093 |
+
+The phases: *pre* the answer written before W heard X arrive; *boot* after it, before X's `setup` hook; *setup* before
+X's `ready`; *ready* after. The aimed fires spread from −53 ms to +39 ms around the arrival (one calibration fire at
++667 ms); the schedule's from −173 ms to +5 s. X's own clock: its connect took 2.28–2.54 s to reach the arrival (the
+browser launch and `/join`), its `setup` came 1.06–1.24 s after the arrival and its `ready` 1.94–2.22 s after.
+
+### 2.3 What landed per record
+
+**All 56 records landed once:** one claim, one writer of the record after the answer, one familiar token, one companion
+effect, one `bythebooks.moment`, no extra chat card, the record `applied` with outcome `landed`. Nothing was lost: no
+record was left unlanded, the latest landed 4.5 s after the arrival.
+
+### 2.4 The elect, sampled every 5 ms on both pages
+
+- **The overlap is zero in all 56 cycles.** No instant had both clients passing `isActiveGM`.
+- **When the elect stays** (16): X never held it, not one sample.
+- **When the elect moves** (40): W stood down 0–25 ms (median 3) after it heard X arrive; X first held the elect at its
+  `setup` hook, 1056–1240 ms (median 1103) after. **The gap — nobody holding the elect — is 1056–1236 ms, median
+  1100.** Prediction 1 holds and prediction 2 holds: Foundry tells the client already on before the newcomer has a
+  world, so the hand-off opens a gap, never an overlap.
+
+### 2.5 The hand-off, by when the record was answered (the elect moving, 40 cycles)
+
+- **Before the arrival** (16 of the 17 *pre* fires): W, still the elect when its own write came back, claimed 6–19 ms
+  after its answer and landed in about 50 ms; X's snapshot showed the record claimed or landed every time, and X did
+  nothing. The 17th (aimed, fired −1 ms): W heard the arrival before its write came back, stood down, and X drove it.
+- **In the gap** (the *boot* and *setup* fires): nobody drove until X. X drove either **from its snapshot, during its
+  setup** (2 cycles, the answer inside the snapshot — aimed cycles 19 and 21, the second the −1 ms fire above: claimed
+  1494 and 1452 ms after the arrival, landed by 1.75 s) or
+  **from the buffered update at its `ready`** (the answer after the snapshot: claimed 2.38–2.51 s after the arrival,
+  landed 4.3–4.5 s after it — X's page is busy for about 2 s after `ready`, so its landing takes 1.9 s where W's took
+  50 ms).
+- **After X's ready**: at +2.5 s the claim waited until 4.29 s (the same busy page); at +5 s it came 10 ms after the
+  answer.
+
+### 2.6 The snapshot's cut, and the one window for a doubled landing
+
+Three facts the aimed series measured, each the piece of prediction 3 it names:
+
+1. **The newcomer's snapshot is cut 3–8 ms after W hears the arrival.** An answer W saw land at +3 ms was in X's snapshot
+   (aimed cycle 19), and so was a W claim at +2 ms (cycle 15); answers at +8 and +9 ms were not (cycles 4, 7, 12, 17).
+2. **W still claims a record answered just before the arrival, after it.** Cycle 15: answered at −10 ms, W's claim
+   landed at +2 ms — W decided while it was still the elect.
+3. **The newcomer drives from its snapshot before its buffered events are applied.** Cycles 19 and 21: X claimed during
+   `setup` (1.45–1.49 s), half a second before its `ready`, from the chat log's render (`scripts/ui.js:880`–`882`).
+
+Together they make the doubled landing §1.4 predicts possible: the answer lands before the cut, W's claim after it,
+and W decides before it hears the arrival. X's snapshot then holds an answered, unclaimed record, its render resume
+drives it from that snapshot (its `queueFlagWrite` reads the same stale document, `scripts/core.js:269`), and both land.
+With W's claim 3–12 ms behind its answer (measured), the window is **at most about 10 ms wide, around the arrival**,
+on this machine. **It was not hit**: 39 of the 56 fires fell within ±60 ms of the arrival, 18 of them within ±20 ms.
+On a hosted world every step in it is a network trip (W hears the arrival half a round trip after the server, its claim
+leaves a round trip after its answer), so the window grows to about one round trip: tens of milliseconds on Molten.
+Still narrow, but a co-DM who joins while a summon is being placed can fall into it, and it is a window of the code, not
+of the machine. Prod was not measured (off limits).
 
 ## 3. What the next brief should build
 
-*(Written from section 2.)*
+**The verdict.** The race issue #8 item 3 suspected, both clients holding the elect at once, **does not happen**: 0 ms of
+overlap in 56 cycles, and Foundry's own order (the activity broadcast before the newcomer's world request) rules it
+out. The hand-off itself works: every record landed once, at worst 4.5 s after the arrival. **A doubled landing is
+possible through one narrow path, the stale snapshot** (§2.6), measured in its three parts and not reproduced in 56
+cycles. The claim needs no user id to stop it; the snapshot needs a guard. So the next brief, in this order:
+
+1. **The snapshot guard (small; first).** In `scripts/ui.js` `resume` (`:838`), a `"render"` resume before
+   `game.ready` does not drive: its key is set aside and resumed once `ready` fires, when Foundry has applied the
+   buffered events (`client/game.mjs:776`–`778`, `:2008`) and a claim that missed the snapshot is in the document. One
+   place, every resumable at once (summons, transforms, the rest grants, the mastery record, the initiative grant and
+   swap, kit tend, the turn grants, drop-to-one's offer). The cost is measured: the two snapshot-path landings
+   (1.45–1.49 s) move to the buffered path's 2.4 s. Proof: a unit test of the deferral (a fake `game.ready`), and this
+   probe re-run, `same-moves --aim=-8`, with the claims still one per record.
+2. **The `isGM` audit** (issue #8 item 1). Two GM clients run every `game.user.isGM` site twice today, without any race:
+   two screens show the same ask. §1.3 found that no consequence write needs a role split, so the audit is one cut per
+   site, presentation (fine on every GM screen) or consequence (the elect only), plus whether the loser's popup closes
+   when the answer lands (`shownMoments` is per client). The hub first, Loot Shelf's 21 sites with Pass 4.
+3. **The claim with its claimant, and the re-drive** (issue #8 item 2: a claimant that leaves mid-landing leaves
+   `applying` set forever; not measured here, since the probe never drops a client mid-landing). The shape:
+   - *Where the user id goes.* The claim becomes a stamp, `applying: { by: game.user.id, window: WINDOW_ID, at:
+     Date.now() }` instead of `true`, written by one helper in `scripts/core.js` beside `queueFlagWrite` and used at
+     every claim site (`summons.js:787`, `transforms.js:415` and `:786`, `rest-grants.js:495`, `mastery-record.js:369`,
+     `initiative-grants.js:231`, `initiative-swap.js:159`, `kit-tend.js:129`, `turn-grants.js:302`, `drop-to-one.js:500`
+     and `:734`). An object is truthy, so every `!flag.applying` read keeps its meaning.
+   - *How liveness is checked.* A claim is dead when its user is no longer active (`game.users.get(by)?.active`), or
+     when it is older than a ceiling with nothing landed. The ceiling covers a window closed mid-landing while the same
+     user's other window stays on; the measured worst landing is 4.5 s from an arrival, so a minute is generous.
+   - *What re-drives.* Each resumable's `pending` treats a dead claim as no claim. The trigger is the elect's
+     `userConnected(user, false)` (the claimant left), resuming the recent cards the way the lead resume does
+     (`ui.js:863`–`878`), and the lead resume itself; the re-driver's claim overwrites the dead stamp.
+   - *What a re-drive must find.* The dead landing may have made part of its work: summon tokens carry no record id
+     today (`summons.js:897`), so each landed token is stamped with its card's id and the re-drive removes or adopts
+     what the dead landing left; the companion effect is already keyed by the card (`endCompanionEffects(caster,
+     message.id)`).
+   - *Its proof:* a probe ordering that hangs X up just after its claim, the record still landing once, by W.
+4. **Pass 2's done-when** follows from the harness mode: `smoke-companions` and `smoke-summons` each declare
+   `GM_CLIENTS`, connect a second GM through `gmConfig`, and assert one landing per record while it arrives; then again
+   with a Gamemaster beside an Assistant once the `gm2` user exists.

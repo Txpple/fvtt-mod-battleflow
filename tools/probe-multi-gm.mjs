@@ -8,6 +8,7 @@
  *   node tools/probe-multi-gm.mjs                        every ordering the world's identities allow, 16 cycles each
  *   node tools/probe-multi-gm.mjs --orderings same-moves,assistant-full
  *   node tools/probe-multi-gm.mjs --cycles 10            the first 10 offsets of the schedule
+ *   node tools/probe-multi-gm.mjs --aim=-10 --cycles 24  every cycle at one offset (ms; a negative one takes the =): a narrow window sampled densely
  *   node tools/probe-multi-gm.mjs --keep-lead            leave the arriving user's leading-window flag as its last
  *                                                        window left it (a crashed browser), not cleared (a closed one)
  *   node tools/probe-multi-gm.mjs --json <file>          where the cycles go (default dist/probe-multi-gm/<stamp>.json)
@@ -74,6 +75,7 @@ const { values } = strictArgs({
   options: {
     orderings: { type: "string" },
     cycles: { type: "string" },
+    aim: { type: "string" },
     "keep-lead": { type: "boolean" },
     json: { type: "string" },
     watchdog: { type: "string" },
@@ -92,6 +94,9 @@ const asked = values.orderings ? values.orderings.split(",").map(s => s.trim()).
 const unknownOrdering = asked.filter(k => !(k in ORDERINGS));
 if (unknownOrdering.length) { console.error(`--orderings: no such ordering ${unknownOrdering.join(", ")}. Try --list.`); process.exit(2); }
 const cycles = values.cycles === undefined ? OFFSETS.length : Number(values.cycles);
+const aim = values.aim === undefined ? null : Number(values.aim);
+if ((aim !== null) && !Number.isFinite(aim)) { console.error("--aim takes an offset in ms"); process.exit(2); }
+const offsetOf = i => aim ?? OFFSETS[i % OFFSETS.length];
 if (!Number.isInteger(cycles) || cycles < 1) { console.error("--cycles takes a positive integer"); process.exit(2); }
 const watchdogMin = values.watchdog === undefined ? 50 : Number(values.watchdog);
 if (!Number.isFinite(watchdogMin) || watchdogMin <= 0) { console.error("--watchdog takes minutes"); process.exit(2); }
@@ -506,7 +511,9 @@ function analyse({ row, i, offset, tStart, connect, attached, ws, xs, clean }) {
     claims, writers, landings, tokens: tokens.length, tokensBy: tokens.map(e => name(e.by)), companionEffects: companions.length, moments, messages,
     final: ws.final, doubled, landed: !!ws.final?.applied && (ws.final.outcome === "landed"),
     overlapMs, gapMs, wElect: ws.wSamples.map(s => ({ at: rel(s.t), active: s.active, elect: s.elect })),
-    xElect: xPoints.map(([t, v]) => ({ at: rel(t), active: v })), leadCleared: ws.leadCleared, replaces: ws.replaces, clean
+    xElect: xPoints.map(([t, v]) => ({ at: rel(t), active: v })),
+    recordWrites: ws.events.filter(e => e.kind === "update").map(e => ({ at: rel(e.t), by: name(e.by), status: e.status, applying: e.applying, applied: e.applied })),
+    leadCleared: ws.leadCleared, replaces: ws.replaces, clean
   };
 }
 
@@ -676,7 +683,7 @@ try {
     console.log(`\n[${TAG}] ${name} — ${ORDERINGS[name]}; ${cycles} cycle(s)`);
     const connectTimes = [];
     for (let i = 0; i < cycles; i++) {
-      const offset = OFFSETS[i % OFFSETS.length];
+      const offset = offsetOf(i);
       let r;
       try { r = await runCycle(row, i, offset, connectTimes); }
       catch (err) {
@@ -706,7 +713,7 @@ try {
 }
 
 mkdirSync(dirname(jsonPath), { recursive: true });
-writeFileSync(jsonPath, JSON.stringify({ at: new Date().toISOString(), keepLead, offsets: OFFSETS.slice(0, cycles), plan, results, notes }, null, 2));
+writeFileSync(jsonPath, JSON.stringify({ at: new Date().toISOString(), keepLead, offsets: Array.from({ length: cycles }, (_, i) => offsetOf(i)), plan, results, notes }, null, 2));
 if (plan) console.log(summary(results, plan));
 for (const n of notes) console.log(`  · ${n}`);
 console.log(`\n[${TAG}] ${results.filter(r => !r.error).length} cycle(s) measured, ${results.filter(r => r.error).length} failed; written to ${jsonPath}`);
