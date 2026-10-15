@@ -8,6 +8,7 @@
       "!node_modules",
       "!package-lock.json",
       "!tools/content",
+      "!contracts",
       "!prototypes",
       "!module.json"
     ]

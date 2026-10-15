@@ -4,7 +4,7 @@
   "type": "module",
   "description": "Development tooling for By the Books (formerly Battle Flow). NOTHING HERE SHIPS — the module is plain ES modules loaded straight from scripts/, with no build step (ARCHITECTURE.md).",
   "scripts": {
-    "verify": "npm run check && npm run knip && npm run typecheck && npm run imports && npm run cardreads && npm run layers && npm run flagedges && npm run coverage && npm run hooks && npm run dispatch && npm run writers && npm run clocks && npm run serializer && npm run harness && npm run html && npm run cards && npm run rulefolds && npm run pickers && npm run popups && npm run surfaces && npm run registry && npm run identifiers && npm run moments && npm run manifest && npm run comments && npm run doclinks && npm run test",
+    "verify": "npm run check && npm run knip && npm run typecheck && npm run imports && npm run cardreads && npm run layers && npm run flagedges && npm run coverage && npm run hooks && npm run dispatch && npm run writers && npm run clocks && npm run serializer && npm run harness && npm run html && npm run cards && npm run rulefolds && npm run pickers && npm run popups && npm run surfaces && npm run registry && npm run identifiers && npm run moments && npm run contracts && npm run manifest && npm run comments && npm run doclinks && npm run test",
     "check": "biome check --error-on-warnings .",
     "check:fix": "biome check --write .",
     "lint": "biome lint ./scripts",
@@ -30,6 +30,7 @@
     "surfaces": "node tools/check-surfaces.mjs",
     "registry": "node tools/check-registry.mjs",
     "moments": "node tools/check-moments.mjs",
+    "contracts": "node tools/contracts.mjs --check",
     "test": "vitest run",
     "test:watch": "vitest --watch",
     "comments": "node tools/check-comments.mjs",

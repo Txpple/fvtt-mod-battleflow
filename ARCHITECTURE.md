@@ -1138,7 +1138,14 @@ version stays 2). The marker is `maneuver: false` on a record that is not a mane
 **A consumer dedupes against the card.** `damage`, `effect`, `spend` and `save` also fire for
 resolves the platform posts a card for, and a cast that answers a hold posts its own usage card
 beside `hold-answered` — by design, the two carry different facts; `momentId` is the key to
-dedupe on.
+dedupe on, with `event` beside it where one resolve publishes under two words.
+
+**The contract files.** What a reader in the family may rely on is written down as data, recorded
+from a live run: `contracts/moment.json` (every hook above, each `<event>|<kind>` pair's fields with
+a sample, the companion hooks' arguments) and `contracts/card-flags.json` (every key the module
+writes, its class, writers, documents, stat stamp, its readers in the family and its shape). FX
+Studio and Session Scribe test against them from the sibling clone. `npm run contracts` holds them to
+this tree offline; the battery records and reports against them (tools/README.md *The contracts*).
 
 ---
 
@@ -1299,6 +1306,12 @@ something structural is genuinely failing a rule, with the rule and the evidence
    [tools/check-flag-edges.mjs](tools/check-flag-edges.mjs) names where it sits; `npm run flagedges` fails a read of the
    key by name anywhere else. A written key the scan cannot see (a constant the file does not declare or
    import, a flag object it cannot follow to its literal) fails `npm run moments`.
+4. **It joins the contract** (§7 *The contract files*). `npm run contracts` fails until
+   `node tools/contracts.mjs --write` lists the key (and a new word or companion hook the same way);
+   the next recording run (the battery records every suite) and `--write` give it its shape, and
+   `contracts/` is committed with the change. A field another repo reads that is renamed or removed
+   moves the file's `version` (`MOMENT_CONTRACT.version` for the moments, in the same commit as step
+   2's); a new field does not.
 
 **Adding a FOLD** (anything that changes an already-rolled outcome after the fact — a reroll,
 an added die, a reaction that moves AC):

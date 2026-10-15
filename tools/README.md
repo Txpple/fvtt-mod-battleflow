@@ -72,6 +72,7 @@ it quietly runs the prerequisite and says so.
 | `check-comments.mjs` | every `/**` block sits on a declaration, so an extraction cannot strand a doc. |
 | `check-card-reads.mjs` | a card's ITEM or ACTIVITY is read through `lookup.js` `cardItem` / `cardActivity` — never a bare `fromUuid` / `fromUuidSync` / `resolveUuid` of an `activityUuid`, `itemUuid` or `itemUuidOf(…)` (2026-09-22, a PC's potion: dnd5e deletes a used-up item BEFORE its card exists, and only the card's snapshot still has it). A deliberately live read says `// live only: <reason>` on the line above. |
 | `check-moments.mjs` | **the moment gate's coverage** (ARCHITECTURE §7 *The moment events*, version 2): every flag key the module writes — every write shape, constants resolved per file and through imports, a flag object held in a variable followed to its literal, a scope assigned whole — is classified in `decide/moments.js` as a RESOLVE (published by the gate) or STATE (with a reason), a write whose key the scan cannot read fails, no row is stale, every world-writing file is pinned to the record its writes resolve into, and the registry's own shape holds. Prints the classification as a table. A new key fails the build until somebody says what it is. |
+| `contracts.mjs --check` | **the family's contracts against the code** (below, *The contracts*): `contracts/moment.json` names the version `scripts/events.js` publishes, every word, every record and every companion hook (`publish("…")` in scripts/); `contracts/card-flags.json` names every key `decide/moments.js` classifies, each in its class; every recorded sample sits inside its schema. A key, word or hook the code has and the file lacks fails until `node tools/contracts.mjs --write` lists it. `npm run contracts`. |
 | `check-doc-links.mjs` | every cross-reference in the docs and in code comments resolves: a markdown link or a bare `scripts/` · `tools/` · `tests/` · `prototypes/` path to a file that exists; `DOC §n` to a numbered section; `DOC *heading*` to a heading or a bold lead-in in that doc (DESIGN, RULINGS, ARCHITECTURE, NOTES, BACKLOG, SWEEP). Written for the documentation pass of 2026-09-24, when nothing had ever said a reference rotted. A bare `§n` with no doc named is not checked — name the doc. |
 | `bump-version.mjs --check` | `module.json`'s `version` and its `download` URL name the same tag. |
 | `tsc --noEmit` | ⚠ **real, over the files that opt in with `// @ts-check`**: `scripts/decide/` and the damage chain (`auto-damage.js`, `auto-apply.js`, `hold/`) and the dispatcher. `checkJs` stays false globally; files opt IN, one at a time. Foundry's and dnd5e's globals are declared `any` in `types/foundry.d.ts`: an opted-in file gets its own logic and its calls into the tree checked, the platform left open. |
@@ -309,6 +310,41 @@ twice lost `smoke-bythebooks`'s "2 FAILURE(S)" evidence cannot happen through th
 the never-fired list.** It is the only line in the whole apparatus that says anything about
 whether the module's code RAN, as opposed to whether it is well formed.
 
+## The contracts — what the family reads, recorded
+
+Two other repos read what this module publishes: FX Studio plays the `bythebooks.moment` payload, and
+Session Scribe folds the chat cards' flags into the session record. The contract is two files this repo
+owns, under `contracts/`, and each reader tests against them from its sibling clone (skipping when the
+clone is absent), so a renamed field here fails a reader's test before it ships.
+
+| File | What it holds |
+| --- | --- |
+| `contracts/moment.json` | every `bythebooks.*` hook: the payload's envelope; each `<event>\|<kind>` pair a recorded run published, its fields, its details' schema and one sample (ids and clocks masked); each word's kinds and fields; every record `decide/moments.js` publishes, recorded or not yet; the companion hooks' arguments (`armorBlock`, `styleDice`, `holdOpened`, `castReleased`, `areaAskAnswered`, `deferredUsageCard`) |
+| `contracts/card-flags.json` | every key under the flag scope: `record` or `state`, its family (the word it publishes under), the files that write it, the documents a run saw it on, where the stat stamp sits, which family repos read it (their `contracts/consumes.json`), and its recorded shape |
+
+**How a shape gets there.** The harness arms a recorder beside the hook ledger at connect
+(`contract-recorder.mjs`) and writes `dist/contract-recordings/<tag>.json` at teardown: every
+`bythebooks.*` hook's arguments and every `create…` / `update…` document hook's module flags, merged
+by shape as they pass (`contract-shapes.mjs`), one sample per moment pair. It hears the tester's page
+only, so a recording under-reports, never over. The battery clears the directory first and ends by
+printing `contracts.mjs --check --run`: a field, pair, key or hook the run saw that the files do not
+name, and the documented fields it never saw.
+
+```bash
+node tools/contracts.mjs --check               # the files against the code — offline, in npm run verify
+node tools/contracts.mjs --check --run         # ...and against the last run's recordings
+node tools/contracts.mjs --write               # the recordings unioned into contracts/ (a schema only grows)
+node tools/contracts.mjs --write --fresh       # the files rebuilt from the run alone
+```
+
+**A new moment or key adds itself.** `npm run verify` fails a word, record, state key or companion hook
+the files do not list; `--write` lists it (offline, no shape), and the next recording run plus `--write`
+gives it its shape. Commit `contracts/` with the change that moved it. **The version moves when a shape
+a reader reads changes**: a field renamed or removed, a word or a key gone (`--write --fresh` drops what
+the run no longer saw). A new field or key is additive and leaves it. The version and the prose are
+hand-written and kept across writes; `moment.json`'s version is `MOMENT_CONTRACT.version` in
+`scripts/events.js` (the check holds them equal), `card-flags.json`'s its own.
+
 ## Censuses — how registries get built
 
 `scan-reactions.mjs` · `scan-riders.mjs` · `scan-volley-spells.mjs` · `scan-corpus.mjs` (the whole
@@ -364,6 +400,9 @@ ships, never from what the party owns (DESIGN N1). Re-run after adding content.
 | `class-kit.mjs` | **the PHB classes' shared page setup**: the fixtures lent and placed, the settings pinned, every helper and the teardown, as one page function (`classKit`) that leaves them on `window.__btbClasses`; `runClassSuite` runs a `smoke-class-<class>.mjs` body between that setup and the teardown. The bands the classes plan runs between its rows are kit calls the bodies make in place (`KIT.leaveA3()`, `KIT.markA2()`, `KIT.dmgBand()`). A change here selects the thirteen class suites (`battery.mjs --changed`). |
 | `prelude.mjs` | **the one in-page helper set**: `connectSuite` installs it on the page as `window.__btb` before any suite body runs (a suite's second page calls `installPrelude`). `sleep` (a module clock only), `until(test, { timeout, every, label })` (returns the first truthy value, THROWS with the label or the predicate's text), `watch(test, { ms })` (a window for what must not happen), `canvasReady` · `tokenOn` · `viewScene`, `begin({ sections, titles })` (`results`, `log`, `skips`, `ok`, `want`, and `section(id, fn)`: a throw fails that section by name and the next one runs), `snapshotSettings(keys)`, the dice (`faces([[n, of], …])`, `unrig()`) and `stage`. `tests/prelude.test.js`. A change here is the full battery. |
 | `harness.mjs` | the twenty lines every suite used to copy — env, watchdog, connect, preflight, the section plan, one reporter, the **suite lock**, and the **hook ledger** it arms at connect and writes at teardown. Not a suite; nothing runs it directly. |
+| `contract-recorder.mjs` | **the contract recorder**: armed by `connectSuite` beside the hook ledger, dumped at teardown to `dist/contract-recordings/<tag>.json` — every `bythebooks.*` hook's arguments and every document hook's module flags, by shape (*The contracts*, above). Not run directly. |
+| `contract-shapes.mjs` | the shape algorithm the recorder and `contracts.mjs` share: `schemaOf`, `mergeSchemas`, `sampleOf`, `fieldsOf`, `diffSchemas`; self-contained functions, shipped to the page as source. `tests/contract-shapes.test.js`. |
+| `contracts.mjs` | `--check` the committed `contracts/` against the code (offline, in verify) and, with `--run`, against a run; `--write` unions a run's recordings into them (*The contracts*, above). |
 | `hook-coverage.mjs` | ⚠ **the only measurement in the tree that is about BEHAVIOUR** (ARCHITECTURE §10 D11): which of the module's hook registrations actually FIRED during the run (it prints the count; 83 when it was built, 172 by 2026-09-05), unioned from the per-suite ledgers in `dist/hook-ledger/`. **It reports; it never fails.** A never-fired line is a coverage gap, a dead handler or a rare hook — only a person can tell which, and v1.23.0 would have printed four dead ones beside a green battery. |
 | `claim-proof.mjs` | **the runtime half of the coverage map** (2026-09-23), printed as `hook-coverage`'s second section. The harness also counts every `bythebooks.moment` by record `kind` into the same ledger file (`moments`); this reads it against each suite's `COVERS`: a claimed file is PROVEN (a kind only it writes was published there), PROVEN (shared kind), **UNPROVEN** (it writes kinds, none published — a stale claim), UNPROVABLE-BY-MOMENTS (it writes no kind — derived from the gate's tables, not listed) or NOT MEASURED (no moment half in the ledger). It also names a file that acted in a suite that does NOT claim it. The tag → suite join is read off each script's `connectSuite({ tag })`. Same contract: **reports, never fails.** ⚠ It hears the tester's page only — a second client's resolves are not counted. |
 | `moment-writers.mjs` | the gate's flag-write scan and its `WORLD_WRITERS` pins, moved out of `check-moments.mjs` so the claim proof reads the SAME answer to "which file writes which record" (2026-09-23). |

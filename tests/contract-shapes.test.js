@@ -1,0 +1,443 @@
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
+import {
+  diffSchemas,
+  fieldsOf,
+  mergeSchemas,
+  PAGE_SOURCE,
+  sampleOf,
+  schemaOf
+} from "../tools/contract-shapes.mjs";
+import { installFoundryStub } from "./foundry-stub.js";
+
+/*
+ * THE CONTRACTS (tools/contract-shapes.mjs, tools/contract-recorder.mjs, tools/contracts.mjs): the
+ * schema a run's values derive by shape, the page recorder over a stand-in `Hooks` and the real moment
+ * publisher, and the files built from a recording and checked against the code and against a run.
+ */
+
+installFoundryStub();
+
+describe("schemaOf — one value's shape", () => {
+  it("names the primitive types, null its own", () => {
+    expect(schemaOf("x")).toEqual({ type: "string" });
+    expect(schemaOf(3.5)).toEqual({ type: "number" });
+    expect(schemaOf(true)).toEqual({ type: "boolean" });
+    expect(schemaOf(null)).toEqual({ type: "null" });
+    expect(schemaOf(undefined)).toEqual({});
+  });
+
+  it("an object: its properties, and every key it carries required (an undefined value is not carried)", () => {
+    const s = schemaOf({ b: 1, a: "x", gone: undefined });
+    expect(s.type).toBe("object");
+    expect(Object.keys(s.properties)).toEqual(["b", "a"]);
+    expect(s.required).toEqual(["a", "b"]);
+  });
+
+  it("an array: its items merged, an empty one no items", () => {
+    expect(schemaOf([]).items).toBeUndefined();
+    expect(schemaOf([{ a: 1 }, { a: 2, b: "x" }]).items).toEqual({
+      type: "object",
+      properties: { a: { type: "number" }, b: { type: "string" } },
+      required: ["a"]
+    });
+  });
+
+  it("a map keyed by document ids is one patternProperties entry, however many ids", () => {
+    const s = schemaOf({ abcdefgh12345678: { n: 1 }, ZZZZZZZZ00000000: { n: 2 } });
+    expect(s.properties).toBeUndefined();
+    expect(Object.keys(s.patternProperties)).toEqual(["^[A-Za-z0-9]{16}$"]);
+    expect(fieldsOf(s)).toEqual(["<id>", "<id>.n"]);
+  });
+
+  it("a document is named, never walked; a class instance by its class", () => {
+    expect(schemaOf({ documentName: "ChatMessage", id: "x", huge: { deep: 1 } })).toEqual({
+      type: "object",
+      "x-document": "ChatMessage"
+    });
+    expect(schemaOf(new Map())).toEqual({ type: "object", "x-class": "Map" });
+  });
+
+  it("a choice-naming key keeps its short values as examples", () => {
+    expect(schemaOf({ answer: "pass", name: "Goblin" }).properties).toEqual({
+      answer: { type: "string", examples: ["pass"] },
+      name: { type: "string" }
+    });
+  });
+
+  it("a cycle and a depth past the reader's are cut, never thrown on", () => {
+    const loop = { a: 1 };
+    loop.self = loop;
+    expect(schemaOf(loop).properties.self).toEqual({ "x-truncated": true });
+    let deep = {};
+    const root = deep;
+    for (let i = 0; i < 20; i++) deep = deep.next = {};
+    expect(JSON.stringify(schemaOf(root))).toContain("x-truncated");
+  });
+});
+
+describe("mergeSchemas — the union", () => {
+  it("joins types and properties; a key is required only where every object carried it", () => {
+    const m = mergeSchemas(schemaOf({ a: 1, b: "x" }), schemaOf({ a: null, c: true }));
+    expect(m.properties.a.type).toEqual(["null", "number"]);
+    expect(Object.keys(m.properties)).toEqual(["a", "b", "c"]);
+    expect(m.required).toEqual(["a"]);
+  });
+
+  it("a side that saw no object leaves the other's required list alone", () => {
+    expect(mergeSchemas(schemaOf({ a: 1 }), schemaOf(null))).toEqual({
+      type: ["null", "object"],
+      properties: { a: { type: "number" } },
+      required: ["a"]
+    });
+  });
+
+  it("joins examples, sorted and capped", () => {
+    let s = null;
+    for (const v of ["b", "a", "b"]) s = mergeSchemas(s, schemaOf({ outcome: v }));
+    expect(s.properties.outcome.examples).toEqual(["a", "b"]);
+    for (let i = 0; i < 20; i++) s = mergeSchemas(s, schemaOf({ outcome: `v${i}` }));
+    expect(s.properties.outcome.examples.length).toBe(12);
+  });
+
+  it("either side null is the other", () => {
+    expect(mergeSchemas(null, { type: "string" })).toEqual({ type: "string" });
+    expect(mergeSchemas({ type: "string" }, null)).toEqual({ type: "string" });
+    expect(mergeSchemas(null, null)).toEqual({});
+  });
+});
+
+describe("sampleOf — a value for a contract file", () => {
+  it("masks ids in id fields and clocks, keeps names and the rest", () => {
+    expect(
+      sampleOf({
+        actorUuid: "Actor.abcdefgh12345678.Item.QWERTYUI00000000",
+        momentId: "ZZZZZZZZ00000000|receipt|Actor.abcdefgh12345678",
+        actorName: "BTB Test Rogue Abcdefgh12345678",
+        at: 1760000000000,
+        answeredAt: 5,
+        total: 14
+      })
+    ).toEqual({
+      actorUuid: "Actor.<id>.Item.<id>",
+      momentId: "<id>|receipt|Actor.<id>",
+      actorName: "BTB Test Rogue Abcdefgh12345678",
+      at: 0,
+      answeredAt: 0,
+      total: 14
+    });
+  });
+
+  it("names a document, cuts a long array", () => {
+    expect(sampleOf({ message: { documentName: "ChatMessage", id: "x" } })).toEqual({
+      message: { $document: "ChatMessage" }
+    });
+    expect(sampleOf([1, 2, 3, 4, 5, 6, 7, 8])).toEqual([1, 2, 3, 4, 5, 6, "… 2 more"]);
+    expect(sampleOf({ activity: new (class AttackActivity {})() })).toEqual({
+      activity: { $class: "AttackActivity" }
+    });
+  });
+});
+
+describe("fieldsOf and diffSchemas", () => {
+  it("every path, arrays as []", () => {
+    expect(
+      fieldsOf(schemaOf({ targets: [{ uuid: "a", hit: true }], details: { answer: "pass" } }))
+    ).toEqual([
+      "details",
+      "details.answer",
+      "targets",
+      "targets[]",
+      "targets[].hit",
+      "targets[].uuid"
+    ]);
+  });
+
+  it("a field the run saw and the contract does not name is added; one never seen is missing; a new type widens", () => {
+    const documented = schemaOf({ a: 1, gone: "x", t: [{ u: "x" }] });
+    const seen = schemaOf({ a: null, fresh: 2, t: [{ u: "x", hit: true }] });
+    expect(diffSchemas(documented, seen)).toEqual({
+      added: ["fresh", "t[].hit"],
+      missing: ["gone"],
+      widened: ["a: null"]
+    });
+  });
+});
+
+describe("the page bundle", () => {
+  it("evaluates to the three functions with no closure (the recorder ships it as text)", () => {
+    const { schemaOf: s, mergeSchemas: m, sampleOf: o } = new Function(PAGE_SOURCE)();
+    expect(m(s({ a: 1 }), s({ a: 2, b: "x" }))).toEqual(
+      mergeSchemas(schemaOf({ a: 1 }), schemaOf({ a: 2, b: "x" }))
+    );
+    expect(o({ at: 9 })).toEqual({ at: 0 });
+  });
+});
+
+describe("the recorder — over a stand-in Hooks and the real moment publisher", () => {
+  /** @type {typeof import("../tools/contract-recorder.mjs")} */
+  let recorder;
+  /** @type {typeof import("../scripts/events.js")} */
+  let events;
+  let original;
+  beforeAll(async () => {
+    recorder = await import("../tools/contract-recorder.mjs");
+    events = await import("../scripts/events.js");
+  });
+  afterEach(() => {
+    if (original) globalThis.Hooks = original;
+    original = null;
+    delete globalThis.__btbContractRecorder;
+  });
+  const arm = () => {
+    original = globalThis.Hooks;
+    globalThis.Hooks = { ...original, call: (...a) => a.length, callAll: () => "dispatched" };
+    expect(recorder.installRecorder(PAGE_SOURCE)).toBe("installed");
+    return globalThis.__btbContractRecorder;
+  };
+
+  it("records a moment per <event>|<kind>, its shape and one sample, and counts the word's own hook", () => {
+    const rec = arm();
+    events.publishMoment("sneak", {
+      actor: "Actor.rogue",
+      message: { id: "msgDamage" },
+      kind: "sneakDamage",
+      marker: "message",
+      targets: [{ uuid: "Actor.goblin", name: "Goblin", hit: true }],
+      details: { formula: "6d6", picks: ["trip"] }
+    });
+    expect(Object.keys(rec.moments)).toEqual(["sneak|sneakDamage"]);
+    expect(fieldsOf(rec.moments["sneak|sneakDamage"].schema)).toContain("targets[].hit");
+    expect(rec.moments["sneak|sneakDamage"].sample.momentId).toBe("msgDamage|sneakDamage|message");
+    expect(rec.hooks["bythebooks.moment"].count).toBe(1);
+    expect(rec.hooks["bythebooks.sneak"]).toEqual({ count: 1, args: [] });
+  });
+
+  it("records a companion hook's arguments, and a document's flag keys with where they were seen", () => {
+    const rec = arm();
+    globalThis.Hooks.callAll("bythebooks.holdOpened", {
+      subject: "Actor.x.Item.y.Activity.z",
+      reason: "careful"
+    });
+    globalThis.Hooks.callAll("createChatMessage", {
+      documentName: "ChatMessage",
+      flags: { "fvtt-mod-bythebooks": { receipt: { targets: [{ uuid: "a" }] } } }
+    });
+    globalThis.Hooks.callAll("updateActor", {
+      documentName: "Actor",
+      flags: { "fvtt-mod-bythebooks": { cleaveArm: true }, dnd5e: { x: 1 } }
+    });
+    globalThis.Hooks.callAll("updateItem", { documentName: "Item", flags: { dnd5e: { x: 1 } } });
+    expect(fieldsOf(rec.hooks["bythebooks.holdOpened"].args[0])).toEqual(["reason", "subject"]);
+    expect(rec.flags.receipt.on).toEqual({ ChatMessage: 1 });
+    expect(rec.flags.cleaveArm.schema).toEqual({ type: "boolean" });
+    expect(Object.keys(rec.flags)).toEqual(["receipt", "cleaveArm"]);
+  });
+
+  it("is transparent: the dispatch's own return, a second install a no-op, a value it cannot read never thrown", () => {
+    arm();
+    expect(globalThis.Hooks.call("x", 1, 2)).toBe(3);
+    expect(globalThis.Hooks.callAll("y")).toBe("dispatched");
+    expect(recorder.installRecorder(PAGE_SOURCE)).toBe("already");
+    const hostile = { documentName: "ChatMessage" };
+    Object.defineProperty(hostile, "flags", {
+      get() {
+        throw new Error("no");
+      }
+    });
+    expect(globalThis.Hooks.callAll("createChatMessage", hostile)).toBe("dispatched");
+    expect(globalThis.__btbContractRecorder.errors).toBe(1);
+  });
+});
+
+describe("the contract files — built from a recording, checked against the code and a run", () => {
+  /** @type {typeof import("../tools/contracts.mjs")} */
+  let tool;
+  const DIR = mkdtempSync(join(tmpdir(), "contracts-"));
+  const recording = (tag, rec) =>
+    writeFileSync(join(DIR, `${tag}.json`), JSON.stringify({ tag, ...rec }));
+  beforeAll(async () => {
+    tool = await import("../tools/contracts.mjs");
+    mkdirSync(DIR, { recursive: true });
+    const payload = (kind, details) => ({
+      event: "damage",
+      module: "fvtt-mod-bythebooks",
+      version: 2,
+      kind,
+      marker: "m",
+      momentId: "x|receipt|m",
+      actorUuid: "Actor.a",
+      targets: [{ actorUuid: "Actor.b", tokenUuid: null, name: "B", hit: true }],
+      details
+    });
+    recording("one", {
+      hooks: { "bythebooks.moment": { count: 1, args: [] } },
+      moments: {
+        "damage|receipt": {
+          count: 1,
+          schema: schemaOf(payload("receipt", { taken: 4 })),
+          sample: sampleOf(payload("receipt", { taken: 4 }))
+        }
+      },
+      flags: {
+        receipt: {
+          count: 2,
+          on: { ChatMessage: 2 },
+          schema: schemaOf({
+            combat: null,
+            sourceUuid: "Actor.a",
+            targets: [{ uuid: "b", taken: 4 }]
+          })
+        }
+      }
+    });
+    recording("two", {
+      hooks: {},
+      moments: {
+        "damage|receipt": {
+          count: 1,
+          schema: schemaOf(payload("receipt", { taken: 2, note: "x" }))
+        }
+      },
+      flags: {
+        receipt: {
+          count: 1,
+          on: { ChatMessage: 1 },
+          schema: schemaOf({ combat: "c:1:0", sourceUuid: null, targets: [] })
+        }
+      }
+    });
+  });
+  afterAll(() => rmSync(DIR, { recursive: true, force: true }));
+
+  it("unions the suites' recordings: schemas merged, the first sample kept", () => {
+    const run = tool.readRecordings(DIR);
+    expect(run.suites).toEqual(["one", "two"]);
+    expect(fieldsOf(run.moments["damage|receipt"].schema)).toContain("details.note");
+    expect(run.moments["damage|receipt"].sample.details).toEqual({ taken: 4 });
+    expect(run.flags.receipt.on).toEqual({ ChatMessage: 3 });
+  });
+
+  it("builds the files: every word, record, key and companion hook listed, the recorded ones shaped, the stamp found", () => {
+    const run = tool.readRecordings(DIR);
+    const moment = tool.buildMoment(null, run);
+    const flags = tool.buildFlags(null, run, { receipt: ["auto-apply.js"] }, null);
+    expect(moment.version).toBe(2);
+    expect(moment.kinds.receipt.recorded).toBe(true);
+    expect(moment.kinds.hold.recorded).toBe(false);
+    expect(moment.events.damage).toEqual({
+      kinds: ["receipt"],
+      recorded: true,
+      fields: moment.moments["damage|receipt"].fields
+    });
+    expect(moment.moments["damage|receipt"].fields).toEqual(
+      expect.arrayContaining(["momentId", "targets[].hit", "details.taken", "details.note"])
+    );
+    expect(Object.keys(moment.hooks)).toEqual(
+      expect.arrayContaining([
+        "bythebooks.moment",
+        "bythebooks.<event>",
+        "bythebooks.holdOpened",
+        "bythebooks.armorBlock"
+      ])
+    );
+    expect(flags.keys.receipt).toMatchObject({
+      class: "record",
+      family: "damage",
+      writers: ["auto-apply.js"],
+      on: ["ChatMessage"],
+      stamp: "flag",
+      recorded: true
+    });
+    expect(flags.keys.cleaveArm).toMatchObject({ class: "state", recorded: false, fields: [] });
+    expect(tool.checkOffline(moment, flags).fail).toEqual([]);
+  });
+
+  it("the offline check fails a key, word or kind the code has and the file lacks, and a stale version", () => {
+    const run = tool.readRecordings(DIR);
+    const moment = tool.buildMoment(null, run);
+    const flags = tool.buildFlags(null, run, {}, null);
+    delete flags.keys.receipt;
+    delete moment.events.volley;
+    moment.version = 1;
+    const { fail } = tool.checkOffline(moment, flags);
+    expect(fail.some(f => f.includes("card-flags.json keys") && f.includes("receipt"))).toBe(true);
+    expect(fail.some(f => f.includes("moment.json events") && f.includes("volley"))).toBe(true);
+    expect(fail.some(f => f.includes("version 1"))).toBe(true);
+  });
+
+  it("against a run: a new field, pair or key fails; a documented field never seen is reported", () => {
+    const committed = tool.buildMoment(null, tool.readRecordings(DIR));
+    const flags = tool.buildFlags(null, tool.readRecordings(DIR), {}, null);
+    const later = {
+      suites: ["three"],
+      errors: 0,
+      hooks: {
+        "bythebooks.styleDice": {
+          count: 1,
+          args: [schemaOf({ messageId: "m", key: "k", chips: [] })]
+        }
+      },
+      moments: {
+        "damage|receipt": {
+          count: 1,
+          schema: schemaOf({ event: "damage", details: { taken: 1, renamed: 2 } })
+        },
+        "volley|volley": { count: 1, schema: schemaOf({ event: "volley" }) }
+      },
+      flags: {
+        receipt: {
+          count: 1,
+          on: { ChatMessage: 1 },
+          schema: schemaOf({ combat: null, sourceUuid: null, newField: 1 })
+        }
+      }
+    };
+    const { fail, note } = tool.checkRun(committed, flags, later);
+    expect(fail).toEqual(
+      expect.arrayContaining([
+        "NEW field damage|receipt details.renamed",
+        expect.stringContaining("NEW moment pair volley|volley"),
+        "NEW field receipt newField",
+        "NEW field bythebooks.styleDice argument 0 chips"
+      ])
+    );
+    expect(
+      note.some(
+        n =>
+          n.startsWith("damage|receipt: documented, not seen this run") &&
+          n.includes("details.note")
+      )
+    ).toBe(true);
+  });
+
+  it("a write unions into the committed file: a schema only grows, a sample once there stays", () => {
+    const first = tool.buildMoment(null, tool.readRecordings(DIR));
+    const again = tool.buildMoment(first, {
+      suites: ["three"],
+      hooks: {},
+      flags: {},
+      errors: 0,
+      moments: {
+        "damage|receipt": {
+          count: 1,
+          schema: schemaOf({ details: { extra: true } }),
+          sample: { other: true }
+        }
+      }
+    });
+    expect(again.moments["damage|receipt"].fields).toEqual(
+      expect.arrayContaining(["details.taken", "details.extra"])
+    );
+    expect(again.moments["damage|receipt"].sample).toEqual(first.moments["damage|receipt"].sample);
+    expect(again.recorded.suites).toEqual(["one", "three", "two"]);
+    const fresh = tool.buildMoment(
+      first,
+      { suites: ["three"], hooks: {}, flags: {}, errors: 0, moments: {} },
+      true
+    );
+    expect(fresh.moments).toEqual({});
+  });
+});
