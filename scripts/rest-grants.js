@@ -4,7 +4,7 @@
  * Inspiration). The grant rides `dnd5e.preRestCompleted`'s one actor update (`result.updateData`),
  * on the resting client, and the rest card says what was gained. Nothing is asked.
  */
-import { MODULE_ID, readFlag, isActiveGM, queueFlagWrite, canAnswerFor, statContext, resolveUuid, resolveUuidAsync, log } from "./core.js";
+import { MODULE_ID, readFlag, isActiveGM, queueFlagWrite, canAnswerFor, statContext, resolveUuid, resolveUuidAsync, log, claimLanding, claimHolds } from "./core.js";
 import { lower, activityNamed, asiAssigned, featureNamed } from "./lookup.js";
 import { answers, listedNames, restGrantEntries } from "./decide/registry.js";
 import { bfCard, esc, holdBarHTML, foldedRuleHTML, pickInputHTML } from "./decide/present.js";
@@ -486,13 +486,7 @@ async function serveMeal(flag, eaters, { chefName = flag.actorName } = {}) {
 
 /** The elect lands the picks: each sheet written (or, for a meal still waiting, marked), the names written back for the card. */
 async function landSong(message) {
-  let claimed = false;
-  await queueFlagWrite(message, SONG_FLAG, current => {
-    if ( (current.status !== "resolved") || current.applied || current.applying ) return false;
-    current.applying = true;
-    claimed = true;
-  });
-  if ( !claimed ) return;
+  if ( !(await claimLanding(message, SONG_FLAG, current => current.status === "resolved")) ) return;
   const flag = readFlag(message, SONG_FLAG);
   const given = [];
   const waiting = [];
@@ -550,7 +544,7 @@ async function landSong(message) {
 }
 
 registerResumable(SONG_FLAG, {
-  pending: flag => (flag?.status === "resolved") && !flag.applied && !flag.applying,
+  pending: flag => (flag?.status === "resolved") && !flag.applied && !claimHolds(flag.applying),
   drives: () => isActiveGM(),
   drive: landSong
 });

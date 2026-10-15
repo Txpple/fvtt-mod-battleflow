@@ -1,6 +1,6 @@
 /**
  * By the Books — shared constants and who/when facts: setting keys, the elects, combat identity, the
- * deadline ceiling and the flag-write serializer. A leaf — imports nothing.
+ * deadline ceiling, the flag-write serializer and the landing claim. A leaf — imports nothing.
  */
 
 export const MODULE_ID = "fvtt-mod-bythebooks";
@@ -371,5 +371,55 @@ export function queueFlagWrite(message, key, mutate, { initial = { targets: [] }
   flagWrites.set(lock, tail);
   void tail.then(() => { if ( flagWrites.get(lock) === tail ) flagWrites.delete(lock); });
   return next;                        // the caller still sees a failure
+}
+
+// THE LANDING CLAIM (ARCHITECTURE §4 *The flow elect*): a record's landing is claimed inside the serializer with a
+// stamp naming its claimant, so a claim whose claimant is gone is told from one still landing and the record is
+// landed by whoever drives it now. ⚠ The stamp's clock is the server's (`game.time.serverTime`): a claim judged on
+// another machine must not die of that machine's clock running ahead.
+
+/** A claim older than this, its record still unlanded, is dead: a landing takes seconds (4.5 s at worst, measured). */
+export const CLAIM_CEILING_MS = 60_000;
+
+const claimClock = () => game.time?.serverTime ?? Date.now();
+
+/** The stamp a claim writes: the claimant's user, its window, when. */
+export function claimStamp() {
+  return { by: game.user?.id ?? null, window: WINDOW_ID, at: claimClock() };
+}
+
+/**
+ * Does `claim` still hold its landing? A stamp holds while its user is connected and it is younger than the
+ * ceiling (a window closed mid-landing while its user stays on, in another window); `true`, a claim written
+ * before the stamp, always holds; nothing holds nothing.
+ * @param {any} claim
+ * @param {number} [now]
+ */
+export function claimHolds(claim, now = claimClock()) {
+  if ( !claim ) return false;
+  if ( typeof claim !== "object" ) return true;
+  if ( !(claim.by && game.users?.get(claim.by)?.active) ) return false;
+  return (now - (Number(claim.at) || 0)) <= CLAIM_CEILING_MS;
+}
+
+/**
+ * Claim a record's landing, through the serializer: `due(current)` says the record waits for its landing, and a
+ * record already landed (`done`) or claimed by a claim that holds (`field`) is refused; a dead claim is written
+ * over. Resolves `{ over }` (the dead claim replaced, or null) when this client claimed, null when it did not.
+ * @param {any} message
+ * @param {string} key
+ * @param {(current: any) => boolean} due
+ * @param {{ field?: string, done?: string }} [opts]
+ * @returns {Promise<{ over: any }|null>}
+ */
+export async function claimLanding(message, key, due, { field = "applying", done = "applied" } = {}) {
+  /** @type {{ over: any }|null} */
+  let taken = null;
+  await queueFlagWrite(message, key, current => {
+    if ( !due(current) || current[done] || claimHolds(current[field]) ) return false;
+    taken = { over: current[field] || null };
+    current[field] = claimStamp();
+  });
+  return taken;
 }
 

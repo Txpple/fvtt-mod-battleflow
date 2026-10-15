@@ -9,7 +9,7 @@ import { bfCard, esc, ruleLine } from "./decide/present.js";
 import { effectsAfterChoice, effectsAfterPick, slotHours } from "./decide/choices.js";
 import { EFFECT_CHOICES, HEAL_REROLLS, MARK_USES, SLOT_DURATIONS, healRerollEntries, listedNames } from "./decide/registry.js";
 import { rollMaximum } from "./decide/damage-dice.js";
-import { registerResumable, pendingRow } from "./ui.js";
+import { registerResumable, pendingRow, closePopup } from "./ui.js";
 import { openPicker } from "./gallery.js";
 import { applyDamagesWithReceipt, hasReceipt } from "./auto-apply.js";
 import { applyEffectsWithReceipt, effectReceiptOf } from "./effect-riders.js";
@@ -288,6 +288,11 @@ function sharedPrefix(options) {
   while ( words.every(w => (w.length > n + 1) && (w[n] === words[0][n])) ) n++;
   return n ? (words[0].slice(0, n).join(" ").length + 1) : 0;
 }
+
+// The pick, made on any client, withdraws the effect choice's popup on this one (§5 law 4): every GM screen may hold one for an unowned subject, and the latch is per client.
+listen("updateChatMessage", "cast", message => {
+  if ( readFlag(message, "castApply")?.choice?.chosen ) void closePopup(message, "effectChoice");
+});
 
 listen("dnd5e.renderChatMessage", "cast", (message, html) => {
   const payload = readFlag(message, "castApply");

@@ -11,7 +11,7 @@
  * Incapacitated, 0 Hit Points, the Temporary Hit Points gone. The Long Rest offers the one known-form
  * swap through the mastery record's road (RULINGS *Wild Shape and the polymorph spells*).
  */
-import { MODULE_ID, readFlag, TITLE, isActiveGM, queueFlagWrite, canAnswerFor, answersHere, statContext, resolveUuid, resolveUuidAsync, log } from "./core.js";
+import { MODULE_ID, readFlag, TITLE, isActiveGM, queueFlagWrite, canAnswerFor, answersHere, statContext, resolveUuid, resolveUuidAsync, log, claimLanding, claimHolds } from "./core.js";
 import { cardActivity, lower, featureNamed } from "./lookup.js";
 import { TRANSFORMS, transformEntries, listedNames, tableIndex } from "./decide/registry.js";
 import { poolRuleOf, capOfTarget, knownSlotsOf, knownHolderOf, knownState, learnedList, restKnownList, transformRecord,
@@ -22,7 +22,7 @@ import { bfCard, esc } from "./decide/present.js";
 import { targetsOf } from "./decide/card.js";
 import { describeCreature, formArt, openPicker, poolFromPacks } from "./gallery.js";
 import { isPartyMember } from "./shared.js";
-import { momentButton, registerRelay, registerResumable, acknowledgeMoment, momentAcknowledged, pendingRow, postCard, postAnswer } from "./ui.js";
+import { momentButton, registerRelay, registerResumable, acknowledgeMoment, momentAcknowledged, pendingRow, postCard, postAnswer, closePopup } from "./ui.js";
 import { SURFACES } from "./surfaces.js";
 import { listen } from "./dispatch.js";
 import { tokenDocOf, tokensOf } from "./geometry.js";
@@ -406,13 +406,7 @@ async function empowerOne(subject, source, { activity, flag, message }) {
 }
 
 async function landTransform(message) {
-  let claimed = false;
-  await queueFlagWrite(message, TRANSFORM_FLAG, current => {
-    if ( (current.status !== "picked") || current.applied || current.applying ) return false;
-    current.applying = true;
-    claimed = true;
-  });
-  if ( !claimed ) return;
+  if ( !(await claimLanding(message, TRANSFORM_FLAG, current => current.status === "picked")) ) return;
   const flag = readFlag(message, TRANSFORM_FLAG);
   const landed = [];
   let outcome = "landed";
@@ -650,7 +644,7 @@ async function driveRevert(message) {
 }
 
 registerResumable(TRANSFORM_FLAG, {
-  pending: flag => !!flag && (((flag.status === "picked") && !flag.applied && !flag.applying)
+  pending: flag => !!flag && (((flag.status === "picked") && !flag.applied && !claimHolds(flag.applying))
     || (flag.applied && !flag.ended && ((flag.revertAsked === true) || (!!flag.changeAsked && !flag.changing)))),
   drives: () => isActiveGM(),
   drive: async message => {
@@ -775,13 +769,7 @@ registerRelay("formSwapAnswer", {
 
 /** The elect lands the answer on the item, judged against the list as it stands now. */
 async function landFormSwap(message) {
-  let claimed = false;
-  await queueFlagWrite(message, FORM_SWAP_FLAG, current => {
-    if ( (current.status !== "resolved") || current.applied || current.applying ) return false;
-    current.applying = true;
-    claimed = true;
-  });
-  if ( !claimed ) return;
+  if ( !(await claimLanding(message, FORM_SWAP_FLAG, current => current.status === "resolved")) ) return;
   const flag = readFlag(message, FORM_SWAP_FLAG);
   let outcome = "kept";
   let after = null;
@@ -809,7 +797,7 @@ async function landFormSwap(message) {
 }
 
 registerResumable(FORM_SWAP_FLAG, {
-  pending: flag => (flag?.status === "resolved") && !flag.applied && !flag.applying,
+  pending: flag => (flag?.status === "resolved") && !flag.applied && !claimHolds(flag.applying),
   drives: () => isActiveGM(),
   drive: landFormSwap
 });
@@ -908,6 +896,13 @@ listen("dnd5e.renderChatMessage", "transforms", (message, html) => {
   } catch(err) {
     log.error(`The transform's row could not be drawn.`, err);
   }
+});
+
+// A change asked, a revert asked or the form ended withdraws the GM's change popup on every GM screen (§5 law 4):
+// each GM client opens its own.
+listen("updateChatMessage", "transforms", message => {
+  const flag = readFlag(message, TRANSFORM_FLAG);
+  if ( flag?.changeAsked || flag?.revertAsked || flag?.ended ) void closePopup(message, "transformChange");
 });
 
 listen("ready", "transforms", () => {

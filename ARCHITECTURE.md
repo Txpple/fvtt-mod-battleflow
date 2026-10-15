@@ -308,6 +308,48 @@ drive only their own ask; a room-wide fallback would hand one player's moment to
 cannot write it. Where a hook cannot know the subject before it looks — a save roll answering an
 unknown demand — the gate moves INSIDE, after the lookup.
 
+**Several GM clients** (suite issue #8; measured in
+[audits/plans/multi-gm-measurement.md](audits/plans/multi-gm-measurement.md)). A Gamemaster's window, an Assistant GM's
+and the MCP bridge are each a GM client; `game.users.activeGM` is still ONE user (the highest role, then the lowest
+id), so the elect is one client at any instant. It moves when the leading user connects or leaves, and Foundry tells
+the client already on before the newcomer asks for its world, so a hand-off opens a gap (about a second with nobody
+the elect), never an overlap. Four pieces keep a record landing once across it:
+
+- **The snapshot guard** (ui.js `resume`). A client booting renders the chat log from its world snapshot before
+  Foundry applies the events it buffered after the snapshot, so a resume driven from that render can miss a claim
+  the client already on made a few milliseconds after the cut. A `"render"` resume before `game.ready` therefore
+  does not drive: its message is set aside and resumed at `ready`, on the document as `ready` finds it. One place,
+  every resumable.
+- **The claim names its claimant** (core.js `claimLanding`, beside `queueFlagWrite`). A landing is claimed inside
+  the serializer with a stamp, `applying: { by, window, at }` — the claimant's user, its window (`WINDOW_ID`), the
+  server's time (`game.time.serverTime`, so a claim judged on another machine does not die of that machine's
+  clock). An object is truthy, so a claim still reads as a claim; `claimLanding(message, key, due, { field, done })`
+  is the one writer (initiative-grants' fallback claims `fallbackApplying`), and a release writes `false`.
+- **The liveness rule** (core.js `claimHolds`). A stamp holds while its user is connected and it is younger than
+  `CLAIM_CEILING_MS` (a minute; the worst landing measured took 4.5 s), the record still unlanded. Its user gone,
+  or the ceiling passed (a window closed mid-landing while its user stays on in another), the claim is dead. Every
+  resumable's `pending` reads its claim through `claimHolds`, so a dead claim reads as no claim, and the
+  re-driver's `claimLanding` writes over it. `true`, a claim written before the stamp, always holds, as it did.
+- **The re-drive** (ui.js). A user leaving (`userConnected`, false) resumes the recent cards (the last 60), each
+  under its resumable's own `drives`, so a dead claim's record is landed by whoever drives it now; taking the lead
+  resumes them now and again past the ceiling, and so does a window handed its user's lead by the closing leader
+  (`updateUser`: the flag no longer names another window). **What a re-drive finds**: a landing that claimed over a
+  dead claim (`claimLanding` hands back `over`) first removes what the dead one made. A summon's landed tokens and
+  the caster's shared resistance carry the card (`summonCard`), its standing effect (`summonEffect`) and its
+  companion effect (`companion`) are keyed by it too; summons.js `sweepDeadLanding` removes those (and the tokens'
+  seats) before landing again.
+
+**Every `isGM` read is tagged** (`npm run gmsites`, [tools/check-gm-sites.mjs](tools/check-gm-sites.mjs)):
+`game.user.isGM` is true on every GM client, so a site behind it runs once per GM screen — right for what a screen
+shows (presentation: a button, a popup, a control, a view; the click is that GM's own act, its write guarded where
+it lands), right for a write each GM client makes for itself (own: its User's lead flag, its own card), wrong for a
+consequence, which gates on `isActiveGM()`. No consequence sits behind `isGM`: an Assistant GM may make every
+write the elect makes in a default world (the measurement note's §1.3), so the cut is presentation or consequence,
+never a role split. A moment of an unowned subject pops on every GM screen (`canAnswerFor`'s GM branch) and the
+show-once latch is per client, so a popup answered on one GM screen closes on the others through `closePopup` when
+the answer lands (§5 law 4). The two-GM proof is `smoke-companions` §9 and `smoke-summons` §10 (a landing as a
+second GM client arrives, one landing per record) and `probe-multi-gm.mjs`'s orderings (tools/README.md).
+
 ### The relay — the answer channel, one shape
 
 A player cannot write someone else's message, so when the answerer is not the client that owns
@@ -366,8 +408,9 @@ a mid-chain reload or a crashed client safe.
 cause), drives(flag, message), drive(message) })` in [ui.js](scripts/ui.js). The spine holds the
 three registrations once (`createChatMessage`, `updateChatMessage`, `dnd5e.renderChatMessage`:
 arrival, the write that releases a claim, the reload), latches on `${flagKey}|${messageId}`, and
-awaits the drive. `cause` (`create` | `update` | `render`) exists because an arrival and a resume
-are different questions. **The drive does no DOM work**, so card-row order is untouched. A
+awaits the drive. `cause` (`create` | `update` | `render` | `lead`) exists because an arrival and a resume
+are different questions; `lead` is the recent cards resumed when a window takes the lead or a user leaves (the
+re-drive), and a `render` before `ready` waits for `ready` (the snapshot guard; both §4 *The flow elect*). **The drive does no DOM work**, so card-row order is untouched. A
 **`flagless`** resumable (the attack payouts, the damage shields) judges an arrival that carries
 no module flag, keyed by name. The claims (`effectsApplied`, `resolving`, `judged`, the receipt)
 stay the machines', through the serializer. ⚠ A new resume goes through the primitive; judging
@@ -392,6 +435,7 @@ to §10 only if the reason stops being true.
 | **Two short in-memory windows exist** despite "no session state": Riposte's armed die (60 s, riposte.js) and the concentration cause for Mage Slayer's Disadvantage (3 s, concentration.js). | Each is a reminder-grade fact, never HP or a resource. A reload inside the window drops one hint. Persisting them would be a flag write per hit for nothing a table has noticed. |
 | **The metamagic pick lives in memory between the dialog and the card** (metamagic.js `pending` and `freePending`, keyed by the activity): the tick in the Cast dialog waits for the usage card to be born, and the dialog's close sweeps an unborn pick after 3 s. | The card does not exist while the dialog is open, so there is nothing to write the pick on; the stamp refuses a pick older than five minutes, and a cancelled dialog's pick must not land on the next cast. A reload between Cast and the card loses the tick, and the menu asks again. |
 | **Deadlines are stamped and judged with each client's own clock** (`Date.now()`, never `game.time.serverTime`). A skew of ten minutes or more between machines disables a timer through `deadlineIsLive` rather than misfiring it. | The ceiling was chosen so a wrong clock fails SAFE (no buzzer) instead of rolling dice for a fight that ended. Server time would buy accuracy under skew nobody has measured at the table. |
+| **A re-driven landing repeats what its dead claimant wrote before it went**, except a summon's (its tokens, its shared resistance, its standing and companion effects are found by the card and removed first) and the writes judged at the landing (a mastery or known-form list against the list as it stands, Temporary Hit Points that keep the larger pool). A rest grant's pool use, an initiative swap or a held share's damage could land twice. | The window is a claimant gone between its first world write and its record (the landing's own milliseconds), and the alternative is the record stuck claimed forever with nothing landed. A landing that can be found by its card is made so when a second customer needs it. |
 | **Some reads scan the whole chat log** (`demandCards`, `holdPendingFor`, `answerHoldsFor`, the riposte and bash-offer lookups). Work grows with the age of a world. | A tail misses: one round can emit dozens of messages (answer.js). Parked in BACKLOG with the un-parking condition. |
 | **The dispatcher catches synchronous errors only.** An async handler that rejects logs its own error. | Every async handler owns its try/catch by convention; awaiting them in the dispatcher would serialize hooks the platform fires synchronously. |
 
@@ -1173,7 +1217,24 @@ version stays 2). The marker is `maneuver: false` on a record that is not a mane
 **A consumer dedupes against the card.** `damage`, `effect`, `spend` and `save` also fire for
 resolves the platform posts a card for, and a cast that answers a hold posts its own usage card
 beside `hold-answered` — by design, the two carry different facts; `momentId` is the key to
-dedupe on.
+dedupe on, with `event` beside it where one resolve publishes under two words.
+
+**The contract files.** What a reader in the family may rely on is written down as data, recorded
+from a live run: `contracts/moment.json` (every hook above, each `<event>|<kind>` pair's fields with
+a sample, the companion hooks' arguments) and `contracts/card-flags.json` (every key the module
+writes, its class, writers, documents, stat stamp, its readers in the family and its shape). FX
+Studio and Session Scribe test against them from the sibling clone. `npm run contracts` holds them to
+this tree offline; the battery records and reports against them (tools/README.md *The contracts*).
+
+**Dead, one rule for the family.** Three hands write the `dead` status and a combatant's defeated
+mark (dnd5e's Apply Downed Conditions; this module's downed conditions out of combat, its kills and
+its revert; Combat Plus's Auto-Defeated), and Token Art and this module's summons read it. Who writes
+what, when, and in which order is written once, in the suite (`fvtt-suite-openroll5e`,
+`contracts/dead.md`). This module's half: the out-of-combat pass writes dnd5e's own mapping under
+dnd5e's `autoDowned` flag, so the system's removal on the heal ends it; a kill and a revert write or
+clear Dead before the Hit Points, never after (the system's `updateDowned` races a later write);
+`clearDefeated` matches combatants as Combat Plus does; the summons read the Dead status as the
+caster's death, never 0 Hit Points alone.
 
 ---
 
@@ -1322,6 +1383,16 @@ something structural is genuinely failing a rule, with the rule and the evidence
 6. A flag that is a list or a map (an effect's `rerollUsed`, a region's `initial`) passes
    `initial` — `[]` or `{}` — so the first write starts from the right shape.
 
+**Gating on a GM** (several GM clients, §4 *The flow elect*):
+1. `game.user.isGM` is true on EVERY GM client. Behind it goes only what a GM screen shows (a button, a popup, a
+   control, a view) or a write each GM client makes for itself; `npm run gmsites`
+   ([tools/check-gm-sites.mjs](tools/check-gm-sites.mjs)) fails an `isGM` read until it is tagged in its `ALLOW`
+   (presentation, own or role, with the count and the reason). A consequence gates on `isActiveGM()`.
+2. A record's landing is claimed with `claimLanding` (core.js) and its `pending` reads the claim through
+   `claimHolds`; the same check fails a raw `applying = true` and a bare `!flag.applying` outside core.js. A
+   landing that makes documents stamps them with its card, so a re-drive over a dead claim can remove them first.
+3. A popup that every GM screen may hold closes on the others when the answer lands (`closePopup` on the update).
+
 **Adding a RECORD** (a new flag key the module writes — a moment's state, a resolve, a fingerprint):
 1. `npm run moments` fails until the key is classified in [decide/moments.js](scripts/decide/moments.js):
    a **resolve** (a `MOMENT_RECORDS` row; the gate publishes it, nothing else to write) or
@@ -1334,6 +1405,12 @@ something structural is genuinely failing a rule, with the rule and the evidence
    [tools/check-flag-edges.mjs](tools/check-flag-edges.mjs) names where it sits; `npm run flagedges` fails a read of the
    key by name anywhere else. A written key the scan cannot see (a constant the file does not declare or
    import, a flag object it cannot follow to its literal) fails `npm run moments`.
+4. **It joins the contract** (§7 *The contract files*). `npm run contracts` fails until
+   `node tools/contracts.mjs --write` lists the key (and a new word or companion hook the same way);
+   the next recording run (the battery records every suite) and `--write` give it its shape, and
+   `contracts/` is committed with the change. A field another repo reads that is renamed or removed
+   moves the file's `version` (`MOMENT_CONTRACT.version` for the moments, in the same commit as step
+   2's); a new field does not.
 
 **Adding a FOLD** (anything that changes an already-rolled outcome after the fact — a reroll,
 an added die, a reaction that moves AC):

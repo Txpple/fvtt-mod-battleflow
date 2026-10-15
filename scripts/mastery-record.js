@@ -10,13 +10,13 @@
  * an over-long list is trimmed there first); the RECORD on the Weapon Mastery feature's card; the PARTY VIEW
  * in the group sheet's header controls. Nothing here decides who may use a mastery — the system does.
  */
-import { MODULE_ID, readFlag, TITLE, isActiveGM, queueFlagWrite, canAnswerFor, statContext, gmIds, resolveUuid, log } from "./core.js";
+import { MODULE_ID, readFlag, TITLE, isActiveGM, queueFlagWrite, canAnswerFor, statContext, gmIds, resolveUuid, log, claimLanding, claimHolds } from "./core.js";
 import { cardItem, lower } from "./lookup.js";
 import { allowanceOf, fillPicks, recordState, missingPick, restList, trimList } from "./decide/mastery-record.js";
 import { TONE, bfCard, esc, foldedRuleHTML, pickInputHTML } from "./decide/present.js";
 import { CARD, isCard, masteryOf } from "./decide/card.js";
 import { isPartyMember, masteryLabel } from "./shared.js";
-import { openMomentPopup, registerRelay, registerResumable, acknowledgeMoment, momentAcknowledged, pendingRow, postCard, postAnswer, pickInputs, picked, pickedAll } from "./ui.js";
+import { openMomentPopup, registerRelay, registerResumable, acknowledgeMoment, momentAcknowledged, pendingRow, postCard, postAnswer, pickInputs, picked, pickedAll, closePopup } from "./ui.js";
 import { messageActivity } from "./effect-riders.js";
 import { SURFACES } from "./surfaces.js";
 import { listen } from "./dispatch.js";
@@ -357,13 +357,7 @@ registerRelay("masterySwapAnswer", {
 
 /** The elect lands the answer on the sheet, judged against the list as it stands now. */
 async function landSwap(message) {
-  let claimed = false;
-  await queueFlagWrite(message, MASTERY_SWAP_FLAG, current => {
-    if ( (current.status !== "resolved") || current.applied || current.applying ) return false;
-    current.applying = true;
-    claimed = true;
-  });
-  if ( !claimed ) return;
+  if ( !(await claimLanding(message, MASTERY_SWAP_FLAG, current => current.status === "resolved")) ) return;
   const flag = readFlag(message, MASTERY_SWAP_FLAG);
   let outcome = "kept";
   let after = null;
@@ -390,7 +384,7 @@ async function landSwap(message) {
 }
 
 registerResumable(MASTERY_SWAP_FLAG, {
-  pending: flag => (flag?.status === "resolved") && !flag.applied && !flag.applying,
+  pending: flag => (flag?.status === "resolved") && !flag.applied && !claimHolds(flag.applying),
   drives: () => isActiveGM(),
   drive: landSwap
 });
@@ -543,6 +537,12 @@ function drawSwap(message, html, flag) {
     pendingRow(message, row, { latch: { sub: "masteryDone", show: () => showSwapDone(message, flag) }, answer: { label: "OK", style: { margin: "0.25rem 0 0" } } });
   }
 }
+
+// The answer, given on any client, withdraws the swap's popup on this one (§5 law 4): every GM screen may hold one for an unowned subject, and the latch is per client.
+listen("updateChatMessage", "mastery-record", message => {
+  const flag = readFlag(message, MASTERY_SWAP_FLAG);
+  if ( flag && (flag.status !== "pending") ) void closePopup(message, MASTERY_SWAP_FLAG);
+});
 
 listen("dnd5e.renderChatMessage", "mastery-record", (message, html) => {
   try {

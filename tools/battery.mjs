@@ -204,9 +204,10 @@ for (const suite of plan) {
 writeFileSync(join(runDir, "plan.json"), `${JSON.stringify(plan.map(s => s.file))}\n`);
 console.log(`[battery] output -> ${runDir}\n`);
 
-// ⚠ Clear the hook ledgers first: hook-coverage.mjs unions whatever it finds, and a previous
-// battery's ledger would report coverage this run never had.
+// ⚠ Clear the hook ledgers and the contract recordings first: hook-coverage.mjs and contracts.mjs
+// union whatever they find, and a previous battery's would report what this run never saw.
 rmSync(join(REPO, "dist", "hook-ledger"), { recursive: true, force: true });
+rmSync(join(REPO, "dist", "contract-recordings"), { recursive: true, force: true });
 
 const run = (script, args = [], label = script) => {
   const r = spawnSync(node, [join(REPO, "tools", `${script}.mjs`), ...args], {
@@ -305,6 +306,12 @@ if (coverage.code !== 0) {
   if (from >= 0) for (const l of lines.slice(from)) console.log(l.trimEnd());
   else console.log(`  ${lines.find(l => l.startsWith("REPORT")) ?? ""}`);
 }
+
+// The contracts against what this run published (tools/contracts.mjs): printed, never enforced here;
+// `npm run verify` holds the committed files to the code, and a drift is recorded with --write.
+console.log("\n[battery] the contracts — what this run published against contracts/…");
+const contracts = run("contracts", ["--check", "--run"]);
+for (const l of contracts.body.split("\n")) if (/^(CONTRACT|FAIL|REPORT| {2})/.test(l)) console.log(l.trimEnd());
 
 if (pinned.code === 0) {
   const back = pinHouseRules(Object.fromEntries(HOUSE_RULES.map(k => [k, priorHouseRules[k] ?? false])), "unpin-house-rules");

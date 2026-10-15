@@ -59,6 +59,10 @@ to the table, the way vanilla dnd5e does.
 - **Combat Plus and FX Studio are separate modules on purpose.** By the Books plays the rules;
   Combat Plus does the chores around the fight and FX Studio plays the pictures. Each detects the others
   and none requires another, so a dnd5e update can never take all three down.
+- **Dead is one rule across the family.** dnd5e, By the Books and Combat Plus each write the Dead
+  status at 0 Hit Points under their own settings; who writes what, and the settings that agree with
+  the book, are written once in the suite:
+  [contracts/dead.md](https://github.com/Txpple/fvtt-suite-openroll5e/blob/main/contracts/dead.md).
 
 ## Installation
 

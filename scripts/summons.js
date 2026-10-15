@@ -14,7 +14,7 @@
  * stamps `applied`. With no GM online the card holds and says so (DESIGN §4). Dismiss deletes what the
  * elect made, and the concentration effect's end asks it.
  */
-import { MODULE_ID, readFlag, TITLE, activeCombatFor, isActiveGM, queueFlagWrite, answersHere, statContext, resolveUuid, log } from "./core.js";
+import { MODULE_ID, readFlag, TITLE, activeCombatFor, isActiveGM, queueFlagWrite, answersHere, statContext, resolveUuid, log, claimLanding, claimHolds } from "./core.js";
 import { activityNamed, cardActivity, featureNamed, lower } from "./lookup.js";
 import { COMPANIONS, SUMMON_AS, SUMMON_BOONS, SUMMON_CHOICES, SUMMON_COMMANDS, SUMMON_EMPOWERS, SUMMON_EXTRAS, SUMMON_FALLS, SUMMON_GUISES, SUMMON_LIGHTS, SUMMON_LOOKS, SUMMON_ONE_FORM, TRANSFORMS,
   summonChoiceEntries, summonEmpowerEntries, summonFallEntries, summonOwnInitiativeEntries, summonSingleEntries, listedNames } from "./decide/registry.js";
@@ -782,14 +782,11 @@ async function splitCommands(actor, row, spell) {
 }
 
 async function landSummon(message) {
-  let claimed = false;
-  await queueFlagWrite(message, SUMMON_FLAG, current => {
-    if ( (current.status !== "placed") || current.applied || current.applying ) return false;
-    current.applying = true;
-    claimed = true;
-  });
-  if ( !claimed ) return;
+  const claim = await claimLanding(message, SUMMON_FLAG, current => current.status === "placed");
+  if ( !claim ) return;
   const flag = readFlag(message, SUMMON_FLAG);
+  // a landing whose claimant left part-way: what it made goes first, so this one lands the summon once
+  if ( claim.over ) await sweepDeadLanding(message, flag);
   const landed = [];
   let outcome = "landed";
   let failure = null;
@@ -892,6 +889,7 @@ async function landSummon(message) {
       // emanation or targeting reads; a light's object keeps the pack's own
       const casterSide = casterTokenOn(caster, scene)?.disposition;
       if ( !lightRow && Number.isFinite(casterSide) && (casterSide !== CONST.TOKEN_DISPOSITIONS.SECRET) ) data.disposition = casterSide;
+      foundry.utils.setProperty(data, `flags.${MODULE_ID}.${SUMMON_CARD_FLAG}`, message.id);
       tokensData.push(data);
     }
     // a new form for a companion waiting in the pocket waits there too: the token is kept, not drawn
@@ -918,6 +916,7 @@ async function landSummon(message) {
       const data = resistanceEffectData({ type: flag.picked, name: `${row.resist} (${label})`, img: activity.item.img, origin: activity.item.uuid, description: row.says ?? "" });
       data.duration = concentration ? { ...(concentration._source?.duration ?? {}) } : (activity.duration?.getEffectData?.() ?? {});
       if ( concentration ) foundry.utils.setProperty(data, "flags.dnd5e.dependentOn", concentration.uuid);
+      foundry.utils.setProperty(data, `flags.${MODULE_ID}.${SUMMON_CARD_FLAG}`, message.id);
       const [effect] = await caster.createEmbeddedDocuments("ActiveEffect", [data]);
       if ( effect ) resistance = { uuid: caster.uuid, name: caster.name, img: caster.img ?? null, effectId: effect.id, effectName: effect.name, effectImg: effect.img ?? null, description: data.description };
     }
@@ -989,6 +988,30 @@ async function landSummon(message) {
         effects: [effectRecord({ id: resistance.effectId, name: resistance.effectName, img: resistance.effectImg, description: resistance.description }, statContext(flag.sourceUuid ?? null))] });
     });
   }
+}
+
+/** The card a landed token or the caster's shared resistance came from: a dead landing's leavings are found by it. */
+const SUMMON_CARD_FLAG = "summonCard";
+
+/**
+ * What a landing whose claimant left part-way made before it went (core.js `claimLanding`): the tokens and the
+ * caster's effects stamped with this card, its standing and companion effects, and the seats of those tokens —
+ * removed, so the landing that follows makes each once.
+ */
+async function sweepDeadLanding(message, flag) {
+  for ( const scene of game.scenes ) {
+    const ids = scene.tokens.filter(t => readFlag(t, SUMMON_CARD_FLAG) === message.id).map(t => t.id);
+    if ( !ids.length ) continue;
+    for ( const combat of game.combats ) {
+      const seats = combat.combatants.filter(c => (c.sceneId === scene.id) && ids.includes(c.tokenId)).map(c => c.id);
+      if ( seats.length ) await combat.deleteEmbeddedDocuments("Combatant", seats);
+    }
+    await scene.deleteEmbeddedDocuments("Token", ids);
+  }
+  const caster = resolveUuid(flag.sourceUuid);
+  const mine = e => [readFlag(e, SUMMON_CARD_FLAG), readFlag(e, "summonEffect"), readFlag(e, "companion")].includes(message.id);
+  const effects = (caster?.effects?.contents ?? []).filter(mine).map(e => e.id);
+  if ( effects.length ) await caster.deleteEmbeddedDocuments("ActiveEffect", effects, { [MODULE_ID]: { summonEnd: true, companionEnd: true } });
 }
 
 /** The SUMMON_BOONS row the caster holds for this spell, with the formula read off the feature's own enchantment change; null for none. */
@@ -1069,7 +1092,7 @@ async function dismissSummon(message) {
 }
 
 registerResumable(SUMMON_FLAG, {
-  pending: flag => (flag?.status === "placed") && ((!flag.applied && !flag.applying) || (flag.applied && flag.dismissAsked && !flag.dismissed && !flag.dismissing)
+  pending: flag => (flag?.status === "placed") && ((!flag.applied && !claimHolds(flag.applying)) || (flag.applied && flag.dismissAsked && !flag.dismissed && !flag.dismissing)
     || (flag.applied && !flag.dismissAsked && !!flag.companion?.ask && !flag.companion.acting)),
   drives: () => isActiveGM(),
   drive: async message => {

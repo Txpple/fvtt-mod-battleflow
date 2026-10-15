@@ -1,0 +1,3293 @@
+{
+  "contract": "card-flags",
+  "module": "fvtt-mod-bythebooks",
+  "scope": "fvtt-mod-bythebooks",
+  "legacyScope": "fvtt-mod-battleflow",
+  "version": 1,
+  "title": "By the Books: the flag keys",
+  "description": "Every key By the Books writes under flags[\"fvtt-mod-bythebooks\"] (and read under flags[\"fvtt-mod-battleflow\"] on a document written before the rename), as decide/moments.js classifies it: a `record` is a resolve the moment gate publishes (`family` its word or words), a `state` key carries the reason it is state. `writers` are the scripts/ files that write it, `on` the documents a recorded run saw it on, `stamp` where the stat stamp (`combat`, `sourceUuid`; ARCHITECTURE §4 *The data plane*) sits, `readBy` the family repos whose contracts/consumes.json name it, `fields` and `schema` its recorded shape. A chat card keeps its flags forever, so a reader must tolerate every shape a key ever had; `version` moves when a field another repo reads is renamed or removed.",
+  "recorded": {
+    "suites": []
+  },
+  "keys": {
+    "ac": {
+      "class": "state",
+      "family": "state",
+      "means": "an envelope field beside respondsTo — the AC the reaction produced",
+      "writers": [
+        "hold/answer.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [],
+      "recorded": false,
+      "fields": []
+    },
+    "against": {
+      "class": "state",
+      "family": "state",
+      "means": "an ActiveEffect field — the ONE creature a use chip is against (Studied Attacks, B3); the roll at it that spends the chip (chipSpend) is the resolve",
+      "writers": [
+        "use-chips.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [],
+      "recorded": false,
+      "fields": []
+    },
+    "alsoHeal": {
+      "class": "state",
+      "family": "state",
+      "means": "the pick on a healing spell's card of one more creature for a feature's own heal (Starry Form's Chalice, A1) — a latch; the heal's own card and its receipt are the resolve",
+      "writers": [
+        "heal-rerolls.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [],
+      "recorded": false,
+      "fields": []
+    },
+    "answer": {
+      "class": "state",
+      "family": "state",
+      "means": "an envelope field beside respondsTo — what was answered",
+      "writers": [
+        "hold/answer.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [],
+      "recorded": false,
+      "fields": []
+    },
+    "applied": {
+      "class": "state",
+      "family": "state",
+      "means": "an ActiveEffect's fingerprint — written by the module's applier; its landing is the effect receipt's resolve",
+      "writers": [
+        "effect-riders.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [],
+      "recorded": false,
+      "fields": []
+    },
+    "areaChoice": {
+      "class": "record",
+      "family": "choice",
+      "means": "a spell that chooses its targets (Slow, Sleep — the Chosen Areas list) was told who its area affects by its caster (saves/demand.js raises the ask, metamagic.js answers it); resolved when `asked` — the default written because there was nothing to choose is no one's decision and publishes nothing",
+      "writers": [
+        "area-ask.js",
+        "saves/demand.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [],
+      "recorded": false,
+      "fields": []
+    },
+    "areaMove": {
+      "class": "state",
+      "family": "state",
+      "means": "the card an area's move damage posts (emanations.js, Spike Growth) — the receipt on the same card is the resolve",
+      "writers": [
+        "emanations.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [],
+      "recorded": false,
+      "fields": []
+    },
+    "areaNotice": {
+      "class": "state",
+      "family": "state",
+      "means": "the card an area's ban posts as a creature moves in or out (emanations.js, Magic Circle and Forcecage) — a notice, the move never paused; presentation",
+      "writers": [
+        "emanations.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [],
+      "recorded": false,
+      "fields": []
+    },
+    "areas": {
+      "class": "state",
+      "family": "state",
+      "means": "an ActiveEffect field on a concentration effect — the uuids of the regions its cast placed, the sweep's tie (emanations.js, 2026-09-19)",
+      "writers": [
+        "emanations.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [],
+      "recorded": false,
+      "fields": []
+    },
+    "armed": {
+      "class": "state",
+      "family": "state",
+      "means": "an ActiveEffect field — a scoped fold armed from the sheet (the die, its skills); the fold into the check is the d20fold resolve",
+      "writers": [
+        "d20-folds.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [],
+      "recorded": false,
+      "fields": []
+    },
+    "armorBlock": {
+      "class": "state",
+      "family": "state",
+      "means": "presentation — an actor flag riding the damage's own update: what Heavy Armor Master cut from an attack, for every client to pop \"−N\" over the armored creature; the damage receipt is the record (damage-rules.js, 2026-09-26)",
+      "writers": [
+        "damage-rules.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [],
+      "recorded": false,
+      "fields": []
+    },
+    "atZero": {
+      "class": "state",
+      "family": "state",
+      "means": "on a damage card: the defender whose reduction took it to 0 used the feature's own activity at the attacker (Deflect Attacks' Redirect, A1) — a latch; the save activity's own card and the saves machine's verdict are the resolve",
+      "writers": [
+        "hold/answer.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [],
+      "recorded": false,
+      "fields": []
+    },
+    "attackFor": {
+      "class": "state",
+      "family": "state",
+      "means": "provenance — the attack a damage roll answers (auto-damage.js)",
+      "writers": [
+        "auto-damage.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [],
+      "recorded": false,
+      "fields": []
+    },
+    "attackHoldPending": {
+      "class": "state",
+      "family": "state",
+      "means": "the offer is waiting on a hold; the hold's answer is the resolve",
+      "writers": [
+        "auto-damage.js",
+        "hold/continue.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [],
+      "recorded": false,
+      "fields": []
+    },
+    "auraRider": {
+      "class": "state",
+      "family": "state",
+      "means": "presentation — the aura rider's line on the usage card (Smite of Protection's members); the effect receipts on the same card are the resolve",
+      "writers": [
+        "cast-riders.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [],
+      "recorded": false,
+      "fields": []
+    },
+    "autoCrit": {
+      "class": "state",
+      "family": "state",
+      "means": "provenance — the crit was auto-applied to the damage config",
+      "writers": [
+        "auto-damage.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [],
+      "recorded": false,
+      "fields": []
+    },
+    "baitSwitch": {
+      "class": "record",
+      "family": "maneuver+choice",
+      "means": "Bait and Switch's AC bonus found its wearer — the fighter or the other creature (superiority-uses.js); resolved when `chosen` is set",
+      "writers": [
+        "superiority-uses.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [
+        "fvtt-mcp-sessionscribe"
+      ],
+      "recorded": false,
+      "fields": []
+    },
+    "bashFor": {
+      "class": "state",
+      "family": "state",
+      "means": "provenance — the driven bash's usage card names the offer it answers",
+      "writers": [
+        "bash-offer.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [],
+      "recorded": false,
+      "fields": []
+    },
+    "bashOffer": {
+      "class": "record",
+      "family": "use",
+      "means": "Shield Master's bash offer on a melee hit, or Tavern Brawler's push on an Unarmed Strike hit (kind shove), was answered — used or passed (bash-offer.js); resolved when `status` is resolved",
+      "writers": [
+        "bash-offer.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [
+        "fvtt-mcp-sessionscribe"
+      ],
+      "recorded": false,
+      "fields": []
+    },
+    "bashUsed": {
+      "class": "state",
+      "family": "state",
+      "means": "an actor flag — the once-per-turn stamp; bashOffer is the resolve",
+      "writers": [
+        "bash-offer.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [],
+      "recorded": false,
+      "fields": []
+    },
+    "bent": {
+      "class": "state",
+      "family": "state",
+      "means": "an envelope field beside respondsTo — a `roll` answer's bent d20 (Slice A), carried to the fold",
+      "writers": [
+        "hold/answer.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [],
+      "recorded": false,
+      "fields": []
+    },
+    "by": {
+      "class": "state",
+      "family": "state",
+      "means": "an envelope field beside respondsTo — the GUARD who answered a held target (Protection, 2026-09-26); the fold onto the hold flag is the resolve",
+      "writers": [
+        "hold/answer.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [],
+      "recorded": false,
+      "fields": []
+    },
+    "bystanderMute": {
+      "class": "state",
+      "family": "state",
+      "means": "an ActiveEffect flag — the mute (Q2 option A, 2026-09-29; the scopes RULINGS *The asks widened*): the bystander feature its bearer muted, `until` its next turn or the combat's end (`combat` null: until the next combat); a player's preference, swept at the turn or with the combat, no resolve",
+      "writers": [
+        "shared.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [],
+      "recorded": false,
+      "fields": []
+    },
+    "bystanderRoll": {
+      "class": "record",
+      "family": "fold",
+      "means": "a bystander bent another creature's save or check — Restore Balance, Cutting Words (bystanders.js, Q2 option A); resolved when the offer leaves pending: the bend, or everyone passed",
+      "writers": [
+        "bystanders.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [
+        "fvtt-mcp-sessionscribe"
+      ],
+      "recorded": false,
+      "fields": []
+    },
+    "bystanderRollAnswer": {
+      "class": "state",
+      "family": "state",
+      "means": "a message flag — a bystander's answer to another creature's save or check, relayed to the roll's keeper (bystanders.js); the envelope, the roll's `bystanderRoll` is the resolve",
+      "writers": [
+        "bystanders.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [],
+      "recorded": false,
+      "fields": []
+    },
+    "cardChip": {
+      "class": "record",
+      "family": "spend",
+      "means": "a card chip offered on a cast's card and, once built, the chip it wrote — Tinker's Tiny Clockwork Device (use-chips.js); the build is the resolve",
+      "writers": [
+        "use-chips.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [
+        "fvtt-mcp-sessionscribe"
+      ],
+      "recorded": false,
+      "fields": []
+    },
+    "cardId": {
+      "class": "state",
+      "family": "state",
+      "means": "an ActiveEffect field — the card that wrote it",
+      "writers": [
+        "command.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [],
+      "recorded": false,
+      "fields": []
+    },
+    "cardKey": {
+      "class": "state",
+      "family": "state",
+      "means": "an ActiveEffect field — which card-chip row wrote this chip (Tinker's Tiny Clockwork Device)",
+      "writers": [
+        "use-chips.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [],
+      "recorded": false,
+      "fields": []
+    },
+    "castApply": {
+      "class": "record",
+      "family": "choice",
+      "means": "a cast's alternative effect was chosen — Fire Shield's warm or chill (cast.js); resolved when `choice.chosen` is set. The application itself is the effect receipt's resolve",
+      "writers": [
+        "cast.js",
+        "polish.js",
+        "superiority-uses.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [],
+      "recorded": false,
+      "fields": []
+    },
+    "castRider": {
+      "class": "state",
+      "family": "state",
+      "means": "a usage card's line — the Wild Magic Surge d20 and whether the table rolled (cast-riders.js); the table's own card is the platform's, the Tides of Chaos use the sheet's",
+      "writers": [
+        "cast-riders.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [],
+      "recorded": false,
+      "fields": []
+    },
+    "chipSpend": {
+      "class": "record",
+      "family": "spend",
+      "means": "an attack roll used a chip up — Vex, Sap, a listed effect's marker (chip-spend.js); one resolve per chip",
+      "writers": [
+        "chip-spend.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [
+        "fvtt-mcp-sessionscribe"
+      ],
+      "recorded": false,
+      "fields": []
+    },
+    "cleaveArm": {
+      "class": "state",
+      "family": "state",
+      "means": "Cleave armed for the extra attack; that attack is a real roll with its own card",
+      "writers": [
+        "mastery.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [],
+      "recorded": false,
+      "fields": []
+    },
+    "cleaveStripped": {
+      "class": "state",
+      "family": "state",
+      "means": "provenance — the armed Cleave's second attack shed its riders",
+      "writers": [
+        "mastery.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [],
+      "recorded": false,
+      "fields": []
+    },
+    "clockPick": {
+      "class": "state",
+      "family": "state",
+      "means": "the offer's rider picks before the die rolls; clockRiders on the damage message is the resolve",
+      "writers": [
+        "clock-riders.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [],
+      "recorded": false,
+      "fields": []
+    },
+    "clockRiders": {
+      "class": "record",
+      "family": "rider",
+      "means": "a clock rider's damage rode a hit — Dreadful Strike, Divine Strike, Primal Strike, Divine Fury, Assassinate (clock-riders.js); one resolve per rider",
+      "writers": [
+        "clock-riders.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [
+        "fvtt-mcp-sessionscribe"
+      ],
+      "recorded": false,
+      "fields": []
+    },
+    "coat": {
+      "class": "state",
+      "family": "state",
+      "means": "an ActiveEffect field — which coating this chip is (use-chips.js COATINGS: the Poisoner's Poison Coating)",
+      "writers": [
+        "use-chips.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [],
+      "recorded": false,
+      "fields": []
+    },
+    "coatHit": {
+      "class": "record",
+      "family": "spend",
+      "means": "a coating was spent by a weapon hit — the chip gone, the feature's own save used at the creatures struck (use-chips.js COATINGS, 2026-09-26); resolved once spent, a miss is moot",
+      "writers": [
+        "use-chips.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [
+        "fvtt-mcp-sessionscribe"
+      ],
+      "recorded": false,
+      "fields": []
+    },
+    "coatUse": {
+      "class": "record",
+      "family": "spend",
+      "means": "a coating was written at its use — the Poisoner's Apply Poison vetoed into the Poison Coating chip on the actor, a dose spent (use-chips.js COATINGS, 2026-09-26); on the card the use posts",
+      "writers": [
+        "use-chips.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [
+        "fvtt-mcp-sessionscribe"
+      ],
+      "recorded": false,
+      "fields": []
+    },
+    "combatRoster": {
+      "class": "state",
+      "family": "state",
+      "means": "the data plane's turn→actor map — stats, never a moment",
+      "writers": [
+        "stats.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [],
+      "recorded": false,
+      "fields": []
+    },
+    "command": {
+      "class": "state",
+      "family": "state",
+      "means": "Commander's Strike directed at an ally — the notice and the chip; the die riding the ally's attack (commandRide) is the resolve, and the use posted its own card",
+      "writers": [
+        "command.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [
+        "fvtt-mcp-sessionscribe"
+      ],
+      "recorded": false,
+      "fields": []
+    },
+    "commandOf": {
+      "class": "state",
+      "family": "state",
+      "means": "an Item flag on a summoned creature's command spell — the spell whose command it is (summons.js); a marker, nothing is published",
+      "writers": [
+        "summons.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [],
+      "recorded": false,
+      "fields": []
+    },
+    "commandRide": {
+      "class": "record",
+      "family": "maneuver",
+      "means": "Commander's Strike's die rode the ally's attack damage (command.js); the record arrives resolved on the damage message",
+      "writers": [
+        "command.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [
+        "fvtt-mcp-sessionscribe"
+      ],
+      "recorded": false,
+      "fields": []
+    },
+    "companion": {
+      "class": "state",
+      "family": "state",
+      "means": "an ActiveEffect flag on a companion's OWNER — the message id of the summon card it names (summons.js); the effect is a marker, the card's record holds the companion",
+      "writers": [
+        "summons.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [],
+      "recorded": false,
+      "fields": []
+    },
+    "companionEnd": {
+      "class": "state",
+      "family": "state",
+      "means": "a delete option, not a flag — the elect's own removal of a companion's effect, which the owner's removal prompt lets pass (summons.js)",
+      "writers": [
+        "summons.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [],
+      "recorded": false,
+      "fields": []
+    },
+    "concentration": {
+      "class": "record",
+      "family": "save+break",
+      "means": "a concentration save's verdict landed (concentration.js) — and the concentration broke when it failed (publishes break beside save); resolved when `outcome` is set",
+      "writers": [
+        "concentration.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [
+        "fvtt-mcp-sessionscribe"
+      ],
+      "recorded": false,
+      "fields": []
+    },
+    "concentrationAsked": {
+      "class": "state",
+      "family": "state",
+      "means": "a use option, not a flag — the caster answered the end-Concentration question before a cast that skips the usage dialog (shared.js)",
+      "writers": [
+        "concentration.js",
+        "summons.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [],
+      "recorded": false,
+      "fields": []
+    },
+    "concentrationExempt": {
+      "class": "state",
+      "family": "state",
+      "means": "presentation — the card for a Concentration save the ask machine did not demand (Relentless Hunter: damage never breaks Hunter's Mark; concentration.js); nothing was rolled, nothing to resolve",
+      "writers": [
+        "concentration.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [],
+      "recorded": false,
+      "fields": []
+    },
+    "conditionEnd": {
+      "class": "record",
+      "family": "choice",
+      "means": "a feature's offer to END a condition its bearer wears — Guarded Mind (a Psionic die), Self-Restoration (free, the turn end), Physician's Touch (the healed creature) — answered with the condition or Keep (turn-grants.js, the PHB classes B4); resolved at Keep, or when the effects are gone",
+      "writers": [
+        "turn-grants.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [
+        "fvtt-mcp-sessionscribe"
+      ],
+      "recorded": false,
+      "fields": []
+    },
+    "conditionEndAnswer": {
+      "class": "state",
+      "family": "state",
+      "means": "an envelope — a player's answer to a condition-end offer, relayed to the GM who lands it; the fold onto the conditionEnd flag is the resolve",
+      "writers": [
+        "turn-grants.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [],
+      "recorded": false,
+      "fields": []
+    },
+    "coverIgnored": {
+      "class": "state",
+      "family": "state",
+      "means": "an attack card's line — the cover a feat ignored (Sharpshooter, Spell Sniper); presentation, the AC it took off rode the card's own recorded targets",
+      "writers": [
+        "reminders.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [],
+      "recorded": false,
+      "fields": []
+    },
+    "coverMeasured": {
+      "class": "state",
+      "family": "state",
+      "means": "an attack card's line — the cover on every attack while it is measured (the 2024 DMG's corner lines; No Cover included, a hand-set status named when it wins) and put on the recorded AC; presentation, the AC rode the card's own recorded targets (reminders.js, 2026-09-27)",
+      "writers": [
+        "reminders.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [],
+      "recorded": false,
+      "fields": []
+    },
+    "crushUsed": {
+      "class": "state",
+      "family": "state",
+      "means": "an actor flag — Crusher's once-per-turn push stamp (SHOVES); bashOffer (kind shove) is the resolve",
+      "writers": [
+        "bash-offer.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [],
+      "recorded": false,
+      "fields": []
+    },
+    "cunning": {
+      "class": "state",
+      "family": "state",
+      "means": "the Cunning Strike picks armed on the attack; sneakDamage on the damage message is the resolve",
+      "writers": [
+        "sneak.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [],
+      "recorded": false,
+      "fields": []
+    },
+    "d20fold": {
+      "class": "record",
+      "family": "fold",
+      "means": "a d20 fold — Bardic, Heroic, Tactical, Seeking — was spent into a test, or the offer was passed (d20-folds.js); one resolve per settled spend, one for a pass",
+      "writers": [
+        "d20-folds.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [
+        "fvtt-mcp-sessionscribe"
+      ],
+      "recorded": false,
+      "fields": []
+    },
+    "damageCast": {
+      "class": "record",
+      "family": "cast",
+      "means": "a bare damage spell's dice were rolled by the module at its targets — Heat Metal's class (damage-casts.js); on the cast's card",
+      "writers": [
+        "damage-casts.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [
+        "fvtt-mcp-sessionscribe"
+      ],
+      "recorded": false,
+      "fields": []
+    },
+    "damageHold": {
+      "class": "record",
+      "family": "hold-answered",
+      "means": "a reduction \"when you take damage\" was answered before the damage landed — cast or taken (damage-holds.js: Stone's Endurance on any damage, Interception's guards, Cutting Words' die off an attack's damage); the landing is the receipt's",
+      "writers": [
+        "damage-holds.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [
+        "fvtt-mcp-sessionscribe"
+      ],
+      "recorded": false,
+      "fields": []
+    },
+    "damageHoldAnswer": {
+      "class": "state",
+      "family": "state",
+      "means": "an envelope — a damage hold's answer; the fold onto the damageHold flag is the resolve",
+      "writers": [
+        "damage-holds.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [],
+      "recorded": false,
+      "fields": []
+    },
+    "damageOffer": {
+      "class": "state",
+      "family": "state",
+      "means": "the offer window's own state (open, answered); the die it offers resolves as hitManeuver, clockRiders, sneakDamage",
+      "writers": [
+        "auto-damage.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [],
+      "recorded": false,
+      "fields": []
+    },
+    "damageSaveCard": {
+      "class": "state",
+      "family": "state",
+      "means": "the save card a damage cast drove; its verdicts land on the saves flag",
+      "writers": [
+        "damage-casts.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [],
+      "recorded": false,
+      "fields": []
+    },
+    "damageShare": {
+      "class": "state",
+      "family": "state",
+      "means": "the card a bond's share posts (damage-shares.js, Warding Bond) — the receipt on the same card is the resolve; `ended` when the caster's drop ended the bond",
+      "writers": [
+        "damage-shares.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [],
+      "recorded": false,
+      "fields": []
+    },
+    "damageShield": {
+      "class": "record",
+      "family": "shield",
+      "means": "a damage shield struck back at a melee attacker — its dice rolled on the defender's own message (damage-shields.js); arrives resolved",
+      "writers": [
+        "damage-shields.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [
+        "fvtt-mcp-sessionscribe"
+      ],
+      "recorded": false,
+      "fields": []
+    },
+    "damageShields": {
+      "class": "state",
+      "family": "state",
+      "means": "the shield judgement's claim on the damage message (paid, judged) — a latch; damageShield on the ward's roll is the resolve",
+      "writers": [
+        "damage-shields.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [],
+      "recorded": false,
+      "fields": []
+    },
+    "deathSaveOffer": {
+      "class": "record",
+      "family": "use",
+      "means": "the death save's side (Searing Vengeance, the PHB classes C1): a keeper offered its feature as a creature rolled a Death Saving Throw — answered use (half the maximum back, the burst landed) or pass (drop-to-one.js)",
+      "writers": [
+        "drop-to-one.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [
+        "fvtt-mcp-sessionscribe"
+      ],
+      "recorded": false,
+      "fields": []
+    },
+    "deathSaveOfferAnswer": {
+      "class": "state",
+      "family": "state",
+      "means": "an envelope — a keeper's answer to the death save's offer (Searing Vengeance); the fold onto deathSaveOffer is the resolve",
+      "writers": [
+        "drop-to-one.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [],
+      "recorded": false,
+      "fields": []
+    },
+    "deathThroes": {
+      "class": "state",
+      "family": "state",
+      "means": "the demand card a `died` row raised at the corpse (Death Throes, drop-to-one.js) — beside the saves record, which is the resolve",
+      "writers": [
+        "drop-to-one.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [],
+      "recorded": false,
+      "fields": []
+    },
+    "diceChange": {
+      "class": "record",
+      "family": "fold+metamagic",
+      "means": "the dice changers' one popup on a damage roll resolved (dice-changers.js, 2026-09-27) — per row used: Savage Attacker's set and Piercer's one die publish fold, Empowered Spell's picked dice publish metamagic; resolved when `status` is used",
+      "writers": [
+        "dice-changers.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [
+        "fvtt-mcp-sessionscribe"
+      ],
+      "recorded": false,
+      "fields": []
+    },
+    "diceRise": {
+      "class": "state",
+      "family": "state",
+      "means": "presentation — a roll message's chips for dice-rise.js to draw on every client; the roll it rides is the record, never a moment",
+      "writers": [
+        "bystanders.js",
+        "d20-folds.js",
+        "damage-holds.js",
+        "dice-changers.js",
+        "heal-rerolls.js",
+        "hold/answer.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [],
+      "recorded": false,
+      "fields": []
+    },
+    "die": {
+      "class": "state",
+      "family": "state",
+      "means": "an ActiveEffect field — the die a chip carries",
+      "writers": [
+        "command.js",
+        "superiority-uses.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [],
+      "recorded": false,
+      "fields": []
+    },
+    "drain": {
+      "class": "state",
+      "family": "state",
+      "means": "on the dealing card: the creatures already drained by it (drains.js, Life Drain) — a latch; on the drain's own card, its facts (the fall, the total, a score row's die), and the effect receipt there is the resolve",
+      "writers": [
+        "drains.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [],
+      "recorded": false,
+      "fields": []
+    },
+    "dropToOne": {
+      "class": "record",
+      "family": "hold-answered",
+      "means": "a drop to 0 Hit Points turned into a drop to 1 — Relentless Endurance answered (use or pass), Death Ward automatic (answer \"auto\"), or a `save` row's dice (Undead Fortitude: answer \"saved\" / \"failed\", `save` the roll; \"exempt\" when the damage's type or crit set the row aside) (drop-to-one.js)",
+      "writers": [
+        "drop-to-one.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [
+        "fvtt-mcp-sessionscribe"
+      ],
+      "recorded": false,
+      "fields": []
+    },
+    "dropToOneAnswer": {
+      "class": "state",
+      "family": "state",
+      "means": "an envelope — a drop-to-1 answer; the fold onto the dropToOne flag is the resolve",
+      "writers": [
+        "drop-to-one.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [],
+      "recorded": false,
+      "fields": []
+    },
+    "dropToOneSave": {
+      "class": "state",
+      "family": "state",
+      "means": "provenance — the save roll a `save` row demanded of the creature it held at 1 (Undead Fortitude, drop-to-one.js); the dropToOne record on the card is the resolve",
+      "writers": [
+        "drop-to-one.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [],
+      "recorded": false,
+      "fields": []
+    },
+    "duplicatesSave": {
+      "class": "state",
+      "family": "state",
+      "means": "provenance — the attacker's save a `save` duplicate demanded inside the hold (Unbreakable Majesty, hold/continue.js); the hold's verdict is the resolve",
+      "writers": [
+        "hold/continue.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [],
+      "recorded": false,
+      "fields": []
+    },
+    "duplicatesSeen": {
+      "class": "state",
+      "family": "state",
+      "means": "a line on the defender's side — the attacker sees through its duplicates (a status, a sense), so nothing was rolled (hold/trigger.js, Mirror Image)",
+      "writers": [
+        "hold/trigger.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [],
+      "recorded": false,
+      "fields": []
+    },
+    "effectLanded": {
+      "class": "state",
+      "family": "state",
+      "means": "an envelope field beside respondsTo — whether the reaction's effect had arrived",
+      "writers": [
+        "hold/answer.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [],
+      "recorded": false,
+      "fields": []
+    },
+    "effectReceipt": {
+      "class": "record",
+      "family": "effect",
+      "means": "an effect landed on a target with a receipt (effect-riders.js, mastery chips, the hold's reaction effect, the cast slice), or was reverted; one resolve per effect, one more per revert",
+      "writers": [
+        "effect-riders.js",
+        "gear-lights.js",
+        "hit-menu.js",
+        "hold/answer.js",
+        "hold/continue.js",
+        "mastery.js",
+        "saves/consequences.js",
+        "summons.js",
+        "token-lights.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [
+        "fvtt-mcp-sessionscribe"
+      ],
+      "recorded": false,
+      "fields": []
+    },
+    "emanation": {
+      "class": "state",
+      "family": "state",
+      "means": "a Region's or template's fingerprint — the aura's kind, key, source token and who stood inside at the cast",
+      "writers": [
+        "emanations.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [],
+      "recorded": false,
+      "fields": []
+    },
+    "emanationCard": {
+      "class": "record",
+      "family": "choice",
+      "means": "an emanation's damage type was chosen by its caster (emanations.js); resolved when `chosen` is set",
+      "writers": [
+        "emanations.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [
+        "fvtt-mcp-sessionscribe"
+      ],
+      "recorded": false,
+      "fields": []
+    },
+    "emanationHeal": {
+      "class": "state",
+      "family": "state",
+      "means": "a button on the emanation's card — the heal's use posts its own card",
+      "writers": [
+        "emanations.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [
+        "fvtt-mcp-sessionscribe"
+      ],
+      "recorded": false,
+      "fields": []
+    },
+    "emanationPick": {
+      "class": "state",
+      "family": "state",
+      "means": "the card a `pick` ring posts at its bearer's turn start (Wrath of the Sea, B5) — who stands inside, the one chosen (`picked`) and whether the demand went out (`demanded`); the saves record on the demand it raises is the resolve",
+      "writers": [
+        "emanations.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [],
+      "recorded": false,
+      "fields": []
+    },
+    "emanationPickAnswer": {
+      "class": "state",
+      "family": "state",
+      "means": "an envelope — the caster's band side or type pick on an area's card; the fold onto emanationCard is the resolve, and the region follows it",
+      "writers": [
+        "emanations.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [],
+      "recorded": false,
+      "fields": []
+    },
+    "emanationPickChoice": {
+      "class": "state",
+      "family": "state",
+      "means": "an envelope — the bearer's creature pick on the emanationPick card; the fold onto emanationPick is the resolve",
+      "writers": [
+        "emanations.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [],
+      "recorded": false,
+      "fields": []
+    },
+    "emanationPulse": {
+      "class": "state",
+      "family": "state",
+      "means": "the card a pulse ring posts at its bearer's turn end (Inner Radiance, 2026-09-25) — the receipt on the same card is the resolve",
+      "writers": [
+        "emanations.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [],
+      "recorded": false,
+      "fields": []
+    },
+    "emanationRemind": {
+      "class": "state",
+      "family": "state",
+      "means": "a reminder on the emanation's card — presentation",
+      "writers": [
+        "emanations.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [
+        "fvtt-mcp-sessionscribe"
+      ],
+      "recorded": false,
+      "fields": []
+    },
+    "emanationTrigger": {
+      "class": "state",
+      "family": "state",
+      "means": "the demand card an emanation's region raised on a creature — beside the saves record, which is the resolve",
+      "writers": [
+        "emanations.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [],
+      "recorded": false,
+      "fields": []
+    },
+    "emanationType": {
+      "class": "state",
+      "family": "state",
+      "means": "the type set on an emanation's damage roll; the choice on emanationCard is the resolve",
+      "writers": [
+        "emanations.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [],
+      "recorded": false,
+      "fields": []
+    },
+    "emanationTypeAnswer": {
+      "class": "state",
+      "family": "state",
+      "means": "an envelope — the caster's type pick; the fold onto emanationCard is the resolve",
+      "writers": [
+        "emanations.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [],
+      "recorded": false,
+      "fields": []
+    },
+    "empowerEffect": {
+      "class": "state",
+      "family": "state",
+      "means": "an ActiveEffect flag on the caster of a SUMMON_EMPOWERS spell — the message id of the transform card its empowered companion stands on; removing the effect asks the revert, the transform record's `ended` is the resolve (summons.js, transforms.js)",
+      "writers": [
+        "transforms.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [],
+      "recorded": false,
+      "fields": []
+    },
+    "empowerEnd": {
+      "class": "state",
+      "family": "state",
+      "means": "a delete option, not a flag — the elect's own removal of the empower effect as the form ends, which asks no second revert (transforms.js, summons.js)",
+      "writers": [
+        "summons.js",
+        "transforms.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [],
+      "recorded": false,
+      "fields": []
+    },
+    "failDamage": {
+      "class": "state",
+      "family": "state",
+      "means": "on a usage card: the rider a hit reaction's cast carried (Beguiling Defenses, B2) — copied onto the saves flag at the stamp; the verdict and its damage receipt are the resolve",
+      "writers": [
+        "hold/answer.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [],
+      "recorded": false,
+      "fields": []
+    },
+    "fightingStyle": {
+      "class": "state",
+      "family": "state",
+      "means": "a damage message's record — a fighting style's number that rode the roll (Great Weapon Fighting's raised dice, Thrown's and Dueling's +2, Two-Weapon's modifier): the card's line, the float, the stats' gain; and the same key on a style's FACE effect (its key, live, its line). Presentation and bookkeeping — the number rode the roll's own config (damage-rules.js, 2026-09-26)",
+      "writers": [
+        "damage-rules.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [
+        "fvtt-mcp-sessionscribe"
+      ],
+      "recorded": false,
+      "fields": []
+    },
+    "fightingStyleTakenOver": {
+      "class": "state",
+      "family": "state",
+      "means": "an ActiveEffect flag — the pack's own ungated effect on a Fighting Style feat, switched off while the style's face carries the rule; bookkeeping, restored when the style is unlisted (damage-rules.js, 2026-09-26)",
+      "writers": [
+        "damage-rules.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [],
+      "recorded": false,
+      "fields": []
+    },
+    "foldSpend": {
+      "class": "state",
+      "family": "state",
+      "means": "provenance — a fold's use() is the rescue's spend, so the arming hook stands aside",
+      "writers": [
+        "d20-folds.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [],
+      "recorded": false,
+      "fields": []
+    },
+    "form": {
+      "class": "state",
+      "family": "state",
+      "means": "an ActiveEffect field — the form effect's tie to its transform record (the card, the original creature, the row); its removal ends the form",
+      "writers": [
+        "decide/transforms.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [],
+      "recorded": false,
+      "fields": []
+    },
+    "formChip": {
+      "class": "state",
+      "family": "state",
+      "means": "an ActiveEffect's fingerprint — the transformation form a clock rider reads (Celestial Revelation's Necrotic Shroud, clock-riders.js)",
+      "writers": [
+        "cast.js",
+        "clock-riders.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [],
+      "recorded": false,
+      "fields": []
+    },
+    "formEnd": {
+      "class": "state",
+      "family": "state",
+      "means": "the card a form's end posts (transforms.js) — the clock, Concentration, Incapacitated, 0 Hit Points, the Temporary Hit Points gone, or a revert; the `ended` stamp on the transform record is the resolve",
+      "writers": [
+        "transforms.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [],
+      "recorded": false,
+      "fields": []
+    },
+    "formSwap": {
+      "class": "record",
+      "family": "choice",
+      "means": "the Long Rest's known-form change was answered and landed — a Known Form replaced by another, open slots filled, or kept (transforms.js, issue #2); resolved when `applied`",
+      "writers": [
+        "transforms.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [],
+      "recorded": false,
+      "fields": []
+    },
+    "formSwapAnswer": {
+      "class": "state",
+      "family": "state",
+      "means": "an envelope — a player's known-form answer; the fold onto the formSwap flag, landed by the elect, is the resolve",
+      "writers": [
+        "transforms.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [],
+      "recorded": false,
+      "fields": []
+    },
+    "gearLight": {
+      "class": "state",
+      "family": "state",
+      "means": "a gear light's press on its receipt card (gear-lights.js) — the effectReceipt a lighting writes is the resolve; on an ActiveEffect, the light's fingerprint (its item and state)",
+      "writers": [
+        "gear-lights.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [],
+      "recorded": false,
+      "fields": []
+    },
+    "grappleDamage": {
+      "class": "record",
+      "family": "choice",
+      "means": "Unarmed Fighting's turn-start damage was answered — 1d4 to a creature the owner grapples, dealt through the feat's own damage activity, or skipped (damage-rules.js, the fighting styles 2026-09-26, ruled U1); the clock deals it to the one creature known to be held",
+      "writers": [
+        "damage-rules.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [
+        "fvtt-mcp-sessionscribe"
+      ],
+      "recorded": false,
+      "fields": []
+    },
+    "grappleDamageAnswer": {
+      "class": "state",
+      "family": "state",
+      "means": "an envelope — a player's Unarmed Fighting answer (deal or skip); the fold onto the grappleDamage flag is the resolve",
+      "writers": [
+        "damage-rules.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [],
+      "recorded": false,
+      "fields": []
+    },
+    "healOnHit": {
+      "class": "state",
+      "family": "state",
+      "means": "on the dealing card: the creatures whose landed damage already paid the caster (heal-on-hit.js, Vampiric Touch) — a latch; on the heal's own card, its facts, and the receipt there is the resolve",
+      "writers": [
+        "heal-on-hit.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [],
+      "recorded": false,
+      "fields": []
+    },
+    "healPending": {
+      "class": "state",
+      "family": "state",
+      "means": "a heal claimed at creation for the elect to apply; the receipt is the resolve",
+      "writers": [
+        "polish.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [],
+      "recorded": false,
+      "fields": []
+    },
+    "healReroll": {
+      "class": "record",
+      "family": "fold",
+      "means": "a healing die showing a 1 was rerolled and the new face stood — Healer, on a healing spell or its own Battle Medic (heal-rerolls.js, the origin feats 2026-09-25); resolved when `status` is used",
+      "writers": [
+        "heal-rerolls.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [
+        "fvtt-mcp-sessionscribe"
+      ],
+      "recorded": false,
+      "fields": []
+    },
+    "healSelf": {
+      "class": "state",
+      "family": "state",
+      "means": "a card — a `self` heal-reroll row's own healing (Blessed Healer, B4) after the owner's slot-cast heal landed on another creature; the receipt on the same card is the resolve",
+      "writers": [
+        "heal-rerolls.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [],
+      "recorded": false,
+      "fields": []
+    },
+    "hewNotice": {
+      "class": "state",
+      "family": "state",
+      "means": "Hew's reminder card — presentation",
+      "writers": [
+        "emanations.js",
+        "hew.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [],
+      "recorded": false,
+      "fields": []
+    },
+    "hewNoticed": {
+      "class": "state",
+      "family": "state",
+      "means": "the reminder's once-per-swing latch — presentation",
+      "writers": [
+        "hew.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [],
+      "recorded": false,
+      "fields": []
+    },
+    "hitManeuver": {
+      "class": "record",
+      "family": "maneuver+rider",
+      "means": "a pick from the hit menu rode the damage roll (hit-menu.js); the record arrives resolved on the damage message, a resolve PER PICK (a list since 2026-09-27, a pick per group; a record from before it is its one pick). A Combat Superiority die publishes maneuver; a Giant Ancestry boon (maneuver false, 2026-09-24) publishes rider",
+      "writers": [
+        "hit-menu.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [
+        "fvtt-mcp-sessionscribe"
+      ],
+      "recorded": false,
+      "fields": []
+    },
+    "hitManeuverCard": {
+      "class": "state",
+      "family": "state",
+      "means": "the follow-up save card the hit menu drove; its effects land as effect receipts and its verdicts as saves",
+      "writers": [
+        "hit-menu.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [],
+      "recorded": false,
+      "fields": []
+    },
+    "hitPick": {
+      "class": "state",
+      "family": "state",
+      "means": "the hit menu's pick before the die rolls; hitManeuver on the damage message is the resolve",
+      "writers": [
+        "hit-menu.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [],
+      "recorded": false,
+      "fields": []
+    },
+    "hold": {
+      "class": "record",
+      "family": "hold-answered",
+      "means": "a held roll's reaction was answered by its target — cast or pass (hold/answer.js, hold/clock.js); one resolve per target with an answer. Parry's die publishes under maneuver too; Stone's Endurance's use does not (reduce.maneuver false, 2026-09-24)",
+      "writers": [
+        "hold/answer.js",
+        "hold/clock.js",
+        "hold/continue.js",
+        "hold/spell-hold.js",
+        "hold/trigger.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [
+        "fvtt-mcp-sessionscribe"
+      ],
+      "recorded": false,
+      "fields": []
+    },
+    "holdSkipped": {
+      "class": "state",
+      "family": "state",
+      "means": "a hopeless hold skipped in silence — a stat, never presented",
+      "writers": [
+        "hold/trigger.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [
+        "fvtt-mcp-sessionscribe"
+      ],
+      "recorded": false,
+      "fields": []
+    },
+    "initiativeBonusDue": {
+      "class": "state",
+      "family": "state",
+      "means": "a combat flag — the Initiative bonus a `to: \"allies\"` grant (Tandem Footwork, B4) owes to combatants who had not rolled when it landed; cleared as each rolls, the initiativeGrant card is the resolve",
+      "writers": [
+        "initiative-grants.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [],
+      "recorded": false,
+      "fields": []
+    },
+    "initiativeGrant": {
+      "class": "record",
+      "family": "choice",
+      "means": "an Initiative grant — Persistent Rage's uses back (automatic), or Uncanny Metabolism's offer answered (the PHB classes, A6, initiative-grants.js); resolved at No, or when the sheet is written",
+      "writers": [
+        "initiative-grants.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [
+        "fvtt-mcp-sessionscribe"
+      ],
+      "recorded": false,
+      "fields": []
+    },
+    "initiativeGrantAnswer": {
+      "class": "state",
+      "family": "state",
+      "means": "an envelope — a player's answer to an Initiative grant's offer; the fold onto the initiativeGrant flag, landed by the GM, is the resolve",
+      "writers": [
+        "initiative-grants.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [],
+      "recorded": false,
+      "fields": []
+    },
+    "initiativeGrantRead": {
+      "class": "state",
+      "family": "state",
+      "means": "a combat flag — the once-per-combat latch of which combatants' Initiative grants were read; initiativeGrant on the card is the resolve",
+      "writers": [
+        "initiative-grants.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [],
+      "recorded": false,
+      "fields": []
+    },
+    "initiativeSwap": {
+      "class": "record",
+      "family": "choice",
+      "means": "an Initiative swap was answered — Alert's pick of an ally, swapped in the tracker by the elect, or no swap (initiative-swap.js, the origin feats 2026-09-25); resolved at No, or when the swap is applied",
+      "writers": [
+        "initiative-swap.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [
+        "fvtt-mcp-sessionscribe"
+      ],
+      "recorded": false,
+      "fields": []
+    },
+    "initiativeSwapAnswer": {
+      "class": "state",
+      "family": "state",
+      "means": "an envelope — a player's Initiative swap answer; the fold onto the initiativeSwap flag, landed by the elect, is the resolve",
+      "writers": [
+        "initiative-swap.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [],
+      "recorded": false,
+      "fields": []
+    },
+    "initiativeSwapAsked": {
+      "class": "state",
+      "family": "state",
+      "means": "a combat flag — the once-per-combat latch of who was asked about an Initiative swap; initiativeSwap on the card is the resolve",
+      "writers": [
+        "initiative-swap.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [],
+      "recorded": false,
+      "fields": []
+    },
+    "kitTend": {
+      "class": "record",
+      "family": "choice",
+      "means": "a kit's tending was answered — Healer's Battle Medic: the tended creature's Hit Point Die spent and the feature's own heal of that size rolled at it by the elect, or not used (kit-tend.js, the origin-feat walk 2026-09-25); resolved at a Pass, or when the tending is applied",
+      "writers": [
+        "kit-tend.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [
+        "fvtt-mcp-sessionscribe"
+      ],
+      "recorded": false,
+      "fields": []
+    },
+    "kitTendAnswer": {
+      "class": "state",
+      "family": "state",
+      "means": "an envelope — a player's kit-tending answer; the fold onto the kitTend flag, landed by the elect, is the resolve",
+      "writers": [
+        "kit-tend.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [],
+      "recorded": false,
+      "fields": []
+    },
+    "kitTendFor": {
+      "class": "state",
+      "family": "state",
+      "means": "a back-link — the heal a kit's tending drove, pointing at the kit's card; the kitTend flag there is the resolve",
+      "writers": [
+        "kit-tend.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [],
+      "recorded": false,
+      "fields": []
+    },
+    "knownForms": {
+      "class": "state",
+      "family": "state",
+      "means": "an Item field — the Known Forms a Wild Shape item holds (uuid, name, art); the transform record (a form learned at the use) and the formSwap record (the Long Rest's change) are the resolves",
+      "writers": [
+        "transforms.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [],
+      "recorded": false,
+      "fields": []
+    },
+    "lastForm": {
+      "class": "state",
+      "family": "state",
+      "means": "an Item field — the form last taken through the item (transforms.js; a summon spell's profile, summons.js), marked on its row at the next use; presentation",
+      "writers": [
+        "summons.js",
+        "transforms.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [],
+      "recorded": false,
+      "fields": []
+    },
+    "leadWindow": {
+      "class": "state",
+      "family": "state",
+      "means": "a User flag on a GM — the id of the window that leads when the game is open in two (core.js leadsWindow); claimed on load and focus, cleared on close",
+      "writers": [
+        "ui.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [],
+      "recorded": false,
+      "fields": []
+    },
+    "lightOn": {
+      "class": "state",
+      "family": "state",
+      "means": "a use option, not a flag — where the summon menu put a light spell (token or object), read by summons.js and token-lights.js at the use",
+      "writers": [
+        "summons.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [],
+      "recorded": false,
+      "fields": []
+    },
+    "lungePick": {
+      "class": "state",
+      "family": "state",
+      "means": "Lunging Attack's tick on the offer; superiorityRide is the resolve",
+      "writers": [
+        "superiority-uses.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [],
+      "recorded": false,
+      "fields": []
+    },
+    "mastery": {
+      "class": "record",
+      "family": "mastery",
+      "means": "a weapon mastery's ask was answered and executed — used or passed (mastery.js); resolved when `status` is done. On an ActiveEffect the same key is the chip's fingerprint, which no message carries",
+      "writers": [
+        "command.js",
+        "d20-folds.js",
+        "mastery.js",
+        "shared.js",
+        "superiority-uses.js",
+        "use-chips.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [
+        "fvtt-mcp-sessionscribe"
+      ],
+      "recorded": false,
+      "fields": []
+    },
+    "masteryFill": {
+      "class": "state",
+      "family": "state",
+      "means": "the GM's whisper — which kinds the fill wrote into the sheet's mastery list and for whom (issue #3); the sheet's list is the state, the attack the system stamps is the resolve",
+      "writers": [
+        "mastery-record.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [],
+      "recorded": false,
+      "fields": []
+    },
+    "masteryNotice": {
+      "class": "state",
+      "family": "state",
+      "means": "a mastery reminder — presentation",
+      "writers": [
+        "mastery.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [],
+      "recorded": false,
+      "fields": []
+    },
+    "masteryPick": {
+      "class": "record",
+      "family": "mastery",
+      "means": "Tactical Master's pick at the hit — which mastery the wielder chose (or passed) before the machine resolved it (mastery.js); resolved when `status` is done",
+      "writers": [
+        "mastery.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [],
+      "recorded": false,
+      "fields": []
+    },
+    "masterySwap": {
+      "class": "record",
+      "family": "choice",
+      "means": "the long-rest mastery swap was answered and landed — one chosen weapon kind replaced by another on the sheet's own list, or kept (mastery-record.js, issue #3); resolved when `applied`",
+      "writers": [
+        "mastery-record.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [],
+      "recorded": false,
+      "fields": []
+    },
+    "masterySwapAnswer": {
+      "class": "state",
+      "family": "state",
+      "means": "an envelope — a player's swap answer; the fold onto the masterySwap flag, landed by the elect, is the resolve",
+      "writers": [
+        "mastery-record.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [],
+      "recorded": false,
+      "fields": []
+    },
+    "mealFed": {
+      "class": "state",
+      "family": "state",
+      "means": "an ACTOR flag — a Chef's meal an eater still resting carries to its own rest's end (the PHB feats, group 5); the meal's card is the record, the restSong flag the resolve",
+      "writers": [
+        "rest-grants.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [],
+      "recorded": false,
+      "fields": []
+    },
+    "metamagic": {
+      "class": "record",
+      "family": "metamagic",
+      "means": "a Metamagic option was applied to the cast and its points spent (metamagic.js); resolved when `spent` is set on the spell's card",
+      "writers": [
+        "metamagic.js",
+        "saves/demand.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [
+        "fvtt-mod-fxstudio",
+        "fvtt-mcp-sessionscribe"
+      ],
+      "recorded": false,
+      "fields": []
+    },
+    "metamagicAsk": {
+      "class": "state",
+      "family": "state",
+      "means": "the ask at the area pending on the card (area-ask.js; the key is historical); the answer's records — the metamagic record, areaChoice, the demand — are the resolves",
+      "writers": [
+        "area-ask.js",
+        "metamagic.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [],
+      "recorded": false,
+      "fields": []
+    },
+    "metamagicDeferred": {
+      "class": "state",
+      "family": "state",
+      "means": "the held card's data while Careful asks; the real card's records are the resolves",
+      "writers": [
+        "metamagic.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [],
+      "recorded": false,
+      "fields": []
+    },
+    "metamagicFree": {
+      "class": "state",
+      "family": "state",
+      "means": "a free class-feature tick in the casting window (Psychic Spells) - no spend, no answer; the damage roll's type is the result",
+      "writers": [
+        "metamagic.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [],
+      "recorded": false,
+      "fields": []
+    },
+    "metamagicType": {
+      "class": "state",
+      "family": "state",
+      "means": "the type Transmuted Spell set on the damage roll; the metamagic record on the card is the resolve",
+      "writers": [
+        "metamagic.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [],
+      "recorded": false,
+      "fields": []
+    },
+    "migratedFrom": {
+      "class": "state",
+      "family": "state",
+      "means": "provenance on a RegionBehavior the migration recreated under the new scope (decide/migrate.js): the id of the behaviour it replaced, so a retried load never creates a second",
+      "writers": [
+        "decide/migrate.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [],
+      "recorded": false,
+      "fields": []
+    },
+    "mishap": {
+      "class": "state",
+      "family": "state",
+      "means": "provenance — on a dark gift's save card (mishaps.js): the D20 Test whose 1 raised it; the save's verdict is the saves machine's",
+      "writers": [
+        "mishaps.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [],
+      "recorded": false,
+      "fields": []
+    },
+    "momentAck": {
+      "class": "state",
+      "family": "state",
+      "means": "an envelope — a notice acknowledged; presentation, not a moment",
+      "writers": [
+        "ui.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [],
+      "recorded": false,
+      "fields": []
+    },
+    "notApplied": {
+      "class": "state",
+      "family": "state",
+      "means": "a damage card's line — dice rolled on an attack every judged target was missed on (a Portent face, a Shield, a plain miss): nothing applied, the card says why (auto-apply.js, receipts.js); presentation of the attack's resolve",
+      "writers": [
+        "auto-apply.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [],
+      "recorded": false,
+      "fields": []
+    },
+    "opportunity": {
+      "class": "state",
+      "family": "state",
+      "means": "provenance — the driven attack is an Opportunity Attack (Sentinel's Guardian, the PHB feats group 6); the Halt rider reads it, the clockRiders record is the resolve",
+      "writers": [
+        "rebukes.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [],
+      "recorded": false,
+      "fields": []
+    },
+    "option": {
+      "class": "state",
+      "family": "state",
+      "means": "an ITEM flag — the option a feature's character took, which the sheet never records (Hunter's Prey, A1): asked once on the damage offer, cleared by the card's Change; the clockRiders record and the hewNotice card are the moments",
+      "writers": [
+        "clock-riders.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [],
+      "recorded": false,
+      "fields": []
+    },
+    "poleStrike": {
+      "class": "state",
+      "family": "state",
+      "means": "provenance — the driven Pole Strike swing names the offer it answers (2026-09-27); the attack's own card is the record",
+      "writers": [
+        "hew.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [],
+      "recorded": false,
+      "fields": []
+    },
+    "poleStrikeDie": {
+      "class": "state",
+      "family": "state",
+      "means": "a damage card's line — Pole Strike's d4 Bludgeoning in place of the weapon's die; presentation, the receipt is the resolve",
+      "writers": [
+        "hew.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [],
+      "recorded": false,
+      "fields": []
+    },
+    "poolSpend": {
+      "class": "record",
+      "family": "spend",
+      "means": "a pool was spent by hand — Sorcery Points, a rider's uses, a Seeking Spell (the uniform record shared.js poolSpendsOn reads); one resolve per record",
+      "writers": [
+        "advantage-buys.js",
+        "clock-riders.js",
+        "d20-folds.js",
+        "dice-changers.js",
+        "hold/answer.js",
+        "metamagic.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [
+        "fvtt-mcp-sessionscribe"
+      ],
+      "recorded": false,
+      "fields": []
+    },
+    "precision": {
+      "class": "record",
+      "family": "maneuver+fold",
+      "means": "Precision Attack's offer on a missed attack was answered — the die spent or passed (precision.js); resolved when `status` is resolved",
+      "writers": [
+        "precision.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [
+        "fvtt-mcp-sessionscribe"
+      ],
+      "recorded": false,
+      "fields": []
+    },
+    "prismatic": {
+      "class": "state",
+      "family": "state",
+      "means": "the ray table's claim on the cast's card (prismatic.js): pending until the cone stands, rolled once — the rays' demand cards are the moments",
+      "writers": [
+        "prismatic.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [],
+      "recorded": false,
+      "fields": []
+    },
+    "prismaticRay": {
+      "class": "state",
+      "family": "state",
+      "means": "one ray's demand card (prismatic.js) — beside the saves record, which is the resolve; `settled` and `says` what a condition ray's verdict landed (the effectReceipt there carries it)",
+      "writers": [
+        "prismatic.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [],
+      "recorded": false,
+      "fields": []
+    },
+    "prismaticRays": {
+      "class": "state",
+      "family": "state",
+      "means": "the summary card of a ray table's roll — a d8 per creature, presentation; the rays' demand cards are the moments",
+      "writers": [
+        "prismatic.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [],
+      "recorded": false,
+      "fields": []
+    },
+    "protectedBy": {
+      "class": "state",
+      "family": "state",
+      "means": "an ActiveEffect flag — the guard whose Protection landed \"Protected — <guard>\" on the creature it protected (2026-09-26); provenance, the hold is the resolve",
+      "writers": [
+        "hold/continue.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [],
+      "recorded": false,
+      "fields": []
+    },
+    "reactionEffect": {
+      "class": "state",
+      "family": "state",
+      "means": "an ActiveEffect's fingerprint — the reaction's own effect on the reactor; its landing is the effect receipt's resolve",
+      "writers": [
+        "hold/lookup.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [],
+      "recorded": false,
+      "fields": []
+    },
+    "rebuke": {
+      "class": "record",
+      "family": "hold-answered",
+      "means": "a rebuke's offer — a Reaction to taking damage, aimed at its dealer — was answered, used or passed (rebukes.js); one resolve per offer",
+      "writers": [
+        "rebukes.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [
+        "fvtt-mcp-sessionscribe"
+      ],
+      "recorded": false,
+      "fields": []
+    },
+    "rebukeAnswer": {
+      "class": "state",
+      "family": "state",
+      "means": "an envelope — a rebuke's answer; the fold onto the rebuke flag is the resolve",
+      "writers": [
+        "rebukes.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [],
+      "recorded": false,
+      "fields": []
+    },
+    "rebukeFor": {
+      "class": "state",
+      "family": "state",
+      "means": "provenance — a rebuke's driven use or attack names the offer it answers",
+      "writers": [
+        "rebukes.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [],
+      "recorded": false,
+      "fields": []
+    },
+    "receipt": {
+      "class": "record",
+      "family": "damage",
+      "means": "damage landed on a target with a receipt (auto-apply.js), or a receipt was reverted (receipts.js); one resolve per target, one more per revert",
+      "writers": [
+        "auto-apply.js",
+        "receipts.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [
+        "fvtt-mcp-sessionscribe"
+      ],
+      "recorded": false,
+      "fields": []
+    },
+    "recoiled": {
+      "class": "state",
+      "family": "state",
+      "means": "an ActiveEffect field — which attacker the Majestic Presence has already turned aside this turn, by combat turn (Unbreakable Majesty's once per turn per attacker)",
+      "writers": [
+        "hold/continue.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [],
+      "recorded": false,
+      "fields": []
+    },
+    "reduceBy": {
+      "class": "state",
+      "family": "state",
+      "means": "an envelope field beside respondsTo — Parry's roll, carried to the fold",
+      "writers": [
+        "hold/answer.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [],
+      "recorded": false,
+      "fields": []
+    },
+    "reminder": {
+      "class": "state",
+      "family": "state",
+      "means": "a gate's reminder record — presentation before the roll",
+      "writers": [
+        "advantage-buys.js",
+        "reminders.js",
+        "volleys.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [
+        "fvtt-mcp-sessionscribe"
+      ],
+      "recorded": false,
+      "fields": []
+    },
+    "repeatCount": {
+      "class": "state",
+      "family": "state",
+      "means": "an ActiveEffect field — a counted repeat's tally and lock (Contagion, Flesh to Stone)",
+      "writers": [
+        "repeat-saves.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [],
+      "recorded": false,
+      "fields": []
+    },
+    "repeatOffer": {
+      "class": "state",
+      "family": "state",
+      "means": "a notice at the bearer's turn start — its own action can repeat the save (Otto's Irresistible Dance); the button raises the demand card",
+      "writers": [
+        "repeat-saves.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [],
+      "recorded": false,
+      "fields": []
+    },
+    "repeatSave": {
+      "class": "state",
+      "family": "state",
+      "means": "the demand card a landed effect's repeated save raised (repeat-saves.js) — beside the saves record, which is the resolve; `settled` and `says` what the verdict did to the effect (the cast card's effectReceipt carries the removal)",
+      "writers": [
+        "repeat-saves.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [],
+      "recorded": false,
+      "fields": []
+    },
+    "rerollUsed": {
+      "class": "state",
+      "family": "state",
+      "means": "an ActiveEffect flag on the RAGE effect — the `reroll` folds spent this Rage (Fanatical Focus, B1); gone with the Rage, the spend itself is the d20fold resolve",
+      "writers": [
+        "d20-folds.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [],
+      "recorded": false,
+      "fields": []
+    },
+    "rescue": {
+      "class": "state",
+      "family": "state",
+      "means": "an envelope field beside respondsTo — which `roll` row bent the roll (Slice A), carried to the fold",
+      "writers": [
+        "hold/answer.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [],
+      "recorded": false,
+      "fields": []
+    },
+    "respondsTo": {
+      "class": "state",
+      "family": "state",
+      "means": "an envelope — the card this message answers; the fold onto that card is the resolve",
+      "writers": [
+        "bystanders.js",
+        "concentration.js",
+        "d20-folds.js",
+        "dice-changers.js",
+        "heal-rerolls.js",
+        "hold/answer.js",
+        "precision.js",
+        "saves/ask.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [],
+      "recorded": false,
+      "fields": []
+    },
+    "restBlock": {
+      "class": "state",
+      "family": "state",
+      "means": "a rest card's block line (rest-grants.js, Cursed Touch) — presentation; the rest's emptied update rode the rest's own",
+      "writers": [
+        "rest-grants.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [],
+      "recorded": false,
+      "fields": []
+    },
+    "restEnded": {
+      "class": "state",
+      "family": "state",
+      "means": "a rest card's line — what the rest ended on the rester (rest-grants.js); the deletions are the system's own, nothing is published",
+      "writers": [
+        "rest-grants.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [],
+      "recorded": false,
+      "fields": []
+    },
+    "restGrant": {
+      "class": "state",
+      "family": "state",
+      "means": "a rest card's grant line — presentation; the sheet write rode the rest's own update",
+      "writers": [
+        "rest-grants.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [],
+      "recorded": false,
+      "fields": []
+    },
+    "restSong": {
+      "class": "record",
+      "family": "choice",
+      "means": "a rest grant GIVEN to allies was answered and landed — Musician's Encouraging Song, Heroic Inspiration to the picked allies (rest-grants.js); resolved when `applied`",
+      "writers": [
+        "rest-grants.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [
+        "fvtt-mcp-sessionscribe"
+      ],
+      "recorded": false,
+      "fields": []
+    },
+    "restSongAnswer": {
+      "class": "state",
+      "family": "state",
+      "means": "an envelope — a player's picks for a rest song; the fold onto the restSong flag, landed by the elect, is the resolve",
+      "writers": [
+        "rest-grants.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [],
+      "recorded": false,
+      "fields": []
+    },
+    "restSpent": {
+      "class": "state",
+      "family": "state",
+      "means": "a Short Rest card's Hit Dice spent (the PHB feats, group 5) — a fact the Chef's meal reads; the restSong flag is the resolve",
+      "writers": [
+        "rest-grants.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [],
+      "recorded": false,
+      "fields": []
+    },
+    "riderKey": {
+      "class": "state",
+      "family": "state",
+      "means": "an ActiveEffect field — which rider's turn chit this is",
+      "writers": [
+        "shared.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [],
+      "recorded": false,
+      "fields": []
+    },
+    "riderSave": {
+      "class": "state",
+      "family": "state",
+      "means": "provenance on a usage card — a DMG weapon rider's save (clock-riders.js `save`): the save alone, no damage rolled; the saves verdict is the resolve",
+      "writers": [
+        "clock-riders.js",
+        "hit-menu.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [],
+      "recorded": false,
+      "fields": []
+    },
+    "riposte": {
+      "class": "record",
+      "family": "maneuver",
+      "means": "Riposte's offer on an enemy's miss was answered by each reactor — strike back or decline (riposte.js); one resolve per reactor with an answer",
+      "writers": [
+        "riposte.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [
+        "fvtt-mcp-sessionscribe"
+      ],
+      "recorded": false,
+      "fields": []
+    },
+    "riposteAnswer": {
+      "class": "state",
+      "family": "state",
+      "means": "an envelope — a reactor's answer; the fold onto the riposte flag is the resolve",
+      "writers": [
+        "riposte.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [],
+      "recorded": false,
+      "fields": []
+    },
+    "riposteBy": {
+      "class": "state",
+      "family": "state",
+      "means": "provenance — the driven attack names the reactor",
+      "writers": [
+        "riposte.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [],
+      "recorded": false,
+      "fields": []
+    },
+    "riposteFor": {
+      "class": "state",
+      "family": "state",
+      "means": "provenance — the driven attack names the riposte it answers",
+      "writers": [
+        "hold/answer.js",
+        "riposte.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [],
+      "recorded": false,
+      "fields": []
+    },
+    "riposteUse": {
+      "class": "state",
+      "family": "state",
+      "means": "provenance — the maneuver's use names the riposte it answers",
+      "writers": [
+        "riposte.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [],
+      "recorded": false,
+      "fields": []
+    },
+    "rollCtx": {
+      "class": "state",
+      "family": "state",
+      "means": "the data plane's roll context stamp — stats, never a moment",
+      "writers": [
+        "stats.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [],
+      "recorded": false,
+      "fields": []
+    },
+    "saveAutoFail": {
+      "class": "state",
+      "family": "state",
+      "means": "the Fails press on the roll message; the verdict on the saves flag is the resolve",
+      "writers": [
+        "reminders.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [],
+      "recorded": false,
+      "fields": []
+    },
+    "saveChoiceAnswer": {
+      "class": "state",
+      "family": "state",
+      "means": "an envelope — a save-side choice; the fold onto the saves flag is the resolve",
+      "writers": [
+        "saves/choices.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [],
+      "recorded": false,
+      "fields": []
+    },
+    "saveFor": {
+      "class": "state",
+      "family": "state",
+      "means": "an envelope field beside respondsTo — the saves channel's target uuid",
+      "writers": [
+        "saves/ask.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [],
+      "recorded": false,
+      "fields": []
+    },
+    "saves": {
+      "class": "record",
+      "family": "save",
+      "means": "a demanded save's verdict landed for a target (saves/verdict.js) — rolled, timed out or auto-failed; one resolve per target done, and one per save-side choice answered (publishes choice)",
+      "writers": [
+        "area-ask.js",
+        "drop-to-one.js",
+        "emanations.js",
+        "prismatic.js",
+        "repeat-saves.js",
+        "saves/areas.js",
+        "saves/ask.js",
+        "saves/choices.js",
+        "saves/consequences.js",
+        "saves/demand.js",
+        "saves/verdict.js",
+        "wards.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [
+        "fvtt-mcp-sessionscribe"
+      ],
+      "recorded": false,
+      "fields": []
+    },
+    "savesDeferredRoll": {
+      "class": "state",
+      "family": "state",
+      "means": "the caster's deferred damage roll while the saves are pending; the verdicts are the resolve",
+      "writers": [
+        "saves/demand.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [],
+      "recorded": false,
+      "fields": []
+    },
+    "shield": {
+      "class": "state",
+      "family": "state",
+      "means": "an ActiveEffect's fingerprint — the standing ward; shieldMark is its raising and damageShield its strike",
+      "writers": [
+        "damage-shields.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [],
+      "recorded": false,
+      "fields": []
+    },
+    "shieldEnded": {
+      "class": "state",
+      "family": "state",
+      "means": "a notice — Armor of Agathys ended with its pool; presentation",
+      "writers": [
+        "damage-shields.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [],
+      "recorded": false,
+      "fields": []
+    },
+    "shieldMark": {
+      "class": "record",
+      "family": "shield",
+      "means": "a damage shield was raised at the cast — the ward's effect on its bearer (damage-shields.js); on the cast's card",
+      "writers": [
+        "damage-shields.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [
+        "fvtt-mcp-sessionscribe"
+      ],
+      "recorded": false,
+      "fields": []
+    },
+    "shoveUsed": {
+      "class": "state",
+      "family": "state",
+      "means": "an actor flag — Tavern Brawler's once-per-turn stamp; bashOffer (kind shove) is the resolve",
+      "writers": [
+        "bash-offer.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [],
+      "recorded": false,
+      "fields": []
+    },
+    "sneak": {
+      "class": "state",
+      "family": "state",
+      "means": "the Sneak Attack arm on the attack (and rolled:true after); sneakDamage is the resolve",
+      "writers": [
+        "reminders.js",
+        "sneak.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [],
+      "recorded": false,
+      "fields": []
+    },
+    "sneakDamage": {
+      "class": "record",
+      "family": "sneak",
+      "means": "Sneak Attack's dice rode the damage roll with the Cunning Strike picks (sneak.js); the record arrives resolved on the damage message",
+      "writers": [
+        "sneak.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [
+        "fvtt-mcp-sessionscribe"
+      ],
+      "recorded": false,
+      "fields": []
+    },
+    "sourceName": {
+      "class": "state",
+      "family": "state",
+      "means": "an ActiveEffect field — who wrote it, by name",
+      "writers": [
+        "command.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [],
+      "recorded": false,
+      "fields": []
+    },
+    "sourceUuid": {
+      "class": "state",
+      "family": "state",
+      "means": "an ActiveEffect field (and every record's stat stamp) — who wrote it",
+      "writers": [
+        "command.js",
+        "effect-riders.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [],
+      "recorded": false,
+      "fields": []
+    },
+    "spellDamage": {
+      "class": "state",
+      "family": "state",
+      "means": "a no-attack damage card claimed at birth for the elect's applier (polish.js, hold/spell-damage.js); the receipt is the resolve",
+      "writers": [
+        "polish.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [],
+      "recorded": false,
+      "fields": []
+    },
+    "spellHoldPending": {
+      "class": "state",
+      "family": "state",
+      "means": "the spell's damage is waiting on a hold; the hold's answer is the resolve",
+      "writers": [
+        "hold/spell-damage.js",
+        "hold/spell-hold.js",
+        "polish.js",
+        "volleys.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [],
+      "recorded": false,
+      "fields": []
+    },
+    "spellRider": {
+      "class": "state",
+      "family": "state",
+      "means": "the caster's pick of the ONE target a spell's extra damage goes to, on the spell's damage card; spellRiderCard is the resolve",
+      "writers": [
+        "clock-riders.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [],
+      "recorded": false,
+      "fields": []
+    },
+    "spellRiderCard": {
+      "class": "record",
+      "family": "rider",
+      "means": "a transformation's extra damage rode a SPELL's damage onto the one target its caster picked — Celestial Revelation (clock-riders.js, the Aasimar walk 2026-09-25); the receipt on the same card is the damage's own resolve",
+      "writers": [
+        "clock-riders.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [
+        "fvtt-mcp-sessionscribe"
+      ],
+      "recorded": false,
+      "fields": []
+    },
+    "spend": {
+      "class": "record",
+      "family": "spend",
+      "means": "a use's own resource movement was stamped for the flash — item uses, activity uses, spell slots (resources.js); on the usage card",
+      "writers": [
+        "resources.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [
+        "fvtt-mcp-sessionscribe"
+      ],
+      "recorded": false,
+      "fields": []
+    },
+    "stacks": {
+      "class": "state",
+      "family": "state",
+      "means": "an ActiveEffect field — a deliberate stack, one chip per device; the twin-chip dedupe leaves it alone (effect-riders.js)",
+      "writers": [
+        "use-chips.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [],
+      "recorded": false,
+      "fields": []
+    },
+    "storedAsk": {
+      "class": "state",
+      "family": "state",
+      "means": "a rest card's ask — the stored dice the bearer owes a roll for (Portent: the player rolls them, 2026-10-14); the roll message (storedFor) is the record",
+      "writers": [
+        "stored-dice.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [],
+      "recorded": false,
+      "fields": []
+    },
+    "storedDice": {
+      "class": "state",
+      "family": "state",
+      "means": "an effect field — a STORED_DICE chip's faces and the turn one was spent (Portent); the bent roll's record (hold, bystanderRoll) or the roll itself is the resolve",
+      "writers": [
+        "shared.js",
+        "stored-dice.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [],
+      "recorded": false,
+      "fields": []
+    },
+    "storedFor": {
+      "class": "state",
+      "family": "state",
+      "means": "a back-link — the roll message the rest's stored dice landed on, pointing at the rest card; the storedAsk flag there is the ask",
+      "writers": [
+        "stored-dice.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [],
+      "recorded": false,
+      "fields": []
+    },
+    "storedRolled": {
+      "class": "state",
+      "family": "state",
+      "means": "a roll message's line — the stored dice the rest's roll kept (Portent); the chip on the bearer is the state",
+      "writers": [
+        "stored-dice.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [],
+      "recorded": false,
+      "fields": []
+    },
+    "storedUsed": {
+      "class": "state",
+      "family": "state",
+      "means": "a roll message's line — the stored face that replaced its d20 (Portent); the roll is the record",
+      "writers": [
+        "stored-dice.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [],
+      "recorded": false,
+      "fields": []
+    },
+    "summon": {
+      "class": "record",
+      "family": "cast",
+      "means": "a summon the module drove was landed by the elect — the creature(s) created from the caster's placement, the spell's own choice applied, ownership granted (summons.js, issue #1); resolved when `applied`; a companion's later beats (into the pocket, called back, dismissed) each resolve on their own marker, `details.companion` leave or appear",
+      "writers": [
+        "summons.js",
+        "transforms.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [
+        "fvtt-mcp-sessionscribe"
+      ],
+      "recorded": false,
+      "fields": []
+    },
+    "summonCard": {
+      "class": "state",
+      "family": "state",
+      "means": "a token flag on a landed summon and an ActiveEffect flag on its caster's shared resistance — the message id of the summon card; a landing re-driven after its claimant left removes what carries it first, the card's record is the resolve (summons.js)",
+      "writers": [
+        "summons.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [],
+      "recorded": false,
+      "fields": []
+    },
+    "summonEffect": {
+      "class": "state",
+      "family": "state",
+      "means": "an ActiveEffect flag on the caster of a summon without Concentration — the message id of the summon card; removing the effect asks the dismissal, the card's record is the resolve (summons.js)",
+      "writers": [
+        "summons.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [],
+      "recorded": false,
+      "fields": []
+    },
+    "summonEnd": {
+      "class": "state",
+      "family": "state",
+      "means": "a delete option, not a flag — the elect's own removal of a summon's standing effect, which asks no second dismissal (summons.js)",
+      "writers": [
+        "summons.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [],
+      "recorded": false,
+      "fields": []
+    },
+    "superiorityRide": {
+      "class": "record",
+      "family": "maneuver",
+      "means": "a Bonus Action maneuver's die (Lunging Attack, Feinting Attack) rode a later hit (superiority-uses.js); one resolve per die",
+      "writers": [
+        "superiority-uses.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [
+        "fvtt-mcp-sessionscribe"
+      ],
+      "recorded": false,
+      "fields": []
+    },
+    "superiorityUse": {
+      "class": "record",
+      "family": "maneuver",
+      "means": "a Bonus Action maneuver's use landed its consequence — a rolled bonus, a chip, a marker (superiority-uses.js); on the use's own card",
+      "writers": [
+        "superiority-uses.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [
+        "fvtt-mcp-sessionscribe"
+      ],
+      "recorded": false,
+      "fields": []
+    },
+    "sweepAnswer": {
+      "class": "state",
+      "family": "state",
+      "means": "an envelope — the sweep's pick; the fold onto sweepCard is the resolve",
+      "writers": [
+        "hit-menu.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [],
+      "recorded": false,
+      "fields": []
+    },
+    "sweepCard": {
+      "class": "record",
+      "family": "maneuver",
+      "means": "Sweeping Attack's second creature was picked and the die rolled at it (hit-menu.js); resolved when `resolved` is set",
+      "writers": [
+        "hit-menu.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [
+        "fvtt-mcp-sessionscribe"
+      ],
+      "recorded": false,
+      "fields": []
+    },
+    "swingNoticed": {
+      "class": "state",
+      "family": "state",
+      "means": "the attack-trigger bonus swing's dedupe (Pole Strike, 2026-09-27) — the hewNotice card is the moment",
+      "writers": [
+        "hew.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [],
+      "recorded": false,
+      "fields": []
+    },
+    "tacticalArmed": {
+      "class": "state",
+      "family": "state",
+      "means": "Tactical Assessment or Ambush armed from the sheet (its own card); the fold into the check is the d20fold resolve",
+      "writers": [
+        "d20-folds.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [],
+      "recorded": false,
+      "fields": []
+    },
+    "tacticalRefund": {
+      "class": "record",
+      "family": "fold",
+      "means": "Tactical Mind's refund was asked and answered — kept or refunded (d20-folds.js); resolved when `status` leaves pending",
+      "writers": [
+        "d20-folds.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [],
+      "recorded": false,
+      "fields": []
+    },
+    "timedOut": {
+      "class": "state",
+      "family": "state",
+      "means": "the buzzer's mark on a roll it made; the verdict it lands is the resolve",
+      "writers": [
+        "concentration.js",
+        "saves/ask.js",
+        "topple.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [],
+      "recorded": false,
+      "fields": []
+    },
+    "tokenLight": {
+      "class": "state",
+      "family": "state",
+      "means": "a token light's payload on the use's card and what landed (token-lights.js) — the effectReceipt it writes is the resolve; on an ActiveEffect, the light's fingerprint",
+      "writers": [
+        "token-lights.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [],
+      "recorded": false,
+      "fields": []
+    },
+    "topple": {
+      "class": "record",
+      "family": "save",
+      "means": "a Topple save's verdict landed for a target — saved, prone, or failed before the dice (topple.js); one resolve per target done",
+      "writers": [
+        "mastery.js",
+        "topple.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [
+        "fvtt-mcp-sessionscribe"
+      ],
+      "recorded": false,
+      "fields": []
+    },
+    "transform": {
+      "class": "record",
+      "family": "use+cast",
+      "means": "a transform the module drove was landed by the elect — the creature(s) turned into the picked form with dnd5e's own transformInto, a learned Known Form written, the form effect clocked (transforms.js, issue #2); a feature publishes use, a spell cast; resolved when `applied`",
+      "writers": [
+        "summons.js",
+        "transforms.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [
+        "fvtt-mcp-sessionscribe"
+      ],
+      "recorded": false,
+      "fields": []
+    },
+    "turnGrant": {
+      "class": "state",
+      "family": "state",
+      "means": "the card a turn-start grant posts (turn-grants.js, Heroism's temp HP; Regeneration's heal on the bearer's own trait) — the receipt on the same card is the resolve; a `blocked` card (the troll's fire) carries no receipt and resolves nothing; a `grant: \"inspiration\"` card (Heroic Warrior, B4) records the sheet's own write, no receipt",
+      "writers": [
+        "turn-grants.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [],
+      "recorded": false,
+      "fields": []
+    },
+    "twistFor": {
+      "class": "state",
+      "family": "state",
+      "means": "provenance — the driven save (Beguiling Twist, B2) names the bystander roll it answers",
+      "writers": [
+        "bystanders.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [],
+      "recorded": false,
+      "fields": []
+    },
+    "typePick": {
+      "class": "record",
+      "family": "choice",
+      "means": "a typed feat's damage type was chosen as it landed — Elemental Adept's copy renamed \"Elemental Adept (Fire)\" (damage-rules.js, the PHB feats walk 2026-09-26); resolved when a type is chosen, at the popup or by a rename",
+      "writers": [
+        "damage-rules.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [],
+      "recorded": false,
+      "fields": []
+    },
+    "unarmedDice": {
+      "class": "state",
+      "family": "state",
+      "means": "a damage card's line — Tavern Brawler's die rolled in place of the flat Unarmed Strike; presentation, the formula rode the roll's own config",
+      "writers": [
+        "unarmed-dice.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [],
+      "recorded": false,
+      "fields": []
+    },
+    "useChip": {
+      "class": "record",
+      "family": "spend",
+      "means": "a use-chip was written at a feature's use — Steady Aim and its class (use-chips.js); on the use's own card",
+      "writers": [
+        "use-chips.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [
+        "fvtt-mcp-sessionscribe"
+      ],
+      "recorded": false,
+      "fields": []
+    },
+    "useKey": {
+      "class": "state",
+      "family": "state",
+      "means": "an ActiveEffect field — which use-chip this is",
+      "writers": [
+        "command.js",
+        "d20-folds.js",
+        "superiority-uses.js",
+        "use-chips.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [],
+      "recorded": false,
+      "fields": []
+    },
+    "uuid": {
+      "class": "state",
+      "family": "state",
+      "means": "an envelope field beside respondsTo — which target answered",
+      "writers": [
+        "hold/answer.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [],
+      "recorded": false,
+      "fields": []
+    },
+    "volley": {
+      "class": "record",
+      "family": "volley",
+      "means": "a volley's darts or rays were assigned and fired (volleys.js); resolved when `status` is resolved",
+      "writers": [
+        "volleys.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [
+        "fvtt-mcp-sessionscribe"
+      ],
+      "recorded": false,
+      "fields": []
+    },
+    "volleyDarts": {
+      "class": "state",
+      "family": "state",
+      "means": "provenance — a volley's roll names its dart count",
+      "writers": [
+        "volleys.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [],
+      "recorded": false,
+      "fields": []
+    },
+    "volleyFor": {
+      "class": "state",
+      "family": "state",
+      "means": "provenance — a volley's roll names its card",
+      "writers": [
+        "volleys.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [],
+      "recorded": false,
+      "fields": []
+    },
+    "volleyRay": {
+      "class": "state",
+      "family": "state",
+      "means": "provenance — a volley's roll names its ray",
+      "writers": [
+        "volleys.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [],
+      "recorded": false,
+      "fields": []
+    },
+    "volleyTarget": {
+      "class": "state",
+      "family": "state",
+      "means": "provenance — a volley's roll names its target",
+      "writers": [
+        "volleys.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [],
+      "recorded": false,
+      "fields": []
+    },
+    "ward": {
+      "class": "state",
+      "family": "state",
+      "means": "the demand card a ward raised of whoever targeted its bearer (wards.js, Sanctuary) — beside the saves record, which is the resolve; `settled`, `outcome` and `says` whether the use went on or was turned aside",
+      "writers": [
+        "wards.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [],
+      "recorded": false,
+      "fields": []
+    },
+    "wardAbsorb": {
+      "class": "state",
+      "family": "state",
+      "means": "an actor field — the ward's take on its bearer's damage update, for the pop on every client; the receipt is the resolve",
+      "writers": [
+        "ward-pools.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [],
+      "recorded": false,
+      "fields": []
+    },
+    "wardEnded": {
+      "class": "state",
+      "family": "state",
+      "means": "the card a ward's end posts (wards.js) — its bearer's own attack roll, cast or damage roll ended it; the effect's deletion is the act",
+      "writers": [
+        "wards.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [],
+      "recorded": false,
+      "fields": []
+    },
+    "wardPool": {
+      "class": "state",
+      "family": "state",
+      "means": "an ActiveEffect flag on the WARDED creature — an effect ward's hit points (Bastion of Law, B4: `{ feature, left, max }`), lowered as damage lands, the effect gone at 0; the wardAbsorb record on the bearer's update is the resolve",
+      "writers": [
+        "ward-pools.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [],
+      "recorded": false,
+      "fields": []
+    },
+    "wardRefill": {
+      "class": "state",
+      "family": "state",
+      "means": "a usage card's line — the ward created or refilled by an Abjuration cast; the item's uses are the state",
+      "writers": [
+        "ward-pools.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [],
+      "recorded": false,
+      "fields": []
+    },
+    "weaponRolls": {
+      "class": "state",
+      "family": "state",
+      "means": "provenance — how many of an attack's damage rolls are the activity's own, counted before any rider (auto-damage.js); Savage Attacker rerolls those",
+      "writers": [
+        "auto-damage.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [],
+      "recorded": false,
+      "fields": []
+    }
+  }
+}

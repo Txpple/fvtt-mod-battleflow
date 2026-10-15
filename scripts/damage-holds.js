@@ -7,7 +7,7 @@
  * sheet edits are never held (RULINGS *Where the table bends the rule*). Order: save multiplier,
  * reduction, resistances.
  */
-import { MODULE_ID, readFlag, TITLE, keepsMessage, queueFlagWrite, canAnswerFor, statContext, decisionWindow, resolveUuid, log } from "./core.js";
+import { MODULE_ID, readFlag, TITLE, keepsMessage, queueFlagWrite, canAnswerFor, statContext, decisionWindow, resolveUuid, log, claimLanding, claimHolds } from "./core.js";
 import { lower, itemNamed, reductionFor, holdsFor, featureNamed, activityNamed, bystanderRows, bystanderDie } from "./lookup.js";
 import { alliesWithin, nearestFeet, tokenOf } from "./geometry.js";
 import { interruptEntries } from "./decide/registry.js";
@@ -383,13 +383,7 @@ registerRelay("damageHoldAnswer", {
 /* --- the landing: the keeper applies the share, short by the roll ------------------------------ */
 
 async function landHeld(message) {
-  let claimed = false;
-  await queueFlagWrite(message, HOLD_FLAG, current => {
-    if ( (current.status !== "resolved") || current.applied || current.applying ) return false;
-    current.applying = true;
-    claimed = true;
-  });
-  if ( !claimed ) return;
+  if ( !(await claimLanding(message, HOLD_FLAG, current => current.status === "resolved")) ) return;
   const flag = readFlag(message, HOLD_FLAG);
   const receipt = game.messages.get(flag.receiptId) ?? message;
   const multiplier = Number(flag.multiplier ?? 1);
@@ -419,7 +413,7 @@ async function landHeld(message) {
 }
 
 registerResumable(HOLD_FLAG, {
-  pending: flag => (flag?.status === "resolved") && !flag.applied && !flag.applying,
+  pending: flag => (flag?.status === "resolved") && !flag.applied && !claimHolds(flag.applying),
   drives: (_flag, message) => keepsMessage(message),
   drive: landHeld
 });

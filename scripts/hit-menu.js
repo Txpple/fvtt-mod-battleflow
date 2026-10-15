@@ -21,7 +21,7 @@ import { nearestFeet, tokenOf } from "./geometry.js";
 import { attackMessageForDamage } from "./auto-damage.js";
 import { applyDamagesWithReceipt } from "./auto-apply.js";
 import { applyActivityEffectsOnHit, applyEffectsWithReceipt, messageActivity } from "./effect-riders.js";
-import { armAskTimer, subjectOwns, openMomentPopup, registerRelay, registerResumable, registerOfferPart, pendingRow, postCard, postAnswer, pickInputs } from "./ui.js";
+import { armAskTimer, subjectOwns, openMomentPopup, registerRelay, registerResumable, registerOfferPart, pendingRow, postCard, postAnswer, pickInputs, closePopup } from "./ui.js";
 import { SURFACES } from "./surfaces.js";
 import { listen, listenOnce } from "./dispatch.js";
 
@@ -756,6 +756,11 @@ registerResumable("sweepCard", {
 });
 
 /* --- the cards say it (R5) -------------------------------------------------------------------- */
+
+// The pick, made on any client, withdraws the sweep's popup on this one (§5 law 4): every GM screen may hold one for an unowned subject, and the latch is per client.
+listen("updateChatMessage", "hit-menu", message => {
+  if ( readFlag(message, "sweepCard")?.chosen ) void closePopup(message, "sweep");
+});
 
 listen("dnd5e.renderChatMessage", "hit-menu", (message, html) => {
   const record = readFlag(message, "hitManeuver");

@@ -12,7 +12,7 @@ import { bfCard, holdBarHTML, riderMenuHTML, ruleLine, spendPhrase, esc } from "
 import { MANEUVER_FEATURE_NAMES, SUPERIORITY_USES, answers, tableIndex } from "./decide/registry.js";
 import { CHIP_FLAG, chipClock } from "./decide/chips.js";
 import { riderPartFormula } from "./decide/clock.js";
-import { armAskTimer, subjectOwns, openMomentPopup, registerResumable, registerOfferPart, pendingRow, pickInputs } from "./ui.js";
+import { armAskTimer, subjectOwns, openMomentPopup, registerResumable, registerOfferPart, pendingRow, pickInputs, closePopup } from "./ui.js";
 import { attackMessageForDamage } from "./auto-damage.js";
 import { applyEffectsWithReceipt } from "./effect-riders.js";
 import { SURFACES } from "./surfaces.js";
@@ -302,6 +302,11 @@ listen("dnd5e.preRollDamage", "superiority-uses", (config, _dialog, message) => 
 });
 
 // The cards say it (R5).
+
+// The choice, made on any client, withdraws Bait and Switch's popup on this one (§5 law 4): every GM screen may hold one for an unowned subject, and the latch is per client.
+listen("updateChatMessage", "superiority-uses", message => {
+  if ( readFlag(message, "baitSwitch")?.chosen ) void closePopup(message, "bait");
+});
 
 listen("dnd5e.renderChatMessage", "superiority-uses", (message, html) => {
   const su = readFlag(message, "superiorityUse");

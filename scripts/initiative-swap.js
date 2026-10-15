@@ -4,7 +4,7 @@
  * The GM posts one card per listed, non-Incapacitated owner per roll; the clock answers No. The
  * tracker is the GM's: a player's answer relays, and the swap reads both LIVE numbers.
  */
-import { MODULE_ID, readFlag, isActiveGM, queueFlagWrite, canAnswerFor, statContext, decisionWindow, resolveUuid, log } from "./core.js";
+import { MODULE_ID, readFlag, isActiveGM, queueFlagWrite, canAnswerFor, statContext, decisionWindow, resolveUuid, log, claimLanding, claimHolds } from "./core.js";
 import { featureNamed, itemNamed, lower } from "./lookup.js";
 import { initiativeSwapEntries, listedNames } from "./decide/registry.js";
 import { INITIATIVE_SWAPS } from "./decide/registry.js";
@@ -150,13 +150,7 @@ registerRelay("initiativeSwapAnswer", {
 
 /** The elect lands a Swap: the two combatants' LIVE Initiatives exchanged in one tracker write. */
 async function landSwap(message) {
-  let claimed = false;
-  await queueFlagWrite(message, SWAP_FLAG, current => {
-    if ( (current.status !== "resolved") || (current.answer !== "swap") || current.applied || current.applying ) return false;
-    current.applying = true;
-    claimed = true;
-  });
-  if ( !claimed ) return;
+  if ( !(await claimLanding(message, SWAP_FLAG, current => (current.status === "resolved") && (current.answer === "swap"))) ) return;
   const flag = readFlag(message, SWAP_FLAG);
   const record = {};
   try {
@@ -178,7 +172,7 @@ async function landSwap(message) {
 }
 
 registerResumable(SWAP_FLAG, {
-  pending: flag => (flag?.status === "resolved") && (flag.answer === "swap") && !flag.applied && !flag.applying,
+  pending: flag => (flag?.status === "resolved") && (flag.answer === "swap") && !flag.applied && !claimHolds(flag.applying),
   drives: () => isActiveGM(),
   drive: landSwap
 });
