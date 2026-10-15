@@ -1024,6 +1024,8 @@ export function pendingDemandsFor(actorUuid, { flagKey = null } = {}) {
 const resumables = new Map();
 /** `${flagKey}|${messageId}` in flight on this client */
 const resuming = new Set();
+/** Messages a render reached before `ready`: their resume waits for it (`resumeAfterReady`). */
+const beforeReady = new Set();
 
 /** `flagless: true` for an arrival with no module flag (an attack's damage roll). */
 export function registerResumable(flagKey, { pending, drives, drive, flagless = false }) {
@@ -1031,6 +1033,13 @@ export function registerResumable(flagKey, { pending, drives, drive, flagless = 
 }
 
 function resume(message, cause) {
+  // ⚠ THE SNAPSHOT GUARD: a render before `ready` reads the world snapshot the client booted from, and the
+  // events Foundry buffered after it (a claim the snapshot missed) are applied only at `ready`; driving from
+  // the snapshot can land a record a second time (audits/plans/multi-gm-measurement.md §2.6).
+  if ( (cause === "render") && !game.ready ) {
+    if ( message?.id ) beforeReady.add(message.id);
+    return;
+  }
   for ( const [flagKey, r] of resumables ) {
     let flag;
     try { flag = readFlag(message, flagKey) ?? null; } catch { continue; }
@@ -1063,7 +1072,18 @@ const claimLead = () => {
       .catch(err => console.warn(`${TITLE} | This window could not take the lead.`, err));
   } catch(err) { console.warn(`${TITLE} | This window could not take the lead.`, err); }
 };
+/** The renders set aside before `ready`, resumed on the documents as `ready` finds them. */
+function resumeAfterReady() {
+  const ids = [...beforeReady];
+  beforeReady.clear();
+  for ( const id of ids ) {
+    const message = game.messages?.get(id);
+    if ( message ) resume(message, "render");
+  }
+}
+
 listen("ready", "ui", () => {
+  resumeAfterReady();
   claimLead();
   window.addEventListener("focus", claimLead);
   document.addEventListener("visibilitychange", () => { if ( document.visibilityState === "visible" ) claimLead(); });
