@@ -54,14 +54,19 @@ announcePlan('metamagic', plan, pulled);
 
 const out = await f.evaluate(async ({ sections, titles, extra }) => {
   const MOD = 'fvtt-mod-bythebooks';
-  const { sleep, until, watch, viewScene, snapshotSettings, faces, unrig } = window.__btb;
-  const { results, log, skips, ok, want, section: runSection } = window.__btb.begin({ sections, titles });
+  const results = [];
+  const log = [];
+  const skips = [];
   const errors = [];
-  // Each section opens with the Sorcerer's Hit Points in the log: a dead caster is filtered from every list and demand.
-  const section = (id, fn) => runSection(id, async () => {
+  const ok = (name, pass, detail = '') => results.push({ name, pass, detail });
+  const want = id => {
     try { const a = game.actors.getName('BTB Test Sorcerer'); if (a) log.push(`hp@${id}: ${a.system.attributes.hp.value}/${a.system.attributes.hp.max} dead=${a.statuses?.has?.('dead')}`); } catch { /* trace only */ }
-    await fn();
-  });
+    if (!sections || sections.includes(String(id))) return true;
+    skips.push(`§${id} ${titles?.[id] ?? ''}`);
+    return false;
+  };
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+  const waitFor = async (fn, ms = 6000, step = 150) => { const end = Date.now() + ms; for (;;) { const v = await fn(); if (v) return v; if (Date.now() > end) return null; await sleep(step); } };
   const suiteStart = Date.now();
   const ledger = globalThis.__bfHookLedger ?? null;
   const count = name => ledger?.[name] ?? 0;
@@ -74,8 +79,8 @@ const out = await f.evaluate(async ({ sections, titles, extra }) => {
   if (!game.settings.settings.has(`${MOD}.decisionTimer`)) return { fatal: 'decisionTimer not registered — OLD code (deploy --local, wait out the cache, or restart the box)' };
 
   const SETTING_KEYS = ['saveTimer', 'holdTimer'];   // both the one decisionTimer (the harness translates)
-  const settings = snapshotSettings(SETTING_KEYS);
-  const { set } = settings;
+  const prior = Object.fromEntries(SETTING_KEYS.map(k => [k, game.settings.get(MOD, k)]));
+  const set = (k, v) => game.settings.set(MOD, k, v);
 
   const scene = game.scenes.getName('By the Books Test Range');
   const sorc = game.actors.getName('BTB Test Sorcerer');
@@ -84,7 +89,7 @@ const out = await f.evaluate(async ({ sections, titles, extra }) => {
   const tok = actor => scene.tokens.find(t => t.actorId === actor.id) ?? null;
   const sorcTok = tok(sorc), attTok = tok(attacker);
   if (!sorcTok || !attTok) return { fatal: 'a fixture token is missing — run tools/fixture-suite.mjs' };
-  try { await viewScene(scene); } catch (err) { return { fatal: err.message }; }
+  if (canvas.scene?.id !== scene.id) { await scene.view(); await sleep(1500); }
   const attHome = { x: attTok.x, y: attTok.y };
   const sorcHome = { x: sorcTok.x, y: sorcTok.y };
   // poolSpendsOn draws the flash and card line for PLAYER-OWNED actors only: grant a player owner
@@ -120,9 +125,7 @@ const out = await f.evaluate(async ({ sections, titles, extra }) => {
     const act = spellAct(name);
     const pendingUse = act.use(usage, { configure: true }, { create: true });
     pendingUse?.catch?.(() => { /* closed or cancelled below */ });
-    // Soft: a window without the group hands back fs null, which castWith and the sections report.
-    const app = await until(() => [...foundry.applications.instances.values()].find(a => /ActivityUsageDialog|UsageDialog/.test(a.constructor?.name ?? '') && a.element?.querySelector?.('[data-bf-metamagic-field]')) ?? null,
-      { timeout: 6000, label: `${name}'s casting window with the metamagic group` }).catch(() => null);
+    const app = await waitFor(() => [...foundry.applications.instances.values()].find(a => /ActivityUsageDialog|UsageDialog/.test(a.constructor?.name ?? '') && a.element?.querySelector?.('[data-bf-metamagic-field]')) ?? null, 6000);
     return { act, app, fs: app?.element?.querySelector('[data-bf-metamagic-field]') ?? null, pendingUse };
   };
   // The 2024 options taken at the cast (Empowered and Seeking are later moments). A free class-feature row a
@@ -139,30 +142,26 @@ const out = await f.evaluate(async ({ sections, titles, extra }) => {
     if (!fs) return { card: null, why: 'no fieldset' };
     const row = rowsOf(fs).find(r => r.key === key);
     if (!row?.box || row.box.disabled) { await app?.close(); return { card: null, why: `row ${key} ${row ? (row.box?.disabled ? 'disabled' : 'no box') : 'missing'}` }; }
-    // The group's change listeners run synchronously on the click: the pick is in place at once.
     if (!row.box.checked) row.box.click();   // a pick still pending from an earlier window arrives ticked
-    if (tweak) await tweak(fs);
+    await sleep(100);
+    if (tweak) { await tweak(fs); await sleep(80); }
     const useBtn = app.element.querySelector('button[data-action="use"], button[type="submit"]');
     if (!useBtn) { await app?.close(); return { card: null, why: 'no use button' }; }
     useBtn.click();
-    // Soft: no card is the `why` handed back.
-    const card = await until(() => game.messages.find(m => !before.has(m.id) && (m.type === 'usage') && m.system?.activity?.uuid === spellAct(name)?.uuid) ?? null,
-      { timeout: 8000, label: `${name}'s usage card` }).catch(() => null);
-    // The spend writes poolSpend and `spent` in one update. Soft: the callers assert the spend by name.
-    if (card) await until(() => card.getFlag(MOD, 'metamagic')?.spent === true, { timeout: 6000, label: `${name}'s pick spent` }).catch(() => null);
+    const card = await waitFor(() => game.messages.find(m => !before.has(m.id) && (m.type === 'usage') && m.system?.activity?.uuid === spellAct(name)?.uuid) ?? null, 8000);
+    await waitFor(() => card?.getFlag(MOD, 'metamagic')?.spent === true, 6000);
+    await sleep(300);
     return { card, why: card ? '' : 'no usage card' };
   };
-  // Soft: the line or null, which every caller's assertion reports.
   const renderedLine = async (card, cls) => {
-    const el = await until(() => document.querySelector(`[data-message-id="${card.id}"] .${cls}`),
-      { timeout: 5000, label: `the .${cls} line on the card` }).catch(() => null);
+    const el = await waitFor(() => document.querySelector(`[data-message-id="${card.id}"] .${cls}`), 5000);
     return el?.textContent?.trim() ?? null;
   };
 
   const teardown = async () => {
     console.error = origError; console.warn = origWarn;
-    try { for (const failed of await settings.restore()) log.push(`settings restore failed: ${failed}`); } catch (e) { log.push(`settings restore failed: ${e.message}`); }
     try { await closeDialogs(); } catch { /* best effort */ }
+    try { for (const [k, v] of Object.entries(prior)) if (game.settings.get(MOD, k) !== v) await set(k, v); } catch (e) { log.push(`settings restore failed: ${e.message}`); }
     try { const p = pool(); if (p && (p.system.uses.spent !== poolSpent0)) await p.update({ 'system.uses.spent': poolSpent0 }); } catch (e) { log.push(`pool refill failed: ${e.message}`); }
     try { if (Object.keys(slots0).length) await sorc.update({ 'system.spells': slots0 }); } catch (e) { log.push(`slot restore failed: ${e.message}`); }
     try { if ((attTok.x !== attHome.x) || (attTok.y !== attHome.y)) await attTok.update(attHome, { teleport: true, animate: false }); } catch { /* fine */ }
@@ -171,7 +170,7 @@ const out = await f.evaluate(async ({ sections, titles, extra }) => {
     try { const sid = globalThis.__bfMetamagicSlow; if (sid && sorc.items.get(sid)) await sorc.deleteEmbeddedDocuments('Item', [sid]); globalThis.__bfMetamagicSlow = null; } catch (e) { log.push(`Slow removal failed: ${e.message}`); }
     try { if (player) await sorc.update({ ownership: ownership0 }, { diff: false, recursive: false }); } catch (e) { log.push(`ownership restore failed: ${e.message}`); }
     try { await closeMomentPopups(); } catch { /* fine */ }
-    await sleep(1500);   // clock: the dramatic verdict pause — in-flight verdicts land before their cards go
+    await sleep(1500);   // in-flight verdicts land before their cards go
     try { const live = (globalThis.__bfMetamagicTemplates ?? []).filter(id => scene.regions.get(id)); if (live.length) await scene.deleteEmbeddedDocuments('Region', live); } catch { /* fine */ }
     try { const ids = myCards().map(m => m.id); if (ids.length) await ChatMessage.deleteDocuments(ids); } catch (e) { log.push(`message cleanup failed: ${e.message}`); }
   };
@@ -190,7 +189,7 @@ const out = await f.evaluate(async ({ sections, titles, extra }) => {
     for (const e of (rgr0?.effects ?? []).filter(e => e.statuses?.has?.('dead') || e.statuses?.has?.('bloodied'))) await e.delete().catch(() => {});
     log.push(`Font of Magic: ${p0.system.uses.value}/${p0.system.uses.max}; CHA mod ${sorc.system.abilities.cha.mod}`);
 
-    if (want(1)) await section(1, async () => {
+    if (want(1)) {
       const { app, fs } = await openWindow('Fireball');
       const rows = rowsOf(fs);
       ok('1a. the casting window carries a By the Books fieldset', !!fs, `dialog=${app?.constructor?.name}`);
@@ -206,24 +205,23 @@ const out = await f.evaluate(async ({ sections, titles, extra }) => {
       ok('1h. every row folds its rule, and the fold carries the pack\'s text without the cost line', rows.every(r => r.rule) && rows.every(r => !/Cost:/.test(r.rule?.textContent ?? '')) && /protect some of those creatures/.test(rows.find(r => r.key === 'careful')?.rule?.textContent ?? ''), rows.find(r => r.key === 'careful')?.rule?.textContent?.slice(0, 80));
       ok('1i. nothing above the fold but the tick, the name, the tag - and a control only where the option demands one (Transmuted: the type)', rows.every(r => r.rule && ((r.rule.previousElementSibling?.tagName === 'SPAN') || (r.rule.previousElementSibling?.dataset?.bfMetamagicSub && ['transmuted', 'careful', 'heightened'].includes(r.key)))), rows.filter(r => r.rule?.previousElementSibling?.tagName !== 'SPAN').map(r => r.key).join(','));
       await app?.close();
-    });
+    }
 
-    if (want(2)) await section(2, async () => {
+    if (want(2)) {
       const { app, fs } = await openWindow('Fireball');
       const rows = rowsOf(fs);
       const subtle = rows.find(r => r.key === 'subtle');
-      // The group's change listener greys and frees the rows synchronously on the click.
-      subtle?.box?.click();
+      subtle?.box?.click(); await sleep(80);
       const after = rowsOf(fs);
       ok('2a. ticking Subtle greys every other row', after.filter(r => r.key !== 'subtle').every(r => r.box?.disabled) && !after.find(r => r.key === 'subtle')?.box?.disabled, after.map(r => `${r.key}:${r.box?.disabled ? 'off' : 'on'}`).join(' '));
-      subtle?.box?.click();
+      subtle?.box?.click(); await sleep(80);
       const freed = rowsOf(fs);
       ok('2b. unticking frees the rows that fit', freed.filter(r => !r.off).every(r => !r.box?.disabled) && freed.filter(r => r.off).every(r => r.box?.disabled), freed.map(r => `${r.key}:${r.box?.disabled ? 'off' : 'on'}`).join(' '));
       await app?.close();
-    });
+    }
 
     let subtleCard = null;
-    if (want(3)) await section(3, async () => {
+    if (want(3)) {
       const { card, why } = await castWith('Fireball', 'subtle', { consume: { spellSlot: false }, create: { measuredTemplate: false } });
       subtleCard = card;
       const flag = card?.getFlag(MOD, 'metamagic');
@@ -236,9 +234,9 @@ const out = await f.evaluate(async ({ sections, titles, extra }) => {
       ok('3e. the card carries the metamagic line', /Subtle Spell — cast without components/.test(line ?? ''), line);
       const res = card ? await renderedLine(card, 'bf-resource-line') : null;
       ok('3f. …and the resource line the uniform spend draws', /Sorcery Points: 4 of 5 remaining/.test(res ?? ''), res);
-    });
+    }
 
-    if (want(4)) await section(4, async () => {
+    if (want(4)) {
       const { card, why } = await castWith('Fireball', 'quickened', { consume: { spellSlot: false }, create: { measuredTemplate: false } });
       const flag = card?.getFlag(MOD, 'metamagic');
       ok('4a. Quickened is born on the card at cost 2', flag?.key === 'quickened' && flag?.cost === 2, why || JSON.stringify(flag));
@@ -247,9 +245,9 @@ const out = await f.evaluate(async ({ sections, titles, extra }) => {
       ok('4c. the record says 2 spent, 2 of 5', spend?.spent === 2 && spend?.left === 2, JSON.stringify(spend));
       const line = card ? await renderedLine(card, 'bf-metamagic-line') : null;
       ok('4d. the card says Bonus Action', /Quickened Spell — a Bonus Action/.test(line ?? ''), line);
-    });
+    }
 
-    if (want(5)) await section(5, async () => {
+    if (want(5)) {
       // The world's diagonal rule measures the far corner at 85 ft, so the orb's range is 60 ft for
       // this section (restored after): beyond 60, within Distant's 120.
       const orbItem = sorc.items.find(i => (i.type === 'spell') && (i.name === 'Chromatic Orb'));
@@ -258,9 +256,7 @@ const out = await f.evaluate(async ({ sections, titles, extra }) => {
       const g = scene.grid.size, span = Math.round((85 / scene.grid.distance) * g);
       await sorcTok.update({ x: g, y: g }, { teleport: true, animate: false });
       await attTok.update({ x: g + span, y: g + span }, { teleport: true, animate: false });
-      // The range is measured off the token documents (geometry.js nearestFeet).
-      await until(() => (sorcTok.x === g) && (sorcTok.y === g) && (attTok.x === g + span) && (attTok.y === g + span),
-        { label: 'the Sorcerer and the attacker 85 ft apart' });
+      await sleep(400);
       aimAtAttacker();
       const geo = await import(`/modules/${MOD}/scripts/geometry.js`);
       log.push(`§5: sorcerer to (${sorcTok.x},${sorcTok.y}), attacker to (${attTok.x},${attTok.y}); ${geo.nearestFeet(canvas.tokens.get(sorcTok.id), canvas.tokens.get(attTok.id))} ft apart`);
@@ -283,9 +279,9 @@ const out = await f.evaluate(async ({ sections, titles, extra }) => {
       await attTok.update(attHome, { teleport: true, animate: false });
       await sorcTok.update(sorcHome, { teleport: true, animate: false });
       game.user.targets.forEach(t => { t.setTarget(false, { releaseOthers: false }); });
-    });
+    }
 
-    if (want(6)) await section(6, async () => {
+    if (want(6)) {
       const p = pool();
       const spentBefore = p.system.uses.spent;
       await p.update({ 'system.uses.spent': p.system.uses.max });
@@ -298,7 +294,7 @@ const out = await f.evaluate(async ({ sections, titles, extra }) => {
       ok('6c. the pool line says 0 of 5', /Sorcery Points: 0 of 5/.test(poolLine), poolLine.trim());
       await app?.close();
       await p.update({ 'system.uses.spent': spentBefore });
-    });
+    }
 
     // ---- Stage 2: the save demand
     const ranger = game.actors.getName('BTB Test Ranger');
@@ -316,15 +312,14 @@ const out = await f.evaluate(async ({ sections, titles, extra }) => {
       // adoption serves the oldest waiting card.
       const p = pool(); if (p.system.uses.spent) await p.update({ 'system.uses.spent': 0 });
       // Let in-flight verdicts land before their cards go.
-      await closeDialogs(); await closeMomentPopups();
-      await sleep(1500);   // clock: the dramatic verdict pause — the verdicts still in flight
+      await closeDialogs(); await closeMomentPopups(); await sleep(1500);
       const stale = myCards().filter(m => !keepCards.has(m.id)).map(m => m.id);
       if (stale.length) await ChatMessage.deleteDocuments(stale);
-      const spots = [[sorcTok, sorcHome.x, sorcHome.y], [rgrTok, sorcHome.x + g, sorcHome.y],
-        [attTok, sorcHome.x, sorcHome.y - g], [vicTok, sorcHome.x + g, sorcHome.y - g]];
-      for (const [t, x, y] of spots) await t.update({ x, y }, { teleport: true, animate: false });
-      // Containment is read off the token documents (geometry.js tokensInRegions).
-      await until(() => spots.every(([t, x, y]) => (t.x === x) && (t.y === y)), { label: 'the four tokens gathered' });
+      await sorcTok.update(sorcHome, { teleport: true, animate: false });
+      await rgrTok.update({ x: sorcHome.x + g, y: sorcHome.y }, { teleport: true, animate: false });
+      await attTok.update({ x: sorcHome.x, y: sorcHome.y - g }, { teleport: true, animate: false });
+      await vicTok.update({ x: sorcHome.x + g, y: sorcHome.y - g }, { teleport: true, animate: false });
+      await sleep(400);
     };
     const scatter = async () => {
       for (const [id, home] of Object.entries(homes)) { const t = scene.tokens.get(id); if (t && ((t.x !== home.x) || (t.y !== home.y))) await t.update(home, { teleport: true, animate: false }); }
@@ -334,8 +329,7 @@ const out = await f.evaluate(async ({ sections, titles, extra }) => {
     const castArea = async (key, tweak = null, pick = null) => {
       const { card, why } = await castWith('Fireball', key, { consume: { spellSlot: false }, create: { measuredTemplate: false } }, tweak);
       if (!card) return { card: null, why };
-      // Soft: the area falls back to the spell's activity below.
-      await until(() => card.getFlag(MOD, 'saves') ? card : null, { timeout: 6000, label: 'the Fireball demand stamped' }).catch(() => null);
+      await waitFor(() => card.getFlag(MOD, 'saves') ? card : null, 6000);
       const g = scene.grid.size;
       // The area as dnd5e 6.0 places it: a Region, the platform's circle (radius in pixels), the ACTIVITY on its flag.
       const [tpl] = await scene.createEmbeddedDocuments('Region', [{
@@ -343,14 +337,10 @@ const out = await f.evaluate(async ({ sections, titles, extra }) => {
         flags: { dnd5e: { activity: card.getFlag(MOD, 'saves')?.activityUuid ?? spellAct('Fireball').uuid } }
       }]);
       templates.push(tpl.id);
-      // The ask at the area lists everyone inside; the demand waits until OK. The createRegion hook is the first road
-      // to it; when it has not opened within a second, the card's re-render is the second. Soft: no popup is the `why`.
-      const askOpen = () => { const d = popupFor(card.id, 'metamagicAsk'); return (d?.rendered && d.element?.querySelector?.('[data-bf-metamagic-ask]')) ? d : null; };
-      let askPopup = await until(askOpen, { timeout: 1000 }).catch(() => null);
-      if (!askPopup) {
-        try { ui.chat?.updateMessage?.(card); } catch { /* the next render adopts */ }
-        askPopup = await until(askOpen, { timeout: 8000, label: 'the ask at the area' }).catch(() => null);
-      }
+      await sleep(300);
+      try { ui.chat?.updateMessage?.(card); } catch { /* the next render adopts */ }
+      // The ask at the area lists everyone inside; the demand waits until OK.
+      const askPopup = await waitFor(() => { const d = popupFor(card.id, 'metamagicAsk'); return (d?.rendered && d.element?.querySelector?.('[data-bf-metamagic-ask]')) ? d : null; }, 8000);
       const askRows = [...(askPopup?.element?.querySelectorAll('input[name="bf-metamagic-ask"]') ?? [])].map(i => ({ name: i.dataset.name, uuid: i.value, checked: i.checked, el: i, group: i.closest('[data-bf-ask-group]')?.dataset?.bfAskGroup ?? null, token: i.dataset.token }));
       const heldEmpty = !(card.getFlag(MOD, 'saves')?.targets?.length);
       // Everything waits on the answer: no damage dice, no damage popup, while the ask stands.
@@ -364,16 +354,13 @@ const out = await f.evaluate(async ({ sections, titles, extra }) => {
       const deferred = !!card.getFlag(MOD, 'savesDeferredRoll');
       if (pick) await pick(askRows, askPopup?.element ?? null);
       askPopup?.element?.querySelector('button[data-action="ok"]')?.click();
-      // Soft: a demand that never fills is the `why`, and no damage after it is 9z's to report.
-      const adopted = await until(() => { const f2 = card.getFlag(MOD, 'saves'); return (f2?.status === 'done' || (f2?.templated && f2.targets.length)) ? f2 : null; },
-        { timeout: 8000, label: 'the demand filled from the area' }).catch(() => null);
-      const damageAfter = adopted ? await until(() => damageFor() > damageBefore ? damageFor() : null,
-        { timeout: 8000, label: 'the deferred damage roll' }).catch(() => null) : null;
+      const adopted = await waitFor(() => { const f2 = card.getFlag(MOD, 'saves'); return (f2?.status === 'done' || (f2?.templated && f2.targets.length)) ? f2 : null; }, 8000);
+      const damageAfter = adopted ? await waitFor(() => damageFor() > damageBefore ? damageFor() : null, 8000) : null;
       return { card, askRows, heldEmpty, damageBefore, offerBefore, deferred, damageAfter, why: askPopup ? (adopted ? '' : 'the ask was answered but the demand never filled') : 'no ask popup opened' };
     };
     const names = list => (list ?? []).map(t => t.name).sort().join(',');
 
-    if (want(9) && rgrTok && vicTok) await section(9, async () => {
+    if (want(9) && rgrTok && vicTok) {
       await gather();
       await set('saveTimer', 0);
       const { card, why, askRows, heldEmpty, damageBefore, offerBefore, deferred, damageAfter } = await castArea('careful');
@@ -390,16 +377,14 @@ const out = await f.evaluate(async ({ sections, titles, extra }) => {
       ok('9c. the demand holds the two goblins and neither ally', (saves?.targets?.length === 2) && saves.targets.every(t => [attacker.id, victim.id].some(id => String(t.uuid).endsWith(id))), names(saves?.targets));
       const line = card ? await renderedLine(card, 'bf-metamagic-line') : null;
       ok('9d. the card names the protected: no save, no damage', /Careful Spell — .*protected: no save, no damage/.test(line ?? '') && /BTB Test Sorcerer/.test(line ?? '') && /BTB Test Ranger/.test(line ?? ''), line);
-      // The window: no ask opens for a protected creature, nor a third.
-      const protectedAsk = t => /Saving throw\s+(BTB Test Sorcerer|BTB Test Ranger):/.test(t.replace(/\s+/g, ' '));
-      const stray = await watch(() => (savePopups().length > 2) || savePopups().map(demandText).some(protectedAsk), { ms: 800 });
+      await sleep(800);
       const asks = savePopups().map(demandText);
-      ok('9e. asks open for the goblins and none for a protected creature', !stray && (asks.length === 2) && !asks.some(protectedAsk), asks.map(t => t.replace(/\s+/g, ' ').trim().slice(0, 60)).join(' | '));
+      ok('9e. asks open for the goblins and none for a protected creature', (asks.length === 2) && !asks.some(t => /Saving throw\s+(BTB Test Sorcerer|BTB Test Ranger):/.test(t.replace(/\s+/g, ' '))), asks.map(t => t.replace(/\s+/g, ' ').trim().slice(0, 60)).join(' | '));
       ok('9f. no picker on the card - the ticks are in the casting window (the second look, 2026-09-09)', !document.querySelector(`[data-message-id="${card?.id}"] [data-bf-metamagic-adjust]`), '');
       await closeDialogs();
-    }); else if (want(9)) ok('9. fixtures', false, 'BTB Test Ranger or BTB Test Victim missing');
+    } else if (want(9)) ok('9. fixtures', false, 'BTB Test Ranger or BTB Test Victim missing');
 
-    if (want(10) && rgrTok && vicTok) await section(10, async () => {
+    if (want(10) && rgrTok && vicTok) {
       await gather();
       await set('saveTimer', 0);
       const { card, why } = await castArea('heightened');
@@ -410,9 +395,7 @@ const out = await f.evaluate(async ({ sections, titles, extra }) => {
       ok('10c. every creature in the area owes the save — Heightened protects nobody', (saves?.targets?.length === 4), names(saves?.targets));
       // The marked goblin's gate: its ask is the system's saving-throw dialog, open on this client.
       const markedName = mark?.name ?? '';
-      // Soft: with no gate the assertion below reports "no gate section".
-      const marked = await until(() => savePopups().find(app => demandText(app).includes(markedName)) ?? null,
-        { timeout: 6000, label: 'the marked goblin\'s save gate' }).catch(() => null);
+      const marked = await waitFor(() => savePopups().find(app => demandText(app).includes(markedName)) ?? null, 6000);
       const gateText = marked?.element?.querySelector?.('[data-bf-reminder]')?.textContent?.replace(/\s+/g, ' ') ?? '';
       ok('10d. the marked creature\'s gate carries Heightened Spell as a source', /Heightened Spell/.test(gateText), gateText.slice(0, 160) || 'no gate section');
       const buttons = [...(marked?.element?.querySelectorAll?.('[data-application-part="buttons"] button[data-action]') ?? [])];
@@ -422,9 +405,9 @@ const out = await f.evaluate(async ({ sections, titles, extra }) => {
       const otherGate = other?.element?.querySelector?.('[data-bf-reminder]')?.textContent ?? '';
       ok('10f. the other goblin\'s gate carries no Heightened source', !/Heightened Spell/.test(otherGate), otherGate.replace(/\s+/g, ' ').slice(0, 100));
       await closeDialogs();
-    }); else if (want(10)) ok('10. fixtures', false, 'BTB Test Ranger or BTB Test Victim missing');
+    } else if (want(10)) ok('10. fixtures', false, 'BTB Test Ranger or BTB Test Victim missing');
 
-    if (want(11) && rgrTok && vicTok) await section(11, async () => {
+    if (want(11) && rgrTok && vicTok) {
       await gather();
       await set('saveTimer', 0);
       game.user.targets.forEach(t => { t.setTarget(false, { releaseOthers: false }); });
@@ -442,12 +425,12 @@ const out = await f.evaluate(async ({ sections, titles, extra }) => {
       const second = radios.filter(r => /Hobgoblin|Goblin/.test(r.name))[1];
       ok('11b. the second goblin picked is the one the demand marks', mm?.chosen === true && !!mm?.target && saves?.demand?.heightened?.uuid === second?.uuid && mm.target.uuid === second?.uuid, why || JSON.stringify({ target: mm?.target, mark: saves?.demand?.heightened?.name }));
       await closeDialogs();
-    }); else if (want(11)) ok('11. fixtures', false, 'BTB Test Ranger or BTB Test Victim missing');
+    } else if (want(11)) ok('11. fixtures', false, 'BTB Test Ranger or BTB Test Victim missing');
 
     await scatter();
 
     // ---- Stage 3: Twinned, Transmuted, Extended
-    if (want(12)) await section(12, async () => {
+    if (want(12)) {
       const { app, fs } = await openWindow('Hold Person', { consume: { spellSlot: false } });
       const rows = rowsOf(fs);
       const tw = rows.find(r => r.key === 'twinned'), ex = rows.find(r => r.key === 'extended'), tr = rows.find(r => r.key === 'transmuted');
@@ -461,38 +444,33 @@ const out = await f.evaluate(async ({ sections, titles, extra }) => {
       const { card, why } = await castWith('Hold Person', 'twinned', { consume: { spellSlot: false } });
       const flag = card?.getFlag(MOD, 'metamagic');
       ok('12d. Twinned cast: the pick on the card, the point spent, the line', flag?.key === 'twinned' && flag?.spent === true && /one more target/.test((card ? await renderedLine(card, 'bf-metamagic-line') : '') ?? ''), why || JSON.stringify(flag));
-    });
+    }
 
-    if (want(13)) await section(13, async () => {
+    if (want(13)) {
       const p = pool(); if (p.system.uses.spent) await p.update({ 'system.uses.spent': 0 });
       const { app, fs } = await openWindow('Fireball', { consume: { spellSlot: false }, create: { measuredTemplate: false } });
       const row = rowsOf(fs).find(r => r.key === 'transmuted');
-      // The group's change listener frees the type radios and records the pick synchronously on the click.
-      row?.box?.click();
+      row?.box?.click(); await sleep(80);
       const radios = [...(fs?.querySelectorAll('input[name="bf-metamagic-type"]') ?? [])];
       ok('13a. ticking Transmuted shows the five other listed types, fire absent', radios.length === 5 && !radios.some(r => r.value === 'fire') && radios.some(r => r.checked), radios.map(r => `${r.value}${r.checked ? '✓' : ''}`).join(','));
-      const cold = radios.find(r => r.value === 'cold'); cold?.click();
+      const cold = radios.find(r => r.value === 'cold'); cold?.click(); await sleep(80);
       const before = new Set(game.messages.map(m => m.id));
       app.element.querySelector('button[data-action="use"], button[type="submit"]')?.click();
-      const card = await until(() => game.messages.find(m => !before.has(m.id) && (m.type === 'usage') && m.system?.activity?.uuid === spellAct('Fireball')?.uuid) ?? null,
-        { timeout: 8000, label: 'the Transmuted Fireball\'s usage card' });
-      await until(() => card.getFlag(MOD, 'metamagic')?.spent === true, { timeout: 6000, label: 'the Transmuted pick spent' });
+      const card = await waitFor(() => game.messages.find(m => !before.has(m.id) && (m.type === 'usage') && m.system?.activity?.uuid === spellAct('Fireball')?.uuid) ?? null, 8000);
+      await waitFor(() => card?.getFlag(MOD, 'metamagic')?.spent === true, 6000);
       const flag = card?.getFlag(MOD, 'metamagic');
       ok('13b. the card carries the pick: cold, from fire', flag?.key === 'transmuted' && flag?.type === 'cold' && (flag?.from ?? []).includes('fire'), JSON.stringify({ key: flag?.key, type: flag?.type, from: flag?.from }));
       ok('13c. the card line says the damage is cold', /the damage is cold/.test((card ? await renderedLine(card, 'bf-metamagic-line') : '') ?? ''), '');
       // The spell's own damage roll, chained to the card.
       const dmgBefore = new Set(game.messages.map(m => m.id));
       await spellAct('Fireball').rollDamage({}, { configure: false }, { data: { 'system.origin': card?.id } });
-      const dmg = await until(() => game.messages.find(m => !dmgBefore.has(m.id) && m.rolls?.length && m.type === 'damage') ?? null,
-        { timeout: 6000, label: 'the Transmuted damage roll' });
+      const dmg = await waitFor(() => game.messages.find(m => !dmgBefore.has(m.id) && m.rolls?.length && m.type === 'damage') ?? null, 6000);
       ok('13d. the damage roll wears cold, not fire, and says why', dmg?.rolls?.[0]?.options?.type === 'cold' && dmg?.getFlag(MOD, 'metamagicType')?.type === 'cold', `type=${dmg?.rolls?.[0]?.options?.type} flag=${JSON.stringify(dmg?.getFlag(MOD, 'metamagicType'))}`);
-      // The roll is offered Empowered too: close that popup so §16 finds its own. It opens after the
-      // dramatic verdict pause (§16); soft: a roll offered nothing has no popup to close.
-      const offered = await until(() => popupFor(dmg.id, 'diceChange')?.rendered, { timeout: 12000, label: 'the Empowered offer on the Transmuted roll' }).catch(() => null);
-      if (offered) { try { await popupFor(dmg.id, 'diceChange')?.close(); } catch { /* gone */ } }
-    });
+      // The roll is offered Empowered too: close that popup so §16 finds its own.
+      await sleep(300); try { await popupFor(dmg?.id, 'diceChange')?.close(); } catch { /* gone */ }
+    }
 
-    if (want(14) && victim) await section(14, async () => {
+    if (want(14) && victim) {
       const p = pool(); if (p.system.uses.spent) await p.update({ 'system.uses.spent': 0 });
       const vicActor = scene.tokens.find(t => t.actorId === victim.id)?.actor ?? victim;
       const bonus0 = vicActor.system._source.abilities?.wis?.save?.roll?.bonus ?? '';
@@ -502,16 +480,12 @@ const out = await f.evaluate(async ({ sections, titles, extra }) => {
       const vTok = canvas.tokens.get(scene.tokens.find(t => t.actorId === victim.id)?.id);
       game.user.targets.forEach(t => { t.setTarget(false, { releaseOthers: false }); });
       vTok?.setTarget(true, { releaseOthers: true });
-      // Soft, as every wait below: the victim's save bonus, its Paralyzed and the caster's Concentration
-      // are put back only at this section's end, so nothing here throws past them.
-      await until(() => (game.user.targets.size === 1) && ([...game.user.targets][0]?.id === vTok?.id),
-        { label: 'the victim the one target' }).catch(() => null);
+      await sleep(200);
       const { card, why } = await castWith('Hold Person', 'extended', { consume: { spellSlot: false } });
       const flag = card?.getFlag(MOD, 'metamagic');
       ok('14a. Extended cast: the pick on the card with the spell\'s uuid and its rule', flag?.key === 'extended' && flag?.spellUuid === sorc.items.find(i => i.name === 'Hold Person')?.uuid && /Advantage on any saving throw/.test(flag?.rule ?? ''), why || JSON.stringify({ key: flag?.key, spellUuid: flag?.spellUuid, rule: (flag?.rule ?? '').slice(0, 40) }));
       // ⚠ The applier creates Paralyzed, THEN doubles its clock (a second write): wait for the clock.
-      const paralyzed = await until(() => { const e = vicActor.effects.find(x => x.statuses?.has?.('paralyzed') && x.getFlag(MOD, 'applied')); return (e && (e.duration?.seconds === 120)) ? e : null; },
-        { timeout: 12000, label: 'Paralyzed with its doubled clock' }).catch(() => null) ?? vicActor.effects.find(x => x.statuses?.has?.('paralyzed')) ?? null;
+      const paralyzed = await waitFor(() => { const e = vicActor.effects.find(x => x.statuses?.has?.('paralyzed') && x.getFlag(MOD, 'applied')); return (e && (e.duration?.seconds === 120)) ? e : null; }, 12000) ?? vicActor.effects.find(x => x.statuses?.has?.('paralyzed')) ?? null;
       const receiptCards = game.messages.filter(m => (m.getFlag(MOD, 'effectReceipt')?.targets ?? []).some(t => t.uuid === vicActor.uuid)).map(m => `${m.id === card?.id ? 'THIS' : m.id}:${m.getFlag(MOD, 'metamagic')?.key ?? '-'}`);
       ok('14b. the failed save lands Paralyzed with its clock DOUBLED: 120 seconds, not 60', paralyzed?.duration?.seconds === 120, `seconds=${paralyzed?.duration?.seconds} outcome=${JSON.stringify(card?.getFlag(MOD, 'saves')?.targets?.map(t => t.outcome))} origin=${paralyzed?.origin} receipts=${receiptCards.join(',')} cardKey=${card?.getFlag(MOD, 'metamagic')?.key}`);
       // The caster concentrates on Hold Person: the concentration save's gate carries Extended as Advantage.
@@ -522,8 +496,7 @@ const out = await f.evaluate(async ({ sections, titles, extra }) => {
       if (conc) {
         const pendingRoll = sorc.rollConcentration({ target: 10 }, { configure: true }, {});
         pendingRoll?.catch?.(() => {});
-        const dlg = await until(() => [...foundry.applications.instances.values()].find(a => /RollConfigurationDialog/.test(a.constructor?.name ?? '') && a.element?.querySelector?.('[data-bf-reminder]')) ?? null,
-          { timeout: 6000, label: 'the concentration save\'s gate' }).catch(() => null);
+        const dlg = await waitFor(() => [...foundry.applications.instances.values()].find(a => /RollConfigurationDialog/.test(a.constructor?.name ?? '') && a.element?.querySelector?.('[data-bf-reminder]')) ?? null, 6000);
         gateText = dlg?.element?.querySelector?.('[data-bf-reminder]')?.textContent?.replace(/\s+/g, ' ') ?? '';
         try { await dlg?.close(); } catch { /* gone */ }
       }
@@ -534,10 +507,10 @@ const out = await f.evaluate(async ({ sections, titles, extra }) => {
       for (const e of sorc.effects.filter(e => e.statuses?.has?.('concentrating'))) await e.delete().catch(() => {});
       await vicActor.update({ 'system.abilities.wis.save.roll.bonus': bonus0 });
       game.user.targets.forEach(t => { t.setTarget(false, { releaseOthers: false }); });
-    }); else if (want(14)) ok('14. fixtures', false, 'BTB Test Victim missing');
+    } else if (want(14)) ok('14. fixtures', false, 'BTB Test Victim missing');
 
     // ---- Stage 4: Seeking and Empowered
-    if (want(15)) await section(15, async () => {
+    if (want(15)) {
       const p = pool(); if (p.system.uses.spent) await p.update({ 'system.uses.spent': 0 });
       await set('holdTimer', 0);
       const foe = attTok.actor;
@@ -550,38 +523,32 @@ const out = await f.evaluate(async ({ sections, titles, extra }) => {
       const foeTok = canvas.tokens.get(attTok.id) ?? canvas.tokens.placeables.find(t => t.document.actorId === attacker.id) ?? null;
       game.user.targets.forEach(t => { t.setTarget(false, { releaseOthers: false }); });
       foeTok?.setTarget(true, { releaseOthers: true });
-      // Soft, as every wait below: the foe's AC and its token are put back only at this section's end,
-      // so nothing here throws past them; 15-pre reports the targeting itself.
-      await until(() => !!foeTok && game.user.targets.has(foeTok), { label: 'the foe the orb\'s target' }).catch(() => null);
+      await sleep(200);
       ok('15-pre. the orb has its target — the foe token is on the canvas and targeted', !!foeTok && game.user.targets.has(foeTok),
         `token=${!!foeTok} targeted=${!!foeTok && game.user.targets.has(foeTok)} ac=${foeTok?.actor?.system?.attributes?.ac?.value}`);
-      faces([[10, 20]]);   // every d20 shows 10: a miss against 26, never a crit
+      const realPRNG15 = CONFIG.Dice.randomUniform;
+      CONFIG.Dice.randomUniform = () => 1 - ((10 - 0.5) / 20);   // every d20 shows 10: a miss against 26, never a crit
       const before = new Set(game.messages.map(m => m.id));
       await spellAct('Chromatic Orb').use({ consume: { spellSlot: false }, create: { measuredTemplate: false } }, { configure: false }, {});
-      const card = await until(() => game.messages.find(m => !before.has(m.id) && (m.type === 'usage')) ?? null,
-        { timeout: 6000, label: 'the orb\'s usage card' }).catch(() => null);
+      const card = await waitFor(() => game.messages.find(m => !before.has(m.id) && (m.type === 'usage')) ?? null, 6000);
       // With Advantage: dnd5e expands `1d20adv` to `2d20adv` at evaluation, and a reroll rebuilt with
       // the original's `configured` option would expand it again (four dice).
       await spellAct('Chromatic Orb').rollAttack({ advantage: true }, { configure: false }, { data: { 'system.origin': card?.id } });
-      const attack = await until(() => game.messages.find(m => !before.has(m.id) && m.type === 'attack' && m.getFlag(MOD, 'd20fold')) ?? null,
-        { timeout: 8000, label: 'the orb\'s attack with its d20 fold' }).catch(() => null);
-      unrig();   // the reroll rolls real dice
+      const attack = await waitFor(() => game.messages.find(m => !before.has(m.id) && m.type === 'attack' && m.getFlag(MOD, 'd20fold')) ?? null, 8000);
+      CONFIG.Dice.randomUniform = realPRNG15;   // the reroll rolls real dice
       const attackAny = attack ?? game.messages.find(m => !before.has(m.id) && m.type === 'attack') ?? null;
       const fold = attack?.getFlag(MOD, 'd20fold');
       ok('15a. the missed spell attack is offered Seeking Spell as a d20 fold', !!fold && (fold.offers ?? []).some(o => o.kind === 'seeking') && fold.spell === true,
         `offers=${JSON.stringify((fold?.offers ?? []).map(o => `${o.kind}:${o.label}`))} spell=${fold?.spell} `
           + `attack=${!!attackAny} total=${attackAny?.rolls?.[0]?.total} crit=${attackAny?.rolls?.[0]?.isCritical} targets=${JSON.stringify((attackAny?.getFlag('dnd5e', 'targets') ?? []).map(t => `${t.name}:${t.ac}`))}`);
       // Answer from the offer's own button.
-      const popup = await until(() => [...foundry.applications.instances.values()].find(a => a.rendered && a.element?.querySelector?.('[data-bf-rescue-action="seeking"]')) ?? null,
-        { timeout: 12000, label: 'the Seeking offer popup' }).catch(() => null);   // after the verdict pause — see §16
+      const popup = await waitFor(() => [...foundry.applications.instances.values()].find(a => a.rendered && a.element?.querySelector?.('[data-bf-rescue-action="seeking"]')) ?? null, 12000);   // after the verdict pause — see §16
       const clickedAt = Date.now();
       popup?.element?.querySelector('[data-bf-rescue-action="seeking"]')?.click();
       // The window goes at the click, not at the verdict (the dice land for up to six seconds more).
-      const goneAfter = await until(() => (!popup?.rendered || !popup?.element?.isConnected) ? { ms: Date.now() - clickedAt } : null,
-        { timeout: 5000, label: 'the Seeking popup gone' }).catch(() => null);
+      const goneAfter = await waitFor(() => (!popup?.rendered || !popup?.element?.isConnected) ? { ms: Date.now() - clickedAt } : null, 5000);
       // The spend is recorded before the dice land, so wait for foldedTotal, the verdict.
-      const resolved = await until(() => { const f2 = attack?.getFlag(MOD, 'd20fold'); return ((f2?.spends ?? []).some(s => s.kind === 'seeking') && Number.isFinite(f2?.foldedTotal)) ? f2 : null; },
-        { timeout: 15000, label: 'the Seeking reroll\'s verdict' }).catch(() => null);
+      const resolved = await waitFor(() => { const f2 = attack?.getFlag(MOD, 'd20fold'); return ((f2?.spends ?? []).some(s => s.kind === 'seeking') && Number.isFinite(f2?.foldedTotal)) ? f2 : null; }, 15000);
       const f15 = attack?.getFlag(MOD, 'd20fold');
       ok('15b. Seeking rerolls the d20 — the spend records the reroll, the total replaced', !!resolved && Number.isFinite(resolved.spends.find(s => s.kind === 'seeking')?.reroll?.total) && Number.isFinite(resolved.foldedTotal), JSON.stringify({ popup: !!popup, status: f15?.status, outcome: f15?.outcome, answer: f15?.answer, spends: f15?.spends, folded: f15?.foldedTotal, base: f15?.baseTotal }));
       ok('15c. one Sorcery Point spent by hand, the record on the attack message', pool().system.uses.value === 4 && attack?.getFlag(MOD, 'poolSpend')?.pool === 'Sorcery Points' && attack?.getFlag(MOD, 'poolSpend')?.ability === 'Seeking Spell', `pool=${pool().system.uses.value} record=${JSON.stringify(attack?.getFlag(MOD, 'poolSpend'))}`);
@@ -600,9 +567,9 @@ const out = await f.evaluate(async ({ sections, titles, extra }) => {
       await foe.update({ 'system.attributes.ac.override': priorAC.override });
       await attTok.update(attHome, { teleport: true, animate: false });
       game.user.targets.forEach(t => { t.setTarget(false, { releaseOthers: false }); });
-    });
+    }
 
-    if (want(16)) await section(16, async () => {
+    if (want(16)) {
       const p = pool(); if (p.system.uses.spent) await p.update({ 'system.uses.spent': 0 });
       const fired0 = count('dnd5e.rollDamage');
       const t16 = Date.now();
@@ -611,35 +578,28 @@ const out = await f.evaluate(async ({ sections, titles, extra }) => {
       game.user.targets.forEach(t => { t.setTarget(false, { releaseOthers: false }); });
       const before = new Set(game.messages.map(m => m.id));
       await spellAct('Fireball').use({ consume: { spellSlot: false }, create: { measuredTemplate: false } }, { configure: false }, {});
-      const card = await until(() => game.messages.find(m => !before.has(m.id) && (m.type === 'usage')) ?? null,
-        { timeout: 6000, label: 'the Fireball\'s usage card' });
+      const card = await waitFor(() => game.messages.find(m => !before.has(m.id) && (m.type === 'usage')) ?? null, 6000);
       await spellAct('Fireball').rollDamage({}, { configure: false }, { data: { 'system.origin': card?.id } });
-      const dmg = await until(() => game.messages.find(m => !before.has(m.id) && m.type === 'damage' && (emp(m)?.status === 'pending')) ?? null,
-        { timeout: 8000, label: 'the Fireball damage offered Empowered' });
+      const dmg = await waitFor(() => game.messages.find(m => !before.has(m.id) && m.type === 'damage' && (emp(m)?.status === 'pending')) ?? null, 8000);
       const flag = emp(dmg);
       ok('16a. the spell\'s damage roll is offered Empowered: eight dice, the cap 3, the total recorded', flag?.status === 'pending' && flag?.dice?.length === 8 && flag?.cap === 3 && flag?.oldTotal === dmg?.rolls?.[0]?.total, JSON.stringify({ status: flag?.status, dice: flag?.dice?.length, cap: flag?.cap, old: flag?.oldTotal }));
       // ⚠ The popup opens AFTER dramaticVerdictPause (the dice animation, capped at 6 s, plus the
-      // beat): the wait outlasts that cap and reports how long the popup took. Soft: the log line names a popup that never fronted.
+      // beat): the wait outlasts that cap and reports how long the popup took.
       const stamped16 = Date.now();
-      const popup = await until(() => { const d = popupFor(dmg?.id, 'diceChange'); return (d?.rendered && d.element?.querySelector?.('[data-bf-dice-chips]')) ? d : null; },
-        { timeout: 12000, label: 'the Empowered popup' }).catch(() => null);
+      const popup = await waitFor(() => { const d = popupFor(dmg?.id, 'diceChange'); return (d?.rendered && d.element?.querySelector?.('[data-bf-dice-chips]')) ? d : null; }, 12000);
       log.push(`§16 popup ${popup ? `fronted ${Date.now() - stamped16} ms after the stamp` : 'never fronted (12 s)'}`);
       const chips = [...(popup?.element?.querySelectorAll('[data-bf-die]') ?? [])];
       ok('16b. the popup shows the eight dice as chips', chips.length === 8, `chips=${chips.length}`);
-      // No pick, no reroll: the button opens greyed and wakes on the first tick. The chips toggle and
-      // the buttons follow synchronously on the click (dice-changers.js, one document listener).
+      // No pick, no reroll: the button opens greyed and wakes on the first tick.
       const rerollBtn = () => popup?.element?.querySelector('button[data-action="apply"]');
       ok('16b2. Reroll is disabled before any die is ticked', rerollBtn()?.disabled === true, `disabled=${rerollBtn()?.disabled}`);
-      chips[0]?.click();
+      chips[0]?.click(); await sleep(30);
       ok('16b3. Reroll wakes on the first tick', rerollBtn()?.disabled === false, `disabled=${rerollBtn()?.disabled}`);
-      chips[0]?.click();
+      chips[0]?.click(); await sleep(30);
       ok('16b4. ...and sleeps again when it is unticked', rerollBtn()?.disabled === true, `disabled=${rerollBtn()?.disabled}`);
       // Tick the two lowest dice, then a third and a fourth — the cap holds at three.
       const sorted = chips.slice().sort((a, b) => Number(a.textContent) - Number(b.textContent));
-      for (const c of sorted.slice(0, 4)) {
-        c.click();
-        await sleep(30);   // clock: a tick's order stamp is Date.now(), so each tick takes its own millisecond
-      }
+      for (const c of sorted.slice(0, 4)) { c.click(); await sleep(30); }
       const picked = chips.filter(c => c.dataset.picked === '1');
       ok('16c. the cap holds: four ticks, three picked', picked.length === 3, `picked=${picked.length}`);
       const oldTotal = dmg.rolls[0].total;
@@ -647,10 +607,8 @@ const out = await f.evaluate(async ({ sections, titles, extra }) => {
       const clicked16 = Date.now();
       popup?.element?.querySelector('button[data-action="apply"]')?.click();
       // The window goes at the click; the dice land for up to six seconds more.
-      // Soft: 16i reports a window that stayed.
-      const gone16 = popup ? await until(() => (!popup.rendered || !popup.element?.isConnected) ? { ms: Date.now() - clicked16 } : null,
-        { timeout: 5000, label: 'the Empowered popup gone' }).catch(() => null) : null;   // a popup that never fronted cannot "close at the click"
-      const used = await until(() => { const f2 = emp(dmg); return f2?.status === 'used' ? f2 : null; }, { timeout: 10000, label: 'the Empowered reroll used' });
+      const gone16 = popup ? await waitFor(() => (!popup.rendered || !popup.element?.isConnected) ? { ms: Date.now() - clicked16 } : null, 5000) : null;   // a popup that never fronted cannot "close at the click"
+      const used = await waitFor(() => { const f2 = emp(dmg); return f2?.status === 'used' ? f2 : null; }, 10000);
       log.push(`§16 after: pool ${pool().system.uses.value}, rollDamage fired ${count('dnd5e.rollDamage') - fired0} for this roll, poolSpend=${JSON.stringify(dmg.getFlag(MOD, 'poolSpend'))}`);
       log.push(`§16 spends since start: ${game.messages.filter(m => (m.timestamp >= t16) && m.getFlag(MOD, 'poolSpend')).map(m => `${m.getFlag(MOD, 'poolSpend').ability}@${m.id.slice(-4)}`).join(',')} | empowered flags: ${game.messages.filter(m => emp(m)).map(m => `${m.id.slice(-4)}:${emp(m).status}`).join(',')} | spent=${pool().system.uses.spent}`);
       ok('16d. Reroll: the point spent, three dice rerolled, the flag says which and what', !!used && used.picks?.length === 3 && pool().system.uses.value === 4 && used.picks.every(pk => Number.isFinite(pk.old) && Number.isFinite(pk.new)), JSON.stringify({ picks: used?.picks, pool: pool().system.uses.value }));
@@ -659,8 +617,7 @@ const out = await f.evaluate(async ({ sections, titles, extra }) => {
       const struck = results.filter(r => r.active === false && r.rerolled).length;
       const active = results.filter(r => r.active !== false).length;
       ok('16e. the message\'s own roll is patched: three faces struck and inactive, eight active, the total moved by the difference', struck === 3 && active === 8 && roll?.total === (oldTotal + used.delta) && roll?.total === used.newTotal, `struck=${struck} active=${active} total=${roll?.total} old=${oldTotal} delta=${used?.delta} new=${used?.newTotal}`);
-      const announce = await until(() => game.messages.find(m => !before.has(m.id) && m.getFlag(MOD, 'respondsTo') === dmg.id && /Empowered Spell/.test(m.content ?? '')) ?? null,
-        { timeout: 6000, label: 'the Empowered announce card' });
+      const announce = await waitFor(() => game.messages.find(m => !before.has(m.id) && m.getFlag(MOD, 'respondsTo') === dmg.id && /Empowered Spell/.test(m.content ?? '')) ?? null, 6000);
       ok('16f. the announce card says the old faces, the arrow, the new, and the totals', !!announce && new RegExp(`${oldFaces.sort((a, b) => a - b).join(', ')}|${used?.picks?.map(pk => pk.old).join(', ')}`).test(announce.content) && /→/.test(announce.content), announce?.content?.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').slice(0, 140));
       const line = dmg ? await renderedLine(dmg, 'bf-dice-line') : null;
       ok('16g. the damage card carries the Empowered line', /Empowered Spell — .*→/.test(line ?? ''), line);
@@ -672,10 +629,10 @@ const out = await f.evaluate(async ({ sections, titles, extra }) => {
       ok('16i. the window closed at the click, well before the dice landed', !!gone16 && gone16.ms < 1500, JSON.stringify(gone16 ?? { gone: false }));
       ok('16h. the announce card carries the rerolled dice as ONE roll that passes the Dice So Nice gate, its faces the new faces of the picks in order', gate16 && faces16.length === picksNew.length && faces16.every((f, i) => f === picksNew[i]), JSON.stringify({ isRoll: announce?.isRoll, faces: faces16, picks: picksNew, visible: announce?.isContentVisible }));
       await closeDialogs();
-    });
+    }
 
     // ---- Careful's ticks
-    if (want(17) && rgrTok) await section(17, async () => {
+    if (want(17) && rgrTok) {
       const p17 = pool(); if (p17.system.uses.spent) await p17.update({ 'system.uses.spent': 0 });
       // The Ranger at full HP: a dead Ranger is filtered from the demand (saveDemandable).
       if (ranger.system.attributes.hp.value < ranger.system.attributes.hp.max) await ranger.update({ 'system.attributes.hp.value': ranger.system.attributes.hp.max });
@@ -684,67 +641,56 @@ const out = await f.evaluate(async ({ sections, titles, extra }) => {
       await sorcTok.update(sorcHome, { teleport: true, animate: false });
       await rgrTok.update({ x: sorcHome.x + scene.grid.size, y: sorcHome.y }, { teleport: true, animate: false });
       await attTok.update({ x: sorcHome.x, y: sorcHome.y - scene.grid.size }, { teleport: true, animate: false });
-      await until(() => (sorcTok.x === sorcHome.x) && (sorcTok.y === sorcHome.y)
-        && (rgrTok.x === sorcHome.x + scene.grid.size) && (rgrTok.y === sorcHome.y)
-        && (attTok.x === sorcHome.x) && (attTok.y === sorcHome.y - scene.grid.size),
-      { label: 'the Sorcerer, the Ranger and the goblin in place' });
-      // Targeting is synchronous on this client; the window reads game.user.targets when it opens.
+      await sleep(300);
       game.user.targets.forEach(t => { t.setTarget(false, { releaseOthers: false }); });
       canvas.tokens.get(rgrTok.id)?.setTarget(true, { releaseOthers: true });
       canvas.tokens.get(attTok.id)?.setTarget(true, { releaseOthers: false });
-      await until(() => (game.user.targets.size === 2) && [rgrTok.id, attTok.id].every(id => [...game.user.targets].some(t => t.id === id)),
-        { label: 'the Ranger and the goblin targeted' });
+      await sleep(200);
       // Hold Person, not Fireball: a template spell lists nobody in the window (18w).
       const { app, fs } = await openWindow('Hold Person', { consume: { spellSlot: false }, create: { measuredTemplate: false } });
       // Heightened's radio is inert until Heightened is ticked.
       const radios17 = () => [...(fs?.querySelectorAll('[data-bf-metamagic-row="heightened"] input[name="bf-metamagic-mark"]') ?? [])];
       const hRow = rowsOf(fs).find(r => r.key === 'heightened');
       const inertBefore = radios17().length === 2 && radios17().every(r => r.disabled);
-      // The group's change listener frees and greys the radios synchronously on the click.
-      hRow?.box?.click();
+      hRow?.box?.click(); await sleep(80);
       const liveAfter = radios17().every(r => !r.disabled);
-      hRow?.box?.click();
+      hRow?.box?.click(); await sleep(80);
       const inertAgain = radios17().every(r => r.disabled);
       ok('17c. the Heightened radio is greyed until Heightened is ticked, live once it is, greyed again when it is not', inertBefore && liveAfter && inertAgain, JSON.stringify({ radios: radios17().length, inertBefore, liveAfter, inertAgain }));
       const row = rowsOf(fs).find(r => r.key === 'careful');
-      row?.box?.click();
+      row?.box?.click(); await sleep(80);
       const ticks = [...(fs?.querySelectorAll('[data-bf-metamagic-row="careful"] input[name="bf-metamagic-protect"]') ?? [])];
       ok('17a. with two creatures targeted, the Careful row lists NOBODY — the tick, the name, the cost and the rule, no more (user, 2026-09-18)', !!row && ticks.length === 0, `ticks=${ticks.length}`);
       const before = new Set(game.messages.map(m => m.id));
       app.element.querySelector('button[data-action="use"], button[type="submit"]')?.click();
-      const card = await until(() => game.messages.find(m => !before.has(m.id) && (m.type === 'usage') && m.system?.activity?.uuid === spellAct('Hold Person')?.uuid) ?? null,
-        { timeout: 8000, label: 'the Careful Hold Person\'s usage card' });
+      const card = await waitFor(() => game.messages.find(m => !before.has(m.id) && (m.type === 'usage') && m.system?.activity?.uuid === spellAct('Hold Person')?.uuid) ?? null, 8000);
       // The ask opens on the card: the two targeted, the ally ticked, the demand empty until the answer.
-      const askPopup = await until(() => { const d = popupFor(card.id, 'metamagicAsk'); return (d?.rendered && d.element?.querySelector?.('[data-bf-metamagic-ask]')) ? d : null; },
-        { timeout: 8000, label: 'the Careful ask on the card' });
+      const askPopup = await waitFor(() => { const d = popupFor(card?.id, 'metamagicAsk'); return (d?.rendered && d.element?.querySelector?.('[data-bf-metamagic-ask]')) ? d : null; }, 8000);
       const askRows = [...(askPopup?.element?.querySelectorAll('input[name="bf-metamagic-ask"]') ?? [])].map(i => ({ name: i.dataset.name, uuid: i.value, checked: i.checked, el: i }));
       const askOf = uuid => askRows.find(r => r.uuid === uuid);
       const heldEmpty = !(card?.getFlag(MOD, 'saves')?.targets?.length);
       ok('17d. the ask opens on the card listing the two targeted — the Ranger (an ally) ticked, the goblin not — while the demand waits empty', askRows.length === 2 && askOf(ranger.uuid)?.checked === true && !!askOf(attTok.actor?.uuid) && !askOf(attTok.actor?.uuid).checked && heldEmpty, JSON.stringify({ rows: askRows.map(r => `${r.name}:${r.checked}`), heldEmpty }));
-      // The player's own pick: the goblin protected, the Ranger not. The ask's change listener (the cap,
-      // the ping) runs synchronously on the click, and OK reads the ticks as they stand.
-      askOf(ranger.uuid)?.el.click();
-      askOf(attTok.actor?.uuid)?.el.click();
+      // The player's own pick: the goblin protected, the Ranger not.
+      askOf(ranger.uuid)?.el.click(); await sleep(50);
+      askOf(attTok.actor?.uuid)?.el.click(); await sleep(80);
       askPopup?.element?.querySelector('button[data-action="ok"]')?.click();
-      await until(() => card.getFlag(MOD, 'saves')?.targets?.length ? card : null, { timeout: 8000, label: 'the Careful demand filled' });
+      await waitFor(() => card?.getFlag(MOD, 'saves')?.targets?.length ? card : null, 8000);
       const mm = card?.getFlag(MOD, 'metamagic'), saves = card?.getFlag(MOD, 'saves');
       ok('17b. the pick is honoured on the demand: the goblin protected, the Ranger owes the save', mm?.chosen === true && (mm?.protected ?? []).length === 1 && String(mm.protected[0].uuid).endsWith(attacker.id) && (saves?.targets ?? []).some(t => t.uuid === ranger.uuid) && !(saves?.targets ?? []).some(t => String(t.uuid).endsWith(attacker.id)), JSON.stringify({ protected: mm?.protected, targets: names(saves?.targets) }));
       await closeDialogs();
       game.user.targets.forEach(t => { t.setTarget(false, { releaseOthers: false }); });
       await scatter();
-    }); else if (want(17)) ok('17. fixtures', false, 'BTB Test Ranger missing');
+    } else if (want(17)) ok('17. fixtures', false, 'BTB Test Ranger missing');
 
-    if (want(18) && rgrTok) await section(18, async () => {
+    if (want(18) && rgrTok) {
       await gather();
       // 18w. A template spell with creatures targeted still lists nobody: the pick waits for the area.
       game.user.targets.forEach(t => { t.setTarget(false, { releaseOthers: false }); });
       canvas.tokens.get(rgrTok.id)?.setTarget(true, { releaseOthers: true });
       canvas.tokens.get(attTok.id)?.setTarget(true, { releaseOthers: false });
-      await until(() => (game.user.targets.size === 2) && [rgrTok.id, attTok.id].every(id => [...game.user.targets].some(t => t.id === id)),
-        { label: 'the Ranger and the goblin targeted' });
+      await sleep(200);
       const w18 = await openWindow('Fireball', { consume: { spellSlot: false }, create: { measuredTemplate: false } });
-      // The group's change listener runs synchronously on the click.
-      rowsOf(w18.fs).find(r => r.key === 'careful')?.box?.click();
+      rowsOf(w18.fs).find(r => r.key === 'careful')?.box?.click(); await sleep(80);
       const ticksW = [...(w18.fs?.querySelectorAll('[data-bf-metamagic-row="careful"] input[name="bf-metamagic-protect"]') ?? [])];
       const marksW = [...(w18.fs?.querySelectorAll('[data-bf-metamagic-row="heightened"] input[name="bf-metamagic-mark"]') ?? [])];
       ok('18w. a template spell with two creatures targeted lists nobody in the window - Careful ticks none, Heightened radios none', ticksW.length === 0 && marksW.length === 0, JSON.stringify({ targeted: game.user.targets.size, ticks: ticksW.length, radios: marksW.length }));
@@ -752,7 +698,7 @@ const out = await f.evaluate(async ({ sections, titles, extra }) => {
       await closeDialogs();
       game.user.targets.forEach(t => { t.setTarget(false, { releaseOthers: false }); });
       const { app, fs } = await openWindow('Fireball', { consume: { spellSlot: false }, create: { measuredTemplate: false } });
-      rowsOf(fs).find(r => r.key === 'careful')?.box?.click();
+      rowsOf(fs).find(r => r.key === 'careful')?.box?.click(); await sleep(80);
       const ticks = [...(fs?.querySelectorAll('[data-bf-metamagic-row="careful"] input[name="bf-metamagic-protect"]') ?? [])];
       const names18 = ticks.map(t => t.dataset.name);
       ok('18x. with nobody targeted the window lists nobody — the pick waits for the area', ticks.length === 0, names18.join(','));
@@ -761,18 +707,16 @@ const out = await f.evaluate(async ({ sections, titles, extra }) => {
       const gone = await castArea('careful');
       ok('18y. the ask at the area lists exactly the four inside — never the Paladin or the Mage out on the range', gone.askRows?.length === 4 && !gone.askRows.some(r => /Paladin|Mage|Cleric|Rogue|Shielder/.test(r.name)), gone.why || gone.askRows?.map(r => r.name).join(','));
       await scatter();
-    }); else if (want(18)) ok('18. fixtures', false, 'BTB Test Ranger missing');
+    } else if (want(18)) ok('18. fixtures', false, 'BTB Test Ranger missing');
 
-    if (want(19)) await section(19, async () => {
+    if (want(19)) {
       const p19 = pool(); if (p19.system.uses.spent) await p19.update({ 'system.uses.spent': 0 });
       aimAtAttacker();
       // The real path: the default dialog config (configure undecided) must still open a cantrip's window.
       const act19 = spellAct('Fire Bolt');
       const pending19 = act19?.use({ consume: { spellSlot: false } }, {}, { create: true });
       pending19?.catch?.(() => {});
-      // Soft: whether the window opens at all is 19a's question, and its detail says which part was missing.
-      const app19 = await until(() => [...foundry.applications.instances.values()].find(a => /ActivityUsageDialog|UsageDialog/.test(a.constructor?.name ?? '') && a.element?.querySelector?.('[data-bf-metamagic-field]')) ?? null,
-        { timeout: 6000, label: 'Fire Bolt\'s casting window with the metamagic group' }).catch(() => null);
+      const app19 = await waitFor(() => [...foundry.applications.instances.values()].find(a => /ActivityUsageDialog|UsageDialog/.test(a.constructor?.name ?? '') && a.element?.querySelector?.('[data-bf-metamagic-field]')) ?? null, 6000);
       const fs19 = app19?.element?.querySelector('[data-bf-metamagic-field]') ?? null;
       ok('19a. Fire Bolt opens the casting window with the metamagic group (the system alone would have opened nothing)', !!act19 && !!fs19, JSON.stringify({ spell: !!act19, window: !!app19, group: !!fs19 }));
       const rows19 = rowsOf(fs19);
@@ -785,20 +729,19 @@ const out = await f.evaluate(async ({ sections, titles, extra }) => {
       const types19 = () => [...(fs19?.querySelectorAll('[data-bf-metamagic-row="transmuted"] input[name="bf-metamagic-type"]') ?? [])];
       const tRow = rows19.find(r => r.key === 'transmuted');
       const inert0 = types19().length > 0 && types19().every(r => r.disabled);
-      // The group's change listener frees and greys the radios synchronously on the click.
-      tRow?.box?.click();
+      tRow?.box?.click(); await sleep(80);
       const live1 = types19().every(r => !r.disabled);
-      tRow?.box?.click();
+      tRow?.box?.click(); await sleep(80);
       const inert2 = types19().every(r => r.disabled);
       ok('19d. the Transmuted type radios are greyed until Transmuted is ticked, live once it is, greyed again when it is not', inert0 && live1 && inert2, JSON.stringify({ radios: types19().length, inert0, live1, inert2 }));
       await app19?.close();
       await closeDialogs();
       game.user.targets.forEach(t => { t.setTarget(false, { releaseOthers: false }); });
-    });
+    }
 
     // ---- A SPELL THAT CHOOSES ITS TARGETS (RULINGS *Spells that choose their targets*): the PHB's
     // Slow for the run; a bare cast, then the area placed by hand, as §9.
-    if ((want(20) || want(21) || want(22)) && rgrTok && vicTok) await section('20-22', async () => {
+    if ((want(20) || want(21) || want(22)) && rgrTok && vicTok) {
       const SLOW_UUID = 'Compendium.dnd-players-handbook.spells.Item.phbsplSlow000000';
       let slow = sorc.items.find(i => (i.type === 'spell') && (i.name === 'Slow'));
       if (!slow) {
@@ -819,7 +762,7 @@ const out = await f.evaluate(async ({ sections, titles, extra }) => {
           flags: { dnd5e: { activity: card.getFlag(MOD, 'saves')?.activityUuid ?? spellAct('Slow').uuid } }
         }]);
         templates.push(tpl.id);
-        // The createRegion hook has already run when the create resolves; the re-render is the second road in.
+        await sleep(300);
         try { ui.chat?.updateMessage?.(card); } catch { /* the next render adopts */ }
       };
       /** A bare Slow — no window, or the window with a row ticked — and the card it makes. */
@@ -832,12 +775,9 @@ const out = await f.evaluate(async ({ sections, titles, extra }) => {
         }
         const before = new Set(game.messages.map(m => m.id));
         await spellAct('Slow')?.use({ consume: { spellSlot: false }, create: { measuredTemplate: false } }, { configure: false }, { create: true });
-        // Soft: every caller handles a cast that made no card.
-        return await until(() => game.messages.find(m => !before.has(m.id) && (m.type === 'usage') && m.system?.activity?.uuid === spellAct('Slow')?.uuid) ?? null,
-          { timeout: 8000, label: 'Slow\'s usage card' }).catch(() => null);
+        return await waitFor(() => game.messages.find(m => !before.has(m.id) && (m.type === 'usage') && m.system?.activity?.uuid === spellAct('Slow')?.uuid) ?? null, 8000);
       };
-      const askFor = card => until(() => { const d = popupFor(card.id, 'metamagicAsk'); return (d?.rendered && d.element?.querySelector?.('[data-bf-metamagic-ask="choose"]')) ? d : null; },
-        { timeout: 8000, label: 'the "who does Slow affect" ask' });
+      const askFor = card => waitFor(() => { const d = popupFor(card.id, 'metamagicAsk'); return (d?.rendered && d.element?.querySelector?.('[data-bf-metamagic-ask="choose"]')) ? d : null; }, 8000);
       const askRowsOf = el => [...(el?.querySelectorAll('input[name="bf-metamagic-ask"]') ?? [])].map(i => ({ name: i.dataset.name, uuid: i.value, checked: i.checked, el: i,
         mark: el.querySelector(`input[name="bf-metamagic-ask-mark"][data-mark-for="${CSS.escape(i.value)}"]`) }));
       const goblinIds = [attacker.id, victim.id];
@@ -854,26 +794,16 @@ const out = await f.evaluate(async ({ sections, titles, extra }) => {
         }
         // no Concentration standing from an earlier section: a cast past the dialog that would end it asks first (RULINGS *Summons*, call 18)
         // ⚠ ending it deletes the spell's area too (the system's own cascade), a beat later: wait it out, then sweep what is left
-        for (const a of [sorcTok.actor ?? sorc]) {
-          if (!a.concentration?.effects?.size) continue;
-          const dependents = [...a.concentration.effects].flatMap(e => e.getDependents?.() ?? [])
-            .filter(d => d instanceof foundry.abstract.Document).map(d => d.uuid);
-          await a.endConcentration().catch(() => {});
-          // Soft: the sweep below takes whatever the cascade left.
-          await until(() => !a.concentration?.effects?.size && dependents.every(u => !fromUuidSync(u)),
-            { timeout: 4000, label: 'the Concentration and its dependents gone' }).catch(() => null);
-        }
+        for (const a of [sorcTok.actor ?? sorc]) if (a.concentration?.effects?.size) { await a.endConcentration().catch(() => {}); await sleep(400); }
         const slowAct = spellAct('Slow')?.uuid;
-        const slowAreas = () => scene.regions.filter(r => slowAct && (r.getFlag('dnd5e', 'activity') === slowAct)).map(r => r.id);
-        const old = slowAreas();
+        const old = scene.regions.filter(r => slowAct && (r.getFlag('dnd5e', 'activity') === slowAct)).map(r => r.id);
         if (old.length) await scene.deleteEmbeddedDocuments('Region', old.filter(id => scene.regions.get(id))).catch(() => {});
-        // Soft, as the delete above: a section that finds an area standing reads both.
-        await until(() => !slowAreas().length, { timeout: 2000, label: 'no Slow area standing' }).catch(() => null);
+        await sleep(300);
       };
       try {
         if (!slow) ok('20. the PHB Slow could not be added to the Sorcerer', false, SLOW_UUID);
 
-        if (want(20) && slow) await section(20, async () => {
+        if (want(20) && slow) {
           await gather();
           await freshen();
           await set('saveTimer', 0);
@@ -884,12 +814,10 @@ const out = await f.evaluate(async ({ sections, titles, extra }) => {
           ok('20a2. …and stays live on Fireball, which chooses nobody', await (async () => { await w.app?.close(); await closeDialogs(); const f = await openWindow('Fireball', { consume: { spellSlot: false }, create: { measuredTemplate: false } }); const r = rowsOf(f.fs).find(x => x.key === 'careful'); await f.app?.close(); await closeDialogs(); return !!r && !r.off; })(), '');
           const opened0 = holdsOpened.length;
           const card = await castSlow();
-          // Soft: 20b's detail reports a demand that never stamped.
-          const saves0 = card ? await until(() => card.getFlag(MOD, 'saves') ?? null, { timeout: 6000, label: 'Slow\'s demand stamped' }).catch(() => null) : null;
+          const saves0 = card ? await waitFor(() => card.getFlag(MOD, 'saves') ?? null, 6000) : null;
           const areaHold = holdsOpened.slice(opened0).find(h => h.reason === 'area-choice');
           // The stamp lowers it in its `finally`, a beat after the demand is written — waited for, not read once.
-          const lowered = await until(() => ((mod.api?.holdFor?.(spellAct('Slow')?.uuid) ?? null) === null) ? true : null,
-            { timeout: 4000, label: 'the chosen area\'s hold lowered' });
+          const lowered = await waitFor(() => ((mod.api?.holdFor?.(spellAct('Slow')?.uuid) ?? null) === null) ? true : null, 4000);
           ok('20h. the cast raised the chosen area\'s hold for the picture, and the stamp lowered it once no question stood', !!areaHold && lowered === true, JSON.stringify({ raised: holdsOpened.slice(opened0).map(h => h.reason), lowered }));
           // The cube over the Sorcerer, the Ranger and both goblins.
           await placeRect(card, sorcTok.x - g, sorcTok.y - (2 * g), 4 * g, 4 * g);
@@ -901,38 +829,33 @@ const out = await f.evaluate(async ({ sections, titles, extra }) => {
             `rows=${rows.map(r => `${r.name}:${r.checked}`).join(',')} heldEmpty=${heldEmpty} saves=${!!saves0}`);
           const title = ask?.element?.textContent?.replace(/\s+/g, ' ') ?? '';
           ok('20c. it asks in the spell\'s own words — "Who does Slow affect? Up to 6." and the sentence that grants the choice', /Who does Slow affect\? Up to 6\./.test(title) && /up to six creatures of your choice/.test(title), title.slice(0, 160));
-          const cardAsk = await until(() => document.querySelector(`[data-message-id="${card.id}"] .bf-metamagic-ask`)?.textContent?.trim() ?? null,
-            { timeout: 4000, label: 'the ask\'s line on Slow\'s card' });
+          const cardAsk = await waitFor(() => document.querySelector(`[data-message-id="${card.id}"] .bf-metamagic-ask`)?.textContent?.trim() ?? null, 4000);
           ok('20d. the card says what it waits on, not "waiting for the template\'s area"', /Slow — who does it affect\?/.test(cardAsk ?? '') && !/waiting for the template/.test(document.querySelector(`[data-message-id="${card.id}"]`)?.textContent ?? ''), cardAsk);
           ask?.element?.querySelector('button[data-action="ok"]')?.click();
-          const filled = await until(() => { const f2 = card.getFlag(MOD, 'saves'); return (f2?.targets?.length) ? f2 : null; },
-            { timeout: 8000, label: 'Slow\'s demand filled' });
+          const filled = await waitFor(() => { const f2 = card.getFlag(MOD, 'saves'); return (f2?.targets?.length) ? f2 : null; }, 8000);
           ok('20e. OK → the goblins owe the save and the Ranger does not', filled?.targets?.length === 2 && filled.targets.every(t => isGoblin(t.uuid)), names(filled?.targets));
           const record = card.getFlag(MOD, 'areaChoice');
           ok('20f. the choice rides the card, asked, the Ranger left out', record?.asked === true && record.chosen?.length === 2 && record.left?.some(c => c.name === 'BTB Test Ranger') && record.cap === 6, JSON.stringify(record ? { asked: record.asked, chosen: names(record.chosen), left: names(record.left), cap: record.cap } : null));
           const line = await renderedLine(card, 'bf-area-choice');
           ok('20g. the card line names the chosen and the not chosen', /Slow — chosen: .*not chosen: BTB Test Ranger/.test(line ?? ''), line);
           ok('20i. an answered choice publishes one "choice" moment, the chosen as its targets', moments.some(p => (p.kind === 'areaChoice') && (p.event === 'choice') && (p.targets?.length === 2)), moments.filter(p => p.kind === 'areaChoice').map(p => `${p.event}:${p.targets?.length}`).join(',') || 'none');
-          // The window: no save ask opens for the Ranger.
-          const rangerAsk = await watch(() => savePopups().map(demandText).some(t => /BTB Test Ranger/.test(t)), { ms: 600 });
+          await sleep(600);
           const asks = savePopups().map(demandText);
-          ok('20j. save asks open for the goblins, none for the Ranger', !rangerAsk && !asks.some(t => /BTB Test Ranger/.test(t)), asks.map(t => t.replace(/\s+/g, ' ').trim().slice(0, 50)).join(' | '));
+          ok('20j. save asks open for the goblins, none for the Ranger', !asks.some(t => /BTB Test Ranger/.test(t)), asks.map(t => t.replace(/\s+/g, ' ').trim().slice(0, 50)).join(' | '));
           await closeDialogs();
-        });
+        }
 
-        if (want(21) && slow) await section(21, async () => {
+        if (want(21) && slow) {
           await gather();
           await freshen();
           await set('saveTimer', 0);
           const before = moments.filter(p => p.kind === 'areaChoice').length;
           const card = await castSlow();
-          // Soft: the area falls back to Slow's activity.
-          await until(() => card?.getFlag(MOD, 'saves') ?? null, { timeout: 6000, label: 'Slow\'s demand stamped' }).catch(() => null);
+          await waitFor(() => card?.getFlag(MOD, 'saves') ?? null, 6000);
           // The cube over the two goblins alone. ⚠ Inset from the squares' edges: containment samples
           // a token's edges (geometry.js), so a side lying ON a neighbour's edge holds it too.
           await placeRect(card, sorcTok.x + 6, sorcTok.y - g + 6, (2 * g) - 12, g - 12);
-          const filled = await until(() => { const f2 = card.getFlag(MOD, 'saves'); return (f2?.targets?.length) ? f2 : null; },
-            { timeout: 8000, label: 'Slow\'s demand filled' });
+          const filled = await waitFor(() => { const f2 = card.getFlag(MOD, 'saves'); return (f2?.targets?.length) ? f2 : null; }, 8000);
           const askFlag = card.getFlag(MOD, 'metamagicAsk');
           const asked = !!popupFor(card.id, 'metamagicAsk') || (askFlag?.kind === 'choose');
           ok('21a. every creature in the area hostile and within six — no question; the goblins owe the save', !asked && filled?.targets?.length === 2 && filled.targets.every(t => isGoblin(t.uuid)), `asked=${asked} listed=${(askFlag?.candidates ?? []).map(c => `${c.name}(${c.disposition})`).join(',')} targets=${names(filled?.targets)}`);
@@ -940,17 +863,16 @@ const out = await f.evaluate(async ({ sections, titles, extra }) => {
           ok('21b. the default is written as the choice, not asked, and the card says who', record?.asked === false && record.chosen?.length === 2 && /Slow — chosen: /.test((await renderedLine(card, 'bf-area-choice')) ?? ''), JSON.stringify(record ? { asked: record.asked, chosen: names(record.chosen) } : null));
           ok('21c. a default nobody chose publishes no choice moment', moments.filter(p => p.kind === 'areaChoice').length === before, '');
           await closeDialogs();
-        });
+        }
 
-        if (want(22) && slow) await section(22, async () => {
+        if (want(22) && slow) {
           await gather();
           await freshen();
           await set('saveTimer', 0);
           game.user.targets.forEach(t => { t.setTarget(false, { releaseOthers: false }); });
           const card = await castSlow('heightened');
           if (card) {
-            // Soft: the area falls back to Slow's activity.
-            await until(() => card.getFlag(MOD, 'saves') ?? null, { timeout: 6000, label: 'Slow\'s demand stamped' }).catch(() => null);
+            await waitFor(() => card.getFlag(MOD, 'saves') ?? null, 6000);
             await placeRect(card, sorcTok.x - g, sorcTok.y - (2 * g), 4 * g, 4 * g);
             const ask = await askFor(card);
             const rows = askRowsOf(ask?.element);
@@ -959,26 +881,25 @@ const out = await f.evaluate(async ({ sections, titles, extra }) => {
             ok('22a. ONE popup: the choice ticks with a Disadvantage radio on each row — live on the ticked goblins, dead on the unticked Ranger, the first goblin marked',
               rows.length === 3 && !!ranger22 && ranger22.mark?.disabled === true && goblins.every(r => r.mark && !r.mark.disabled) && goblins[0]?.mark?.checked === true,
               rows.map(r => `${r.name}:${r.checked}/${r.mark ? (r.mark.disabled ? 'dead' : (r.mark.checked ? 'marked' : 'live')) : 'none'}`).join(','));
-            // The mark is a plain radio: OK reads it as it stands.
             goblins[1]?.mark?.click();
+            await sleep(80);
             ask?.element?.querySelector('button[data-action="ok"]')?.click();
-            const filled = await until(() => { const f2 = card.getFlag(MOD, 'saves'); return (f2?.targets?.length) ? f2 : null; },
-              { timeout: 8000, label: 'Slow\'s demand filled' });
+            const filled = await waitFor(() => { const f2 = card.getFlag(MOD, 'saves'); return (f2?.targets?.length) ? f2 : null; }, 8000);
             const mm = card.getFlag(MOD, 'metamagic');
             ok('22b. the second goblin is marked on the demand and the record, the goblins owe the save, the Ranger does not',
               filled?.demand?.heightened?.uuid === goblins[1]?.uuid && mm?.chosen === true && mm?.target?.uuid === goblins[1]?.uuid && filled?.targets?.length === 2 && filled.targets.every(t => isGoblin(t.uuid)),
               JSON.stringify({ mark: filled?.demand?.heightened?.name, target: mm?.target?.name, targets: names(filled?.targets) }));
           }
           await closeDialogs();
-        });
+        }
       } finally {
         Hooks.off('bythebooks.moment', momentHook);
         Hooks.off('bythebooks.holdOpened', holdHook);
         await scatter();
       }
-    }); else if (want(20) || want(21) || want(22)) ok('20-22. fixtures', false, 'BTB Test Ranger or BTB Test Victim missing');
+    } else if (want(20) || want(21) || want(22)) ok('20-22. fixtures', false, 'BTB Test Ranger or BTB Test Victim missing');
 
-    if (want(23)) await section(23, async () => {
+    if (want(23)) {
       const pack23 = game.packs.get('dnd-players-handbook.feats');
       const src23 = pack23 ? (await pack23.getIndex()).find(e => e.name === 'Elemental Adept') : null;
       const data23 = src23 ? (await pack23.getDocument(src23._id)).toObject() : null;
@@ -987,56 +908,52 @@ const out = await f.evaluate(async ({ sections, titles, extra }) => {
         delete data23._id;
         data23.name = 'Elemental Adept (Fire)';   // typed at birth: no type pick
         const [adept] = await sorc.createEmbeddedDocuments('Item', [data23]);
+        const realPRNG23 = CONFIG.Dice.randomUniform;
+        const pin = (values, faces) => { let i = 0; CONFIG.Dice.randomUniform = () => 1 - ((values[Math.min(i++, values.length - 1)] - 0.5) / faces); };
         try {
           await set('holdTimer', 0);
           const p = pool(); if (p.system.uses.spent) await p.update({ 'system.uses.spent': 0 });
-          // The floor rides the feat on the sheet, the offer the pool's points.
-          await until(() => !!sorc.items.get(adept.id) && !pool().system.uses.spent, { label: 'the feat on the sheet and the pool full' });
+          await sleep(600);
           aimAtAttacker();
           const before = new Set(game.messages.map(m => m.id));
           await spellAct('Fire Bolt').use({ create: { measuredTemplate: false } }, { configure: false }, {});
-          const card = await until(() => game.messages.find(m => !before.has(m.id) && (m.type === 'usage')) ?? null,
-            { timeout: 6000, label: 'Fire Bolt\'s usage card' });
+          const card = await waitFor(() => game.messages.find(m => !before.has(m.id) && (m.type === 'usage')) ?? null, 6000);
           await closeDialogs();
-          faces([[1, 10], [7, 10]]);
+          pin([1, 7], 10);
           await spellAct('Fire Bolt').rollDamage({}, { configure: false }, { data: { 'system.origin': card?.id } });
-          unrig();
-          const dmg = await until(() => game.messages.find(m => !before.has(m.id) && m.type === 'damage' && (emp(m)?.status === 'pending')) ?? null,
-            { timeout: 8000, label: 'Fire Bolt\'s damage offered Empowered' });
+          CONFIG.Dice.randomUniform = realPRNG23;
+          const dmg = await waitFor(() => game.messages.find(m => !before.has(m.id) && m.type === 'damage' && (emp(m)?.status === 'pending')) ?? null, 8000);
           const flag = emp(dmg);
           const lifted = (flag?.dice ?? []).find(d => d.rolled === 1);
           ok('23a. the floored die reads what it COUNTS: 2 (rolled 1), the total 9',
             !!lifted && (lifted.result === 2) && (dmg?.rolls?.[0]?.total === 9) && (flag?.oldTotal === 9),
             `dice=${JSON.stringify(flag?.dice?.map(d => ({ r: d.result, rolled: d.rolled })))} total=${dmg?.rolls?.[0]?.total} old=${flag?.oldTotal}`);
-          // The popup opens after the dramatic verdict pause (§16).
-          const popup = await until(() => { const d = popupFor(dmg?.id, 'diceChange'); return (d?.rendered && d.element?.querySelector?.('[data-bf-dice-chips]')) ? d : null; },
-            { timeout: 12000, label: 'the Empowered popup on Fire Bolt' });
+          const popup = await waitFor(() => { const d = popupFor(dmg?.id, 'diceChange'); return (d?.rendered && d.element?.querySelector?.('[data-bf-dice-chips]')) ? d : null; }, 12000);
           const chip = popup?.element?.querySelector(`[data-bf-die="${lifted?.key}"]`);
           ok('23b. the chip shows 2, its tooltip says rolled 1', (chip?.textContent?.trim() === '2') && /rolled 1, counts 2/.test(chip?.dataset?.tooltip ?? ''),
             `text=${chip?.textContent?.trim()} tooltip=${chip?.dataset?.tooltip}`);
-          // The chip toggles and the buttons follow synchronously on the click.
-          chip?.click();
-          faces([[1, 10]]);
+          chip?.click(); await sleep(50);
+          pin([1], 10);
           popup?.element?.querySelector('button[data-action="apply"]')?.click();
-          const used = await until(() => { const f2 = emp(dmg); return f2?.status === 'used' ? f2 : null; }, { timeout: 12000, label: 'the Empowered reroll used' });
-          unrig();
+          const used = await waitFor(() => { const f2 = emp(dmg); return f2?.status === 'used' ? f2 : null; }, 12000);
+          CONFIG.Dice.randomUniform = realPRNG23;
           const roll = game.messages.get(dmg.id)?.rolls?.[0];
           ok('23c. rerolled into another 1, the die still counts 2: the pick 2 → 2 (face 1), the total stands at 9',
             !!used && (used.picks?.[0]?.old === 2) && (used.picks?.[0]?.new === 2) && (used.picks?.[0]?.face === 1) && (roll?.total === 9) && (used.newTotal === 9),
             `picks=${JSON.stringify(used?.picks)} total=${roll?.total} new=${used?.newTotal}`);
         } finally {
-          unrig();
+          CONFIG.Dice.randomUniform = realPRNG23;
           await closeDialogs();
           game.user.targets.forEach(t => { t.setTarget(false, { releaseOthers: false }); });
           await sorc.deleteEmbeddedDocuments('Item', [adept.id]).catch(() => {});
         }
       }
-    });
+    }
 
-    if (want(8)) await section(8, async () => {
+    if (want(8)) {
       ok('8a. renderActivityUsageDialog fired', count('renderActivityUsageDialog') > 0, `count=${count('renderActivityUsageDialog')}`);
       ok('8b. dnd5e.postUseActivity fired', count('dnd5e.postUseActivity') > 0, `count=${count('dnd5e.postUseActivity')}`);
-    });
+    }
 
     const bf = errors.filter(e => /By the Books/.test(e) && !/deprecat/i.test(e));
     ok('no By the Books errors or warnings during the run', bf.length === 0, bf.slice(0, 3).join(' | '));
