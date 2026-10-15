@@ -62,7 +62,6 @@ const CEILING = {
   "smoke-guards": 11,
   "smoke-heal": 7,
   "smoke-hitmenu": 13,
-  "smoke-hold": 45,
   "smoke-lucky": 12,
   "smoke-maneuvers": 31,
   "smoke-metamagic": 40,
@@ -85,7 +84,7 @@ const STANDING = new Set([
   "smoke-class-ranger", "smoke-class-rogue", "smoke-class-sorcerer", "smoke-class-warlock",
   "smoke-class-wizard", "smoke-companions", "smoke-damage-rules", "smoke-drop", "smoke-effects",
   "smoke-familiar", "smoke-gear-lights", "smoke-goliath", "smoke-guards", "smoke-heal",
-  "smoke-hitmenu", "smoke-hold", "smoke-lucky", "smoke-maneuvers", "smoke-metamagic", "smoke-nogm",
+  "smoke-hitmenu", "smoke-lucky", "smoke-maneuvers", "smoke-metamagic", "smoke-nogm",
   "smoke-reminders", "smoke-resources", "smoke-riders", "smoke-saves", "smoke-shields",
   "smoke-spells", "smoke-surfaces", "smoke-twoclient"
 ]);
