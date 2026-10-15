@@ -3,8 +3,8 @@
  * dialog wearing the demand's fieldset, the straight roll, and the buzzer. index.js is the
  * directory's only public face.
  */
-import { MODULE_ID, readFlag, TITLE, queueFlagWrite } from "../core.js";
-import { namesAnswering, resolveUuid } from "../lookup.js";
+import { MODULE_ID, readFlag, TITLE, queueFlagWrite, resolveUuid, resolveUuidAsync } from "../core.js";
+import { namesAnswering } from "../lookup.js";
 import { rollConfigFor } from "../shared.js";
 import { popupKey, bfCard, holdBarHTML } from "../decide/present.js";
 import { adoptManagedPopup, DialogCarried, scheduleBarSync, armAskTimer, disarmAskTimer, electOwns, closePopup, frontPopup } from "../ui.js";
@@ -48,7 +48,7 @@ async function rollSaveAnswer(card, uuid, { mode = null, bonus = null, timedOut 
   try {
     const owed = saveStillOwed(card, uuid);
     if ( !owed ) return;
-    const actor = await fromUuid(uuid);
+    const actor = await resolveUuidAsync(uuid);
     if ( !(actor instanceof Actor) || !actor.isOwner ) return;
     await actor.rollSavingThrow(
       { ability: owed.flag.abilities[0], target: owed.flag.dc, ...rollConfigFor(mode, bonus) },
@@ -77,7 +77,7 @@ export async function openSaveDialog(card, uuid) {
   try {
     const owed = saveStillOwed(card, uuid);
     if ( !owed ) return;
-    const actor = await fromUuid(uuid);
+    const actor = await resolveUuidAsync(uuid);
     if ( !(actor instanceof Actor) || !actor.isOwner ) return;
     const demand = new DialogCarried({ cardId: card.id, uuid, failed: null, succeeded: null });
     const rolls = await actor.rollSavingThrow(
@@ -187,7 +187,7 @@ async function rollWithoutAsking(card, flag, actor, uuid, { timedOut = false } =
 export async function rollSaveItself(card, uuid) {
   const flag = readFlag(card, "saves");
   if ( !flag || (flag.status !== "pending") ) return;
-  const actor = await fromUuid(uuid).catch(() => null);
+  const actor = await resolveUuidAsync(uuid);
   if ( !(actor instanceof Actor) ) return;
   await rollWithoutAsking(card, flag, actor, uuid);
 }
@@ -203,7 +203,7 @@ async function fireSaveTimer(card) {
       && (readFlag(m, "saveFor") === entry.uuid));
     if ( landed ) { void foldSaveAnswer(card, entry.uuid, landed); continue; }
     // A target that no longer exists is voided, or the demand sits pending forever.
-    const actor = await fromUuid(entry.uuid).catch(() => null);
+    const actor = await resolveUuidAsync(entry.uuid);
     if ( !(actor instanceof Actor) ) {
       // ⚠ Through the serializer: the loop writes the same card once per vanished target.
       let goneName = null;

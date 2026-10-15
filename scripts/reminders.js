@@ -3,8 +3,8 @@
  * BEFORE the dice; plus the attack's cover (measured, or ignored by a feat). EDGE layer
  * (ARCHITECTURE.md §7). RULINGS *The gate before the roll*.
  */
-import { MODULE_ID, readFlag, TITLE, activeCombatFor, statContext, sheetModeEffects, rollLabelFor, canApplyTo, whisperNoGM } from "./core.js";
-import { featureNamed, isWorn, lower, namesAnswering, resolveUuid } from "./lookup.js";
+import { MODULE_ID, readFlag, TITLE, activeCombatFor, statContext, sheetModeEffects, rollLabelFor, canApplyTo, whisperNoGM, resolveUuid } from "./core.js";
+import { featureNamed, isWorn, lower, namesAnswering } from "./lookup.js";
 import { damagedSince } from "./decide/turn-grants.js";
 import { conditionEntries, effectEntries, reminderEntries } from "./decide/registry.js";
 import { chipSpentOnRecord, grantingActor, turnChitStands, chipKindOf, effectSourceUuid, metamagicOf, savesOf } from "./shared.js";

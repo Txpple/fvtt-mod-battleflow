@@ -2,8 +2,8 @@
  * By the Books — the cast path: the caster's flow elect lands a stamped cast's utility effects and
  * healing, with receipts, and asks the caster's EFFECT_CHOICES pick.
  */
-import { MODULE_ID, readFlag, TITLE, canAnswerFor, canApplyTo, drivesMomentFor, queueFlagWrite, whisperNoGM } from "./core.js";
-import { activityNamed, cardActivity, cardItem, featureNamed, lower, resolveUuid } from "./lookup.js";
+import { MODULE_ID, readFlag, TITLE, canAnswerFor, canApplyTo, drivesMomentFor, queueFlagWrite, whisperNoGM, resolveUuid, writableTargets } from "./core.js";
+import { activityNamed, cardActivity, cardItem, featureNamed, lower } from "./lookup.js";
 import { chipData, damagePartsOf, statSourceOf } from "./shared.js";
 import { bfCard, esc, ruleLine } from "./decide/present.js";
 import { effectsAfterChoice, effectsAfterPick, slotHours } from "./decide/choices.js";
@@ -40,9 +40,7 @@ async function executeCastApply(message) {
     if ( !effects.length ) return;
     // Apply what this client MAY; the driver is told the rest (core.js "THE FLOW ELECT"). The marker
     // still writes, so a rejoining GM re-pays nothing.
-    const writable = payload.targets.filter(t => {
-      try { return canApplyTo(fromUuidSync(t.uuid)); } catch { return false; }
-    });
+    const writable = writableTargets(payload.targets);
     const blocked = payload.targets.filter(t => !writable.includes(t));
     if ( blocked.length ) {
       await whisperNoGM(`${effects.map(e => e.name).join(", ")} on ${blocked.map(t => t.name).join(", ")}`,
@@ -280,7 +278,7 @@ async function showChoicePopup(card) {
 
 /** Who picks: the caster (its card's actor), else the first target (a self cast's). A curse on a foe is the caster's pick. */
 const chooserOf = (card, payload) => card.getAssociatedActor?.()
-  ?? (payload.targets?.[0]?.uuid ? fromUuidSync(payload.targets[0].uuid) : null);
+  ?? (payload.targets?.[0]?.uuid ? resolveUuid(payload.targets[0].uuid) : null);
 
 /** The length of a word prefix every option shares ("Hexed "), so a button reads "Strength"; 0 when none. */
 function sharedPrefix(options) {

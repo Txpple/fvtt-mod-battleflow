@@ -3,8 +3,7 @@
  * ask, the reminders and the Cleave arm. topple.js owns the `topple` flag's lifecycle;
  * chip-spend.js owns the spend, the expiry tidy and the combat sweep.
  */
-import { MODULE_ID, readFlag, TITLE, S, setting, drivesMomentFor, canApplyTo, whisperNoGM, queueFlagWrite, canAnswerFor, combatStamp, activeCombatFor, statContext, decisionWindow } from "./core.js";
-import { resolveUuid } from "./lookup.js";
+import { MODULE_ID, readFlag, TITLE, S, setting, drivesMomentFor, canApplyTo, whisperNoGM, queueFlagWrite, canAnswerFor, combatStamp, activeCombatFor, statContext, decisionWindow, resolveUuid, resolveUuidAsync, writableTargets } from "./core.js";
 import { effectRecord, joinEffectReceipt, takenOf } from "./decide/receipt.js";
 import { MASTERY_KINDS, MASTERY_NATIVE, MASTERY_RULES } from "./decide/registry.js";
 import { CHIP_FLAG, chipClock, chipIsDead } from "./decide/chips.js";
@@ -89,7 +88,7 @@ export async function resolveHitMastery(damageMessage, attackMessage, hits, { pi
     // The dead are skipped — except for Cleave, where a kill is exactly when it matters.
     const struck = [];
     for ( const t of hits ) {
-      const actor = await fromUuid(t.uuid);
+      const actor = await resolveUuidAsync(t.uuid);
       if ( actor instanceof Actor ) struck.push({ uuid: t.uuid, name: t.name, actor });
     }
     const live = struck.filter(t => (t.actor.system.attributes?.hp?.value ?? 0) > 0);
@@ -157,7 +156,7 @@ async function resolveMissMastery(attackMessage) {
     const missed = [];
     for ( const t of targetsOf(attackMessage) ) {
       if ( hitSet.has(t.uuid) ) continue;
-      const actor = await fromUuid(t.uuid);
+      const actor = await resolveUuidAsync(t.uuid);
       if ( (actor instanceof Actor) && ((actor.system.attributes?.hp?.value ?? 0) > 0) )
         missed.push({ uuid: t.uuid, name: t.name });
     }
@@ -192,9 +191,8 @@ async function applyMasteryEffect(receiptMessage, ctx, key, targets) {
   const def = MASTERY_EFFECTS[key];
   if ( !def ) return;
   // ⚠ With no GM connected the chip cannot be written; the reminder card still posts.
-  const blocked = targets.filter(t => {
-    try { return !canApplyTo(t.actor ?? fromUuidSync(t.uuid)); } catch { return true; }
-  });
+  const writable = writableTargets(targets);
+  const blocked = targets.filter(t => !writable.includes(t));
   if ( blocked.length === targets.length ) {
     return whisperNoGM(`the ${masteryLabel(key)} chip on ${blocked.map(t => t.name).join(", ")}`,
       "The reminder card still stands, and the gate still meets the next roll.");
@@ -207,7 +205,7 @@ async function applyMasteryEffect(receiptMessage, ctx, key, targets) {
   const context = statContext(ctx.attacker.uuid); // the data-plane stamp, once per payout
   const entries = [];
   for ( const t of targets ) {
-    const actor = (t.actor instanceof Actor) ? t.actor : await fromUuid(t.uuid);
+    const actor = (t.actor instanceof Actor) ? t.actor : await resolveUuidAsync(t.uuid);
     if ( !(actor instanceof Actor) ) continue;
 
     // Sweep dead chips first: an expired chip stays under Unavailable Effects and hides the live one.
@@ -315,9 +313,7 @@ async function pushCard(ctx, targets) {
 async function grazePayout(attackMessage, ctx, targets) {
   const mod = ctx.attacker.system.abilities?.[ctx.ability]?.mod ?? 0;
   if ( mod <= 0 ) return;
-  const writable = targets.filter(t => {
-    try { return canApplyTo(fromUuidSync(t.uuid)); } catch { return false; }
-  });
+  const writable = writableTargets(targets);
   if ( !writable.length ) {
     return whisperNoGM(`Graze's ${mod} damage to ${targets.map(t => t.name).join(", ")}`,
       "Apply it by hand — the miss still pays under the rule.");

@@ -3,7 +3,7 @@
  * By the Books — the reaction hold: THE VIEWS. The durable card row (with the reload resumes) and the
  * popups. The row renders below ui.js's damage-offer bar (dispatch.js ORDER).
  */
-import { readFlag, TITLE, S, setting, canAnswerFor, isContinuingClient } from "../core.js";
+import { readFlag, TITLE, S, setting, canAnswerFor, isContinuingClient, resolveUuid, resolveUuidAsync } from "../core.js";
 import { INTERRUPT_REDUCTIONS, INTERRUPT_ROLLS } from "../decide/registry.js";
 import { bfCard, holdBarHTML, ruleLine, spendLine, spendPhrase, tickRowsHTML, esc } from "../decide/present.js";
 import { bentLines, d20ModeOf, dieMaxOf, futileGuardLine, guardRow, guardSign, liveRows, neededOnDieLine, neutraliseOutcome, rescueTitle } from "../decide/rescue-hit.js";
@@ -13,7 +13,7 @@ import { openMomentPopup, momentButton, pendingRow, forgetShown, choicePopup, pi
 import { reactionItem, reactionImg, reactionACBonus, rescueRowsNow } from "./lookup.js";
 import { armHoldTimer } from "./clock.js";
 import { answerHold, castReaction, rescueReaction, protectReaction, bystanderReaction, muteAndPass, useAtZero } from "./answer.js";
-import { resolveUuid, activityNamed, d20FactsOf } from "../lookup.js";
+import { activityNamed, d20FactsOf } from "../lookup.js";
 import { continueHold } from "./continue.js";
 import { SURFACES } from "../surfaces.js";
 import { listen } from "../dispatch.js";
@@ -86,7 +86,7 @@ listen("dnd5e.renderChatMessage", "hold/views", (message, html) => {
     row.append(block);
 
     // The card is the PUBLIC record: everyone sees the same thing.
-    void fromUuid(target.uuid).then(actor => {
+    void resolveUuidAsync(target.uuid).then(actor => {
       const roll = message.rolls[0];
       // A spell hold has no d20, so no math to reveal.
       const spell = hold.trigger === "spell";
@@ -397,7 +397,7 @@ async function showHoldPopup(attackMessage, hold) {
   for ( const target of hold.targets ) {
     // Reopening an answered target would produce a second "passes" card.
     if ( target.answer ) continue;
-    const actor = await fromUuid(target.uuid);
+    const actor = await resolveUuidAsync(target.uuid);
     // Each unanswered guard (Protection) gets a popup of its own.
     for ( const guard of (target.guards ?? []) ) {
       if ( guard.passed ) continue;

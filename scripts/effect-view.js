@@ -5,7 +5,7 @@
  * the ONE interactive surface, whose chip folds offer Remove, Disable or Clear to an owner.
  * ⚠ It writes nothing of its own: a fold's click goes through the platform's own permission.
  */
-import { MODULE_ID, TITLE, isActiveGM, S, setting } from "./core.js";
+import { MODULE_ID, TITLE, isActiveGM, S, setting, resolveUuid } from "./core.js";
 import { allRows, drawnAlways, drawsOnToken, everyRow, marksHeldBy, panelGroups, rowAction } from "./decide/effect-view.js";
 import { EMANATIONS, RANGE_FEATS, answers, tableIndex } from "./decide/registry.js";
 import { measuredCoverBetween } from "./geometry.js";
@@ -37,7 +37,7 @@ function hostileOriginOf(effect) {
   try {
     const bearer = (effect.parent instanceof Actor) ? effect.parent : effect.parent?.actor ?? null;
     if ( !bearer || !effect.origin ) return null;
-    const origin = fromUuidSync(effect.origin, { strict: false });
+    const origin = resolveUuid(effect.origin);
     const source = (origin instanceof Actor) ? origin : (origin?.actor instanceof Actor ? origin.actor : null);
     if ( !source || (source === bearer) ) return source ? false : null;
     const a = sideOf(bearer), b = sideOf(source);
@@ -335,7 +335,7 @@ function closeFolds(bar) {
 
 /** The actor the bar is drawn for — re-read at click time, never cached across draws. */
 function barActorNow(bar) {
-  const a = bar.dataset.actor ? fromUuidSync(bar.dataset.actor) : null;
+  const a = bar.dataset.actor ? resolveUuid(bar.dataset.actor) : null;
   return (a instanceof Actor) ? a : barActor();
 }
 

@@ -3,8 +3,8 @@
  * is rerolled automatically, never a choice (DESIGN R1). The roll is born `healReroll` DUE and the
  * heal applier waits, so healing lands ONCE; a pack's own `r1` is taken off. A second 1 stands.
  */
-import { MODULE_ID, readFlag, TITLE, statContext, queueFlagWrite, drivesMomentFor, canAnswerFor } from "./core.js";
-import { lower, featureNamed, resolveUuid, activityNamed, cardActivity } from "./lookup.js";
+import { MODULE_ID, readFlag, TITLE, statContext, queueFlagWrite, drivesMomentFor, canAnswerFor, resolveUuid } from "./core.js";
+import { lower, featureNamed, activityNamed, cardActivity } from "./lookup.js";
 import { healRerollEntries, listedNames } from "./decide/registry.js";
 import { rebuildRolls, withTargets } from "./shared.js";
 import { nearestFeet, tokenOfActor } from "./geometry.js";

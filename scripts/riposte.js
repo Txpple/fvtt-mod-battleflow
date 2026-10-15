@@ -2,8 +2,8 @@
  * By the Books — MACHINE (ARCHITECTURE.md §7): Riposte, the `riposte` fold. An enemy's melee miss
  * answered with a real driven attack, the superiority die riding its damage (why a fold: precision.js).
  */
-import { MODULE_ID, readFlag, TITLE, isActiveGM, queueFlagWrite, canAnswerFor, statContext, decisionWindow } from "./core.js";
-import { cardActivity, resolveUuid, usableManeuver, maneuverDieFormula, meleeOptions, preferredMeleeOption } from "./lookup.js";
+import { MODULE_ID, readFlag, TITLE, isActiveGM, queueFlagWrite, canAnswerFor, statContext, decisionWindow, resolveUuid, resolveUuidAsync } from "./core.js";
+import { cardActivity, usableManeuver, maneuverDieFormula, meleeOptions, preferredMeleeOption } from "./lookup.js";
 import { maneuverFoldEntries } from "./decide/registry.js";
 import { RULE_TEXT } from "./decide/registry.js";
 import { hitTargets, reactionSpent, spendReaction } from "./shared.js";
@@ -39,7 +39,7 @@ listen("createChatMessage", "riposte", async message => {
     const reactors = [];
     for ( const t of targetsOf(message) ) {
       if ( hitSet.has(t.uuid) ) continue;
-      const actor = await fromUuid(t.uuid).catch(() => null);
+      const actor = await resolveUuidAsync(t.uuid);
       if ( !(actor instanceof Actor) ) continue;
       if ( (actor.system.attributes?.hp?.value ?? 0) <= 0 ) continue;  // the dead don't riposte
       if ( actor.uuid === attacker.uuid ) continue;
@@ -167,7 +167,7 @@ async function resolveRiposte(message, uuid, weaponId, { trusted = false } = {})
     if ( !reactor ) return;
     if ( !trusted && (reactor.answer !== "riposte") ) return;
     if ( riposteDriven(message.id, uuid) ) return;   // idempotent — the attack already exists
-    const actor = await fromUuid(uuid);
+    const actor = await resolveUuidAsync(uuid);
     if ( !(actor instanceof Actor) ) return;
     const attackerToken = canvas.tokens?.placeables?.find(t => t.actor?.uuid === flag.attackerUuid);
 

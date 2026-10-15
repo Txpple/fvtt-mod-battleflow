@@ -3,10 +3,10 @@
  * offered before the dice, grouped by the feature that pays; the die rides the roll, the pool is
  * spent, a save goes through the saves machine.
  */
-import { MODULE_ID, readFlag, TITLE, canAnswerFor, canApplyTo, drivesMomentFor, queueFlagWrite, statContext, decisionWindow, selfIds } from "./core.js";
+import { MODULE_ID, readFlag, TITLE, canAnswerFor, canApplyTo, drivesMomentFor, queueFlagWrite, statContext, decisionWindow, selfIds, resolveUuid, resolveUuidAsync } from "./core.js";
 import { ruleHTML } from "./rule-text.js";
 import { verdictsOn } from "./decide/demand.js";
-import { featureNamed, activityNamed, activityOfType, namesAnswering, profileEffects, resolveUuid, resolveDie, superiorityStandIn } from "./lookup.js";
+import { featureNamed, activityNamed, activityOfType, namesAnswering, profileEffects, resolveDie, superiorityStandIn } from "./lookup.js";
 import { REMINDER_FLAG } from "./decide/reminders.js";
 import { hitMenuEntries } from "./decide/registry.js";
 import { forceStatus, hitTargets, noteSuperiorityStandIn, poolOf, spendSuperiorityDie, statSourceOf, turnChitStands, withTargets, writeTurnChit, savesOf, saveSourceOf } from "./shared.js";
@@ -146,7 +146,7 @@ function sizeFits(hits, maxSize) {
   if ( !Number.isFinite(cap) || !hits.length ) return null;
   let unknown = false;
   for ( const h of hits ) {
-    const size = fromUuidSync(h.uuid)?.system?.traits?.size;
+    const size = resolveUuid(h.uuid)?.system?.traits?.size;
     const n = sizes[size]?.numerical;
     if ( !Number.isFinite(n) ) { unknown = true; continue; }
     if ( n > cap ) return false;
@@ -197,7 +197,7 @@ async function targetFacingEffects(row, item) {
 /** The compendium's copy of an item: its recorded source, else a same-name pack item, SRD last. */
 async function compendiumCopyOf(item) {
   const src = item?._stats?.compendiumSource;
-  if ( src ) { const doc = await fromUuid(src).catch(() => null); if ( doc ) return doc; }
+  if ( src ) { const doc = await resolveUuidAsync(src); if ( doc ) return doc; }
   const packs = game.packs.filter(p => (p.documentName === "Item") && !p.collection.startsWith("dnd5e."))
     .concat(game.packs.filter(p => (p.documentName === "Item") && p.collection.startsWith("dnd5e.")));
   for ( const pack of packs ) {
@@ -536,7 +536,7 @@ async function pressOnHit(message, hm, hits, item, index = null) {
   const pressed = [];
   const skipped = [];
   for ( const h of hits ) {
-    const subject = fromUuidSync(h.uuid);
+    const subject = resolveUuid(h.uuid);
     const actor = (subject instanceof Actor) ? subject : (subject?.actor ?? null);
     if ( !(actor instanceof Actor) || !canApplyTo(actor) ) { skipped.push(h.name); continue; }
     if ( actor.statuses?.has?.(hm.press) ) continue;
@@ -583,7 +583,7 @@ async function settleHitFollowups(card) {
         claimed = true;
       });
       if ( !claimed ) continue;
-      const effects = (await Promise.all(uuids.map(u => fromUuid(u).catch(() => null)))).filter(Boolean);
+      const effects = (await Promise.all(uuids.map(u => resolveUuidAsync(u)))).filter(Boolean);
       if ( effects.length ) await applyEffectsWithReceipt(card, effects, [{ uuid: t.uuid, name: t.name }], { source: statSourceOf(card) });
     } catch(err) {
       console.error(`${TITLE} | The maneuver's follow-up failed.`, err);
@@ -675,7 +675,7 @@ async function showSweepPopup(card) {
   // Hovering a creature's button pings its token and lights its hover state (public API only).
   for ( const b of (dialog?.element?.querySelectorAll('button[data-action^="pick-"]') ?? []) ) {
     const c = sc.candidates[Number(b.dataset.action.slice(5))];
-    const token = c?.tokenUuid ? canvas.tokens?.get(fromUuidSync(c.tokenUuid)?.id ?? "") : null;
+    const token = c?.tokenUuid ? canvas.tokens?.get(resolveUuid(c.tokenUuid)?.id ?? "") : null;
     if ( !token ) continue;
     b.addEventListener("mouseenter", () => {
       try {
@@ -721,7 +721,7 @@ async function settleSweep(card) {
       return;
     }
     const pick = sc.candidates.find(c => c.uuid === sc.chosen);
-    const actor = pick ? fromUuidSync(pick.uuid) : null;
+    const actor = pick ? resolveUuid(pick.uuid) : null;
     const attacker = resolveUuid(sc.sourceUuid);
     const roll = await new Roll(sc.formula || "1d8").evaluate();
     await roll.toMessage({ speaker: ChatMessage.getSpeaker({ actor: attacker }), flavor: `${sc.feature} — the die, at ${pick?.name ?? "the second creature"}` });

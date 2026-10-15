@@ -10,7 +10,7 @@
  * the elect will create. The table's own art for a summoned creature (`summonArt`, the Summon Art
  * window's table) is read here, so the row, the ghost and the landing show the same picture.
  */
-import { S, TITLE, answersHere, setting } from "./core.js";
+import { S, TITLE, answersHere, setting, resolveUuidAsync } from "./core.js";
 import { artTag, bfCard, esc, ruleLine, pickInputHTML } from "./decide/present.js";
 import { openMomentPopup, pickInputs, picked, pickedAll } from "./ui.js";
 import { galleryRows, crLabel } from "./decide/gallery.js";
@@ -160,7 +160,7 @@ export async function describeCreature(uuid, fallback = {}) {
   const out = { label: fallback.label ?? "", img: fallback.img ?? null, summary: summaryOf(null) };
   if ( !uuid ) return out;
   try {
-    const actor = await fromUuid(uuid);
+    const actor = await resolveUuidAsync(uuid);
     if ( actor ) {
       out.label ||= actor.name;
       out.img = actor.prototypeToken?.texture?.src ?? actor.img ?? out.img;
@@ -420,7 +420,7 @@ async function ghostSprite(src, w, h) {
  */
 export async function pickSpots({ originToken, actorUuid, count, rangeFt, label, seen = true, img = null, squares = null }) {
   if ( !canvas?.ready ) throw new Error("the canvas is not ready");
-  const actor = await fromUuid(actorUuid);
+  const actor = await resolveUuidAsync(actorUuid);
   const proto = actor?.prototypeToken;
   if ( !proto ) throw new Error(`no creature at ${actorUuid}`);
   const grid = canvas.grid;

@@ -4,7 +4,7 @@
  * that recovers on a rest announces (no name list). Player-owned actors only; NPC pools stay secret.
  * The elect also stamps a `spend` flag for the ledger.
  */
-import { MODULE_ID, readFlag, TITLE, S, setting, isActiveGM, statContext } from "./core.js";
+import { MODULE_ID, readFlag, TITLE, S, setting, isActiveGM, statContext, resolveUuid } from "./core.js";
 import { poolSpendsOn } from "./shared.js";
 import { esc, spendLine } from "./decide/present.js";
 import { SURFACES } from "./surfaces.js";
@@ -129,7 +129,7 @@ listen("updateChatMessage", "resources", message => {
   if ( !fresh.length ) return;
   for ( const r of fresh ) flashed.add(`${message.id}|${r.at}`);
   let actorName = "Someone";
-  try { actorName = (fresh[0].actorUuid ? fromUuidSync(fresh[0].actorUuid)?.name : null) ?? message.getAssociatedActor?.()?.name ?? "Someone"; } catch { /* the name is decoration */ }
+  try { actorName = (fresh[0].actorUuid ? resolveUuid(fresh[0].actorUuid)?.name : null) ?? message.getAssociatedActor?.()?.name ?? "Someone"; } catch { /* the name is decoration */ }
   flashBanner(actorName, fresh[0].ability ?? "an ability", fresh);
 });
 

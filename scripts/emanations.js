@@ -4,9 +4,9 @@
  * Owns the lifecycle of the rings, the floor that keeps member effects true, and the triggers.
  * Only the active GM writes. Rulings: RULINGS *Emanations*.
  */
-import { MODULE_ID, readFlag, TITLE, isActiveGM, activeCombatFor, statContext, whisperNoGM, drivesMomentFor, decisionWindow, queueFlagWrite, selfIds } from "./core.js";
+import { MODULE_ID, readFlag, TITLE, isActiveGM, activeCombatFor, statContext, whisperNoGM, drivesMomentFor, decisionWindow, queueFlagWrite, selfIds, resolveUuid } from "./core.js";
 import { saveDemandData, saveTargetEntry } from "./decide/demand.js";
-import { lower, itemNamed, activityNamed, activityOfType, resolveUuid, namesAnswering, applicableProfiles, wearsEffectNamed } from "./lookup.js";
+import { lower, itemNamed, activityNamed, activityOfType, namesAnswering, applicableProfiles, wearsEffectNamed } from "./lookup.js";
 import { ruleHTML } from "./rule-text.js";
 import { emanationEntries, listedNames } from "./decide/registry.js";
 import { reactionSpent, turnChitStands, writeTurnChit, savesOf } from "./shared.js";
@@ -194,7 +194,7 @@ async function reconcileAuraNow(group, gone) {
       const beh = behaviorOf(region);
       const sys = beh?.system;
       const row = sys ? rowNamed(sys.key) : null;
-      const source = sys?.source ? fromUuidSync(sys.source) : null;
+      const source = sys?.source ? resolveUuid(sys.source) : null;
       const applies = !!beh && !beh.disabled && !!row && !!sys.effect && listed().has(lower(row.key)) && appliesHere(region, liveSet);
       byRegion.set(region.id, { region, sys, row, source });
       const inside = [];
@@ -716,7 +716,7 @@ async function demandPick(card, p) {
 
 async function remind(region, row, token) {
   const sys = behaviorOf(region)?.system;
-  const item = sys?.item ? fromUuidSync(sys.item) : null;
+  const item = sys?.item ? resolveUuid(sys.item) : null;
   const activity = activityNamed(item, row.remind.activity);
   const caster = item?.actor ?? token.actor ?? null;
   const inside = [...(region.tokens ?? [])].filter(t => t.id !== token.id).map(t => t.name);
@@ -740,7 +740,7 @@ listen("dnd5e.renderChatMessage", "emanations", (message, html) => {
   if ( !holder ) return;
   holder.appendChild(momentButton(`Use ${r.activityName}`, () => {
     // live only: the button USES the ability, and a used-up item cannot be used — the warning below is the answer
-    const activity = fromUuidSync(r.activityUuid);
+    const activity = resolveUuid(r.activityUuid);
     if ( !activity ) { ui.notifications.warn(`${TITLE}: ${r.activityName} is no longer on the sheet.`); return; }
     if ( !game.user.targets.size ) { ui.notifications.warn(`${TITLE}: target the creature to heal first, then press again.`); return; }
     void activity.use({}, {}, {});

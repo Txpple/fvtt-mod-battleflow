@@ -3,7 +3,7 @@
  * chip (or a listed effect's marker), receipted on the attack card — and the tidies of expired chips.
  */
 import { readFlag, TITLE, isActiveGM, drivesMomentFor, canApplyTo, whisperNoGM, queueFlagWrite,
-  statContext, stampedSourceOf } from "./core.js";
+  statContext, stampedSourceOf, resolveUuidAsync } from "./core.js";
 import { EFFECT_BENDS } from "./decide/registry.js";
 import { TURN_CHIPS, chipOwnedBy, chipSpentBy, netShownFor, rollModeOf, spendRecord } from "./decide/chips.js";
 import { REMINDER_FLAG, rolledWith } from "./decide/reminders.js";
@@ -46,7 +46,7 @@ async function spendChips(message, ctx) {
     }
     // The bearer attacked: this attacker's own Vex on it.
     for ( const t of targetsOf(message) ) {
-      const actor = await fromUuid(t.uuid);
+      const actor = await resolveUuidAsync(t.uuid);
       if ( !(actor instanceof Actor) || (actor.uuid === attacker.uuid) ) continue;
       for ( const e of actor.effects ) {
         const key = chipKindOf(e);
@@ -79,7 +79,7 @@ async function spendChips(message, ctx) {
         if ( rowFor(e, "attacker") && unspent(e) ) spent.push({ actor: attacker, effect: e, key: "effect" });
       }
       for ( const t of targetsOf(message) ) {
-        const actor = await fromUuid(t.uuid);
+        const actor = await resolveUuidAsync(t.uuid);
         if ( !(actor instanceof Actor) || (actor.uuid === attacker.uuid) ) continue;
         for ( const e of actor.effects ) {
           if ( rowFor(e, "target") && unspent(e) ) spent.push({ actor, effect: e, key: "effect" });

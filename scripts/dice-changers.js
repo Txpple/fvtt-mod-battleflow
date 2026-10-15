@@ -5,8 +5,8 @@
  * hold is off. Damage already applied is moved by the difference.
  * ⚠ dnd5e dispatches the damage hook TWICE per roll: an in-flight set keeps it single.
  */
-import { MODULE_ID, readFlag, TITLE, statContext, queueFlagWrite, drivesMomentFor, decisionWindow } from "./core.js";
-import { lower, featureNamed, itemNamed, resolveUuid, dealtTypesOf } from "./lookup.js";
+import { MODULE_ID, readFlag, TITLE, statContext, queueFlagWrite, drivesMomentFor, decisionWindow, resolveUuid } from "./core.js";
+import { lower, featureNamed, itemNamed, dealtTypesOf } from "./lookup.js";
 import { damageEitherEntries, listedNames } from "./decide/registry.js";
 import { hitTargets, turnChitStands, writeTurnChit, rebuildRolls, spendPoolUses, attackHoldClaims } from "./shared.js";
 import { DAMAGE_EITHER } from "./decide/registry.js";

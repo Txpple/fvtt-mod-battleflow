@@ -8,7 +8,7 @@
  * The markup (decide/present.js `ruleLine`, `foldedRuleHTML`) carries the pointer; one observer fills
  * every pointer that reaches the page, on cards, popups and sheets alike.
  */
-import { MODULE_ID, TITLE } from "./core.js";
+import { MODULE_ID, TITLE, resolveUuidAsync } from "./core.js";
 import { identifierOf } from "./decide/registry.js";
 import { listenOnce } from "./dispatch.js";
 
@@ -34,10 +34,10 @@ async function sourceOf(ref) {
     const uuid = (ref.page === "condition") ? CONFIG.DND5E.conditionTypes?.[ref.key]?.reference
       : (ref.page === "mastery") ? CONFIG.DND5E.weaponMasteries?.[ref.key]?.reference
       : (ref.page === "rule") ? CONFIG.DND5E.rules?.[ref.key] : null;
-    return uuid ? fromUuid(uuid).catch(() => null) : null;
+    return uuid ? resolveUuidAsync(uuid) : null;
   }
   if ( ref.uuid ) {
-    const doc = await fromUuid(ref.uuid).catch(() => null);
+    const doc = await resolveUuidAsync(ref.uuid);
     if ( doc ) return doc;
   }
   const identifier = identifierOf(ref.item);

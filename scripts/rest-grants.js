@@ -4,8 +4,8 @@
  * Inspiration). The grant rides `dnd5e.preRestCompleted`'s one actor update (`result.updateData`),
  * on the resting client, and the rest card says what was gained. Nothing is asked.
  */
-import { MODULE_ID, readFlag, TITLE, isActiveGM, queueFlagWrite, canAnswerFor, statContext } from "./core.js";
-import { lower, activityNamed, asiAssigned, featureNamed, resolveUuid } from "./lookup.js";
+import { MODULE_ID, readFlag, TITLE, isActiveGM, queueFlagWrite, canAnswerFor, statContext, resolveUuid, resolveUuidAsync } from "./core.js";
+import { lower, activityNamed, asiAssigned, featureNamed } from "./lookup.js";
 import { answers, listedNames, restGrantEntries } from "./decide/registry.js";
 import { bfCard, esc, holdBarHTML, foldedRuleHTML, pickInputHTML } from "./decide/present.js";
 import { CAST_RIDERS, REST_GRANTS, TURN_GRANTS } from "./decide/registry.js";
@@ -499,14 +499,14 @@ async function landSong(message) {
   try {
     const picked = [];
     for ( const uuid of flag.picks ?? [] ) {
-      const target = await fromUuid(uuid).catch(() => null);
+      const target = await resolveUuidAsync(uuid);
       if ( target instanceof Actor ) picked.push(target);
     }
     if ( flag.distribute ) {
       // A divided hand-out: each its own number (Temporary Hit Points never stack — only a larger pool is written);
       // the cost paid once, only when something was given.
       for ( const p of (flag.picks ?? []) ) {
-        const target = await fromUuid(p.uuid).catch(() => null);
+        const target = await resolveUuidAsync(p.uuid);
         if ( !(target instanceof Actor) ) continue;
         const name = flag.candidates.find(c => c.uuid === p.uuid)?.name ?? target.name;
         if ( holdsTemp(target.system?.attributes?.hp?.temp, p.n) ) { given.push(`${name} (keeps more)`); continue; }

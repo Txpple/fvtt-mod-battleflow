@@ -12,8 +12,8 @@
  * THE KEEPER of an ask is the client that applied the damage, or the GM once it has gone; any
  * other answer is relayed to it.
  */
-import { MODULE_ID, S, readFlag, TITLE, keepsMessage, queueFlagWrite, canAnswerFor, statContext, decisionWindow, isActiveGM, setting } from "./core.js";
-import { featureNamed, lower, resolveUuid, activityNamed, activityOfType, applicableProfiles, wearsEffectNamed } from "./lookup.js";
+import { MODULE_ID, S, readFlag, TITLE, keepsMessage, queueFlagWrite, canAnswerFor, statContext, decisionWindow, isActiveGM, setting, resolveUuid } from "./core.js";
+import { featureNamed, lower, activityNamed, activityOfType, applicableProfiles, wearsEffectNamed } from "./lookup.js";
 import { poolOf } from "./shared.js";
 import { nearestFeet } from "./geometry.js";
 import { riderPartFormula } from "./decide/clock.js";

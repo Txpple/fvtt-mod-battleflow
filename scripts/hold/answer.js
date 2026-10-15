@@ -3,7 +3,7 @@
  * By the Books — the reaction hold, part 5: THE ANSWER. `answerHold` and its relay fold, the cast
  * that IS the answer, and the popup's Cast button (natively, or Parry's die rolled in the open).
  */
-import { MODULE_ID, readFlag, TITLE, queueFlagWrite, canAnswerFor, isContinuingClient } from "../core.js";
+import { MODULE_ID, readFlag, TITLE, queueFlagWrite, canAnswerFor, isContinuingClient, resolveUuidAsync } from "../core.js";
 import { isTextOnlyFeature } from "../decide/eligible.js";
 import { interruptEntries } from "../decide/registry.js";
 import { joinEffectReceipt } from "../decide/receipt.js";
@@ -63,12 +63,12 @@ export async function answerHold(attackMessage, uuid, answer, { appliedEffects =
   if ( !recorded ) return;
 
   // A player cannot update someone else's message: the answer travels as their OWN (ARCHITECTURE.md §3).
-  const actor = await fromUuid(uuid);
+  const actor = await resolveUuidAsync(uuid);
   const ac = actor?.system?.attributes?.ac?.value ?? null;
 
   if ( !attackMessage.isOwner && by ) {
     // A GUARD's answer (Protection): its own card, in its own voice.
-    const guard = await fromUuid(by);
+    const guard = await resolveUuidAsync(by);
     const guarding = answer === "roll";
     const entry = (target.guards ?? []).find(g => g.uuid === by);
     const verb = entry?.bystander ? "bends the roll against" : "protects";
@@ -265,7 +265,7 @@ async function bendTheRoll(attackMessage, actor, name) {
  * @param {string} name
  */
 export async function rescueReaction(attackMessage, target, name) {
-  const actor = await fromUuid(target.uuid);
+  const actor = await resolveUuidAsync(target.uuid);
   const found = rollRow(name);
   const record = (target.rescues ?? []).find(r => lower(r.name) === lower(name));
   const item = actor?.items.get(record?.itemId) ?? null;
@@ -314,7 +314,7 @@ async function landRowHeal(attackMessage, actor, featureName) {
  * @param {object} guard
  */
 export async function protectReaction(attackMessage, target, guard) {
-  const actor = await fromUuid(guard.uuid);
+  const actor = await resolveUuidAsync(guard.uuid);
   const found = rollRow(guard.row);
   const item = actor?.items.get(guard.itemId) ?? null;
   if ( !actor || !found || !item ) {
@@ -344,7 +344,7 @@ export async function protectReaction(attackMessage, target, guard) {
  * @param {{face?: number|null}} [opts]  `face`: the stored face picked (Portent)
  */
 export async function bystanderReaction(attackMessage, target, guard, { face = null } = {}) {
-  const actor = await fromUuid(guard.uuid);
+  const actor = await resolveUuidAsync(guard.uuid);
   const found = rollRow(guard.row);
   const item = actor?.items.get(guard.itemId) ?? null;
   // An `inspired` row carries no item: its pool is the answerer's own Inspired effect.
@@ -404,7 +404,7 @@ export async function bystanderReaction(attackMessage, target, guard, { face = n
   }
   const settled = await answerHold(attackMessage, target.uuid, "roll", { poolSpend, bent, rescue: key, by: guard.uuid });
   // `turned: "strike"` — the bend turned the hit to a miss against the live AC: one weapon attack at the attacker.
-  const ac = Number((await fromUuid(target.uuid))?.system?.attributes?.ac?.value ?? target.ac);
+  const ac = Number((await resolveUuidAsync(target.uuid))?.system?.attributes?.ac?.value ?? target.ac);
   if ( (row.turned === "strike") && bent && !bent.isCritical && Number.isFinite(ac) && (Number(bent.total) < ac) ) {
     void offerStrike(attackMessage, actor, key);
   }
@@ -452,7 +452,7 @@ async function driveStrike(actor, option, token, attackId) {
  * @param {"turn"|"combat"} [until]
  */
 export async function muteAndPass(attackMessage, target, guard, until = "combat") {
-  const actor = await fromUuid(guard.uuid);
+  const actor = await resolveUuidAsync(guard.uuid);
   const img = actor?.items?.get(guard.itemId)?.img ?? null;
   await muteBystander(actor, guard.row, { img, until }).catch(err => console.warn(`${TITLE} | Could not mute ${guard.row}.`, err));
   if ( !guard.passed ) return answerHold(attackMessage, target.uuid, "pass", { by: guard.uuid });
@@ -476,7 +476,7 @@ async function bendFromTheSheet(actor, name) {
  * the hold would resolve against an unchanged AC (ARCHITECTURE.md §6).
  */
 export async function castReaction(attackMessage, target) {
-  const actor = await fromUuid(target.uuid);
+  const actor = await resolveUuidAsync(target.uuid);
   // Parry's pack activity is a heal that would post its own card: spent by hand instead.
   if ( target.reduce?.formula ) return parryReaction(attackMessage, target, actor);
   // A TEXT-ONLY feature (Uncanny Dodge): nothing to use.

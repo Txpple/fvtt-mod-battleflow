@@ -6,7 +6,7 @@
  * d20-folds.js's (`bfBuyShown`). Runs on the roller's client; sets no mode (R-A).
  * ⚠ HOOK ORDER: imported AFTER reminders.js, so this re-nets the gate's record with the buy included.
  */
-import { MODULE_ID, readFlag, TITLE, statContext } from "./core.js";
+import { MODULE_ID, readFlag, TITLE, statContext, resolveUuid } from "./core.js";
 import { itemsNamed, standingCompanion } from "./lookup.js";
 import { nearestFeet, tokenOfActor } from "./geometry.js";
 import { reminderEntries } from "./decide/registry.js";
@@ -170,7 +170,7 @@ function drawBuy(app) {
 function renet(app, element) {
   const buy = app.options.bfBuy;
   const gate = gateOf(app.options);
-  const actor = fromUuidSync(buy.actorUuid);
+  const actor = resolveUuid(buy.actorUuid);
   const row = buy.armed ? buy.rows.find(r => r.name === buy.armed) : null;
   // A forgo row STRIKES the Advantage sources (listed, no vote); a buy row ADDS its own.
   const sources = row?.forgo
@@ -216,7 +216,7 @@ listen("dnd5e.postRollConfiguration", "advantage-buys", (rolls, config, _dialog,
     const mode = rollModeOf(rolls[0]?.options?.advantageMode);
     if ( mode !== buy.net ) return;                                  // pressed against the net: nothing bought
     const row = buy.rows.find(r => r.name === buy.armed);
-    const actor = fromUuidSync(buy.actorUuid);
+    const actor = resolveUuid(buy.actorUuid);
     // THE FORGO'S RECORD (Brutal Strike): nothing spent; the reminder record carries the struck sources and `forgo`, which
     // the hit menu's group reads (`requires.forgo`). Rolled against the net (with Advantage after all): nothing forgone.
     if ( row?.forgo ) {

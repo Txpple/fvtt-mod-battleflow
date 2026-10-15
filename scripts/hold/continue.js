@@ -4,7 +4,7 @@
  * the LIVE AC after the settle window, write the verdicts, announce, release the dice. Also closes
  * answered popups (the parts stay a DAG: views → continue, never back).
  */
-import { MODULE_ID, readFlag, TITLE, queueFlagWrite, isContinuingClient, drivesMomentFor, canApplyTo, HOLD_SETTLE_SECONDS } from "../core.js";
+import { MODULE_ID, readFlag, TITLE, queueFlagWrite, isContinuingClient, drivesMomentFor, canApplyTo, HOLD_SETTLE_SECONDS, resolveUuid, resolveUuidAsync } from "../core.js";
 import { chipClock } from "../decide/chips.js";
 import { placeOf, chipData, attackIdOf } from "../shared.js";
 import { applyEffectsTo } from "../effect-riders.js";
@@ -18,7 +18,7 @@ import { flashBend, waitForWrite, closePopup, postCard } from "../ui.js";
 import { reactionItem, hasReactionEffect, applyReactionEffect, reactionACArrived, reactionImg, duplicatesOf, attackFactsOf, recoilKey } from "./lookup.js";
 import { duplicateOutcome, duplicateWords } from "../decide/duplicates.js";
 import { disarmHoldTimer } from "./clock.js";
-import { resolveUuid, lower } from "../lookup.js";
+import { lower } from "../lookup.js";
 import { continueSpellHold } from "./spell-hold.js";
 import { listen } from "../dispatch.js";
 
@@ -93,7 +93,7 @@ async function driveHoldContinuation(attackMessage, hold) {
   // Safety net: the cast reaction's effect must be ON the actor before the re-test. ⚠ Catches only
   // what this client OWNS; the monster side rests on the answering GM's applyReactionEffect.
   for ( const target of hold.targets.filter(t => t.answer === "cast") ) {
-    const actor = await fromUuid(target.uuid);
+    const actor = await resolveUuidAsync(target.uuid);
     if ( !actor?.isOwner || hasReactionEffect(actor, target.reaction, target) ) continue;
     if ( typedEffectRow(target.reaction) ) continue;   // C1 — its one typed effect lands with the share, not here
     // The ITEM, by recorded itemId: a statblock's Shield keeps its effect only on the item.
@@ -115,7 +115,7 @@ async function driveHoldContinuation(attackMessage, hold) {
   const roll = attackMessage.rolls[0];
   const announcements = [];
   for ( const target of hold.targets ) {
-    const actor = await fromUuid(target.uuid);
+    const actor = await resolveUuidAsync(target.uuid);
     const liveAC = actor?.system?.attributes?.ac?.value ?? target.ac;
     // A `roll` answer's bent d20 is a `replace` with its own crit/fumble: fold it, never the raw total.
     const rolled = foldedRoll({ total: roll.total, isCritical: roll.isCritical, isFumble: roll.isFumble },

@@ -4,8 +4,8 @@
  * flag; `postUseActivity` spends the points (`poolSpend`). Empowered is a dice-changers row, Seeking a
  * d20 fold kind, the ask at the area is area-ask.js.
  */
-import { MODULE_ID, readFlag, TITLE, publish, statContext, decisionWindow, ownersAndGmIds } from "./core.js";
-import { cardActivity, featureNamed, lower, namesAnswering, resolveUuid } from "./lookup.js";
+import { MODULE_ID, readFlag, TITLE, publish, statContext, decisionWindow, ownersAndGmIds, resolveUuid } from "./core.js";
+import { cardActivity, featureNamed, lower, namesAnswering } from "./lookup.js";
 import { metamagicEntries, listedNames, chosenAreaListed } from "./decide/registry.js";
 import { poolOf, spendPoolUses, isPartyMember } from "./shared.js";
 import { feetOf, tokenOfActor, tokensInRegions } from "./geometry.js";

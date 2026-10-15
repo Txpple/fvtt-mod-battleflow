@@ -13,8 +13,8 @@
  * Rage); `while: "raging"` pays only while the Rage stands; `to: "ally"` rolls the amount and GIVES it to one
  * creature within reach — the owner's pick, the rest song's popup (Life-Giving Force).
  */
-import { MODULE_ID, readFlag, TITLE, drivesMomentFor, statContext, isActiveGM, queueFlagWrite, canAnswerFor, decisionWindow } from "./core.js";
-import { activityNamed, activityOfType, cardActivity, featureNamed, lower, resolveUuid } from "./lookup.js";
+import { MODULE_ID, readFlag, TITLE, drivesMomentFor, statContext, isActiveGM, queueFlagWrite, canAnswerFor, decisionWindow, resolveUuid } from "./core.js";
+import { activityNamed, activityOfType, cardActivity, featureNamed, lower } from "./lookup.js";
 import { chitStampOf, effectSourceOf, poolOf } from "./shared.js";
 import { endOptionsOf } from "./decide/turn-grants.js";
 import { holdBarHTML, esc } from "./decide/present.js";
@@ -82,7 +82,7 @@ async function remindExtend({ effect, row, item, actor, place, combat, round, tu
     const cards = mine.map(m => {
       const activity = cardActivity(m);
       const kind = isCard(m, CARD.attack) ? "attack" : ((activity?.type === "save") && !isCard(m, CARD.damage)) ? "save" : null;
-      return kind ? { kind, sides: targetsOf(m).map(t => fromUuidSync(t.uuid)?.getActiveTokens?.()?.[0]?.document?.disposition ?? 0) } : null;
+      return kind ? { kind, sides: targetsOf(m).map(t => resolveUuid(t.uuid)?.getActiveTokens?.()?.[0]?.document?.disposition ?? 0) } : null;
     }).filter(Boolean);
     const verdict = extendedThisTurn({ cards, side });
     if ( verdict.extended ) return;
@@ -315,7 +315,7 @@ async function landEnd(message) {
     if ( activity ) await activity.use({ subsequentActions: false }, { configure: false }, {});
     const gone = [];
     for ( const uuid of option.effectIds ) {
-      const effect = fromUuidSync(uuid);
+      const effect = resolveUuid(uuid);
       if ( !effect ) continue;
       if ( effect.parent === bearer ) { await effect.delete(); gone.push(effect.name); }
       else { await effect.update({ disabled: true }); gone.push(effect.name); }

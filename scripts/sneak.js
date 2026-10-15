@@ -2,7 +2,7 @@
  * By the Books — Sneak Attack: the dice ride the damage, Cunning Strike costs come off first, the
  * effects go through the saves machine, once per turn is a chit. Split shape (ARCHITECTURE.md §7).
  */
-import { MODULE_ID, readFlag, TITLE, activeCombatFor, drivesMomentFor, queueFlagWrite, statContext } from "./core.js";
+import { MODULE_ID, readFlag, TITLE, activeCombatFor, drivesMomentFor, queueFlagWrite, statContext, resolveUuidAsync } from "./core.js";
 import { verdictsOn } from "./decide/demand.js";
 import { lower, featureNamed, namesAnswering } from "./lookup.js";
 import { registerResumable, registerOfferPart, pickInputs } from "./ui.js";
@@ -260,7 +260,7 @@ async function settleCunningFollowups(card) {
       if ( !claimed ) continue;
       const target = [{ uuid: t.uuid, name: t.name }];
       if ( cunning.onFail === "poisoned" ) {
-        const effect = cunning.effectUuid ? await fromUuid(cunning.effectUuid) : null;
+        const effect = cunning.effectUuid ? await resolveUuidAsync(cunning.effectUuid) : null;
         if ( effect ) await applyEffectsWithReceipt(card, [effect], target, { source: statSourceOf(card) });
       } else if ( cunning.onFail === "double" ) {
         const dmg = game.messages.get(cunning.damageId);

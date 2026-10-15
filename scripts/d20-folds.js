@@ -6,11 +6,10 @@
  * AC, a demanded save's DC); a raw check has no DC in dnd5e, so a check's fold is always a
  * button. Depend downward only: core → decide → spine (ui) → here.
  */
-import { MODULE_ID, readFlag, TITLE, S, setting, queueFlagWrite, canAnswerFor, isActiveGM, statContext, decisionWindow }
-  from "./core.js";
+import { MODULE_ID, readFlag, TITLE, S, setting, queueFlagWrite, canAnswerFor, isActiveGM, statContext, decisionWindow, resolveUuid, resolveUuidAsync } from "./core.js";
 import { ruleHTML } from "./rule-text.js";
 import { answers, d20FoldEntries, metamagicEntries, listedNames } from "./decide/registry.js";
-import { activityNamed, cardActivity, featureNamed, itemNamed, itemsNamed, lower, resolveUuid, resolveDie, rerollD20, wieldedNamed, wornNamed } from "./lookup.js";
+import { activityNamed, cardActivity, featureNamed, itemNamed, itemsNamed, lower, resolveDie, rerollD20, wieldedNamed, wornNamed } from "./lookup.js";
 import { grantingActor, hitTargets, poolSpendsOn, poolOf, spendPoolUses, turnChitStands, writeTurnChit, saveDemandOf } from "./shared.js";
 import { bfCard, holdBarHTML, momentBarHTML, ruleLine, spendPhrase, RESCUE_KINDS, rescueLabel, rescueView, rescueSourceFor } from "./decide/present.js";
 import { ATTACK_FOLDS, SAVE_FOLDS, foldsFrom, foldedRoll, foldedVerdict } from "./decide/verdict.js";
@@ -570,7 +569,7 @@ async function offerFoldOnSave(rollMessage, card, uuid, total, dc, by = null) {
     const existing = readFlag(rollMessage, "d20fold");
     if ( existing ) return existing.status === "pending";   // already asked; don't ask twice
     if ( !Number.isFinite(dc) || !Number.isFinite(total) || (total >= dc) ) return false;
-    const actor = await fromUuid(uuid);
+    const actor = await resolveUuidAsync(uuid);
     if ( !(actor instanceof Actor) ) return false;
     const ability = rollMessage.system?.ability ?? null;
     // The demand the save answers (the DMG's Scarab reads its school and its caster's type).
@@ -657,7 +656,7 @@ async function resolveFold(message, answer) {
   try {
     const flag = readFlag(message, "d20fold");
     if ( !flag || (flag.answer !== answer) || (flag.status !== "pending") ) return;
-    const actor = await fromUuid(flag.actorUuid);
+    const actor = await resolveUuidAsync(flag.actorUuid);
     if ( !(actor instanceof Actor) ) return;
     const offer = (flag.offers ?? []).find(o => offerAnswers(o, answer));
     const kind = offer?.kind;
@@ -1364,7 +1363,7 @@ async function answerRefund(message, choice) {
   const r = readFlag(message, "tacticalRefund");
   const actor = resolveUuid(r.actorUuid);
   try {
-    const pool = await fromUuid(r.poolUuid);
+    const pool = await resolveUuidAsync(r.poolUuid);
     if ( !pool ) throw new Error(`the pool ${r.poolUuid} is gone`);
     const spent = Number(pool.system?.uses?.spent ?? 0);
     if ( spent > 0 ) await pool.update({ "system.uses.spent": spent - 1 });

@@ -4,8 +4,8 @@
  * die size (a Pass leaves the kit's use as it was); the flow elect spends the creature's die and rolls
  * the feature's OWN heal activity of that size at it, so the healing rerolls and cast applier carry the rest.
  */
-import { MODULE_ID, readFlag, TITLE, isActiveGM, queueFlagWrite, canAnswerFor, canApplyTo, drivesMomentFor, statContext, whisperNoGM, decisionWindow } from "./core.js";
-import { featureNamed, lower, resolveUuid } from "./lookup.js";
+import { MODULE_ID, readFlag, TITLE, isActiveGM, queueFlagWrite, canAnswerFor, canApplyTo, drivesMomentFor, statContext, whisperNoGM, decisionWindow, resolveUuid } from "./core.js";
+import { featureNamed, lower } from "./lookup.js";
 import { answers, kitTendEntries, listedNames } from "./decide/registry.js";
 import { KIT_TENDS } from "./decide/registry.js";
 import { bfCard, esc, holdBarHTML, foldedRuleHTML, tickRowsHTML } from "./decide/present.js";

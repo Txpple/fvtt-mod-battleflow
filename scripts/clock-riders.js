@@ -1,9 +1,9 @@
 /**
  * By the Books — damage riders on the combat clock: a feature's extra damage rides the hit when the round or the turn says so.
  */
-import { MODULE_ID, readFlag, TITLE, activeCombatFor, canAnswerFor, drivesMomentFor, queueFlagWrite, statContext } from "./core.js";
+import { MODULE_ID, readFlag, TITLE, activeCombatFor, canAnswerFor, drivesMomentFor, queueFlagWrite, statContext, resolveUuid } from "./core.js";
 import { ruleHTML } from "./rule-text.js";
-import { lower, featureNamed, itemNamed, activityNamed, activityOfType, asiAssigned, cardActivity, resolveUuid, dealtTypesOf, pactWeaponFits, wieldsAs, wornNamed } from "./lookup.js";
+import { lower, featureNamed, itemNamed, activityNamed, activityOfType, asiAssigned, cardActivity, dealtTypesOf, pactWeaponFits, wieldsAs, wornNamed } from "./lookup.js";
 import { coatSaveAbility } from "./decide/chips.js";
 import { clockRiderEntries, listedNames } from "./decide/registry.js";
 import { forceStatus, grantingActor, hitTargets, poolOf, statSourceOf, turnChitStands, writeTurnChit, withTargets, attackIdOf, d20FoldSpends } from "./shared.js";

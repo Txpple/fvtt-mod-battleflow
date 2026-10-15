@@ -5,8 +5,8 @@
  * choose their targets*) raise it via `newAsk`/`raiseAsk`, and may add an ANSWER PART
  * (`registerAskAnswerPart`). ⚠ The flag KEY stays `metamagicAsk`: stored on cards, read by the moment registry.
  */
-import { MODULE_ID, readFlag, TITLE, publish, statContext, queueFlagWrite, canAnswerFor, decisionWindow } from "./core.js";
-import { itemNamed, resolveUuid } from "./lookup.js";
+import { MODULE_ID, readFlag, TITLE, publish, statContext, queueFlagWrite, canAnswerFor, decisionWindow, resolveUuid } from "./core.js";
+import { itemNamed } from "./lookup.js";
 import { isPartyMember } from "./shared.js";
 import { tokenForUuid } from "./geometry.js";
 import { bfCard, esc, holdBarHTML, ruleLine, pickInputHTML } from "./decide/present.js";

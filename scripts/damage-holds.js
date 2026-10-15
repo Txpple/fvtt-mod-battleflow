@@ -7,8 +7,8 @@
  * sheet edits are never held (RULINGS *Where the table bends the rule*). Order: save multiplier,
  * reduction, resistances.
  */
-import { MODULE_ID, readFlag, TITLE, keepsMessage, queueFlagWrite, canAnswerFor, statContext, decisionWindow } from "./core.js";
-import { lower, itemNamed, resolveUuid, reductionFor, holdsFor, featureNamed, activityNamed, bystanderRows, bystanderDie } from "./lookup.js";
+import { MODULE_ID, readFlag, TITLE, keepsMessage, queueFlagWrite, canAnswerFor, statContext, decisionWindow, resolveUuid } from "./core.js";
+import { lower, itemNamed, reductionFor, holdsFor, featureNamed, activityNamed, bystanderRows, bystanderDie } from "./lookup.js";
 import { alliesWithin, nearestFeet, tokenForUuid } from "./geometry.js";
 import { interruptEntries } from "./decide/registry.js";
 import { INTERRUPT_MULTIPLIERS, INTERRUPT_REDUCTIONS, INTERRUPT_ROLLS } from "./decide/registry.js";

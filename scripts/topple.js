@@ -3,8 +3,7 @@
  * mastery.js's card (supersede, dialog, buzzer, fold, Prone press, GM button). Neither imports the other.
  */
 import { MODULE_ID, readFlag, TITLE, isActiveGM, drivesMomentFor, canApplyTo, whisperNoGM, queueFlagWrite,
-  canAnswerFor } from "./core.js";
-import { resolveUuid } from "./lookup.js";
+  canAnswerFor, resolveUuid, resolveUuidAsync } from "./core.js";
 import { forceStatus, rollConfigFor } from "./shared.js";
 import { popupKey, bfCard, momentBarHTML, ruleLine } from "./decide/present.js";
 import { SURFACES } from "./surfaces.js";
@@ -47,7 +46,7 @@ async function showTopplePopup(message, _topple, target) {
     const flag = readFlag(message, "topple");
     const entry = flag?.targets?.find(t => t.uuid === target.uuid);
     if ( !entry || entry.done ) return;
-    const actor = await fromUuid(target.uuid);
+    const actor = await resolveUuidAsync(target.uuid);
     if ( !(actor instanceof Actor) || !canAnswerFor(actor) ) return;
     const demand = new DialogCarried({
       cardId: message.id, key, failed: null,
@@ -101,7 +100,7 @@ async function rollToppleSave(message, target, { mode = null, bonus = null, time
   const flag = readFlag(message, "topple");
   const entry = flag?.targets?.find(t => t.uuid === target.uuid);
   if ( !entry || entry.done ) return;
-  const actor = await fromUuid(target.uuid);
+  const actor = await resolveUuidAsync(target.uuid);
   if ( !(actor instanceof Actor) ) return;
   await actor.rollSavingThrow(
     { ability: flag.ability || "con", target: flag.dc,
@@ -136,7 +135,7 @@ async function fireToppleTimer(messageId) {
         && (originIdOf(m) === card.id)
         && (m.getAssociatedActor?.()?.uuid === t.uuid));
       if ( landed ) { void foldToppleSave(landed); continue; }
-      const actor = await fromUuid(t.uuid).catch(() => null);
+      const actor = await resolveUuidAsync(t.uuid);
       if ( !(actor instanceof Actor) ) {
         // Through the serializer: this loop walks every target, so it races itself.
         await queueFlagWrite(card, "topple", live => {
@@ -310,7 +309,7 @@ listen("dnd5e.renderChatMessage", "topple", (message, html) => {
 
       if ( game.user.isGM ) {
         html.querySelector(SURFACES.messageContent)?.appendChild(momentButton(`${t.name} failed — Prone`, async () => {
-          const live = await fromUuid(t.uuid);
+          const live = await resolveUuidAsync(t.uuid);
           if ( live instanceof Actor ) await forceStatus(live, "prone",
             { origin: readFlag(message, "topple")?.attackerUuid ?? null });
           await queueFlagWrite(message, "topple", live2 => {

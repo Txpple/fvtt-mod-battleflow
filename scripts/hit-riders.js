@@ -2,8 +2,8 @@
  * By the Books — hit riders: a mark on the target (Hunter's Mark, Hex) pays its die into the attack's own
  * damage roll, on the attacker's client, instead of a separate damage press after every hit.
  */
-import { TITLE, selfAndGmIds } from "./core.js";
-import { lower, resolveUuid } from "./lookup.js";
+import { TITLE, selfAndGmIds, resolveUuid } from "./core.js";
+import { lower } from "./lookup.js";
 import { MARK_USES, riderEntries, riderUpgradeEntries } from "./decide/registry.js";
 import { riderKey } from "./decide/eligible.js";
 import { effectSourceOf, hitTargets } from "./shared.js";

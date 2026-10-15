@@ -5,8 +5,8 @@
  * ⚠ The flag never touches `hold` (one hold per message; any hold verdict is authoritative).
  * ⚠ Offered only when the attack hit NOBODY: one damage roll serves every target.
  */
-import { MODULE_ID, readFlag, TITLE, S, setting, isActiveGM, queueFlagWrite, canAnswerFor, statContext, decisionWindow } from "./core.js";
-import { cardActivity, resolveUuid, usableManeuver, maneuverDieFormula } from "./lookup.js";
+import { MODULE_ID, readFlag, TITLE, S, setting, isActiveGM, queueFlagWrite, canAnswerFor, statContext, decisionWindow, resolveUuid, resolveUuidAsync } from "./core.js";
+import { cardActivity, usableManeuver, maneuverDieFormula } from "./lookup.js";
 import { maneuverFoldEntries } from "./decide/registry.js";
 import { hitTargets } from "./shared.js";
 import { bfCard, holdBarHTML, spendPhrase, rescueView, rescueSourceFor, esc } from "./decide/present.js";
@@ -135,7 +135,7 @@ async function resolvePrecision(message) {
   try {
     const flag = readFlag(message, "precision");
     if ( !flag || (flag.answer !== "use") || (flag.status !== "pending") ) return;
-    const attacker = await fromUuid(flag.attackerUuid);
+    const attacker = await resolveUuidAsync(flag.attackerUuid);
     const item = attacker?.items?.get(flag.itemId);
     const activity = item?.system.activities?.get?.(flag.activityId)
       ?? item?.system.activities?.contents?.find(a => a.id === flag.activityId);

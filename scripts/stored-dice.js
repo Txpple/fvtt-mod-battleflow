@@ -7,8 +7,8 @@
  * the face. Another creature's roll: the bystander's bend (INTERRUPT_ROLLS `bend: "set"`, hold/ and bystanders.js),
  * after the roll — the register's bend.
  */
-import { MODULE_ID, readFlag, TITLE, canAnswerFor, decisionWindow } from "./core.js";
-import { featureNamed, lower, resolveUuid } from "./lookup.js";
+import { MODULE_ID, readFlag, TITLE, canAnswerFor, decisionWindow, resolveUuid } from "./core.js";
+import { featureNamed, lower } from "./lookup.js";
 import { STORED_DICE, listedNames, storedDiceEntries } from "./decide/registry.js";
 import { storedChipName } from "./decide/stored-dice.js";
 import { bfCard, esc, holdBarHTML, ruleLine, pickInputHTML } from "./decide/present.js";
@@ -232,7 +232,7 @@ listen("dnd5e.postRollConfiguration", "stored-dice", (rolls, config, _dialog, me
     const stored = config?.bfStored;
     if ( !stored || !Number.isInteger(stored.armed) || !rolls?.length ) return;
     const pick = stored.faces[stored.armed];
-    const actor = fromUuidSync(stored.actorUuid);
+    const actor = resolveUuid(stored.actorUuid);
     if ( !pick || !(actor instanceof Actor) ) return;
     const d20 = rolls[0].d20 ?? rolls[0].dice?.[0];
     if ( !d20 || (Number(d20.faces) !== 20) ) return;

@@ -2,7 +2,7 @@
  * By the Books — MACHINE (ARCHITECTURE.md §7): Commander's Strike, the `command` fold — the
  * fighter's die on an ally's Reaction attack.
  */
-import { MODULE_ID, readFlag, TITLE, isActiveGM, queueFlagWrite, canAnswerFor, statContext, decisionWindow } from "./core.js";
+import { MODULE_ID, readFlag, TITLE, isActiveGM, queueFlagWrite, canAnswerFor, statContext, decisionWindow, resolveUuid, resolveUuidAsync } from "./core.js";
 import { ruleHTML } from "./rule-text.js";
 import { resolveDie, foldEntryFor, maneuverDieFormula } from "./lookup.js";
 import { maneuverFoldEntries } from "./decide/registry.js";
@@ -60,14 +60,14 @@ async function stampCommand(activity, fighter, message, found) {
 async function ensureCommandChip(message) {
   const flag = readFlag(message, "command");
   if ( !flag || (flag.status !== "directed") || flag.chipId || !flag.ally?.uuid ) return;
-  const ally = await fromUuid(flag.ally.uuid).catch(() => null);
+  const ally = await resolveUuidAsync(flag.ally.uuid);
   if ( !(ally instanceof Actor) ) return;
   const standing = ally.effects.find(e => (readFlag(e, CHIP_FLAG) === "use") && (readFlag(e, "useKey") === "command") && (readFlag(e, "cardId") === message.id));
   let chip = standing ?? null;
   if ( !chip ) {
     const stale = ally.effects.filter(e => (readFlag(e, CHIP_FLAG) === "use") && (readFlag(e, "useKey") === "command"));
     if ( stale.length ) await ally.deleteEmbeddedDocuments("ActiveEffect", stale.map(e => e.id)).catch(() => {});
-    const fighter = flag.attackerUuid ? await fromUuid(flag.attackerUuid).catch(() => null) : null;
+    const fighter = flag.attackerUuid ? await resolveUuidAsync(flag.attackerUuid) : null;
     const clock = chipClock("steadyAim", placeOf(fighter ?? ally));
     chip = await ActiveEffect.implementation.create({
       name: flag.itemName, img: flag.itemImg ?? "icons/svg/aura.svg",
@@ -86,7 +86,7 @@ listen("createChatMessage", "command", message => { if ( isActiveGM() && readFla
 async function showCommandNotice(message) {
   const flag = readFlag(message, "command");
   if ( !flag || (flag.status !== "directed") ) return;
-  const ally = flag.ally?.uuid ? fromUuidSync(flag.ally.uuid) : null;
+  const ally = flag.ally?.uuid ? resolveUuid(flag.ally.uuid) : null;
   await openMomentPopup(message, "command", ally, {
     title: `${flag.itemName} — ${flag.ally?.name ?? ""}`, icon: "fa-solid fa-bullhorn", width: 440,
     content: bfCard({ img: flag.itemImg, eyebrow: `Maneuver — ${flag.itemName}`, tone: "pending",
@@ -163,7 +163,7 @@ listen("dnd5e.renderChatMessage", "command", (message, html) => {
   });
   html.querySelector(SURFACES.messageContent)?.appendChild(line);
   if ( isActiveGM() ) void ensureCommandChip(message);   // the resume floor
-  const ally = flag.ally?.uuid ? fromUuidSync(flag.ally.uuid) : null;
+  const ally = flag.ally?.uuid ? resolveUuid(flag.ally.uuid) : null;
   const may = live && canAnswerFor(ally);
   pendingRow(message, line, {
     bar: live && momentBarHTML(flag, "reminder"),

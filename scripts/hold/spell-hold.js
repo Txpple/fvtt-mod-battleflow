@@ -4,7 +4,7 @@
  * at the moment of USE (Magic Missile against Shield) has no attack roll, so the hold enters here;
  * a `negate` answer IS the verdict (no re-test, no AC arithmetic). Resolution: `continueSpellHold`.
  */
-import { MODULE_ID, readFlag, TITLE, statContext, decisionWindow, queueFlagWrite } from "../core.js";
+import { MODULE_ID, readFlag, TITLE, statContext, decisionWindow, queueFlagWrite, resolveUuidAsync } from "../core.js";
 import { answers, blockEntries } from "../decide/registry.js";
 import { bfCard, esc } from "../decide/present.js";
 import { reactionSpent, statSourceOf } from "../shared.js";
@@ -62,7 +62,7 @@ async function stampSpellHold(message, entries) {
 
   const held = [];
   for ( const target of targets ) {
-    const actor = await fromUuid(target.uuid);
+    const actor = await resolveUuidAsync(target.uuid);
     if ( !actor || reactionSpent(actor) ) continue;
     for ( const entry of entries ) {
       const found = await usableReaction(actor, entry.reaction);
@@ -99,7 +99,7 @@ export async function continueSpellHold(message, hold) {
     const cast = target.answer === "cast";
     target.verdict = cast ? "negated" : "hit";
     if ( !cast ) continue;
-    const actor = await fromUuid(target.uuid);
+    const actor = await resolveUuidAsync(target.uuid);
     announcements.push(bfCard({
       img: reactionImg(actor, target.reaction, target),
       eyebrow: "Reaction — it worked", title: target.reaction, subtitle: target.name,

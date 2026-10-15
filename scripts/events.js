@@ -7,7 +7,7 @@
  * word is a contract version bump. Consumers dedupe native cards by `momentId`.
  */
 
-import { MODULE_ID, LEGACY_ID, TITLE, publish } from "./core.js";
+import { MODULE_ID, LEGACY_ID, TITLE, publish, resolveUuid } from "./core.js";
 import { MOMENT_KINDS, MOMENT_RECORDS, MOMENT_WORDS, isMomentWord, momentId, newMoments, resolvedMoments } from "./decide/moments.js";
 import { hitTargets } from "./shared.js";
 import { listen, listenOnce } from "./dispatch.js";
@@ -31,16 +31,8 @@ function tokenUuidOf(actor) {
 }
 
 function actorByUuid(uuid) {
-  if ( !uuid ) return null;
-  try {
-    const doc = globalThis.fromUuidSync?.(uuid) ?? null;
-    return (doc?.documentName === "Actor") ? doc : (doc?.actor ?? null);
-  } catch { return null; }
-}
-
-function docByUuid(uuid) {
-  if ( !uuid ) return null;
-  try { return globalThis.fromUuidSync?.(uuid) ?? null; } catch { return null; }
+  const doc = resolveUuid(uuid);
+  return (doc?.documentName === "Actor") ? doc : (doc?.actor ?? null);
 }
 
 /** One target row; a reader's target `uuid` is the ACTOR's (dnd5e's `targets` shape). */
@@ -86,7 +78,7 @@ export function publishMoment(event, { actor = null, item = null, activity = nul
   let payload;
   try {
     const actorDoc = (typeof actor === "string") ? actorByUuid(actor) : actor;
-    const itemDoc = (typeof item === "string") ? docByUuid(item) : item;
+    const itemDoc = (typeof item === "string") ? resolveUuid(item) : item;
     const messageId = idOf(message);
     payload = Object.freeze({
       event,

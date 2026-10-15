@@ -2,8 +2,8 @@
  * By the Books — MACHINE (ARCHITECTURE.md §7): the `hew` fold — a bonus swing's reminder card and
  * popup (Great Weapon Master's Hew; Polearm Master's Pole Strike, which is also offered and driven).
  */
-import { MODULE_ID, readFlag, TITLE, isActiveGM, canAnswerFor, combatStamp, decisionWindow } from "./core.js";
-import { cardActivity, resolveUuid, foldEntryFor, lower } from "./lookup.js";
+import { MODULE_ID, readFlag, TITLE, isActiveGM, canAnswerFor, combatStamp, decisionWindow, resolveUuid, resolveUuidAsync } from "./core.js";
+import { cardActivity, foldEntryFor, lower } from "./lookup.js";
 import { attackMessageForDamage } from "./auto-damage.js";
 import { creaturesWithin, tokenForUuid } from "./geometry.js";
 import { maneuverFoldEntries } from "./decide/registry.js";
@@ -151,7 +151,7 @@ async function maybeHewKillReminder(damageMessage) {
     const downed = [];
     for ( const t of entries ) {
       if ( t.reverted ) continue;
-      const actor = await fromUuid(t.uuid).catch(() => null);
+      const actor = await resolveUuidAsync(t.uuid);
       if ( actor && ((actor.system?.attributes?.hp?.value ?? 1) <= 0) ) downed.push(t.name ?? actor.name);
     }
     if ( !downed.length ) return;

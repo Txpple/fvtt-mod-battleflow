@@ -2,8 +2,8 @@
  * By the Books — effect riders (a hit applies the attack activity's own effects, per target) and
  * the one shared effect applier, mirroring the native tray's `_prepareEffectData`.
  */
-import { MODULE_ID, readFlag, TITLE, isActiveGM, queueFlagWrite, statContext } from "./core.js";
-import { cardActivity, lower, profileEffects, resolveUuid } from "./lookup.js";
+import { MODULE_ID, readFlag, TITLE, isActiveGM, queueFlagWrite, statContext, resolveUuid, resolveUuidAsync } from "./core.js";
+import { cardActivity, lower, profileEffects } from "./lookup.js";
 import { CLOCK_RIDERS } from "./decide/registry.js";
 import { effectRecord, joinEffectReceipt, revertableEffect } from "./decide/receipt.js";
 import { TURN_PINNED, chipClock } from "./decide/chips.js";
@@ -80,7 +80,7 @@ export async function applyEffectsTo(targets, effects,
   const context = statContext(source);
   const out = [];
   for ( const target of targets ) {
-    const actor = await fromUuid(target.uuid); // the targets snapshot carries ACTOR uuids
+    const actor = await resolveUuidAsync(target.uuid); // the targets snapshot carries ACTOR uuids
     if ( !(actor instanceof Actor) ) continue;
     const entry = { uuid: target.uuid, name: target.name, img: actor.img ?? null, effects: [] };
     for ( const effect of effects ) {
@@ -180,7 +180,7 @@ export async function applyEffectsWithReceipt(receiptMessage, effects, targets,
 /** Remove one applied rider effect and mark its receipt entry; tolerates the effect already gone. */
 export async function revertEffect(message, targetUuid, effectId) {
   if ( !revertableEffect(readFlag(message, "effectReceipt"), targetUuid, effectId) ) return;
-  const actor = await fromUuid(targetUuid);
+  const actor = await resolveUuidAsync(targetUuid);
   if ( actor instanceof Actor ) await actor.effects.get(effectId)?.delete();
   // The mark, through the serializer (ARCHITECTURE §4 law 2), the guard repeated inside the lock.
   await queueFlagWrite(message, "effectReceipt", flag => {

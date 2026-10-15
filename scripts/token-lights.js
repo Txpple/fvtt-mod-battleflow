@@ -1,9 +1,9 @@
 /**
  * By the Books — token lights, senses and sizes: a use or effect whose text changes the token, carried on an effect.
  */
-import { MODULE_ID, readFlag, TITLE, canApplyTo, drivesMomentFor, isActiveGM, queueFlagWrite, statContext } from "./core.js";
+import { MODULE_ID, readFlag, TITLE, canApplyTo, drivesMomentFor, isActiveGM, queueFlagWrite, statContext, resolveUuid, resolveUuidAsync } from "./core.js";
 import { ruleHTML } from "./rule-text.js";
-import { lower, resolveUuid, namesAnswering } from "./lookup.js";
+import { lower, namesAnswering } from "./lookup.js";
 import { tokenLightEntries, tokenSenseEntries, tokenSizeEntries, listedNames } from "./decide/registry.js";
 import { registerResumable } from "./ui.js";
 import { bfCard, ruleLine } from "./decide/present.js";
@@ -132,7 +132,7 @@ async function applyLight(payload) {
     }
   }
   for ( const t of payload.targets ?? [] ) {
-    const actor = await fromUuid(t.uuid);
+    const actor = await resolveUuidAsync(t.uuid);
     if ( !(actor instanceof Actor) ) continue;
     if ( !canApplyTo(actor) ) { skipped.push(t.name); continue; }
     const stale = actor.effects.filter(e => readFlag(e, LIGHT_FLAG)?.key === row.key);

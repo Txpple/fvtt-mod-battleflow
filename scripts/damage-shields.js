@@ -3,9 +3,9 @@
  * a melee attack roll hits — the hit rider mirrored (RULINGS *Damage shields*). The table is
  * decide/registry.js DAMAGE_SHIELDS; membership is the Damage Shields list.
  */
-import { MODULE_ID, readFlag, TITLE, activeCombatFor, canApplyTo, drivesMomentFor, queueFlagWrite, statContext, whisperNoGM } from "./core.js";
+import { MODULE_ID, readFlag, TITLE, activeCombatFor, canApplyTo, drivesMomentFor, queueFlagWrite, statContext, whisperNoGM, resolveUuid } from "./core.js";
 import { ruleHTML } from "./rule-text.js";
-import { lower, itemNamed, activityNamed, activityOfType, resolveUuid } from "./lookup.js";
+import { lower, itemNamed, activityNamed, activityOfType } from "./lookup.js";
 import { registerResumable, postCard } from "./ui.js";
 import { damageShieldEntries, listedNames } from "./decide/registry.js";
 import { damagePartsOf, effectSourceOf, hitTargets, resolveAttackMessage, turnChitStands, writeTurnChit, holdOf, attackHoldClaims, attackHoldReleased } from "./shared.js";

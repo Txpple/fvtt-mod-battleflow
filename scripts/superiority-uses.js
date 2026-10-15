@@ -3,9 +3,9 @@
  * *The rest of the maneuvers*) — each a USE whose consequence lands on a sheet, and for Lunging
  * and Feinting a die that rides the next hit. The pool is spent by the activity's own consumption.
  */
-import { MODULE_ID, readFlag, TITLE, canAnswerFor, drivesMomentFor, queueFlagWrite, statContext, decisionWindow, stampedSourceOf } from "./core.js";
+import { MODULE_ID, readFlag, TITLE, canAnswerFor, drivesMomentFor, queueFlagWrite, statContext, decisionWindow, stampedSourceOf, resolveUuid, resolveUuidAsync } from "./core.js";
 import { ruleHTML } from "./rule-text.js";
-import { cardItem, lower, featureNamed, activityNamed, resolveUuid, resolveDie } from "./lookup.js";
+import { cardItem, lower, featureNamed, activityNamed, resolveDie } from "./lookup.js";
 import { superiorityUseEntries, listedNames } from "./decide/registry.js";
 import { chipData, hitTargets, placeOf, poolSpendsOn, chipSpendsOn } from "./shared.js";
 import { bfCard, holdBarHTML, riderMenuHTML, ruleLine, spendPhrase, esc } from "./decide/present.js";
@@ -197,7 +197,7 @@ async function settleBait(card) {
     await queueFlagWrite(card, "baitSwitch", current => { if ( current.resolved || current.resolving ) return false; current.resolving = true; claimed = true; });
     if ( !claimed ) return;
     // live only: Bait and Switch is a maneuver FEATURE — never used up, so the sheet is the truth
-    const item = bs.itemUuid ? await fromUuid(bs.itemUuid) : null;
+    const item = bs.itemUuid ? await resolveUuidAsync(bs.itemUuid) : null;
     const effect = item?.effects.find(e => lower(e.name) === lower(bs.effectName)) ?? null;
     const who = bs.options.find(o => o.uuid === bs.chosen) ?? null;
     if ( effect && who ) await applyEffectsWithReceipt(card, [effect], [{ uuid: who.uuid, name: who.name }], { source: bs.sourceUuid ?? null, marker: "baitDone" });

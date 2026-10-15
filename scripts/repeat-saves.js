@@ -6,8 +6,8 @@
  * platform floats the name off the token for an effect with a status or a change (NOTES §1); the float
  * here is for the bare ones. The precedent is the emanation's `trigger on "turnEnd"`.
  */
-import { MODULE_ID, readFlag, TITLE, drivesMomentFor, statContext, decisionWindow, queueFlagWrite, canAnswerFor, canApplyTo } from "./core.js";
-import { activityNamed, activityOfType, answersOrEnchanted, resolveUuid } from "./lookup.js";
+import { MODULE_ID, readFlag, TITLE, drivesMomentFor, statContext, decisionWindow, queueFlagWrite, canAnswerFor, canApplyTo, resolveUuid } from "./core.js";
+import { activityNamed, activityOfType, answersOrEnchanted } from "./lookup.js";
 import { effectSourceOf, forceStatus, savesOf } from "./shared.js";
 import { REPEAT_SAVES, repeatSaveEntries, listedNames } from "./decide/registry.js";
 import { repeatRowFor, repeatDue, repeatBend, repeatVerdict, needsFloat, repeatTitle, repeatEnds, repeatLift, repeatEndWords } from "./decide/repeat-saves.js";

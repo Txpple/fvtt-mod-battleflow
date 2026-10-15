@@ -4,8 +4,8 @@
  * failure presses `endConcentration`, whose `dependentOn` cascade strips every riding effect.
  * ⚠ dnd5e never ends concentration at 0 HP or on Incapacitated; this machine does (no save).
  */
-import { MODULE_ID, readFlag, TITLE, S, setting, rollerUserFor, leadsWindow, canAnswerFor, drivesMomentFor, canApplyTo, whisperNoGM, statContext, decisionWindow, savesRollThemselves, ownersAndGmIds } from "./core.js";
-import { cardItem, featureNamed, lower, resolveUuid, wieldedNamed } from "./lookup.js";
+import { MODULE_ID, readFlag, TITLE, S, setting, rollerUserFor, leadsWindow, canAnswerFor, drivesMomentFor, canApplyTo, whisperNoGM, statContext, decisionWindow, savesRollThemselves, ownersAndGmIds, resolveUuid, resolveUuidAsync } from "./core.js";
+import { cardItem, featureNamed, lower, wieldedNamed } from "./lookup.js";
 import { askConcentrationEnd, concentrationEnding, CONCENTRATION_ASKED, rollConfigFor } from "./shared.js";
 import { concentrationExemptEntries, damageRuleEntries, listedNames } from "./decide/registry.js";
 import { CONCENTRATION_EXEMPTS, DAMAGE_RULES } from "./decide/registry.js";
@@ -222,7 +222,7 @@ async function rollConcentrationAnswer(askMessage, { timedOut = false, mode = nu
     if ( !ask || (ask.status !== "pending") ) return;
     // ⚠ A landed answer wins though the ask still reads pending; whole-log by flag, never a tail.
     if ( game.messages.some(m => readFlag(m, "respondsTo") === askMessage.id) ) return;
-    const actor = await fromUuid(ask.actorUuid);
+    const actor = await resolveUuidAsync(ask.actorUuid);
     if ( !(actor instanceof Actor) || !actor.isOwner ) return;
     // A breaker's Disadvantage rides the straight roll too, unless a mode was pressed.
     const config = rollConfigFor(mode, bonus);
@@ -300,7 +300,7 @@ async function foldConcentrationRoll(askMessage, rollMessage) {
     }
     const judged = foldedSave({ total: roll.total, dc: ask.dc, folds: foldsFrom(key => readFlag(rollMessage, key), SAVE_FOLDS) });
 
-    const actor = await fromUuid(ask.actorUuid);
+    const actor = await resolveUuidAsync(ask.actorUuid);
     // ⚠ Visibility frozen AT VERDICT TIME (a flip during the pause must not re-address), and stored.
     const whisper = setting(S.concVisibility) ? null : ownersAndGmIds(actor);
 
@@ -359,7 +359,7 @@ async function resumeConcOutcome(askMessage) {
   try {
     const ask = foundry.utils.deepClone(readFlag(askMessage, "concentration") ?? {});
     if ( (ask.status !== "done") || !ask.outcome?.answeredAt || ask.outcome.applied ) return;
-    const actor = await fromUuid(ask.actorUuid);
+    const actor = await resolveUuidAsync(ask.actorUuid);
     const whisper = ask.outcome.whisperIds ?? null;
     if ( ask.outcome.success ) {
       if ( actor?.concentration?.effects?.size ) await announceConcentrationHolds(actor, ask, whisper);
@@ -440,7 +440,7 @@ async function fireConcTimer(askMessage) {
   const landed = game.messages.find(m => readFlag(m, "respondsTo") === askMessage.id);
   if ( landed ) return foldConcentrationRoll(askMessage, landed);
   const ask = readFlag(askMessage, "concentration");
-  const actor = await fromUuid(ask?.actorUuid ?? "");
+  const actor = await resolveUuidAsync(ask?.actorUuid ?? "");
   if ( !(actor instanceof Actor) ) {
     const gone = foundry.utils.deepClone(ask ?? {});
     gone.status = "done";
@@ -469,7 +469,7 @@ listen("createChatMessage", "concentration", message => {
 
 async function autoRollConcentration(askMessage) {
   const ask = readFlag(askMessage, "concentration");
-  const actor = await fromUuid(ask?.actorUuid ?? "");
+  const actor = await resolveUuidAsync(ask?.actorUuid ?? "");
   if ( !(actor instanceof Actor) ) return;
   if ( !(rollerUserFor(actor)?.isSelf ?? false) || !leadsWindow() ) return;
   await rollConcentrationAnswer(askMessage);
@@ -555,7 +555,7 @@ async function showConcPopup(message, ask) {
   concDialogsOpening.add(key);
   try {
     if ( game.messages.some(m => readFlag(m, "respondsTo") === message.id) ) return;
-    const actor = await fromUuid(ask.actorUuid);
+    const actor = await resolveUuidAsync(ask.actorUuid);
     if ( !(actor instanceof Actor) || !canAnswerFor(actor) ) return;
     const abilityLabel = CONFIG.DND5E.abilities[ask.ability]?.label ?? "Constitution";
     const demand = new DialogCarried({
@@ -598,7 +598,7 @@ async function foldConcentrationAutoFail(askMessage, sources = []) {
   try {
     const ask = foundry.utils.deepClone(readFlag(askMessage, "concentration") ?? {});
     if ( ask.status !== "pending" ) return;
-    const actor = await fromUuid(ask.actorUuid);
+    const actor = await resolveUuidAsync(ask.actorUuid);
     const whisper = setting(S.concVisibility) ? null : ownersAndGmIds(actor);
     ask.status = "done";
     ask.outcome = {

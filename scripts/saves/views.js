@@ -3,8 +3,7 @@
  * the create / update / delete watchers with their resume floors. index.js is the only public face.
  */
 import { readFlag, rollerUserFor,
-  drivesMomentFor, canAnswerFor, savesRollThemselves, leadsWindow } from "../core.js";
-import { resolveUuid } from "../lookup.js";
+  drivesMomentFor, canAnswerFor, savesRollThemselves, leadsWindow, resolveUuid } from "../core.js";
 import { verdictTail, verdictText } from "../decide/verdict.js";
 import { holdBarHTML, momentBarHTML, esc } from "../decide/present.js";
 import { AREA_CHOICE_FLAG, areaChoiceLine } from "../decide/area-ask.js";

@@ -2,7 +2,7 @@
  * By the Books — Shared EDGE helpers: the hit test, the attack-chain lookup, status forcing, turn
  * chits, the Reaction chip and pool spends (ARCHITECTURE.md §7).
  */
-import { MODULE_ID, readFlag, TITLE, activeCombatFor, canApplyTo, combatStamp, stampedSourceOf } from "./core.js";
+import { MODULE_ID, readFlag, TITLE, activeCombatFor, canApplyTo, combatStamp, stampedSourceOf, resolveUuid } from "./core.js";
 import { CHIP_FLAG, chipClock, chitStamp, reactionStands, reactionStandsEveryTurn } from "./decide/chips.js";
 import { REACTION_RESETS, identifierOf } from "./decide/registry.js";
 import { foldsFrom, hitsAmong } from "./decide/verdict.js";
@@ -54,7 +54,7 @@ export function statSourceOf(message) {
 /** The actor behind an effect's `origin` item (the bard behind an Inspired die), or null. */
 export function grantingActor(effect) {
   try {
-    const origin = effect?.origin ? fromUuidSync(effect.origin) : null;
+    const origin = effect?.origin ? resolveUuid(effect.origin) : null;
     return (origin?.actor instanceof Actor) ? origin.actor : null;
   } catch { return null; }
 }
@@ -465,8 +465,7 @@ export function effectSourceOf(marker) {
 }
 
 function sourceFromUuid(uuid) {
-  let doc = null;
-  try { doc = fromUuidSync(uuid); } catch { return null; }
+  let doc = resolveUuid(uuid);
   const root = doc;
   let item = null;
   while ( doc && !(doc instanceof Actor) ) {
@@ -479,7 +478,7 @@ function sourceFromUuid(uuid) {
   // An effect ON the caster names its item in a flag. ⚠ Uuid resolution, not a concentration test.
   if ( !item ) {
     const carried = root?.getFlag?.("dnd5e", "item");
-    try { item = carried?.uuid ? fromUuidSync(carried.uuid) : null; } catch { item = null; }
+    item = resolveUuid(carried?.uuid);
     // ⚠ `.data` exists only when the item is not on the actor (statblock casting).
     if ( !item && carried?.data ) item = new Item.implementation(carried.data, { parent: doc });
   }
@@ -493,8 +492,7 @@ function sourceFromUuid(uuid) {
  */
 function poolByPackName(actor, target) {
   if ( !target.startsWith("Compendium.") ) return null;
-  let entry = null;
-  try { entry = fromUuidSync(target, { strict: false }); } catch { entry = null; }
+  const entry = resolveUuid(target);
   const name = String(entry?.name ?? "").toLowerCase();
   if ( !name ) return null;
   const hits = actor.items.filter(i => (i.type === "feat") && (String(i.name ?? "").toLowerCase() === name)
@@ -592,8 +590,7 @@ export function poolSpendsOn(message) {
   const hm = readFlag(message, "hitManeuver");
   for ( const pick of (Array.isArray(hm?.picks) ? hm.picks : (hm ? [hm] : [])) ) if ( pick?.poolSpend ) hand.push(pick.poolSpend);
   for ( const r of hand ) {
-    let spender = null;
-    try { spender = r.actorUuid ? fromUuidSync(r.actorUuid) : null; } catch { spender = null; }
+    const spender = resolveUuid(r.actorUuid);
     if ( (spender ? spender.hasPlayerOwner : own) && (r.max > 0) ) rows.push(r);
   }
   return rows;
@@ -629,7 +626,7 @@ export async function withTargets(tokens, fn) {
 /** A party member: in the primary party group, or a player-owned character. */
 export function isPartyMember(uuid) {
   try {
-    const actor = fromUuidSync(uuid);
+    const actor = resolveUuid(uuid);
     if ( !(actor instanceof Actor) ) return false;
     const base = actor.isToken ? (game.actors.get(actor.id) ?? actor) : actor;
     const party = game.actors?.party?.system?.members?.map?.(m => m.actor?.id ?? m.actor) ?? [];
@@ -689,8 +686,7 @@ export function concentrationEnding(activity) {
     return (!!item?.id && (f.id === item.id)) || (!!item?.uuid && ((f.uuid === item.uuid) || (e.origin === item.uuid))) || (!!item?.id && (f.data?._id === item.id)); }) ?? null;
   const effect = same ?? effects.first?.() ?? [...effects][0] ?? null;
   if ( !effect ) return null;
-  let name = effect.name;
-  try { name = (effect.origin ? fromUuidSync(effect.origin, { strict: false })?.name : null) ?? effect.name; } catch { /* the effect's own name */ }
+  const name = resolveUuid(effect.origin)?.name ?? effect.name;
   return { id: effect.id, name, same: !!same };
 }
 

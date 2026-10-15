@@ -8,8 +8,8 @@
  * creatures within reach — the rest song's popup (rest-grants.js `askHandOut`), its clock giving all to the
  * paladin (a bend by choice); the Channel Divinity is spent only when something is given.
  */
-import { MODULE_ID, readFlag, TITLE, decisionWindow, queueFlagWrite } from "./core.js";
-import { activityNamed, activityOfType, featureNamed, lower, resolveUuid } from "./lookup.js";
+import { MODULE_ID, readFlag, TITLE, decisionWindow, queueFlagWrite, resolveUuid, resolveUuidAsync } from "./core.js";
+import { activityNamed, activityOfType, featureNamed, lower } from "./lookup.js";
 import { CAST_RIDERS, castRiderEntries, listedNames, answers } from "./decide/registry.js";
 import { castWithSlot, spellClassOf, surgeLine, surgeOutcome } from "./decide/cast-riders.js";
 import { riderPartFormula } from "./decide/clock.js";
@@ -112,7 +112,7 @@ async function surge({ name, row, actor, message }) {
 
 /** D1 — Tamed Surge's choices: every row of the table but the LAST (the rule's exception), each its text, trimmed. */
 async function tableChoices(uuid) {
-  const table = uuid ? await fromUuid(uuid) : null;
+  const table = uuid ? await resolveUuidAsync(uuid) : null;
   const rows = [...(table?.results ?? [])].sort((a, b) => (a.range?.[0] ?? 0) - (b.range?.[0] ?? 0));
   return rows.slice(0, -1).map(r => resultText(r)).filter(Boolean);
 }
@@ -126,7 +126,7 @@ function resultText(r) {
 
 /** The pack's table rolled (never marked drawn — a compendium table is not written) and posted; its text back. */
 async function rollTable(uuid, actor) {
-  const table = uuid ? await fromUuid(uuid) : null;
+  const table = uuid ? await resolveUuidAsync(uuid) : null;
   if ( !table ) { console.warn(`${TITLE} | The Wild Magic Surge table (${uuid}) is not on this box — roll it by hand.`); return null; }
   const { roll, results } = await table.roll();
   await table.toMessage(results, { roll, messageData: { speaker: ChatMessage.getSpeaker({ actor }) } });

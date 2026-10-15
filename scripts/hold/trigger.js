@@ -3,7 +3,7 @@
  * By the Books — the reaction hold: THE ATTACK TRIGGER. "You are hit" reactions fire BEFORE damage,
  * so the chain pauses and a human answers; the module never plays the reaction (DESIGN.md §4).
  */
-import { MODULE_ID, readFlag, TITLE, S, setting, drivesMomentFor, statContext, decisionWindow } from "../core.js";
+import { MODULE_ID, readFlag, TITLE, S, setting, drivesMomentFor, statContext, decisionWindow, resolveUuidAsync } from "../core.js";
 import { spendReaction, statSourceOf } from "../shared.js";
 import { findInterrupt, hasReactionEffect, reactionACBonus, rescueStateOf, protectionGuardsOf, bystandersOf, duplicatesOf, attackFactsOf } from "./lookup.js";
 import { bfCard } from "../decide/present.js";
@@ -32,7 +32,7 @@ export async function stampHoldIfInterrupted(attackMessage, roll, hits) {
   const attackFacts = attackFactsOf(attackMessage);
   const ranged = attackFacts.ranged;
   for ( const target of hits ) {
-    const actor = await fromUuid(target.uuid);
+    const actor = await resolveUuidAsync(target.uuid);
     // THE DUPLICATES (Mirror Image; Reflective Carapace): rolled by the machine once the hit stands, on the same hold — an entry
     // answered by itself when nothing else asks. An attacker that sees through rolls nothing; a line says why.
     let duplicates = duplicatesOf(actor, attacker, attackFacts);
@@ -133,7 +133,7 @@ export async function stampMissHoldIfBystanders(attackMessage, roll) {
   const judged = targetsOf(attackMessage).filter(t => (t.ac !== null) && (t.ac !== undefined));
   const target = (judged.length === 1) ? judged[0] : null;
   if ( !attacker || !target ) return false;
-  const actor = await fromUuid(target.uuid);
+  const actor = await resolveUuidAsync(target.uuid);
   const liveAC = actor?.system?.attributes?.ac?.value ?? target.ac;
   const guards = bystandersOf(actor, attacker, roll, liveAC, { on: "miss" });
   if ( !guards.length ) return false;

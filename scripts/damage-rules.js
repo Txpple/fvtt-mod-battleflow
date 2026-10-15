@@ -4,8 +4,8 @@
  * listed style, live or disabled off the EQUIPPED boxes; an ungated pack effect is off while the face
  * carries the rule. THE ROLL: bonuses join the parts; a die floor is a `minN` on the built rolls.
  */
-import { MODULE_ID, readFlag, TITLE, publish, drivesMomentFor, canApplyTo, canAnswerFor, keepsMessage, statContext, queueFlagWrite, decisionWindow, ownersAndGmIds } from "./core.js";
-import { lower, featureNamed, resolveUuid, wieldsAs } from "./lookup.js";
+import { MODULE_ID, readFlag, TITLE, publish, drivesMomentFor, canApplyTo, canAnswerFor, keepsMessage, statContext, queueFlagWrite, decisionWindow, ownersAndGmIds, resolveUuid, resolveUuidAsync } from "./core.js";
+import { lower, featureNamed, wieldsAs } from "./lookup.js";
 import { answers, damageRuleEntries, identifierOf, listedNames } from "./decide/registry.js";
 import { DAMAGE_RULES } from "./decide/registry.js";
 import { heldOf, faceState, rollFits, raisedOf, styleLine, diceOf, chipsOf, blockDamages,
@@ -822,13 +822,13 @@ async function askTypePick(message) {
   const row = DAMAGE_RULES[flag?.row];
   if ( !row || flag.chosen ) return;
   // live only: the owner whose sheet the feat is on answers
-  const actor = fromUuidSync(flag.sourceUuid ?? "");
+  const actor = resolveUuid(flag.sourceUuid ?? "");
   if ( !(actor instanceof Actor) || !actor.isOwner ) return;
   await openMomentPopup(message, PICK_FLAG, actor, {
     title: `${flag.row} — ${actor.name}`, icon: "fa-solid fa-fire", width: 460, gate: false,
     content: bfCard({
       // live only: the new feat on the sheet — its own icon, and the copy the answer renames
-      img: fromUuidSync(flag.itemUuid ?? "")?.img ?? null,
+      img: resolveUuid(flag.itemUuid ?? "")?.img ?? null,
       eyebrow: `${flag.row} — a new feat`, tone: "pending",
       title: "Choose your damage type",
       subtitle: pickWordsOf(row),
@@ -846,7 +846,7 @@ async function chooseType(message, type) {
     const flag = readFlag(message, PICK_FLAG);
     if ( !flag || flag.chosen || !flag.left.includes(type) ) return;
     // live only: the copy on the sheet is what the answer renames — a gone copy has nothing to name
-    const item = await fromUuid(flag.itemUuid ?? "");
+    const item = await resolveUuidAsync(flag.itemUuid ?? "");
     if ( !(item instanceof Item) ) { ui.notifications.warn(`${flag.row} is no longer on the sheet.`); return; }
     await item.update({ name: `${flag.row} (${titleCase(type)})` });
     if ( message.canUserModify?.(game.user, "update") ) await message.setFlag(MODULE_ID, PICK_FLAG, { ...flag, chosen: type });
@@ -870,7 +870,7 @@ listen("dnd5e.renderChatMessage", "damage-rules", (message, html) => {
   content?.appendChild(line);
   if ( !f.chosen ) {
     // live only: the choice is the feat's owner's — another client sees the line, not the button
-    const actor = fromUuidSync(f.sourceUuid ?? "");
+    const actor = resolveUuid(f.sourceUuid ?? "");
     if ( actor?.isOwner ) content?.appendChild(momentButton("Choose type…", () => void askTypePick(message)));
   }
 });

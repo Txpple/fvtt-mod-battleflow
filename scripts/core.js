@@ -108,12 +108,49 @@ const isFlowElectFor = actor => (flowElectFor(actor)?.isSelf ?? false) && leadsW
 export function drivesMomentFor(subjectUuid) {
   if ( isActiveGM() ) return true;
   if ( game.users.activeGM ) return false;
-  const actor = (() => { try { return fromUuidSync(subjectUuid); } catch { return null; } })();
+  const actor = resolveUuid(subjectUuid);
   return !!actor && isFlowElectFor(actor);
+}
+
+// THE UUID (ARCHITECTURE §7 *The shared readers*): the document behind a uuid, read here and nowhere else
+// (tools/check-lookups.mjs). This leaf is the one file every other file can import.
+
+/**
+ * The document behind a uuid, or null. A uuid the platform cannot read now is "not here", as a deleted document
+ * is: an empty one, a malformed one, an embedded document inside a pack (`fromUuidSync` throws on those). A pack
+ * document that is not loaded answers its index entry; a token's synthetic actor resolves through its token
+ * (`Scene.….Token.….Actor.…`).
+ * @param {string|null|undefined} uuid
+ * @returns {any}
+ */
+export function resolveUuid(uuid) {
+  if ( !uuid ) return null;
+  try { return fromUuidSync(uuid) ?? null; }
+  catch { return null; }
+}
+
+/**
+ * The document behind a uuid, loaded (a pack document read whole), or null: the same "not here" as `resolveUuid`,
+ * a lookup that throws included.
+ * @param {string|null|undefined} uuid
+ * @returns {Promise<any>}
+ */
+export async function resolveUuidAsync(uuid) {
+  if ( !uuid ) return null;
+  try { return (await fromUuid(uuid)) ?? null; }
+  catch { return null; }
 }
 
 /** May this client WRITE to that actor? Turns a silent permission failure into a spoken one. */
 export const canApplyTo = actor => !!actor?.isOwner;
+
+/**
+ * The targets this client may write: each row's actor (`t.actor`, else its `uuid` resolved) owned here.
+ * @template {{uuid?: string, actor?: any}} T
+ * @param {T[]|null|undefined} targets
+ * @returns {T[]}
+ */
+export const writableTargets = targets => (targets ?? []).filter(t => canApplyTo(t.actor ?? resolveUuid(t.uuid)));
 
 // THE RECIPIENTS (ARCHITECTURE §5): who a whispered card reaches, one named set each; ui.js `postCard`
 // takes one as `to`, and a card with none is public.

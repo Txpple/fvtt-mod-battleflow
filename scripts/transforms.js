@@ -11,8 +11,8 @@
  * Incapacitated, 0 Hit Points, the Temporary Hit Points gone. The Long Rest offers the one known-form
  * swap through the mastery record's road (RULINGS *Wild Shape and the polymorph spells*).
  */
-import { MODULE_ID, readFlag, TITLE, isActiveGM, queueFlagWrite, canAnswerFor, answersHere, statContext } from "./core.js";
-import { cardActivity, lower, resolveUuid, featureNamed } from "./lookup.js";
+import { MODULE_ID, readFlag, TITLE, isActiveGM, queueFlagWrite, canAnswerFor, answersHere, statContext, resolveUuid, resolveUuidAsync } from "./core.js";
+import { cardActivity, lower, featureNamed } from "./lookup.js";
 import { TRANSFORMS, transformEntries, listedNames, tableIndex } from "./decide/registry.js";
 import { poolRuleOf, capOfTarget, knownSlotsOf, knownHolderOf, knownState, learnedList, restKnownList, transformRecord,
   pickedAnswer, formEffectData, endOfForm, formTitle, articleOf, empowerSetting, empowerTempHp, empowerUpdates, repointedLanded } from "./decide/transforms.js";
@@ -424,7 +424,7 @@ async function landTransform(message) {
   try {
     const caster = resolveUuid(flag.sourceUuid);
     if ( !(caster instanceof Actor) ) throw new Error("the caster could not be read off the card");
-    const source = await fromUuid(flag.pick?.uuid);
+    const source = await resolveUuidAsync(flag.pick?.uuid);
     if ( !(source instanceof Actor) ) throw new Error(`no creature at ${flag.pick?.uuid}`);
     const original = originalOf(caster);
     const activity = activityFor(original, flag, message);
@@ -477,7 +477,7 @@ async function changeTransform(message) {
   const landed = [];
   let failure = null;
   try {
-    const source = await fromUuid(pick.uuid);
+    const source = await resolveUuidAsync(pick.uuid);
     if ( !(source instanceof Actor) ) throw new Error(`no creature at ${pick.uuid}`);
     const caster = resolveUuid(flag.sourceUuid);
     for ( const l of flag.landed ?? [] ) {

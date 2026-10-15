@@ -7,8 +7,8 @@
  * (the target is the attacker's to change — a new attack is a new attack). The ward ends on the bearer's
  * own attack roll, cast or damage roll, no choice (R1). Rulings: RULINGS *The spells slice — Tier 3*.
  */
-import { MODULE_ID, readFlag, TITLE, drivesMomentFor, statContext, decisionWindow, queueFlagWrite, canApplyTo } from "./core.js";
-import { activityNamed, resolveUuid } from "./lookup.js";
+import { MODULE_ID, readFlag, TITLE, drivesMomentFor, statContext, decisionWindow, queueFlagWrite, canApplyTo, resolveUuid } from "./core.js";
+import { activityNamed } from "./lookup.js";
 import { effectSourceOf, saveEntryFor } from "./shared.js";
 import { WARDS, answers, wardEntries, listedNames } from "./decide/registry.js";
 import { repeatRowFor, needsFloat } from "./decide/repeat-saves.js";

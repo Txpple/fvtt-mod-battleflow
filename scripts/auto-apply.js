@@ -2,7 +2,7 @@
 /**
  * By the Books — auto-apply damage, the shared receipt applier, and the payout pipeline. Split shape (ARCHITECTURE.md §7).
  */
-import { MODULE_ID, readFlag, TITLE, drivesMomentFor, canApplyTo, whisperNoGM, queueFlagWrite, statContext, isActiveGM } from "./core.js";
+import { MODULE_ID, readFlag, TITLE, drivesMomentFor, canApplyTo, whisperNoGM, queueFlagWrite, statContext, isActiveGM, resolveUuidAsync, writableTargets } from "./core.js";
 import { receiptEntry, joinDamageReceipt } from "./decide/receipt.js";
 import { interruptMultiplier, reduceDamages } from "./decide/verdict.js";
 import { INTERRUPT_MULTIPLIERS } from "./decide/registry.js";
@@ -111,7 +111,7 @@ async function missedTargets(attackMessage, hits) {
   for ( const t of targetsOf(attackMessage) ) {
     if ( hit.has(t.uuid) || (t.ac === null) || (t.ac === undefined) ) continue;
     if ( hold?.targets?.find(e => e.uuid === t.uuid)?.verdict === "absorbed" ) continue;
-    const actor = await fromUuid(t.uuid).catch(() => null);
+    const actor = await resolveUuidAsync(t.uuid);
     const subject = (actor instanceof Actor) ? actor : (actor?.actor ?? null);
     if ( !subject || ((subject.system?.attributes?.hp?.value ?? 0) <= 0) || !canApplyTo(subject) ) continue;
     out.push({ uuid: t.uuid, name: t.name });
@@ -122,9 +122,7 @@ async function missedTargets(attackMessage, hits) {
 /** ⚠ Sequential: the mastery gates (Vex, Slow: damage DEALT) read the receipt the application writes. */
 async function resolveDamagePayouts(damageMessage, attackMessage, hits) {
   // Application and effect riders write to the TARGET: gated, and said aloud when this client cannot.
-  const writable = hits.filter(t => {
-    try { return canApplyTo(fromUuidSync(t.uuid)); } catch { return false; }
-  });
+  const writable = writableTargets(hits);
   const blocked = hits.length - writable.length;
 
   if ( writable.length ) await applyToHitTargets(damageMessage, attackMessage, writable);
@@ -171,7 +169,7 @@ async function landTypedEffect(attackMessage, hold, target, damages) {
   const key = Object.keys(INTERRUPT_MULTIPLIERS).find(k => k.toLowerCase() === String(entry.reaction ?? "").toLowerCase());
   const row = key ? INTERRUPT_MULTIPLIERS[key] : null;
   if ( row?.effects !== "type" ) return;
-  const actor = await fromUuid(entry.uuid).catch(() => null);
+  const actor = await resolveUuidAsync(entry.uuid);
   const item = (actor instanceof Actor) ? (actor.items.get(entry.itemId) ?? null) : null;
   const type = damages.map(d => d.type).find(t => t && !["healing", "temphp"].includes(t)) ?? null;
   const want = `${row.effectPrefix ?? ""}${type}`.toLowerCase();
@@ -215,7 +213,7 @@ export async function applyDamagesWithReceipt(receiptMessage, hits, damages, { n
     const context = statContext(statSourceOf(receiptMessage));
     const receipts = [];
     for ( const target of hits ) {
-      const actor = await fromUuid(target.uuid); // the targets snapshot carries ACTOR uuids
+      const actor = await resolveUuidAsync(target.uuid); // the targets snapshot carries ACTOR uuids
       if ( !(actor instanceof Actor) || !actor.system.attributes?.hp ) continue;
       if ( !held && claimed(receiptMessage, target, actor, damages, { multiplier, ...(note ? { note } : {}) }) ) continue;
       const src = actor.system._source.attributes.hp;

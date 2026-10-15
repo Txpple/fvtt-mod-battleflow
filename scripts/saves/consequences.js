@@ -2,10 +2,10 @@
  * By the Books — MACHINE, part of scripts/saves/ (ARCHITECTURE.md §7): the CONSEQUENCES per target,
  * receipted — effects per outcome, status presses, Evasion, chained damage at the verdict's multiplier.
  */
-import { readFlag, TITLE, queueFlagWrite, canApplyTo, whisperNoGM, statContext } from "../core.js";
+import { readFlag, TITLE, queueFlagWrite, canApplyTo, whisperNoGM, statContext, resolveUuid, resolveUuidAsync } from "../core.js";
 import { ruleHTML } from "../rule-text.js";
 import { bfCard } from "../decide/present.js";
-import { applicableProfiles, cardActivity, enchantedAs, featureNamed, lower, namesAnswering, resolveUuid } from "../lookup.js";
+import { applicableProfiles, cardActivity, enchantedAs, featureNamed, lower, namesAnswering } from "../lookup.js";
 import { CARD, castLevelOn, isCard, onSaveOf, originIdOf } from "../decide/card.js";
 import { saveMultiplier } from "../decide/verdict.js";
 import { forceStatus, damagePartsOf, statSourceOf, attackIdOf } from "../shared.js";
@@ -231,7 +231,7 @@ export const wordStatus = (press, answer) => press?.word?.statuses?.[answer] ?? 
 
 /** The SAVE_PRESSES status on the failer, receipted as the effect it became (so revert removes it). */
 async function pressSaveStatus(card, flag, entry, press, activity = null) {
-  const subject = await fromUuid(entry.uuid).catch(() => null);
+  const subject = await resolveUuidAsync(entry.uuid);
   const saver = (subject instanceof Actor) ? subject : (subject?.actor ?? null);
   if ( !(saver instanceof Actor) || !canApplyTo(saver) ) return;
   const status = wordStatus(press, entry.choice?.answer ?? null);

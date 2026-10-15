@@ -3,11 +3,11 @@
  * can read it and the roll can spend it; plus the card chips (Tinker) and the coatings (Poisoner).
  * EDGE layer (ARCHITECTURE.md §7).
  */
-import { MODULE_ID, readFlag, TITLE, statContext, queueFlagWrite, drivesMomentFor } from "./core.js";
+import { MODULE_ID, readFlag, TITLE, statContext, queueFlagWrite, drivesMomentFor, resolveUuid, resolveUuidAsync } from "./core.js";
 import { CARD, isCard, targetsOf } from "./decide/card.js";
 import { messageActivity } from "./effect-riders.js";
 import { ruleHTML } from "./rule-text.js";
-import { lower, featureNamed, itemNamed, namesAnswering, activityNamed, asiAssigned, resolveUuid } from "./lookup.js";
+import { lower, featureNamed, itemNamed, namesAnswering, activityNamed, asiAssigned } from "./lookup.js";
 import { effectEntries, cardChipEntries, damageRuleEntries, listedNames } from "./decide/registry.js";
 import { chipData, placeOf, hitTargets, withTargets, turnPlace, attackHoldClaims } from "./shared.js";
 import { bfCard, ruleLine, esc } from "./decide/present.js";
@@ -201,7 +201,7 @@ async function askCardChip(message) {
   const row = CARD_CHIPS[flag?.key];
   if ( !row || flag.made ) return;
   // live only: the caster whose sheet the chip lands on
-  const actor = fromUuidSync(flag.sourceUuid ?? "");
+  const actor = resolveUuid(flag.sourceUuid ?? "");
   if ( !(actor instanceof Actor) || !actor.isOwner ) return;
   const left = chipsLeft(devicesOf(actor, row).length, row.max);
   const esc = foundry.utils.escapeHTML;
@@ -222,7 +222,7 @@ async function buildCardChip(message) {
   const flag = readFlag(message, CARD_FLAG);
   const row = CARD_CHIPS[flag?.key];
   if ( !row || flag.made ) return;
-  const actor = await fromUuid(flag.sourceUuid ?? "");
+  const actor = await resolveUuidAsync(flag.sourceUuid ?? "");
   if ( !(actor instanceof Actor) || !actor.isOwner ) return;
   const standing = devicesOf(actor, row).length;
   if ( !chipsLeft(standing, row.max) ) {
@@ -264,7 +264,7 @@ listen("dnd5e.renderChatMessage", "use-chips", (message, html) => {
   content?.appendChild(line);
   if ( !f.made ) {
     // live only: the offer is its caster's to take — another client sees the line, not the button
-    const actor = fromUuidSync(f.sourceUuid ?? "");
+    const actor = resolveUuid(f.sourceUuid ?? "");
     if ( actor?.isOwner ) content?.appendChild(momentButton(`Build a ${row.chip}…`, () => void askCardChip(message)));
   }
 });

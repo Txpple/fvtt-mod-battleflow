@@ -7,7 +7,7 @@
  * by name (`owl.webp`, `owl-portrait.webp`). Save writes the table once. Each opens from its own button in the
  * module's settings (GM only). The art is read where it is shown (gallery.js `summonArt`, `formArt`).
  */
-import { MODULE_ID, S, TITLE, setting } from "./core.js";
+import { MODULE_ID, S, TITLE, setting, resolveUuidAsync } from "./core.js";
 import { artTag, esc } from "./decide/present.js";
 import { ART_SPELLS, artKey, cleanTable, fillBlanks, matchFiles } from "./decide/summon-art.js";
 import { SUMMON_EXTRAS, SUMMON_GUISES, SUMMON_ONE_FORM } from "./decide/registry.js";
@@ -22,7 +22,7 @@ const CREATURES = new Map();
 /** The spell's own item: its compendium entry, else the first visible spell of that name. */
 async function spellItem(spell) {
   try {
-    const item = await fromUuid(spell.uuid);
+    const item = await resolveUuidAsync(spell.uuid);
     if ( item ) return item;
   } catch { /* the book is not installed: look it up by name */ }
   for ( const pack of game.packs.filter(p => (p.documentName === "Item") && p.visible) ) {
@@ -58,7 +58,7 @@ async function creaturesOf(spell) {
     }
     // the forms a feature adds to the spell (SUMMON_EXTRAS: Pact of the Chain's), keyed under the spell as they land
     for ( const extra of Object.values(SUMMON_EXTRAS).filter(x => artKey(x.spell) === artKey(spell.name)) ) {
-      const feature = await fromUuid(extra.rule.uuid).catch(() => null);
+      const feature = await resolveUuidAsync(extra.rule.uuid);
       const source = [...(feature?.system?.activities ?? [])].find(a => artKey(a.name) === artKey(extra.activity)) ?? null;
       for ( const raw of source?.profiles ?? [] ) {
         const p = raw.toObject?.() ?? raw;

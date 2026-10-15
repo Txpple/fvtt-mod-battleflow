@@ -3,8 +3,8 @@
  * Interpose on a listed shield-bearer's success, the bash's Prone-or-push on the listed feat's
  * failure, and the caster's WORD behind a press (Command), on the same `saves` flag.
  */
-import { MODULE_ID, readFlag, TITLE, queueFlagWrite, drivesMomentFor, decisionWindow } from "../core.js";
-import { applicableProfiles, cardActivity, equippedShield, foldEntryFor, resolveUuid } from "../lookup.js";
+import { MODULE_ID, readFlag, TITLE, queueFlagWrite, drivesMomentFor, decisionWindow, resolveUuid, resolveUuidAsync } from "../core.js";
+import { applicableProfiles, cardActivity, equippedShield, foldEntryFor } from "../lookup.js";
 import { forceStatus, reactionSpent, spendReaction } from "../shared.js";
 import { bfCard, esc, momentBarHTML, ruleLine } from "../decide/present.js";
 import { openMomentPopup, armAskTimer, disarmAskTimer, subjectOwns, registerRelay, postAnswer, postCard } from "../ui.js";
@@ -29,7 +29,7 @@ async function saveChoiceSpec(card, flag, entry) {
     // feat on the saver, a shield in hand, the Reaction free — and the save already held.
     if ( !flag.hasDamage || (flag.damageOnSave !== "half") ) return null;
     if ( !(flag.abilities ?? []).includes("dex") ) return null;
-    const subject = await fromUuid(entry.uuid).catch(() => null);
+    const subject = await resolveUuidAsync(entry.uuid);
     const saver = (subject instanceof Actor) ? subject : (subject?.actor ?? null);
     if ( !(saver instanceof Actor) ) return null;
     if ( reactionSpent(saver) ) return null;
@@ -94,7 +94,7 @@ async function answerSaveChoice(card, uuid, answer) {
   const c = entry?.choice;
   if ( !c || c.answer ) return;
   if ( !card.isOwner ) {
-    const subject = await fromUuid(c.subjectUuid ?? uuid).catch(() => null);
+    const subject = await resolveUuidAsync(c.subjectUuid ?? uuid);
     // The BASH labels never claim an outcome; Interpose is post-verdict, so its accept may.
     const labels = {
       use: `${c.itemName} — ${entry.name} spends the Reaction: no damage`,
@@ -279,7 +279,7 @@ export async function announceBashOutcome(card, _flag, entry) {
   const attacker = card.getAssociatedActor?.();
   const push = c.answer === "push";
   if ( !push ) {
-    const subject = await fromUuid(entry.uuid).catch(() => null);
+    const subject = await resolveUuidAsync(entry.uuid);
     const saver = (subject instanceof Actor) ? subject : (subject?.actor ?? null);
     if ( saver instanceof Actor ) await forceStatus(saver, "prone", { origin: attacker?.uuid ?? null });
   }
@@ -308,7 +308,7 @@ export async function settleInterpose(card, flag, entry) {
     if ( t?.choice && !t.choice.validated ) { t.choice.validated = true; claimed = true; }
   });
   if ( !claimed ) return;
-  const subject = await fromUuid(entry.uuid).catch(() => null);
+  const subject = await resolveUuidAsync(entry.uuid);
   const saver = (subject instanceof Actor) ? subject : (subject?.actor ?? null);
   if ( saver instanceof Actor ) void spendReaction(saver, { origin: null, what: `Interpose (${c.itemName})` });
   await postCard({

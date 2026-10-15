@@ -7,8 +7,8 @@
  * on a failure by this machine (the pack ties both effects to the Cast). The cone is instantaneous and goes
  * with the rays. Rulings: RULINGS *The spells slice — the held spells*.
  */
-import { MODULE_ID, readFlag, TITLE, drivesMomentFor, statContext, decisionWindow, queueFlagWrite, canApplyTo, whisperNoGM } from "./core.js";
-import { activityNamed, cardActivity, lower, resolveUuid } from "./lookup.js";
+import { MODULE_ID, readFlag, TITLE, drivesMomentFor, statContext, decisionWindow, queueFlagWrite, canApplyTo, whisperNoGM, resolveUuid } from "./core.js";
+import { activityNamed, cardActivity, lower } from "./lookup.js";
 import { RAY_TABLES, tableIndex, rayTableEntries, listedNames } from "./decide/registry.js";
 import { raysFor, rayWords, raySummaryLines, rayVerdict } from "./decide/prismatic.js";
 import { saveDemandData, saveTargetEntry } from "./decide/demand.js";

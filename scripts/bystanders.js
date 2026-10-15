@@ -7,11 +7,11 @@
  * is stated as arithmetic and the verdict stays the DM's (the raw-check shape). One flag on the ROLL
  * message, `bystanderRoll`; a bystander who does not own the roll answers through the relay.
  */
-import { MODULE_ID, readFlag, TITLE, queueFlagWrite, canAnswerFor, keepsMessage, statContext, decisionWindow } from "./core.js";
+import { MODULE_ID, readFlag, TITLE, queueFlagWrite, canAnswerFor, keepsMessage, statContext, decisionWindow, resolveUuid, resolveUuidAsync } from "./core.js";
 import { INTERRUPT_ROLLS, STORED_DICE } from "./decide/registry.js";
 import { bystanderMatters, dieMaxOf, dieOutcome, guardSign, neededOnDieLine, neutraliseOutcome, rerollOutcome, signFor } from "./decide/rescue-hit.js";
 import { bfCard, esc, holdBarHTML } from "./decide/present.js";
-import { activityNamed, featureNamed, resolveUuid, bystanderRows, bystanderDie, d20FactsOf, rerollD20 } from "./lookup.js";
+import { activityNamed, featureNamed, bystanderRows, bystanderDie, d20FactsOf, rerollD20 } from "./lookup.js";
 import { nearestFeet, tokenForUuid } from "./geometry.js";
 import { poolOf, poolUsesOf, reactionSpent, spendReaction, spendPoolUses, bystanderMuted, muteBystander, muteScopesFor, spendStoredFace, storedChipOf, storedFacesUsable, withTargets, saveDemandOf, storedFacesOf } from "./shared.js";
 import { facesThatTurn, setOutcome } from "./decide/stored-dice.js";
@@ -160,7 +160,7 @@ registerWithhold(KEY, {
       const existing = readFlag(rollMessage, KEY);
       if ( existing ) return existing.status === "pending";
       if ( !Number.isFinite(total) || !Number.isFinite(dc) ) return false;
-      const roller = await fromUuid(uuid);
+      const roller = await resolveUuidAsync(uuid);
       if ( !(roller instanceof Actor) ) return false;
       const demand = saveDemandOf(card) ?? {};
       // The save's own ability off the roll (dnd5e's roll flag), for a row's `abilities`; the demand's spell mark for `spells`.

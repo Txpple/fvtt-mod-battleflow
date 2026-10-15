@@ -2,8 +2,8 @@
  * By the Books — MACHINE (ARCHITECTURE.md §7): the bash OFFER — a listed carrier's melee hit offers
  * Shield Master's bash (or a `shove` feat's push); the save and Prone-or-push are the saves machine's.
  */
-import { MODULE_ID, readFlag, TITLE, isActiveGM, queueFlagWrite, canAnswerFor, inRunningCombat, combatStamp, statContext, drivesMomentFor, decisionWindow } from "./core.js";
-import { resolveUuid, foldEntryFor, itemNamed, dealtTypesOf } from "./lookup.js";
+import { MODULE_ID, readFlag, TITLE, isActiveGM, queueFlagWrite, canAnswerFor, inRunningCombat, combatStamp, statContext, drivesMomentFor, decisionWindow, resolveUuid, resolveUuidAsync } from "./core.js";
+import { foldEntryFor, itemNamed, dealtTypesOf } from "./lookup.js";
 import { maneuverFoldEntries } from "./decide/registry.js";
 import { RULE_TEXT, SHOVES, tableIndex } from "./decide/registry.js";
 import { hitOfferStep, withinBashReach, sizeAllows } from "./decide/sequence.js";
@@ -88,7 +88,7 @@ listen("dnd5e.rollAttack", "bash-offer", async (rolls, { subject }) => {
     const attackerToken = tokenOfActor(attacker);
     const living = [];
     for ( const t of hits ) {
-      const a = await fromUuid(t.uuid).catch(() => null);
+      const a = await resolveUuidAsync(t.uuid);
       if ( !(a instanceof Actor) ) continue;
       if ( a.statuses?.has?.("dead") ) continue;
       if ( (a.type === "npc") && ((a.system.attributes?.hp?.value ?? 0) <= 0) ) continue;
@@ -135,7 +135,7 @@ async function offerFacts(attackMessage, { damageLanded } = {}) {
   let living = 0;
   const standing = [];
   for ( const t of (b.targets ?? []) ) {
-    const a = await fromUuid(t.uuid).catch(() => null);
+    const a = await resolveUuidAsync(t.uuid);
     if ( !(a instanceof Actor) ) continue;
     if ( a.statuses?.has?.("dead") ) continue;
     if ( (a.type === "npc") && ((a.system.attributes?.hp?.value ?? 0) <= 0) ) continue;
@@ -204,7 +204,7 @@ async function resolveBashOffer(message) {
     const flag = readFlag(message, "bashOffer");
     if ( !flag || (flag.answer !== "use") ) return;
     if ( bashDriven(message.id) ) return;                        // idempotent — the usage exists
-    const attacker = await fromUuid(flag.attackerUuid).catch(() => null);
+    const attacker = await resolveUuidAsync(flag.attackerUuid);
     if ( flag.kind === "shove" ) { if ( attacker instanceof Actor ) await announceShove(message, flag, attacker); return; }
     const item = attacker?.items?.get(flag.itemId);
     const activity = item?.system.activities?.get?.(flag.activityId)

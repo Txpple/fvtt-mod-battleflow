@@ -4,8 +4,8 @@
  * answering client. The trigger is `dnd5e.applyDamage`, the one seam that knows the ORIGINATING
  * card (a raw HP edit offers nothing). "That you can see" is the table's.
  */
-import { MODULE_ID, readFlag, TITLE, keepsMessage, queueFlagWrite, canAnswerFor, statContext, decisionWindow } from "./core.js";
-import { lower, itemNamed, activityNamed, cardActivity, resolveUuid, meleeOptions, preferredMeleeOption, wearsEffectNamed } from "./lookup.js";
+import { MODULE_ID, readFlag, TITLE, keepsMessage, queueFlagWrite, canAnswerFor, statContext, decisionWindow, resolveUuid, resolveUuidAsync } from "./core.js";
+import { lower, itemNamed, activityNamed, cardActivity, meleeOptions, preferredMeleeOption, wearsEffectNamed } from "./lookup.js";
 import { rebukeEntries, listedNames } from "./decide/registry.js";
 import { REBUKES } from "./decide/registry.js";
 import { rebukeReach, rebukeBlocked, rebukeCost, rebukeLine, rebukeTypesAdmit } from "./decide/rebukes.js";
@@ -242,7 +242,7 @@ listen("createChatMessage", "rebukes", async message => {
     const hitSet = new Set(hitTargets(message).map(t => t.uuid));
     for ( const t of targetsOf(message) ) {
       if ( hitSet.has(t.uuid) ) continue;
-      const actor = await fromUuid(t.uuid).catch(() => null);
+      const actor = await resolveUuidAsync(t.uuid);
       if ( !(actor instanceof Actor) || (actor.uuid === attacker.uuid) ) continue;
       void stampRebuke(actor, attacker, 0, message, { miss: true, missMelee });
     }

@@ -3,7 +3,7 @@
  * By the Books — the reaction hold: THE NO-ATTACK DAMAGE APPLIER and the `negate` veto at
  * `dnd5e.preApplyDamage` (which blocks wherever the tray's button is pressed).
  */
-import { MODULE_ID, readFlag, TITLE, drivesMomentFor, canApplyTo, whisperNoGM } from "../core.js";
+import { MODULE_ID, readFlag, TITLE, drivesMomentFor, whisperNoGM, writableTargets } from "../core.js";
 import { damagePartsOf } from "../shared.js";
 import { CARD, isCard, itemNameOf, originIdOf, targetsOf } from "../decide/card.js";
 import { registerResumable } from "../ui.js";
@@ -59,9 +59,7 @@ async function applySpellDamage(message) {
     const damages = damagePartsOf(message.rolls);
     if ( !damages.length ) return;
     // ⚠ With no GM, only the targets this client may write are applied; the rest are spoken for.
-    const writable = targets.filter(t => {
-      try { return canApplyTo(fromUuidSync(t.uuid)); } catch { return false; }
-    });
+    const writable = writableTargets(targets);
     const blocked = targets.length - writable.length;
     if ( blocked ) {
       await whisperNoGM(`this spell's damage to ${blocked} target${blocked === 1 ? "" : "s"}`,

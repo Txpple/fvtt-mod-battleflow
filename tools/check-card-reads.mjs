@@ -1,6 +1,6 @@
 // Static card-read check (no Foundry, milliseconds). A card's ITEM or ACTIVITY is read through
 // lookup.js `cardItem` / `cardActivity`, never a bare uuid lookup: fails on `fromUuid(…)`,
-// `fromUuidSync(…)` or `resolveUuid(…)` naming an `activityUuid`, `itemUuid` or `itemUuidOf(…)`
+// `fromUuidSync(…)`, `resolveUuid(…)` or `resolveUuidAsync(…)` naming an `activityUuid`, `itemUuid` or `itemUuidOf(…)`
 // anywhere in scripts/ outside lookup.js, unless the line above says `// live only: <reason>`.
 // ⚠ dnd5e's `Activity#use` SPENDS before it posts: a used-up item (potion, scroll) is deleted before
 // its card exists, so a bare lookup silently finds nothing. The card keeps a snapshot, which the
@@ -16,7 +16,7 @@ import { dirname, join, relative } from "node:path";
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const SCRIPTS = join(ROOT, "scripts");
 const HOME = "scripts/lookup.js";
-const BARE = /\b(fromUuidSync|fromUuid|resolveUuid)\([^)]*\b(activityUuid|itemUuid|itemUuidOf)\b/;
+const BARE = /\b(fromUuidSync|fromUuid|resolveUuidAsync|resolveUuid)\([^)]*\b(activityUuid|itemUuid|itemUuidOf)\b/;
 const LIVE_ONLY = /\/\/\s*live only:\s*\S/;
 
 /** Every .js file under scripts/, recursively. */

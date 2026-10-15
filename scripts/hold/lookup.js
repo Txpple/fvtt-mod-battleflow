@@ -3,7 +3,7 @@
  * By the Books — the reaction hold's READERS (`hold/` part 1, ARCHITECTURE.md §7): eligibility, the
  * item a reaction IS, its AC and art, whether it landed, and the self-cast effect applier. No hooks.
  */
-import { MODULE_ID, readFlag, TITLE, S, setting } from "../core.js";
+import { MODULE_ID, readFlag, TITLE, S, setting, resolveUuidAsync } from "../core.js";
 import { limitedUses, isReactionItem, isTextOnlyFeature } from "../decide/eligible.js";
 import { INTERRUPT_MULTIPLIERS, INTERRUPT_REDUCTIONS, INTERRUPT_ROLLS, DUPLICATES, STORED_DICE, answers, duplicateEntries, listedNames } from "../decide/registry.js";
 import { repeatRowFor } from "../decide/repeat-saves.js";
@@ -414,7 +414,7 @@ async function castSpellOf(activity) {
   if ( activity?.type !== "cast" ) return null;
   const uuid = activity.spell?.uuid;
   if ( !uuid ) return null;
-  try { return (await fromUuid(uuid)) ?? null; } catch { return null; }
+  return resolveUuidAsync(uuid);
 }
 
 /** Whatever a used activity should be MATCHED against: its linked spell, or its item. */

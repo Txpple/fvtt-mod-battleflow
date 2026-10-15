@@ -3,8 +3,8 @@
  * client stamps the `saves` flag on the usage card, with the dead-target gate, metamagic, a chosen
  * area and an emanation's reach applied at the cast.
  */
-import { MODULE_ID, readFlag, clearFlag, TITLE, S, setting, statContext, decisionWindow } from "../core.js";
-import { applicableProfiles, resolveUuid, itemNamed, namesAnswering } from "../lookup.js";
+import { MODULE_ID, readFlag, clearFlag, TITLE, S, setting, statContext, decisionWindow, resolveUuid } from "../core.js";
+import { applicableProfiles, itemNamed, namesAnswering } from "../lookup.js";
 import { CARD, activityUuidOf, isCard, targetsOf } from "../decide/card.js";
 import { saveDemandData, saveTargetEntry, putsToSleep } from "../decide/demand.js";
 import { METAMAGIC_FLAG, metamagicRuleText, carefulKind } from "../decide/metamagic.js";

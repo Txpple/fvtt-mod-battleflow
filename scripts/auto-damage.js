@@ -3,8 +3,8 @@
  * By the Books — auto-roll damage on hit (the attacker's client) and the damage offer popup.
  * Owns the one crit judgement (`critFor`). Split shape (ARCHITECTURE.md §7).
  */
-import { MODULE_ID, readFlag, TITLE, S, setting, decisionWindow, drivesMomentFor } from "./core.js";
-import { missShareFor, resolveUuid } from "./lookup.js";
+import { MODULE_ID, readFlag, TITLE, S, setting, decisionWindow, drivesMomentFor, resolveUuid } from "./core.js";
+import { missShareFor } from "./lookup.js";
 import { hitTargets, holdOf, savesOf } from "./shared.js";
 import { TONE, esc, popupKey, bfCard, momentBarHTML } from "./decide/present.js";
 import { armDeadline, disarmDeadline, livePopups, offerParts, openManagedPopup, frontPopup } from "./ui.js";

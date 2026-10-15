@@ -7,7 +7,7 @@
 import { CARD, activityUuidOf, isCard } from "./decide/card.js";
 import { EVASIONS, INTERRUPT_REDUCTIONS, INTERRUPT_ROLLS, SUPERIORITY_STAND_INS, answers, identifierOf, interruptEntries, matchOf } from "./decide/registry.js";
 import { d20Faces, d20ModeOf } from "./decide/rescue-hit.js";
-import { MODULE_ID, TITLE, readFlag } from "./core.js";
+import { MODULE_ID, TITLE, readFlag, resolveUuid } from "./core.js";
 import { SUMMON_AS } from "./decide/registry.js";
 
 export const lower = s => String(s ?? "").toLowerCase();
@@ -186,13 +186,6 @@ export function asiAssigned(feature) {
 
 export const activityOfType = (item, type) =>
   [...(item?.system?.activities ?? [])].find(a => a.type === type) ?? null;
-
-/** The document behind a uuid, or null. ⚠ `fromUuidSync` THROWS on an unloaded pack or a bad uuid. */
-export function resolveUuid(uuid) {
-  if ( !uuid ) return null;
-  try { return fromUuidSync(uuid) ?? null; }
-  catch { return null; }
-}
 
 /* THE CARD'S ITEM AND ACTIVITY. ⚠ A use SPENDS before it posts: a potion's last use deletes the
  * item before its card exists (NOTES §2). These read the live document first, else the card's

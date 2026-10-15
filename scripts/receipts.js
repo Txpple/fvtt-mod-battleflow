@@ -2,7 +2,7 @@
  * By the Books — Receipts: the revert row on damage cards, a view of the receipt flags. Who and
  * what is public; HP pools and the revert controls are GM-only.
  */
-import { readFlag, TITLE, queueFlagWrite } from "./core.js";
+import { readFlag, TITLE, queueFlagWrite, resolveUuid, resolveUuidAsync } from "./core.js";
 import { clearStatus } from "./shared.js";
 import { exhaustionPhrase, receiptAmounts, revertPlan, traitPhrase } from "./decide/receipt.js";
 import { revertEffect, effectReceiptOf } from "./effect-riders.js";
@@ -199,7 +199,7 @@ listen("dnd5e.renderChatMessage", "receipts", (message, html) => {
 
       // The hover text is stored on the entry, so it survives the effect's deletion.
       const tip = e.description || (() => {
-        try { return fromUuidSync(t.uuid)?.effects?.get(e.id)?.description ?? ""; }
+        try { return resolveUuid(t.uuid)?.effects?.get(e.id)?.description ?? ""; }
         catch { return ""; }
       })();
       if ( tip ) line.dataset.tooltip = tip;
@@ -237,7 +237,7 @@ export async function revertTarget(message, uuid) {
   const plan = revertPlan(readFlag(message, "receipt"), uuid);
   if ( !plan ) return;
 
-  const actor = await fromUuid(uuid);
+  const actor = await resolveUuidAsync(uuid);
   if ( !(actor instanceof Actor) ) {
     ui.notifications.warn(`${TITLE}: that target no longer exists — nothing to revert.`);
     return;
@@ -250,7 +250,7 @@ export async function revertTarget(message, uuid) {
   // A ward pool's take goes back to the ward (its hit points are the feature's uses).
   if ( plan.ward?.took ) {
     // live only: the ward's hit points are its feature's uses on the bearer's sheet, never a card's snapshot
-    const item = await fromUuid(plan.ward.itemUuid).catch(() => null);
+    const item = await resolveUuidAsync(plan.ward.itemUuid);
     const spent = Number(item?.system?.uses?.spent ?? 0);
     if ( item ) await item.update({ "system.uses.spent": Math.max(0, spent - Number(plan.ward.took)) });
   }
