@@ -37,7 +37,7 @@ const f = await connectSuite({ tag: 'class-warlock', watchdogMs: 900_000 });
 announcePlan('class-warlock', plan, pulled);
 
 const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ sections, titles }) => {
-  const { sleep, until, faces, unrig } = window.__btb;
+  const { sleep, until, watch, tokenOn, faces, unrig } = window.__btb;
   const { results, skips, ok, want, section } = window.__btb.begin({ sections, titles });
   const KIT = window.__btbClasses;
   const { AC, MOD, a1Damage, a1Hit, a1Roll, a1Victim, a4Card, act, attackOf, attacker, attackerToken, b4Cards, c1Cards, cardEl, cardText, clearDown, clearTargets, cleric, clericToken, clericWeapon, closeA1, closeDialogs, closeOffers, created, damageFor, dropEffects, dropNamed, dropReactionChips, dropVictimFx, findPHB, groupText, halfling, halflingToken, hasStatus, healFull, hgClose, hgKeep, hgLend, hgStrike, hitBox, hitRow, holdOf, hp, lend, lentBy, log, outcomeOn, pcAttacker, pcToken, pcWeapon, pickApply, popups, priorActor, reactionChipOn, riderBox, riderChits, riderRow, ridersOf, rollFlag, rollPopup, scene, set, settledSave, sorcerer, sorcererDoc, spendLuck, statusOn, swingAt, textOf, tick, titled, typesOf, unlend, vhp, victim, victimFx, victimToken } = KIT;
@@ -58,7 +58,7 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
         const priorSize = victim.system._source.traits?.size ?? 'med';
         const SAYS = /Repelling Blast — push it up to 10 feet straight away from you \(move the token\)/;
         // ⚠ No receipt to wait for: Eldritch Blast's volley applies after the last beam — the damage message is the record.
-        const ebDamage = msg => until(() => damageFor(msg?.id) ?? null, { timeout: 12000 }).catch(() => null);
+        const ebDamage = msg => until(() => damageFor(msg?.id) ?? null, { timeout: 12000, label: 'the Eldritch Blast beam\'s damage message' });
         const ebRoll = async (msg, offer) => { offer?.element?.querySelector('button[data-action="roll"]')?.click(); return ebDamage(msg); };
         const castable = async src => {
           const data = src.toObject(); data.system.prepared = 1; data.system.method = 'atwill';
@@ -78,16 +78,17 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
             beams.push({ offer: !!offer, checked: !!box?.checked, row, rider: ridersOf(dmg).find(x => x.key === 'repelling-blast') ?? null, id: dmg?.id ?? null,
               attack: msg?.id ?? null, damage: any?.id ?? null, receipt: !!any?.getFlag(MOD, 'receipt'), flags: Object.keys(any?.flags?.[MOD] ?? {}), pick: msg?.getFlag(MOD, 'clockPick') ?? null });
           }
-          await sleep(600);
           ok('20a. each Eldritch Blast beam that hits (no enchantment on the sheet: the row\'s spell): the offer\'s TICKED no-dice row "Repelling Blast — push it up to 10 feet …"',
             beams.every(b => b.offer && b.checked && /Repelling Blast — push it up to 10 feet/.test(b.row)),
             JSON.stringify(beams.map(b => ({ offer: b.offer, checked: b.checked, row: b.row.slice(0, 90) }))));
+          // The rider's card line draws with the card (the flag is on the message from its birth).
+          await until(() => beams.every(b => cardEl(b.id)), { label: 'each beam\'s damage card drawn in the chat log' });
           ok('20b. a card line per beam: "Repelling Blast — push it up to 10 feet straight away from you (move the token)"; no dice added',
             beams.every(b => b.rider && !b.rider.formula && SAYS.test(b.rider.says ? `Repelling Blast — ${b.rider.says}` : '') && SAYS.test(cardText(b.id))),
             JSON.stringify(beams.map(b => ({ rider: b.rider, attack: b.attack, damage: b.damage, receipt: b.receipt, flags: b.flags, pick: b.pick, card: cardText(b.id ?? b.damage).slice(0, 160) }))));
           // c — a Huge target: none (maxSize lg)
           await victim.update({ 'system.traits.size': 'huge' });
-          await sleep(300);
+          await until(() => victim.system.traits?.size === 'huge', { label: 'the Victim Huge' });
           const { msg: mH, offer: oH } = await a1Hit(sorcerer, sorcToken, ebAct);
           const dH = oH ? await ebRoll(mH, oH) : await ebDamage(mH);
           ok('20c. a Huge target: no Repelling Blast row, no line', !!dH && !riderBox(oH, 'repelling-blast') && !ridersOf(dH).some(x => x.key === 'repelling-blast'),
@@ -112,7 +113,7 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
             const fbAct = sorcerer.items.get(fb.id)?.system?.activities?.find(a => a.type === 'attack');
             const { msg: mF, offer: oF } = await a1Hit(sorcerer, sorcToken, fbAct);
             const dF = oF ? await ebRoll(mF, oF) : await ebDamage(mF);
-            await sleep(600);
+            await until(() => cardEl(dF.id), { label: 'the Fire Bolt damage card drawn in the chat log' });
             ok('20d. the invocation enchanted onto Fire Bolt: an Eldritch Blast hit says nothing, a Fire Bolt hit carries the line',
               !!dE && !ridersOf(dE).some(x => x.key === 'repelling-blast') && !!dF && ridersOf(dF).some(x => x.key === 'repelling-blast') && SAYS.test(cardText(dF?.id)),
               `eb=${JSON.stringify(ridersOf(dE).map(x => x.key))} fb=${JSON.stringify(ridersOf(dF).map(x => x.key))} fbCard="${cardText(dF?.id).slice(0, 160)}" ench=${!!ench}`);
@@ -151,18 +152,17 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
         const reset = async () => {
           await cleric.update({ 'system.attributes.hp.temp': 0 });
           await victim.update({ 'system.attributes.hp.value': 1 });
-          await sleep(200);
+          await until(() => (vhp() === 1) && (temp() === 0), { label: 'the Victim at 1 HP, the Cleric at 0 temp HP' });
         };
 
         // (a) the warlock's own kill
         await reset();
         const sA = Date.now();
         await hgStrike(cleric, clericToken, clericWeapon, victimToken);
-        const fellA = await until(() => vhp() <= 0, { timeout: 8000 }).catch(() => null);
-        const cA = await until(() => blessCard(sA), { timeout: 8000 }).catch(() => null);
-        const recA = await until(() => (cA?.getFlag(MOD, 'receipt')?.targets?.length ? cA.getFlag(MOD, 'receipt') : null), { timeout: 6000 }).catch(() => null);
-        await until(() => temp() === N, { timeout: 4000 }).catch(() => null);
-        await sleep(400);
+        const fellA = await until(() => vhp() <= 0, { timeout: 8000, label: 'the Victim at 0 HP (the Cleric\'s kill)' });
+        const cA = await until(() => blessCard(sA), { timeout: 8000, label: 'the Dark One\'s Blessing card (the Cleric\'s kill)' });
+        const recA = await until(() => (cA?.getFlag(MOD, 'receipt')?.targets?.length ? cA.getFlag(MOD, 'receipt') : null), { timeout: 6000, label: 'the Blessing card\'s receipt' });
+        await until(() => temp() === N, { timeout: 4000, label: `the Cleric at ${N} temp HP` });
         const fA = cA?.getFlag(MOD, 'healOnHit');
         ok(`21a. the Cleric drops the Victim: "Dark One's Blessing — BTB Test Cleric gains ${N} Temporary Hit Points" ("you dropped an enemy"), receipted, ${N} temp HP`,
           fellA && !!cA && title.test(said(cA)) && (fA?.amount === N) && /you dropped an enemy/.test(fA?.why ?? '') && (fA?.targetUuid === victim.uuid)
@@ -173,10 +173,9 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
         await reset();
         const sB = Date.now();
         await hgStrike(pcAttacker, pcToken, pcWeapon, victimToken);
-        const fellB = await until(() => vhp() <= 0, { timeout: 8000 }).catch(() => null);
-        const cB = await until(() => blessCard(sB), { timeout: 8000 }).catch(() => null);
-        await until(() => temp() === N, { timeout: 4000 }).catch(() => null);
-        await sleep(400);
+        const fellB = await until(() => vhp() <= 0, { timeout: 8000, label: 'the Victim at 0 HP (the PC Attacker\'s kill)' });
+        const cB = await until(() => blessCard(sB), { timeout: 8000, label: 'the Dark One\'s Blessing card (the ally\'s kill)' });
+        await until(() => temp() === N, { timeout: 4000, label: `the Cleric at ${N} temp HP (the ally's kill)` });
         const fB = cB?.getFlag(MOD, 'healOnHit');
         ok(`21b. the PC Attacker drops the Victim 5 ft from the Cleric: the Cleric gains ${N} temp HP ("… ft from you")`,
           fellB && !!cB && title.test(said(cB)) && /ft from you/.test(fB?.why ?? '') && (temp() === N),
@@ -187,15 +186,14 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
         const [farDoc] = await scene.createEmbeddedDocuments('Token', [foundry.utils.mergeObject(victim.prototypeToken.toObject(),
           { x: 800, y: 800, actorId: victim.id, actorLink: false, disposition: -1 }, { inplace: false })]);
         created.tokens.push(farDoc.id);
-        const farTok = await until(() => canvas.tokens.get(farDoc.id), { timeout: 10000 }).catch(() => null);
+        const farTok = await tokenOn(farDoc.id, { timeout: 10000 }).catch(() => null);   // soft: no token, no strike (the branch below)
         const farActor = () => scene.tokens.get(farDoc.id)?.actor ?? null;
         await farActor()?.update({ 'system.attributes.hp.value': 1 });
-        await sleep(200);
+        await until(() => Number(farActor()?.system?.attributes?.hp?.value) === 1, { label: 'the far Victim at 1 HP' });
         const sC = Date.now();
         if (farTok) await hgStrike(pcAttacker, pcToken, pcWeapon, farTok);
-        const fellC = await until(() => Number(farActor()?.system?.attributes?.hp?.value ?? 1) <= 0, { timeout: 8000 }).catch(() => null);
-        await sleep(2500);
-        const cC = blessCard(sC);
+        const fellC = await until(() => Number(farActor()?.system?.attributes?.hp?.value ?? 1) <= 0, { timeout: 8000, label: 'the far Victim at 0 HP' });
+        const cC = await watch(() => blessCard(sC), { ms: 2500 });   // a window: no Blessing card for a kill 55 ft away
         ok('21c. the PC Attacker drops a Victim 55 ft from the Cleric: no card, no temp HP',
           !!farTok && fellC && !cC && (temp() === 0),
           `tok=${!!farTok} fell=${fellC} hp=${farActor()?.system?.attributes?.hp?.value} card=${cC ? said(cC).slice(0, 120) : null} temp=${temp()}`);
@@ -223,9 +221,9 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
       // An attack needs a target to be used at all (polish.js): the Halfling.
       const openWindow = async name => {
         halflingToken.setTarget(true, { releaseOthers: true });
-        await sleep(80);
         const pendingUse = spellAct(name)?.use({ consume: { spellSlot: false } }, { configure: true }, { create: true });
         pendingUse?.catch?.(() => { /* closed below */ });
+        // Soft: 34a's detail names a window that never opened.
         const app = await until(() => usageApps().find(a => a.element?.querySelector?.('[data-bf-metamagic-field]')) ?? null, { timeout: 6000 }).catch(() => null);
         return { app, fs: app?.element?.querySelector('[data-bf-metamagic-field]') ?? null };
       };
@@ -236,11 +234,10 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
         const t0 = Date.now();
         const { app, fs } = await openWindow('Chill Touch');
         const box = rowOf(fs, 'psychic')?.querySelector('input[name="bf-metamagic-free"]');
-        if (box && (box.checked !== tick)) box.click();
-        await sleep(100);
+        if (box && (box.checked !== tick)) box.click();   // the change handler records the tick at once
         app?.element?.querySelector('button[data-action="use"], button[type="submit"]')?.click();
+        // Soft: no card, no damage rolled (the branch below); the free row's flag is stamped at the card's birth.
         const card = await until(() => a4Card(t0, m => (m.type === 'usage') && (m.system?.activity?.uuid === spellAct('Chill Touch')?.uuid)), { timeout: 8000 }).catch(() => null);
-        await sleep(300);
         const rolls = card ? await spellAct('Chill Touch').rollDamage({}, { configure: false }, { data: { 'system.origin': card.id } }) : null;
         clearTargets();
         return { card, dmg: rolls?.[0]?.parent ?? null, rolls };
@@ -257,13 +254,13 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
           const box = row?.querySelector('input[name="bf-metamagic-free"]');
           ok('34b. Chill Touch (a Warlock spell): "Psychic Spells · free", live, beside the Metamagic rows', !!box && !box.disabled && /Psychic Spells/.test(textOf(row)) && /free/i.test(textOf(row))
             && !!ct.fs?.querySelector('input[name="bf-metamagic"]'), textOf(row));
-          box?.click(); await sleep(100);
+          box?.click();   // the change handler runs inside the click
           const paidOn = [...(ct.fs?.querySelectorAll('input[name="bf-metamagic"]') ?? [])].filter(b => !b.disabled).length;
           ok('34c. its tick greys no Metamagic row', paidOn > 0, `live paid rows=${paidOn}`);
           await closeWindows();
-          await sleep(3200);   // the closed window's tick is swept
+          await sleep(3200);   // clock: the usage window's close sweep (metamagic.js, a 3 s setTimeout) clears the closed window's tick
           const on = await castChill(true);
-          const line = (await until(() => cardEl(on.card?.id)?.querySelector('.bf-metamagic-free-line'), { timeout: 5000 }).catch(() => null))?.textContent?.trim() ?? '';
+          const line = (await until(() => cardEl(on.card?.id)?.querySelector('.bf-metamagic-free-line'), { timeout: 5000, label: 'the card\'s "Psychic Spells — the damage is psychic" line' }))?.textContent?.trim() ?? '';
           ok('34d. cast ticked: the card carries the tick and says "Psychic Spells — the damage is psychic"',
             (on.card?.getFlag(MOD, 'metamagicFree')?.[0]?.key === 'psychic') && /Psychic Spells — the damage is psychic/.test(line), `flag=${JSON.stringify(on.card?.getFlag(MOD, 'metamagicFree'))} line="${line}"`);
           ok('34e. the damage roll is psychic', (on.rolls ?? []).length > 0 && on.rolls.every(r => r.options?.type === 'psychic') && (on.dmg?.getFlag(MOD, 'metamagicType')?.feature === 'Psychic Spells'),
@@ -299,10 +296,9 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
         if (!a) return null;
         attackerToken.control({ releaseOthers: true });
         targetToken.setTarget(true, { releaseOthers: true });
-        await sleep(100);
         const use = await a.use({ consume: { spellSlot: false } }, { configure: false }, {});
         const card = use?.message ?? null;
-        await until(() => card?.getFlag(MOD, 'saves'), { timeout: 6000 }).catch(() => null);
+        await until(() => card?.getFlag(MOD, 'saves'), { timeout: 6000, label: `the ${name} card's save demand` });
         return card;
       };
       let combat44 = null;
@@ -319,7 +315,7 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
             { tokenId: halflingToken.document.id, sceneId: scene.id, actorId: halfling.id, initiative: 15 },
             { tokenId: sorcererDoc.id, sceneId: scene.id, actorId: sorcerer.id, initiative: 10 }]);
           await combat44.startCombat();
-          await sleep(400);
+          await until(() => combat44.started, { label: 'the §44 combat started' });
           const t0 = Date.now();
           const card = await castAt('Charm Person', halflingToken);
           if (!card) log.push('§44a skipped: no Charm Person save activity');
@@ -328,30 +324,32 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
             const rolls = await halfling.rollSavingThrow({ ability: 'wis' }, { configure: false }, {});
             const rollMsg = rolls?.[0]?.parent ?? null;
             unrig();
-            const pop = await until(() => rollPopup(/Beguiling Twist/), { timeout: 8000 }).catch(() => null);
+            const pop = await until(() => rollPopup(/Beguiling Twist/), { timeout: 8000, label: 'the sorcerer\'s Beguiling Twist popup' });
             const popText = textOf(pop?.element);
             ok('44a. the Halfling SUCCEEDS on a demanded save against Charmed within 120 ft of the sorcerer: the popup "Beguiling Twist — BTB Test Halfling\'s saving throw", "it succeeded", target one other creature',
               !!pop && /Beguiling Twist/.test(popText) && /it succeeded/.test(popText) && /Target ONE other creature/.test(popText), `pop=${!!pop} text="${popText.slice(0, 240)}"`);
             // b. Answer with nothing targeted: refused, nothing spent, the popup stays.
             clearTargets();
             pickApply(pop);
-            await sleep(700);
+            // a window: the refused Answer must neither release the roll nor spend the Reaction
+            const spent44b = await watch(() => (rollFlag(rollMsg)?.status !== 'pending') || !!reactionChipOn(sorcerer), { ms: 700 });
             ok('44b. Answer with no target: refused — the roll still held, no Reaction spent',
-              (rollFlag(rollMsg)?.status === 'pending') && !reactionChipOn(sorcerer), `status=${rollFlag(rollMsg)?.status} reaction=${!!reactionChipOn(sorcerer)}`);
+              !spent44b && (rollFlag(rollMsg)?.status === 'pending') && !reactionChipOn(sorcerer), `stray=${!!spent44b} status=${rollFlag(rollMsg)?.status} reaction=${!!reactionChipOn(sorcerer)}`);
             // c. The attacker targeted: Answer — the Reaction spent, the Save demanded of the attacker, the Halfling's save stands.
-            // (The refused click closed the popup; the module asks again — find the new one.)
+            // (The refused click closed the popup; the module asks again — find the new one.) Soft: the first popup is the fallback.
             const pop2 = await until(() => rollPopup(/Beguiling Twist/), { timeout: 6000 }).catch(() => null);
             attackerToken.setTarget(true, { releaseOthers: true });
-            await sleep(120);
             pickApply(pop2 ?? pop);
+            // Soft: e–f run only with the twist's card (the branch below); 44c says it is missing.
             const twistCard = await until(() => game.messages.contents.find(m => (m.timestamp >= t0) && (m.getFlag(MOD, 'twistFor') === rollMsg?.id) && m.getFlag(MOD, 'saves')) ?? null, { timeout: 12000 }).catch(() => null);
-            const entry = await until(() => card.getFlag(MOD, 'saves')?.targets?.find(x => (x.uuid === halfling.uuid) && x.done) ?? null, { timeout: 12000 }).catch(() => null);
+            const entry = await until(() => card.getFlag(MOD, 'saves')?.targets?.find(x => (x.uuid === halfling.uuid) && x.done) ?? null, { timeout: 12000, label: 'the Halfling\'s entry settled on the Charm Person card' });
             const tflag = rollFlag(rollMsg);
             const demanded = twistCard?.getFlag(MOD, 'saves')?.targets?.[0] ?? null;
             ok('44c. Answer at the attacker: the Reaction spent, a Wisdom save demanded of BTB Test Attacker on the twist\'s own card (twistFor the roll), the Halfling\'s SAVED entry standing, the roll\'s flag naming the turn',
               !!twistCard && (demanded?.uuid === attacker.uuid) && (twistCard.getFlag(MOD, 'saves')?.abilities?.[0] === 'wis') && !!reactionChipOn(sorcerer)
                 && (entry?.outcome === 'saved') && (tflag?.answer === 'roll') && (tflag?.twist?.targetUuid === attacker.uuid) && (tflag?.bent === null),
               `card=${!!twistCard} demanded=${demanded?.name} abilities=${JSON.stringify(twistCard?.getFlag(MOD, 'saves')?.abilities)} reaction=${!!reactionChipOn(sorcerer)} entry=${entry?.outcome} flag=${JSON.stringify(tflag && { answer: tflag.answer, twist: tflag.twist, bent: tflag.bent })}`);
+            // Soft: on absence 44d's detail prints the card's text as it stands.
             const line = await until(() => { const t = cardText(rollMsg?.id); return /turned it on/.test(t) ? t : null; }, { timeout: 6000 }).catch(() => null);
             const atkName = attackerToken.document?.name ?? attacker.name;   // the card names the TOKEN
             ok('44d. the roll\'s card: "Beguiling Twist (BTB Test Sorcerer) turned it on <the attacker\'s token> — a Wisdom saving throw demanded"',
@@ -362,11 +360,12 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
               faces([[1, 20]]);
               await attacker.rollSavingThrow({ ability: 'wis' }, { configure: false }, {});
               unrig();
-              const wordPop = await until(() => popups().find(app => /Charmed or Frightened\?/.test(textOf(app.element))) ?? null, { timeout: 10000 }).catch(() => null);
+              const wordPop = await until(() => popups().find(app => /Charmed or Frightened\?/.test(textOf(app.element))) ?? null, { timeout: 10000, label: 'the sorcerer\'s "Charmed or Frightened?" popup' });
               ok('44e. the attacker fails the twist\'s save: the sorcerer\'s word popup "Charmed or Frightened?"', !!wordPop, `pop=${!!wordPop}`);
               wordPop?.element?.querySelector('button[data-action="word-charmed"]')?.click();
-              const charmed = await until(() => attacker.effects.find(e => e.statuses?.has?.('charmed')) ?? null, { timeout: 10000 }).catch(() => null);
-              await sleep(400);
+              const charmed = await until(() => attacker.effects.find(e => e.statuses?.has?.('charmed')) ?? null, { timeout: 10000, label: 'Charmed on the attacker' });
+              // The word is written on the entry before its condition lands; read back once it stands.
+              await until(() => twistCard.getFlag(MOD, 'saves')?.targets?.[0]?.choice?.answer, { label: 'the twist\'s word recorded on its entry' });
               const tEntry = twistCard.getFlag(MOD, 'saves')?.targets?.[0] ?? null;
               ok('44f. "Charmed": the attacker is Charmed for a minute (10 rounds), the twist\'s entry FAILED and its word Charmed',
                 !!charmed && ((Number(charmed.duration?.rounds) === 10) || (Number(charmed.duration?.seconds) === 60)) && (tEntry?.outcome === 'failed') && (tEntry?.choice?.answer === 'Charmed'),
@@ -409,22 +408,23 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
           const t0 = Date.now();
           attackerToken.control({ releaseOthers: true });
           sorcToken.setTarget(true, { releaseOthers: true });
-          await sleep(80);
           faces([[12, 20], [4, 6], [4, 6]]);
           const usage = await act().use({ subsequentActions: false }, { configure: false }, {});
           const rolls = await act().rollAttack({}, { configure: false }, usage?.message?.id ? { data: { 'system.origin': usage.message.id } } : {});
           const msg = rolls?.[0]?.parent ?? null;
           unrig();
-          const hold = await until(() => holdOf(msg), { timeout: 6000 }).catch(() => null);
+          const hold = await until(() => holdOf(msg), { timeout: 6000, label: 'the hold on the attacker\'s hit' });
           const pop = await until(() => popups().find(app => /Beguiling Defenses/.test(textOf(app.element))
-            && (app.element?.querySelector?.('input[name="bf-rescue"][value="Beguiling Defenses"]') || app.element?.querySelector?.('button[data-action="cast"]'))) ?? null, { timeout: 8000 }).catch(() => null);
+            && (app.element?.querySelector?.('input[name="bf-rescue"][value="Beguiling Defenses"]') || app.element?.querySelector?.('button[data-action="cast"]'))) ?? null, { timeout: 8000, label: 'the sorcerer\'s Beguiling Defenses popup' });
           ok('45a. the attacker hits the sorcerer: the hold, the sorcerer\'s popup with Beguiling Defenses (a damage kind, 1 use)',
             !!hold && !!pop && (hold.targets?.[0]?.uuid === sorcerer.uuid), `hold=${!!hold} pop=${!!pop} target=${hold?.targets?.[0]?.name}`);
           const box = pop?.element?.querySelector('input[name="bf-rescue"][value="Beguiling Defenses"]');
-          if (box) { if (!box.checked) box.click(); await sleep(50); pop.element.querySelector('button[data-action="answer"]')?.click(); }
+          // The tick's change handler (Answer enabled) runs inside the click.
+          if (box) { if (!box.checked) box.click(); pop.element.querySelector('button[data-action="answer"]')?.click(); }
           else pop?.element?.querySelector('button[data-action="cast"]')?.click();
-          const target = await until(() => { const h = holdOf(msg); return (h?.status === 'resolved') ? (h.targets.find(x => x.uuid === sorcerer.uuid) ?? null) : null; }, { timeout: 12000 }).catch(() => null);
-          const dmg = await until(() => { const d = damageFor(msg?.id); const r = d?.getFlag(MOD, 'receipt')?.targets?.find(x => x.uuid === sorcerer.uuid); return r ? { d, r } : null; }, { timeout: 12000 }).catch(() => null);
+          const target = await until(() => { const h = holdOf(msg); return (h?.status === 'resolved') ? (h.targets.find(x => x.uuid === sorcerer.uuid) ?? null) : null; }, { timeout: 12000, label: 'the hold resolved for the sorcerer' });
+          const dmg = await until(() => { const d = damageFor(msg?.id); const r = d?.getFlag(MOD, 'receipt')?.targets?.find(x => x.uuid === sorcerer.uuid); return r ? { d, r } : null; }, { timeout: 12000, label: 'the sorcerer\'s line on the damage receipt' });
+          // Soft: 45c runs only with the reaction's card (the branch below); 45b says it is missing.
           const defCard = await until(() => game.messages.contents.find(m => (m.timestamp >= t0) && m.getFlag(MOD, 'failDamage') && m.getFlag(MOD, 'saves')) ?? null, { timeout: 12000 }).catch(() => null);
           const dflag = defCard?.getFlag(MOD, 'saves') ?? null;
           ok('45b. Cast: the hold answered cast, the damage HALVED on the receipt, the item\'s use spent, the Beguiling Reaction\'s Wisdom save demanded (no combat here: no Reaction chip is written, the B1 lesson) of the attacker with the failDamage rider',
@@ -436,7 +436,7 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
             faces([[1, 20]]);
             await attacker.rollSavingThrow({ ability: 'wis' }, { configure: false }, {});
             unrig();
-            const psychic = await until(() => defCard.getFlag(MOD, 'receipt')?.targets?.find(x => x.uuid === attacker.uuid) ?? null, { timeout: 12000 }).catch(() => null);
+            const psychic = await until(() => defCard.getFlag(MOD, 'receipt')?.targets?.find(x => x.uuid === attacker.uuid) ?? null, { timeout: 12000, label: 'the attacker\'s psychic damage on the reaction\'s receipt' });
             ok('45c. the attacker FAILS: psychic damage equal to the damage the sorcerer took, receipted on the reaction\'s card, the attacker\'s HP down by it',
               !!psychic && (taken > 0) && (Number(psychic.taken) === taken) && (Number(attacker.system.attributes.hp.value) === atkHp - taken),
               `taken=${taken} psychic=${JSON.stringify(psychic && { taken: psychic.taken, note: psychic.note })} hp=${attacker.system.attributes.hp.value}/${atkHp}`);
@@ -467,14 +467,14 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
           faces([[8, 20]]);
           const rolls = await fighter.rollSkill({ skill: 'ath' }, { configure: false }, {});
           const m = rolls?.[0]?.parent ?? null;
-          const flag = await until(() => m?.getFlag(MOD, 'd20fold') ?? null, { timeout: 4000 }).catch(() => null);
+          const flag = await until(() => m?.getFlag(MOD, 'd20fold') ?? null, { timeout: 4000, label: 'the Athletics check\'s d20 fold record' });
           const offer = (flag?.offers ?? []).find(o => o.label === "Dark One's Own Luck") ?? null;
           ok('53a. an Athletics check offers "Dark One\'s Own Luck" — a d10 (the tactical fold, the feature\'s own tests)', !!offer && /1d10/.test(String(offer?.dieFormula ?? '')),
             `offers=${JSON.stringify(labels(flag))} die=${offer?.dieFormula}`);
-          const win = await until(() => rescueWindow("Dark One's Own Luck"), { timeout: 6000 }).catch(() => null);
+          const win = await until(() => rescueWindow("Dark One's Own Luck"), { timeout: 6000, label: 'the Dark One\'s Own Luck rescue window' });
           faces([[7, 10]]);
           win?.querySelector('[data-bf-rescue-action="tactical:Dark One\'s Own Luck"]')?.click();
-          const done = await until(() => { const fl = m?.getFlag(MOD, 'd20fold'); return (fl?.spends?.some(s => (s.name === "Dark One's Own Luck") && !s.pendingVerdict) && Number.isFinite(fl.foldedTotal)) ? fl : null; }, { timeout: 10000 }).catch(() => null);
+          const done = await until(() => { const fl = m?.getFlag(MOD, 'd20fold'); return (fl?.spends?.some(s => (s.name === "Dark One's Own Luck") && !s.pendingVerdict) && Number.isFinite(fl.foldedTotal)) ? fl : null; }, { timeout: 10000, label: 'the d10 folded into the check' });
           unrig();
           const left = Number(fighter.items.get(luck.id)?.system?.uses?.value ?? NaN);
           ok('53b. accepted: the d10 (7) added, a use spent (1 of 2), no Second Wind refund line (the feature\'s own fold)',
@@ -485,7 +485,7 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
           faces([[6, 20]]);
           const sr = await fighter.rollSavingThrow({ ability: 'wis' }, { configure: false }, {});
           const sm = sr?.[0]?.parent ?? null;
-          const sflag = await until(() => sm?.getFlag(MOD, 'd20fold') ?? null, { timeout: 4000 }).catch(() => null);
+          const sflag = await until(() => sm?.getFlag(MOD, 'd20fold') ?? null, { timeout: 4000, label: 'the saving throw\'s d20 fold record' });
           ok('53c. a saving throw offers it as well (tests: check, save)', labels(sflag).includes("Dark One's Own Luck"), `offers=${JSON.stringify(labels(sflag))}`);
           await closeA1();
           // d. Homing Strikes: the Psychic Blades alone
@@ -496,9 +496,10 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
             await a1Victim();
             await victim.update({ 'system.attributes.ac.override': 30 });
             const missMsg = await swingAt(pcAttacker, pcToken, pcWeapon, { d20: [5] });
-            await sleep(1200);
+            // a window: no Homing Strikes offer on the miss
+            const homing = await watch(() => labels(missMsg?.getFlag(MOD, 'd20fold')).includes('Soul Blades'), { ms: 1200 });
             const mflag = missMsg?.getFlag(MOD, 'd20fold') ?? null;
-            ok('53d. a Longsword miss (not the Psychic Blades): Homing Strikes is not offered', !labels(mflag).includes('Soul Blades'), `offers=${JSON.stringify(labels(mflag))}`);
+            ok('53d. a Longsword miss (not the Psychic Blades): Homing Strikes is not offered', !homing && !labels(mflag).includes('Soul Blades'), `stray=${!!homing} offers=${JSON.stringify(labels(mflag))}`);
             await closeA1();
           }
         }
@@ -521,18 +522,18 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
       try {
         if (!smite || !pcWeapon || !warlock) log.push(`§57 skipped: smite=${!!smite} weapon=${!!pcWeapon} warlock=${!!warlock}`);
         else {
-          await sleep(300);
           await pcAttacker.update({ 'system.spells.pact.value': 2 });
-          await sleep(200);
           const pact = () => pcAttacker.system.spells?.pact ?? {};
+          await until(() => Number(pact().value) === 2, { label: 'the PC Attacker at two Pact slots' });
           const r1 = await a1Hit(pcAttacker, pcToken, attackOf(pcAttacker, pcWeapon));
           ok('57a. a weapon hit (no Pact of the Blade bond on the sheet: any weapon, the caveat): the group "Eldritch Smite" with "4d8 force · 1 Pact slot", 2 Pact slots left',
             !!hitBox(r1.offer, 'eldritch-smite') && /(\(1 \+ 3\)|4)d8 force/.test(hitRow(r1.offer, 'eldritch-smite')) && /Pact slot/.test(hitRow(r1.offer, 'eldritch-smite')) && /2 .*Pact slots? left/.test(groupText(r1.offer, 'eldritch-smite')),
             `pact=${JSON.stringify({ value: pact().value, max: pact().max, level: pact().level })} row="${hitRow(r1.offer, 'eldritch-smite').slice(0, 140)}" group="${groupText(r1.offer, 'eldritch-smite').slice(0, 140)}"`);
           await tick(r1.offer, 'eldritch-smite');
           const d1 = await a1Roll(r1.msg, r1.offer);
-          await until(() => hasStatus(victim, 'prone'), { timeout: 8000 }).catch(() => null);
-          await sleep(400);
+          await until(() => hasStatus(victim, 'prone'), { timeout: 8000, label: 'Prone pressed on the Victim' });
+          // The Pact slot is spent at the ride, a write of its own.
+          await until(() => Number(pact().value) === 1, { label: 'a Pact slot spent (1 of 2 left)' });
           const pick = d1?.getFlag(MOD, 'hitManeuver')?.picks?.[0] ?? null;
           ok('57b. ticked: 4d8 force rides, a Pact slot spent (1 of 2), Prone pressed on the Victim',
             typesOf(d1).includes('force') && /^(\(1 \+ 3\)|4)d8$/.test(String(pick?.formula)) && (pick?.poolSpend?.spent === 1) && (Number(pact().value) === 1) && hasStatus(victim, 'prone'),
@@ -563,7 +564,7 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
             `offer=${!!r1.offer} row="${riderRow(r1.offer, 'lifedrinker').slice(0, 160)}"`);
           const d1 = await a1Roll(r1.msg, r1.offer);
           const rider = ridersOf(d1).find(r => r.key === 'lifedrinker') ?? null;
-          const button = await until(() => cardEl(d1?.id)?.querySelector('.bf-rider-offer button') ?? null, { timeout: 6000 }).catch(() => null);
+          const button = await until(() => cardEl(d1?.id)?.querySelector('.bf-rider-offer button') ?? null, { timeout: 6000, label: 'the damage card\'s Lifedrinker heal button' });
           ok('59b. it rode (necrotic), the rider record carries the heal offer, and the damage card shows "Lifedrinker — Heal — spend a Hit Point Die: Use it"',
             typesOf(d1).includes('necrotic') && (rider?.offers?.activity === 'Heal (Largest Hit Die)') && !!button && /spend a Hit Point Die/.test(textOf(cardEl(d1?.id)?.querySelector('.bf-rider-offer'))),
             `types=${JSON.stringify(typesOf(d1))} rider=${JSON.stringify(rider && { offers: rider.offers, caveat: rider.caveat })} button=${!!button}`);
@@ -574,12 +575,13 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
           await combat59.createEmbeddedDocuments('Combatant', [
             { tokenId: victimToken.document.id, sceneId: scene.id, actorId: victim.id, initiative: 20 },
             { tokenId: pcToken.document.id, sceneId: scene.id, actorId: pcAttacker.id, initiative: 10 }]);
-          await combat59.startCombat(); await sleep(400);
+          await combat59.startCombat();
+          await until(() => combat59.started, { label: 'the §59 combat started' });
           const r2 = await a1Hit(pcAttacker, pcToken, attackOf(pcAttacker, pcWeapon));
           ok('59c. off the paladin\'s turn: the offer\'s row "Relentless Avenger" (a melee attack off your turn)', !!riderBox(r2.offer, 'relentless-avenger') && /Relentless Avenger/.test(riderRow(r2.offer, 'relentless-avenger')),
             `row="${riderRow(r2.offer, 'relentless-avenger').slice(0, 160)}"`);
           await a1Roll(r2.msg, r2.offer);
-          const landed = await until(() => victimFx().find(e => e.name === 'Relentless Avenger') ?? null, { timeout: 8000 }).catch(() => null);
+          const landed = await until(() => victimFx().find(e => e.name === 'Relentless Avenger') ?? null, { timeout: 8000, label: 'Relentless Avenger on the Victim' });
           ok('59d. the pack\'s "Relentless Avenger" (speed 0) lands on the Victim for the rest of the turn', !!landed && landed.changes.some(c => /movement/.test(c.key)),
             `fx=${JSON.stringify(victimFx().map(e => e.name))} changes=${JSON.stringify(landed?.changes?.map(c => [c.key, c.value]) ?? null)}`);
         }
@@ -605,7 +607,6 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
             await halfling.update({ 'system.attributes.hp.value': 5, 'system.attributes.hp.temp': 0 });
             attackerToken.control({ releaseOthers: true });
             halflingToken.setTarget(true, { releaseOthers: true });
-            await sleep(80);
             faces([[19, 20], [6, 6], [6, 6]]);
             const usage = await act().use({ subsequentActions: false }, { configure: false }, {});
             const rolls = await act().rollAttack({}, { configure: false }, usage?.message?.id ? { data: { 'system.origin': usage.message.id } } : {});
@@ -616,14 +617,15 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
           };
           const t0 = Date.now();
           const msg = await swingLow();
-          const card = await until(() => b4Cards(t0, 'dropToOne').find(m => m.getFlag(MOD, 'dropToOne')?.row === 'Gift of the Protectors') ?? null, { timeout: 8000 }).catch(() => null);
-          await sleep(400);
+          // The use is spent before the card posts; the card's text is read off the chat log.
+          const card = await until(() => b4Cards(t0, 'dropToOne').find(m => m.getFlag(MOD, 'dropToOne')?.row === 'Gift of the Protectors') ?? null, { timeout: 8000, label: 'the Gift of the Protectors card' });
+          await until(() => cardEl(card.id), { label: 'the Gift of the Protectors card drawn in the chat log' });
           ok('62a. the Halfling (named on the sorcerer\'s page) takes 12 at 5 HP: held at 1, the card "drops to 1 Hit Point instead … the sorcerer\'s Gift of the Protectors", Protect\'s use spent',
             (hp() === 1) && !!card && /BTB Test Sorcerer's Gift of the Protectors/.test(cardText(card?.id)) && (Number(protect()?.uses?.spent) === 1),
             `hp=${hp()} card="${cardText(card?.id).slice(0, 200)}" spent=${protect()?.uses?.spent}`);
           // b. the use spent: the next drop lands the 0
           const msg2 = await swingLow();
-          await sleep(600);
+          await until(() => hp() === 0, { label: 'the Halfling at 0 HP' });
           ok('62b. with Protect spent, the next drop lands 0', (hp() === 0) && !!msg2 && !!msg, `hp=${hp()}`);
         }
       } finally {
@@ -644,7 +646,6 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
       try {
         if (!wl || !sv) log.push(`§67 skipped: warlock=${!!wl} vengeance=${!!sv}`);
         else {
-          await sleep(300);
           await attacker.update({ 'system.attributes.hp.value': Number(attacker.system.attributes.hp.max) || 20 });
           const ahp0 = Number(attacker.system.attributes.hp.value);
           await halfling.update({ 'system.attributes.hp.value': 0, 'system.attributes.hp.temp': 0 });
@@ -652,15 +653,15 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
           faces([[10, 20]]);
           await halfling.rollDeathSave({}, { configure: false }, {});
           unrig();
-          const offer = await until(() => c1Cards(t0, 'deathSaveOffer')[0] ?? null, { timeout: 8000 }).catch(() => null);
-          const pop = await until(() => titled(/^Searing Vengeance — /), { timeout: 8000 }).catch(() => null);
+          const offer = await until(() => c1Cards(t0, 'deathSaveOffer')[0] ?? null, { timeout: 8000, label: 'the Searing Vengeance offer card' });
+          const pop = await until(() => titled(/^Searing Vengeance — /), { timeout: 8000, label: 'the warlock\'s Searing Vengeance popup' });
           ok('67a. the Death Saving Throw raises the offer to the warlock (15 ft away): "rolls a Death Saving Throw — Searing Vengeance?"',
             !!offer && !!pop && /rolls a Death Saving Throw — Searing Vengeance\?/.test(textOf(pop?.element)) && (offer.getFlag(MOD, 'deathSaveOffer')?.keeperUuid === sorcerer.uuid),
             `offer=${!!offer} pop="${textOf(pop?.element).slice(0, 200)}"`);
           faces([[4, 8], [4, 8]]);
           pop?.element?.querySelector('button[data-action="use"]')?.click();
-          const done = await until(() => offer?.getFlag(MOD, 'deathSaveOffer')?.applied ? offer.getFlag(MOD, 'deathSaveOffer') : null, { timeout: 12000 }).catch(() => null);
-          await sleep(600);
+          // `applied` is written last: the use, the heal, the burst and the Blinded have landed by then.
+          const done = await until(() => offer?.getFlag(MOD, 'deathSaveOffer')?.applied ? offer.getFlag(MOD, 'deathSaveOffer') : null, { timeout: 12000, label: 'the Searing Vengeance offer applied' });
           unrig();
           const cha = Number(sorcerer.getRollData()?.abilities?.cha?.mod ?? 0);
           const blinded = attacker.effects.find(e => (e.name === 'Searing Vengeance') && e.statuses?.has?.('blinded')) ?? null;
@@ -687,7 +688,6 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
       try {
         if (!warlock || !hurl || !pcWeapon) log.push(`§85 skipped: warlock=${!!warlock} hurl=${!!hurl} weapon=${!!pcWeapon}`);
         else {
-          await sleep(300);
           const t0 = Date.now();
           const r1 = await a1Hit(pcAttacker, pcToken, attackOf(pcAttacker, pcWeapon));
           ok('85a. a hit: the group "Hurl Through Hell" with its one option (a Charisma save, the feature\'s use)', !!hitBox(r1.offer, 'hurl-through-hell') && /Hurl Through Hell/.test(groupText(r1.offer, 'hurl-through-hell')) && /1 .*use/.test(groupText(r1.offer, 'hurl-through-hell')),
@@ -696,7 +696,8 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
           faces([[1, 20]]);
           await a1Roll(r1.msg, r1.offer);
           const c1 = await settledSave('hurl-through-hell', t0);
-          await sleep(600);
+          // The table's line draws when the card re-renders with its maneuver flag (written after the card's birth).
+          await until(() => /Played at the table/.test(cardText(c1?.id)), { label: 'the save card\'s "Played at the table" line' });
           unrig();
           ok('85b. ticked: the Charisma save demanded of the Victim (failed), the use spent, the table\'s line on the card',
             (outcomeOn(c1) === 'failed') && (Number(pcAttacker.items.get(hurl.id)?.system?.uses?.spent) === 1) && /Played at the table/.test(cardText(c1?.id)),
@@ -719,8 +720,8 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
         faces([[10, 20]]);
         await halfling.rollDeathSave({}, { configure: false }, {});
         unrig();
-        await sleep(1500);
-        ok('91a. nobody within 60 ft holds Searing Vengeance: the Death Saving Throw raises no offer', c1Cards(t0, 'deathSaveOffer').length === 0, `offers=${c1Cards(t0, 'deathSaveOffer').length}`);
+        const stray91 = await watch(() => c1Cards(t0, 'deathSaveOffer')[0] ?? null, { ms: 1500 });   // a window: no offer card
+        ok('91a. nobody within 60 ft holds Searing Vengeance: the Death Saving Throw raises no offer', !stray91 && (c1Cards(t0, 'deathSaveOffer').length === 0), `offers=${c1Cards(t0, 'deathSaveOffer').length}`);
       } finally {
         await clearDown(halfling);
         await healFull();
