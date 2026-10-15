@@ -28,6 +28,8 @@
 //     callbacks (`register*`, a dialog's buttons): those run on a click, or under the spine's own
 //     gate. The spine's relay and resumables are that gate: `relay.owns(…)` and `r.drives(…)`
 //     guard their fold and drive, and every registered `owns` / `drives` is checked to be a gate.
+//     A decision clock's `owns` is the same gate (ui.js `armAskTimer`; tools/check-clocks.mjs
+//     proves every one handed to it is one).
 // A handler that must write on every client by design is pinned in ALLOW with its reason.
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
@@ -58,7 +60,7 @@ const WRITE_STATIC = /^(ChatMessage|ActiveEffect(\.implementation)?|Actor|Item|S
  * memory, so "this client holds the cast" is held on exactly one client.
  */
 const GATE_CALLS = new Set(["isActiveGM", "drivesMomentFor", "isContinuingClient", "keepsMessage", "canAnswerFor", "isHeld"]);
-/** The spine's registry gates: the relay's `owns`, the resumable's `drives`, checked below to be gates themselves. */
+/** The spine's registry gates: the relay's `owns`, the resumable's `drives` (checked below to be gates themselves) and the clock's `owns` (check-clocks). */
 const REGISTRY_GATES = new Set(["owns", "drives"]);
 /** Property reads that do the same. */
 const GATE_PROPS = new Set(["isSelf", "isAuthor"]);
@@ -79,7 +81,7 @@ const SERIALIZED_FLAGS = new Set(["hold", "receipt", "effectReceipt"]);
  * ⚠ A stale row (no such handler, or one that no longer reaches an ungated write) fails.
  */
 const ALLOW = new Map([
-  ["ui.js:839", "the leading window: each GM window writes its OWN user's lead flag on load and focus (core.js leadsWindow) — the one write whose point is that every window makes it, the newest standing"]
+  ["ui.js:869", "the leading window: each GM window writes its OWN user's lead flag on load and focus (core.js leadsWindow) — the one write whose point is that every window makes it, the newest standing"]
 ]);
 
 /* --- the program --------------------------------------------------------------------------- */
@@ -136,7 +138,7 @@ function hasGate(rel, node) {
     if (found) return;
     if (ts.isCallExpression(n)) {
       const callee = n.expression;
-      if (ts.isIdentifier(callee) && (GATE_CALLS.has(callee.text) || isKeeperPredicate(rel, callee.text))) { found = true; return; }
+      if (ts.isIdentifier(callee) && (GATE_CALLS.has(callee.text) || REGISTRY_GATES.has(callee.text) || isKeeperPredicate(rel, callee.text))) { found = true; return; }
       if (ts.isPropertyAccessExpression(callee) && (GATE_CALLS.has(callee.name.text) || REGISTRY_GATES.has(callee.name.text))) { found = true; return; }
     }
     if (ts.isPropertyAccessExpression(n) && GATE_PROPS.has(n.name.text)) { found = true; return; }

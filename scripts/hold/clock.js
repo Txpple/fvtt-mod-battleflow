@@ -4,20 +4,18 @@
  * its `deleteChatMessage` registration comes first among the hold's.
  */
 import { readFlag, isContinuingClient, queueFlagWrite } from "../core.js";
-import { armDeadline, disarmDeadline } from "../ui.js";
+import { armAskTimer, disarmAskTimer, continuingOwns } from "../ui.js";
 import { listen } from "../dispatch.js";
 
 const armedTimers = new Map();
 
 /** One authoritative clock, on the continuing client; re-checked at fire so a last-instant answer wins. */
 export function armHoldTimer(message) {
-  const hold = readFlag(message, "hold");
-  if ( !hold?.deadline || (hold.status !== "pending") || !isContinuingClient(hold) ) return;
-  armDeadline(armedTimers, message.id, hold.deadline, fireHoldTimer);
+  armAskTimer(armedTimers, message, "hold", live => fireHoldTimer(live.id), { owns: continuingOwns });
 }
 
 export function disarmHoldTimer(messageId) {
-  disarmDeadline(armedTimers, messageId);
+  disarmAskTimer(armedTimers, messageId);
 }
 
 /** At the buzzer every unanswered target passes. */

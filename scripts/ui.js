@@ -4,7 +4,7 @@
  * ⚠ Imports NO machine (ARCHITECTURE §7).
  */
 import { MODULE_ID, readFlag, TITLE, S, setting, isActiveGM, deadlineIsLive, canAnswerFor, keepsMessage, queueFlagWrite, DICE_WAIT_SECONDS,
-  LEAD_FLAG, WINDOW_ID } from "./core.js";
+  LEAD_FLAG, WINDOW_ID, drivesMomentFor, isContinuingClient } from "./core.js";
 import { TONE, popupKey, bfCard, momentBarHTML, holdBarHTML, nextCascadeSlot, cascadePosition,
   pileBackToFront, rescuePaneHTML, rescueRowsHTML, esc } from "./decide/present.js";
 import { pendingDemands, resolveDemand } from "./decide/demand.js";
@@ -341,14 +341,44 @@ export function disarmDeadline(timers, id) {
   timers.delete(id);
 }
 
-/** The elect-owned single-answer clock; expiry re-checks the live flag. */
-export function armAskTimer(timers, message, flagKey, expire) {
+// THE CLOCK'S OWNER: one client arms a decision clock, and every `armAskTimer` call names which
+// (tools/check-clocks.mjs). The four owners are core.js's gates (ARCHITECTURE §3).
+
+/** The active GM's leading window: a clock whose expiry writes where only a GM may. */
+export const electOwns = () => isActiveGM();
+/** The card's author while connected, else the elect: a clock on the author's own card. */
+export const keeperOwns = (_flag, message) => keepsMessage(message);
+/**
+ * Whoever drives the subject's moments: the elect, or with no GM the subject's own player.
+ * @param {(flag: any) => string|null|undefined} subjectOf   the subject's uuid, read off the flag
+ */
+export const subjectOwns = subjectOf => flag => drivesMomentFor(subjectOf(flag) ?? null);
+/** The hold's continuing client: the roller, or the elect when they are offline. */
+export const continuingOwns = hold => isContinuingClient(hold);
+
+const askPending = flag => (flag.status === "pending") && !flag.answer;
+const askDeadline = flag => flag.deadline;
+
+/**
+ * THE DECISION CLOCK: one owner's timer per moment, off the flag's absolute deadline, re-checked
+ * against the live flag at expiry. A moment no longer pending, or no longer this client's, drops
+ * its clock.
+ * @param {Map<string, any>} timers
+ * @param {any} message
+ * @param {string} flagKey
+ * @param {(live: any) => any} expire   runs on the owner with the live message once the clock runs out
+ * @param {{ owns: (flag: any, message: any) => boolean, pending?: (flag: any) => boolean,
+ *   deadline?: (flag: any) => number|null|undefined }} opts
+ *   `owns` elects the one client that arms it (the owners above); `pending` says the moment still
+ *   waits (default: `status` pending and no `answer`); `deadline` reads when (default: `flag.deadline`)
+ */
+export function armAskTimer(timers, message, flagKey, expire, { owns, pending = askPending, deadline = askDeadline }) {
   const flag = readFlag(message, flagKey);
-  if ( !flag?.deadline || (flag.status !== "pending") || flag.answer || !isActiveGM() ) return;
-  armDeadline(timers, message.id, flag.deadline, async () => {
+  if ( !flag || !pending(flag) || !owns(flag, message) ) { disarmDeadline(timers, message.id); return; }
+  armDeadline(timers, message.id, deadline(flag), async () => {
     const live = game.messages.get(message.id);
-    const cur = readFlag(live, flagKey);
-    if ( !cur || (cur.status !== "pending") || cur.answer ) return;
+    const cur = live ? readFlag(live, flagKey) : null;
+    if ( !cur || !pending(cur) ) return;
     await expire(live);
   });
 }

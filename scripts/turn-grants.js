@@ -18,7 +18,7 @@ import { activityNamed, activityOfType, cardActivity, featureNamed, lower, resol
 import { chitStampOf, effectSourceOf, poolOf } from "./shared.js";
 import { endOptionsOf } from "./decide/turn-grants.js";
 import { holdBarHTML, popupKey, esc } from "./decide/present.js";
-import { livePopups, openMomentPopup, momentButton, shownMoments, scheduleBarSync, armDeadline, disarmDeadline, registerRelay, registerResumable } from "./ui.js";
+import { livePopups, openMomentPopup, momentButton, shownMoments, scheduleBarSync, armAskTimer, disarmAskTimer, subjectOwns, registerRelay, registerResumable } from "./ui.js";
 import { SURFACES } from "./surfaces.js";
 import { CARD, isCard, targetsOf } from "./decide/card.js";
 import { extendedThisTurn } from "./decide/turn-grants.js";
@@ -337,12 +337,7 @@ registerResumable(END_FLAG, {
 });
 
 function armEndTimer(message) {
-  const flag = readFlag(message, END_FLAG);
-  if ( (flag?.status !== "pending") || !flag.deadline || !drivesMomentFor(flag.actorUuid ?? null) ) return;
-  armDeadline(endTimers, message.id, flag.deadline, async () => {
-    const live = game.messages.get(message.id);
-    if ( readFlag(live, END_FLAG)?.status === "pending" ) await answerEnd(live, "keep", { timedOut: true });
-  });
+  armAskTimer(endTimers, message, END_FLAG, live => answerEnd(live, "keep", { timedOut: true }), { owns: subjectOwns(f => f.actorUuid) });
 }
 
 async function showEndPopup(message) {
@@ -406,12 +401,12 @@ listen("updateChatMessage", "turn-grants", message => {
   const flag = readFlag(message, END_FLAG);
   if ( !flag ) return;
   if ( flag.status === "pending" ) { armEndTimer(message); return; }
-  disarmDeadline(endTimers, message.id);
+  disarmAskTimer(endTimers, message.id);
   const open = livePopups.get(popupKey(message.id, END_FLAG));
   if ( open ) { try { void open.close(); } catch { /* gone */ } }
 });
 
-listen("deleteChatMessage", "turn-grants", message => { disarmDeadline(endTimers, message.id); });
+listen("deleteChatMessage", "turn-grants", message => { disarmAskTimer(endTimers, message.id); });
 
 /** A `to: "ally"` row (Life-Giving Force): the amount rolled on the bearer's numbers, then GIVEN — the rest song's pick. */
 async function giveToAlly({ row, item, actor }) {

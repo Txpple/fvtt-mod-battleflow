@@ -15,7 +15,7 @@ import { isActiveGM } from "./core.js";
 import { feetOf, nearestFeet, tokenForUuid } from "./geometry.js";
 import { bfCard, esc, holdBarHTML, popupKey, ruleLine } from "./decide/present.js";
 import { livePopups, openMomentPopup, momentButton, scheduleBarSync, shownMoments,
-  armDeadline, disarmDeadline, registerRelay } from "./ui.js";
+  armAskTimer, disarmAskTimer, keeperOwns, registerRelay } from "./ui.js";
 import { SURFACES } from "./surfaces.js";
 import { listen } from "./dispatch.js";
 
@@ -276,16 +276,10 @@ async function stampWards(hurt, source, amount, origin) {
 
 
 function armTimer(message) {
-  const flag = readFlag(message, REBUKE_FLAG);
-  if ( (flag?.status !== "pending") || !flag.deadline || !keepsMessage(message) ) return;
-  armDeadline(timers, message.id, flag.deadline, async () => {
-    const live = game.messages.get(message.id);
-    if ( !live ) return;
-    await queueFlagWrite(live, REBUKE_FLAG, current => {
-      if ( current.status !== "pending" ) return false;
-      current.status = "resolved"; current.answer = "pass"; current.timedOut = true; current.answeredAt = Date.now();
-    });
-  });
+  armAskTimer(timers, message, REBUKE_FLAG, live => queueFlagWrite(live, REBUKE_FLAG, current => {
+    if ( current.status !== "pending" ) return false;
+    current.status = "resolved"; current.answer = "pass"; current.timedOut = true; current.answeredAt = Date.now();
+  }), { owns: keeperOwns });
 }
 
 /* --- the answer ------------------------------------------------------------------------------- */
@@ -454,9 +448,9 @@ listen("updateChatMessage", "rebukes", message => {
   const flag = readFlag(message, REBUKE_FLAG);
   if ( !flag ) return;
   if ( flag.status === "pending" ) { armTimer(message); return; }
-  disarmDeadline(timers, message.id);
+  disarmAskTimer(timers, message.id);
   const open = livePopups.get(popupKey(message.id, REBUKE_FLAG));
   if ( open ) { try { void open.close(); } catch { /* gone */ } }
 });
 
-listen("deleteChatMessage", "rebukes", message => { disarmDeadline(timers, message.id); });
+listen("deleteChatMessage", "rebukes", message => { disarmAskTimer(timers, message.id); });

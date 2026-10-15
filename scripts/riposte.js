@@ -11,7 +11,7 @@ import { popupKey, bfCard, holdBarHTML, ruleLine, esc } from "./decide/present.j
 import { SURFACES } from "./surfaces.js";
 import { CARD, activityUuidOf, isCard, originData, originIdInData, targetsOf } from "./decide/card.js";
 import { livePopups, openMomentPopup, momentButton, scheduleBarSync, shownMoments,
-  armDeadline, disarmDeadline, registerRelay } from "./ui.js";
+  armAskTimer, disarmAskTimer, electOwns, registerRelay } from "./ui.js";
 import { listen } from "./dispatch.js";
 
 
@@ -73,15 +73,13 @@ listen("createChatMessage", "riposte", async message => {
   }
 });
 
-/* Per-reactor answers don't fit armAskTimer's single-answer shape: a per-target gate on the raw clock. */
+/** The elect's clock while any reactor is unanswered: the stamp sits on the enemy's attack, another user's message. */
 function armRiposteTimer(message) {
-  const flag = readFlag(message, "riposte");
-  if ( !flag?.deadline || (flag.status !== "pending") || !isActiveGM() ) return;
-  if ( !(flag.reactors ?? []).some(r => !r.answer) ) return;
-  armDeadline(riposteTimers, message.id, flag.deadline, fireRiposteTimer);
+  armAskTimer(riposteTimers, message, "riposte", live => fireRiposteTimer(live.id),
+    { owns: electOwns, pending: f => (f.status === "pending") && (f.reactors ?? []).some(r => !r.answer) });
 }
 
-const disarmRiposteTimer = messageId => disarmDeadline(riposteTimers, messageId);
+const disarmRiposteTimer = messageId => disarmAskTimer(riposteTimers, messageId);
 
 /** Expiry DECLINES: a reaction nobody took is a reaction not taken. */
 async function fireRiposteTimer(messageId) {

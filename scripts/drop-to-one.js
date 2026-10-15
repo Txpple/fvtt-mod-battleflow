@@ -25,7 +25,7 @@ import { dropSaveDc, dropSaveExempt, dropSaveTitle, diedTitle, downedOutcome } f
 import { saveDemandData, saveTargetEntry } from "./decide/demand.js";
 import { bfCard, esc, holdBarHTML, popupKey, ruleLine } from "./decide/present.js";
 import { livePopups, openMomentPopup, momentButton, scheduleBarSync, shownMoments,
-  armDeadline, disarmDeadline, registerRelay, registerResumable } from "./ui.js";
+  armAskTimer, disarmAskTimer, keeperOwns, registerRelay, registerResumable } from "./ui.js";
 import { resolveAttackMessage } from "./shared.js";
 import { creaturesWithin, feetOf, tokenOfActor } from "./geometry.js";
 import { rollDamageForSave } from "./auto-damage.js";
@@ -450,16 +450,10 @@ async function stampAsk(actor, found, { amount, source }) {
 
 
 function armTimer(message) {
-  const flag = readFlag(message, DROP_FLAG);
-  if ( (flag?.status !== "pending") || !flag.deadline || !keepsMessage(message) ) return;
-  armDeadline(timers, message.id, flag.deadline, async () => {
-    const live = game.messages.get(message.id);
-    if ( !live ) return;
-    await queueFlagWrite(live, DROP_FLAG, current => {
-      if ( current.status !== "pending" ) return false;
-      Object.assign(current, { status: "resolved", answer: "pass", timedOut: true, answeredAt: Date.now() });
-    });
-  });
+  armAskTimer(timers, message, DROP_FLAG, live => queueFlagWrite(live, DROP_FLAG, current => {
+    if ( current.status !== "pending" ) return false;
+    Object.assign(current, { status: "resolved", answer: "pass", timedOut: true, answeredAt: Date.now() });
+  }), { owns: keeperOwns });
 }
 
 // The answer: folded by the keeper, relayed by anyone else.
@@ -619,12 +613,12 @@ listen("updateChatMessage", "drop-to-one", message => {
   const flag = readFlag(message, DROP_FLAG);
   if ( !flag ) return;
   if ( flag.status === "pending" ) { armTimer(message); return; }
-  disarmDeadline(timers, message.id);
+  disarmAskTimer(timers, message.id);
   const open = livePopups.get(popupKey(message.id, DROP_FLAG));
   if ( open ) { try { void open.close(); } catch { /* gone */ } }
 });
 
-listen("deleteChatMessage", "drop-to-one", message => { disarmDeadline(timers, message.id); });
+listen("deleteChatMessage", "drop-to-one", message => { disarmAskTimer(timers, message.id); });
 
 /* --- C1 — THE DEATH SAVE'S SIDE (`on: "deathSave"`, Searing Vengeance) ------------------------------------------------
  * When a creature rolls a Death Saving Throw, every keeper within the row's `ally` reach (the creature itself too) holding the
@@ -692,16 +686,10 @@ async function stampDeathOffer(actor, found, rollMessage) {
 }
 
 function armOfferTimer(message) {
-  const flag = readFlag(message, DEATH_OFFER_FLAG);
-  if ( (flag?.status !== "pending") || !flag.deadline || !keepsMessage(message) ) return;
-  armDeadline(timers, message.id, flag.deadline, async () => {
-    const live = game.messages.get(message.id);
-    if ( !live ) return;
-    await queueFlagWrite(live, DEATH_OFFER_FLAG, current => {
-      if ( current.status !== "pending" ) return false;
-      Object.assign(current, { status: "resolved", answer: "pass", timedOut: true, answeredAt: Date.now() });
-    });
-  });
+  armAskTimer(timers, message, DEATH_OFFER_FLAG, live => queueFlagWrite(live, DEATH_OFFER_FLAG, current => {
+    if ( current.status !== "pending" ) return false;
+    Object.assign(current, { status: "resolved", answer: "pass", timedOut: true, answeredAt: Date.now() });
+  }), { owns: keeperOwns });
 }
 
 async function answerOffer(message, choice) {
@@ -852,7 +840,7 @@ listen("updateChatMessage", "drop-to-one", message => {
   const flag = readFlag(message, DEATH_OFFER_FLAG);
   if ( !flag ) return;
   if ( flag.status === "pending" ) { armOfferTimer(message); return; }
-  disarmDeadline(timers, message.id);
+  disarmAskTimer(timers, message.id);
   const open = livePopups.get(popupKey(message.id, DEATH_OFFER_FLAG));
   if ( open ) { try { void open.close(); } catch { /* gone */ } }
 });

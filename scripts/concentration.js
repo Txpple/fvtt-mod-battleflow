@@ -11,7 +11,7 @@ import { concentrationExemptEntries, damageRuleEntries, listedNames } from "./de
 import { CONCENTRATION_EXEMPTS, DAMAGE_RULES } from "./decide/registry.js";
 import { ruleLine } from "./decide/present.js";
 import { popupKey, bfCard, esc, holdBarHTML } from "./decide/present.js";
-import { livePopups, momentButton, DialogCarried, scheduleBarSync, shownMoments, armAskTimer, disarmAskTimer, dramaticVerdictPause, registerDemand, demandAnsweredBy,
+import { livePopups, momentButton, DialogCarried, scheduleBarSync, shownMoments, armAskTimer, disarmAskTimer, electOwns, dramaticVerdictPause, registerDemand, demandAnsweredBy,
   registerWithheld, withholds } from "./ui.js";
 import { SAVE_FOLDS, foldedSave, foldsFrom } from "./decide/verdict.js";
 import { SURFACES } from "./surfaces.js";
@@ -433,7 +433,7 @@ async function breakConcentration(actor, { names = [], effectIds = null, ask = n
 const concTimers = new Map();
 
 /** Expiry ROLLS; the buzzer first folds an answer that already landed. */
-const armConcTimer = message => armAskTimer(concTimers, message, "concentration", fireConcTimer);
+const armConcTimer = message => armAskTimer(concTimers, message, "concentration", fireConcTimer, { owns: electOwns });
 
 async function fireConcTimer(askMessage) {
   // A roll paused for a rescue offer is THE answer.

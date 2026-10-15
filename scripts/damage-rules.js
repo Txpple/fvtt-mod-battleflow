@@ -17,7 +17,7 @@ import { riseDice, driftChip } from "./dice-rise.js";
 import { withTargets, resolveAttackMessage, turnChitStands, writeTurnChit } from "./shared.js";
 import { attackMessageForDamage } from "./auto-damage.js";
 import { grappledBy, tokenForUuid } from "./geometry.js";
-import { openMomentPopup, momentButton, armDeadline, disarmDeadline, livePopups, shownMoments, scheduleBarSync,
+import { openMomentPopup, momentButton, armAskTimer, disarmAskTimer, keeperOwns, livePopups, shownMoments, scheduleBarSync,
   registerRelay } from "./ui.js";
 import { listen, listenOnce } from "./dispatch.js";
 
@@ -643,15 +643,11 @@ async function stampGrapple(actor, feature, activity, candidates) {
 
 
 function armGrappleTimer(message) {
-  const flag = readFlag(message, GRAPPLE_FLAG);
-  if ( (flag?.status !== "pending") || !flag.deadline || !keepsMessage(message) ) return;
-  armDeadline(grappleTimers, message.id, flag.deadline, async () => {
-    const live = game.messages.get(message.id);
+  armAskTimer(grappleTimers, message, GRAPPLE_FLAG, async live => {
     const now = readFlag(live, GRAPPLE_FLAG);
-    if ( now?.status !== "pending" ) return;
     if ( now.clockDeals && now.pick ) await dealGrapple(live, now.pick, { timedOut: true });
     else await recordGrapple(live, { answer: "skip", pick: null, timedOut: true });
-  });
+  }, { owns: keeperOwns });
 }
 
 /** Deal it: the feat's own damage activity used at the pick, on this client; then the answer recorded. */
@@ -751,12 +747,12 @@ listen("updateChatMessage", "damage-rules", message => {
   const flag = readFlag(message, GRAPPLE_FLAG);
   if ( !flag ) return;
   if ( flag.status === "pending" ) { armGrappleTimer(message); return; }
-  disarmDeadline(grappleTimers, message.id);
+  disarmAskTimer(grappleTimers, message.id);
   const open = livePopups.get(popupKey(message.id, GRAPPLE_FLAG));
   if ( open ) { try { void open.close(); } catch { /* gone */ } }
 });
 
-listen("deleteChatMessage", "damage-rules", message => { disarmDeadline(grappleTimers, message.id); });
+listen("deleteChatMessage", "damage-rules", message => { disarmAskTimer(grappleTimers, message.id); });
 
 /* --- THE TYPE PICK (Elemental Adept) ------------------------------------------------------------ *
  * The pack's feat carries no type and the row reads it off the NAME: a typeless copy landing on a

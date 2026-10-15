@@ -17,7 +17,7 @@ import { poolOf, poolUsesOf, reactionSpent, spendReaction, spendPoolUses, bystan
 import { facesThatTurn, setOutcome } from "./decide/stored-dice.js";
 import { bendRise, foldRise } from "./decide/dice-chips.js";
 import { riseDice } from "./dice-rise.js";
-import { armAskTimer, cardRow, flashBend, livePopups, openMomentPopup, registerRelay, registerWithhold, resumeWithheld, shownMoments } from "./ui.js";
+import { armAskTimer, cardRow, electOwns, flashBend, livePopups, openMomentPopup, registerRelay, registerWithhold, resumeWithheld, shownMoments } from "./ui.js";
 import { listen } from "./dispatch.js";
 
 const KEY = "bystanderRoll";
@@ -151,7 +151,7 @@ const armTimer = message => armAskTimer(timers, message, KEY, live => queueFlagW
   if ( current.status !== "pending" ) return false;
   for ( const g of (current.guards ?? []) ) g.passed = true;
   Object.assign(current, { status: "resolved", answer: "pass", timedOut: true, answeredAt: Date.now() });
-}));
+}), { owns: electOwns });
 
 // A DEMANDED save: the verdict waits while a bystander is asked. ⚠ Fails open: a broken offer never swallows a save.
 registerWithhold(KEY, {

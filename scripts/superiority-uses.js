@@ -12,7 +12,7 @@ import { bfCard, holdBarHTML, popupKey, riderMenuHTML, ruleLine, spendPhrase, es
 import { MANEUVER_FEATURE_NAMES, SUPERIORITY_USES, answers, tableIndex } from "./decide/registry.js";
 import { CHIP_FLAG, chipClock } from "./decide/chips.js";
 import { riderPartFormula } from "./decide/clock.js";
-import { armDeadline, disarmDeadline, momentButton, openMomentPopup, registerResumable, shownMoments, registerOfferPart } from "./ui.js";
+import { armAskTimer, subjectOwns, momentButton, openMomentPopup, registerResumable, shownMoments, registerOfferPart } from "./ui.js";
 import { attackMessageForDamage } from "./auto-damage.js";
 import { applyEffectsWithReceipt } from "./effect-riders.js";
 import { SURFACES } from "./surfaces.js";
@@ -176,20 +176,16 @@ async function showBaitPopup(card) {
 
 const baitTimers = new Map();
 function armBaitTimer(card) {
-  const bs = readFlag(card, "baitSwitch");
-  if ( !bs || bs.chosen || !bs.deadline || !drivesMomentFor(bs.sourceUuid ?? null) ) { disarmDeadline(baitTimers, card.id); return; }
-  armDeadline(baitTimers, card.id, bs.deadline, async id => {
+  armAskTimer(baitTimers, card, "baitSwitch", async live => {
     try {
-      const c = game.messages.get(id);
-      if ( !c ) return;
-      await queueFlagWrite(c, "baitSwitch", current => {
+      await queueFlagWrite(live, "baitSwitch", current => {
         if ( current.chosen || !current.deadline || (current.deadline > Date.now()) ) return false;
         current.chosen = current.options?.[0]?.uuid ?? null;   // the fighter, by default
         current.timedOut = true;
         current.answeredAt = Date.now();
       });
     } catch(err) { console.error(`${TITLE} | The Bait and Switch buzzer failed.`, err); }
-  });
+  }, { owns: subjectOwns(bs => bs.sourceUuid), pending: bs => !bs.chosen });
 }
 
 async function settleBait(card) {

@@ -21,7 +21,7 @@ import { nearestFeet, tokenForUuid, tokenOfActor } from "./geometry.js";
 import { attackMessageForDamage } from "./auto-damage.js";
 import { applyDamagesWithReceipt } from "./auto-apply.js";
 import { applyActivityEffectsOnHit, applyEffectsWithReceipt, messageActivity } from "./effect-riders.js";
-import { armDeadline, disarmDeadline, momentButton, openMomentPopup, registerRelay, registerResumable, shownMoments, registerOfferPart } from "./ui.js";
+import { armAskTimer, subjectOwns, momentButton, openMomentPopup, registerRelay, registerResumable, shownMoments, registerOfferPart } from "./ui.js";
 import { SURFACES } from "./surfaces.js";
 import { listen, listenOnce } from "./dispatch.js";
 
@@ -684,16 +684,12 @@ async function showSweepPopup(card) {
   }
 }
 
-/** The elect's clock on the pick: the only creature when there is one, nobody otherwise. */
+/** The clock on the pick, on whoever drives the source's moments: the only creature when there is one, nobody otherwise. */
 const sweepTimers = new Map();
 function armSweepTimer(card) {
-  const sc = readFlag(card, "sweepCard");
-  if ( !sc || sc.chosen || !sc.deadline || !drivesMomentFor(sc.sourceUuid ?? null) ) { disarmDeadline(sweepTimers, card.id); return; }
-  armDeadline(sweepTimers, card.id, sc.deadline, async id => {
+  armAskTimer(sweepTimers, card, "sweepCard", async live => {
     try {
-      const c = game.messages.get(id);
-      if ( !c ) return;
-      await queueFlagWrite(c, "sweepCard", current => {
+      await queueFlagWrite(live, "sweepCard", current => {
         if ( current.chosen || !current.deadline || (current.deadline > Date.now()) ) return false;
         current.chosen = (current.candidates?.length === 1) ? current.candidates[0].uuid : "none";
         current.timedOut = true;
@@ -702,7 +698,7 @@ function armSweepTimer(card) {
     } catch(err) {
       console.error(`${TITLE} | The sweep's buzzer failed.`, err);
     }
-  });
+  }, { owns: subjectOwns(sc => sc.sourceUuid), pending: sc => !sc.chosen });
 }
 
 async function settleSweep(card) {

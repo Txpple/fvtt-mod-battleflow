@@ -103,6 +103,35 @@ flow-elect rows (§runs, §chip, §told, §conc, §spent, §cast) and §rejoin.
 | emanations | regions, auras, sweeps, adoption | **GM-only** | scene and region writes are the GM's; the relay's fold rides the flow elect |
 | effect-riders (the twin-chip dedupe) · resources | bookkeeping over documents only a GM owns | **GM-only** | nothing to degrade to |
 | gear-lights | a press on the toggle; the Long Rest's put-out | **the client that used the item** (an owner of its actor); the rest's on the resting client, the one dnd5e fires it on | everything — the bearer's owner writes the bearer. The item-gone cleanup (`deleteItem`) rides `drivesMomentFor` |
+| damage-holds · drop-to-one (the hold at 1 HP and the death offer) · rebukes · damage-rules' grapple card | the clock and the fold on their own card | **the keeper** (`keepsMessage`: the card's author while connected, else the elect) | the author's client runs the clock and writes the pass on its own card; a monster's consequence is whispered |
+| dice-changers · initiative-grants · initiative-swap · kit-tend · turn-grants · rest-grants' song | the clock, the default answer | the owner (`actorUuid`) | the owner's player keeps the roll, answers No, Pass or Keep, hands the song out; what lands on another sheet is whispered |
+| bystanders · area-ask | the clock on the bystander's bend, the ask at the area | **GM-only** | the popup opens for the decider and the answer lands; the clock waits for a GM (the same shape as mastery's and the saves' clocks) |
+| stored-dice | the rest card's ask (Portent's dice) | whoever answers for the bearer (`canAnswerFor`), under the resumable's `drives` | the bearer's player rolls, or the clock rolls for them |
+| volleys | the aim, its clock, the rays | **the caster** (the message's author) | everything runs on the casting client |
+
+### The clocks — who arms each decision clock
+
+Every decision clock is armed through `armAskTimer` (ui.js), and the call names its owner: `electOwns`
+(the active GM's leading window), `keeperOwns` (the card's author while connected, else the elect),
+`subjectOwns(flag => flag.<uuid>)` (`drivesMomentFor` on the moment's subject) or `continuingOwns` (the
+hold's continuing client). The helper reads the flag's absolute deadline, arms only while the moment is
+`pending` (a machine with its own notion passes one: Riposte's unanswered reactors, Topple's undone
+targets, the save choices' earliest clock), drops the clock once the moment is answered or the client is
+no longer the owner, and re-checks the live flag at expiry. **The static proof is `npm run clocks`**
+([tools/check-clocks.mjs](tools/check-clocks.mjs)): no `setTimeout` on a deadline outside ui.js, the raw
+`armDeadline` only from ui.js and the files it pins (the damage offer's popup buzzer, the stored dice's ask,
+the volley's author-side resume), and every `owns` one of the four. `--list` prints the table.
+
+| Owner | Clocks |
+| --- | --- |
+| the elect | mastery (the ask and the pick), precision, bash-offer, d20-folds, concentration, the saves' demand (saves/ask), bystanders, area-ask, riposte |
+| the keeper | damage-holds, drop-to-one (both cards), rebukes, damage-rules' grapple card |
+| the subject | dice-changers, initiative-grants, initiative-swap, kit-tend, turn-grants, rest-grants' song (the owner); hit-menu's sweep, superiority-uses' Bait and Switch, the save choices (the source); topple (the attacker) |
+| the continuing client | the hold |
+
+The elect-owned clocks whose table row above names the subject as the driver (mastery, concentration, the
+saves) are the standing choice: their expiry writes where a player may not (a monster's chip, an NPC's
+roll), so with no GM those moments open and are answered, and the clock waits for one.
 
 When the GM's click must make another client act, the GM **flips a flag on a message**. The
 flip replicates; the other client reacts to seeing it. That is the only cross-client channel
@@ -502,7 +531,9 @@ animation's `currentTime` from that deadline, never a CSS animation delay (NOTES
 about to post, a roll this client posts a beat later, a reaction's AC arriving on its actor. The
 test runs at once, then after each write of the kinds it names (a message's create or update by
 default; an effect's or an actor's on request), and the wait answers null at its limit. Nothing in
-the module polls on a timer.
+the module polls on a timer. A clock is armed through `armAskTimer` with its owner named (§3 *The
+clocks*; `npm run clocks`); `armDeadline` beneath it is the one `setTimeout` on a deadline, and it refuses
+one past `deadlineIsLive`'s roof.
 
 ---
 

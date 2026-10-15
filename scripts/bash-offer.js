@@ -13,7 +13,7 @@ import { popupKey, bfCard, holdBarHTML, ruleLine, esc } from "./decide/present.j
 import { SURFACES } from "./surfaces.js";
 import { CARD, isCard } from "./decide/card.js";
 import { livePopups, openMomentPopup, momentButton, scheduleBarSync, shownMoments,
-  armAskTimer, disarmAskTimer } from "./ui.js";
+  armAskTimer, disarmAskTimer, electOwns } from "./ui.js";
 import { listen } from "./dispatch.js";
 
 // The offer is stamped on the attacker's OWN attack message (the answer writes directly). Once per
@@ -115,7 +115,7 @@ listen("dnd5e.rollAttack", "bash-offer", async (rolls, { subject }) => {
 });
 
 const armBashOfferTimer = message =>
-  armAskTimer(bashOfferTimers, message, "bashOffer", live => answerBashOffer(live, "pass", { timedOut: true }));
+  armAskTimer(bashOfferTimers, message, "bashOffer", live => answerBashOffer(live, "pass", { timedOut: true }), { owns: electOwns });
 
 /** The offer's window and deadline, read at the moment the clock STARTS. */
 function offerClock() {

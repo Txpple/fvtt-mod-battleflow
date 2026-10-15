@@ -4,7 +4,7 @@
  * Inspiration). The grant rides `dnd5e.preRestCompleted`'s one actor update (`result.updateData`),
  * on the resting client, and the rest card says what was gained. Nothing is asked.
  */
-import { MODULE_ID, readFlag, TITLE, isActiveGM, queueFlagWrite, canAnswerFor, statContext, drivesMomentFor } from "./core.js";
+import { MODULE_ID, readFlag, TITLE, isActiveGM, queueFlagWrite, canAnswerFor, statContext } from "./core.js";
 import { lower, activityNamed, asiAssigned, featureNamed, resolveUuid } from "./lookup.js";
 import { answers, listedNames, restGrantEntries } from "./decide/registry.js";
 import { bfCard, esc, holdBarHTML, popupKey, foldedRuleHTML } from "./decide/present.js";
@@ -16,7 +16,7 @@ import { holdsTemp, mealStanding, restEnds } from "./decide/rest-grants.js";
 import { SURFACES } from "./surfaces.js";
 import { nearestFeet, tokenOfActor } from "./geometry.js";
 import { effectSourceOf, isPartyMember } from "./shared.js";
-import { livePopups, openMomentPopup, momentButton, shownMoments, registerRelay, registerResumable, armDeadline, disarmDeadline, scheduleBarSync } from "./ui.js";
+import { livePopups, openMomentPopup, momentButton, shownMoments, registerRelay, registerResumable, armAskTimer, disarmAskTimer, subjectOwns, scheduleBarSync } from "./ui.js";
 import { listen, listenOnce } from "./dispatch.js";
 
 /** What a grant writes, by its `grant` word — the sheet facts the table knows how to set. */
@@ -658,13 +658,10 @@ listenOnce("ready", "rest-grants", () => document.addEventListener("input", ev =
 
 const songTimers = new Map();
 function armSongTimer(message) {
-  const flag = readFlag(message, SONG_FLAG);
-  if ( (flag?.status !== "pending") || !flag.deadline || !drivesMomentFor(flag.actorUuid ?? null) ) return;
-  armDeadline(songTimers, message.id, flag.deadline, async () => {
-    const live = game.messages.get(message.id);
+  armAskTimer(songTimers, message, SONG_FLAG, live => {
     const f = readFlag(live, SONG_FLAG);
-    if ( f?.status === "pending" ) await answerSong(live, [{ uuid: f.actorUuid, n: f.amount }], { timedOut: true });
-  });
+    return answerSong(live, [{ uuid: f.actorUuid, n: f.amount }], { timedOut: true });
+  }, { owns: subjectOwns(f => f.actorUuid) });
 }
 
 /** With the cap reached the unticked rows grey; one below it they come back. An ally who has it stays greyed. */
@@ -732,7 +729,7 @@ listen("updateChatMessage", "rest-grants", message => {
   const flag = readFlag(message, SONG_FLAG);
   if ( !flag ) return;
   if ( flag.status === "pending" ) { armSongTimer(message); return; }
-  disarmDeadline(songTimers, message.id);
+  disarmAskTimer(songTimers, message.id);
   const open = livePopups.get(popupKey(message.id, SONG_FLAG));
   if ( open ) { try { void open.close(); } catch { /* gone */ } }
 });

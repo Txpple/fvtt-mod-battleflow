@@ -9,8 +9,8 @@ import { forceStatus, rollConfigFor } from "./shared.js";
 import { popupKey, bfCard, momentBarHTML, ruleLine } from "./decide/present.js";
 import { SURFACES } from "./surfaces.js";
 import { CARD, abilityOf, isCard, originData, originIdOf } from "./decide/card.js";
-import { livePopups, DialogCarried, momentButton, scheduleBarSync, shownMoments, armDeadline,
-  disarmDeadline, dramaticVerdictPause, registerDemand, demandAnsweredBy } from "./ui.js";
+import { livePopups, DialogCarried, momentButton, scheduleBarSync, shownMoments, armAskTimer,
+  disarmAskTimer, subjectOwns, dramaticVerdictPause, registerDemand, demandAnsweredBy } from "./ui.js";
 import { listen } from "./dispatch.js";
 
 /* ⚠ The twin-ask supersede: `isActiveGM()` is per-USER, so two sessions on one account both stamp
@@ -119,13 +119,11 @@ async function rollToppleSave(message, target, { mode = null, bonus = null, time
 const toppleTimers = new Map();
 
 function armToppleTimer(message) {
-  const flag = readFlag(message, "topple");
-  if ( !flag?.deadline || !drivesMomentFor(flag?.attackerUuid) ) return;
-  if ( !(flag.targets ?? []).some(t => !t.done) ) return;
-  armDeadline(toppleTimers, message.id, flag.deadline, fireToppleTimer);
+  armAskTimer(toppleTimers, message, "topple", live => fireToppleTimer(live.id),
+    { owns: subjectOwns(f => f.attackerUuid), pending: f => (f.targets ?? []).some(t => !t.done) });
 }
 
-const disarmToppleTimer = messageId => disarmDeadline(toppleTimers, messageId);
+const disarmToppleTimer = messageId => disarmAskTimer(toppleTimers, messageId);
 
 async function fireToppleTimer(messageId) {
   try {

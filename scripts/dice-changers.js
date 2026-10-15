@@ -17,7 +17,7 @@ import { DICE_CHANGE_FLAG, orderRows, birthStatus, diceChipsOf, answerPlan, butt
 import { empoweredReaches, empoweredOutcome } from "./decide/metamagic.js";
 import { bfCard, esc, holdBarHTML, popupKey, tickRowsHTML, dieMeterHTML, spendPhrase } from "./decide/present.js";
 import { eitherRise, rerollRise } from "./decide/dice-chips.js";
-import { openMomentPopup, momentButton, armDeadline, disarmDeadline, livePopups, scheduleBarSync,
+import { openMomentPopup, momentButton, armAskTimer, disarmAskTimer, subjectOwns, livePopups, scheduleBarSync,
   dramaticVerdictPause, registerResumable, paintDieChip } from "./ui.js";
 import { attackMessageForDamage } from "./auto-damage.js";
 import { moveAppliedDamage } from "./auto-apply.js";
@@ -113,7 +113,7 @@ listen("updateChatMessage", "dice-changers", message => {
   if ( !flag ) return;
   if ( (flag.status === "due") && message.isAuthor ) void promote(message);
   if ( flag.status === "pending" ) { armTimer(message); return; }
-  disarmDeadline(timers, message.id);
+  disarmAskTimer(timers, message.id);
   const open = livePopups.get(popupKey(message.id, DICE_CHANGE_FLAG));
   if ( open ) { try { void open.close(); } catch { /* gone */ } }
 });
@@ -174,14 +174,9 @@ async function promote(message) {
   }
 }
 
-/** The buzzer, on whoever drives the actor's moments (`drivesMomentFor`), so a no-GM table still keeps the roll. */
+/** The buzzer, on whoever drives the actor's moments (`subjectOwns`), so a no-GM table still keeps the roll. */
 function armTimer(message) {
-  const flag = readFlag(message, DICE_CHANGE_FLAG);
-  if ( (flag?.status !== "pending") || !flag.deadline || !drivesMomentFor(flag.actorUuid ?? null) ) return;
-  armDeadline(timers, message.id, flag.deadline, async () => {
-    const live = game.messages.get(message.id);
-    if ( readFlag(live, DICE_CHANGE_FLAG)?.status === "pending" ) await keep(live, { timedOut: true });
-  });
+  armAskTimer(timers, message, DICE_CHANGE_FLAG, live => keep(live, { timedOut: true }), { owns: subjectOwns(f => f.actorUuid) });
 }
 
 /* --- the popup ---------------------------------------------------------------------------------- */

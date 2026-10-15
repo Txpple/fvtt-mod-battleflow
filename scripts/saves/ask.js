@@ -7,7 +7,7 @@ import { MODULE_ID, readFlag, TITLE, queueFlagWrite } from "../core.js";
 import { namesAnswering, resolveUuid } from "../lookup.js";
 import { rollConfigFor } from "../shared.js";
 import { popupKey, bfCard, holdBarHTML } from "../decide/present.js";
-import { livePopups, adoptManagedPopup, DialogCarried, scheduleBarSync, armAskTimer, disarmAskTimer } from "../ui.js";
+import { livePopups, adoptManagedPopup, DialogCarried, scheduleBarSync, armAskTimer, disarmAskTimer, electOwns } from "../ui.js";
 import { SAVE_BENDS, EFFECT_BENDS } from "../decide/registry.js";
 import { saveGate, saveSources, effectSaveSources, immunitySleepSource } from "../decide/reminders.js";
 import { conditionEntries, effectEntries, reminderEntries } from "../decide/registry.js";
@@ -151,7 +151,7 @@ listen("renderRollConfigurationDialog", "saves/ask", (app, element) => {
 // The buzzer: expiry rolls, on the elect.
 const saveTimers = new Map();
 /** Armed on every render and update off the absolute deadline, so a reload resumes it. */
-export function armSaveTimer(message) { return armAskTimer(saveTimers, message, "saves", fireSaveTimer); }
+export function armSaveTimer(message) { return armAskTimer(saveTimers, message, "saves", fireSaveTimer, { owns: electOwns }); }
 export function disarmSaveTimer(cardId) { return disarmAskTimer(saveTimers, cardId); }
 
 /** A save the rules fail before the dice, read off decide/ (this directory never imports the gate). */

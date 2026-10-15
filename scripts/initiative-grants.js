@@ -5,7 +5,7 @@
  * spent, a card; an `ask` row is OFFERED to the owner (the use is theirs to keep) and the clock answers No. The
  * sheet writes are the GM's; a player's answer relays.
  */
-import { MODULE_ID, readFlag, TITLE, isActiveGM, queueFlagWrite, canAnswerFor, statContext, drivesMomentFor, decisionWindow } from "./core.js";
+import { MODULE_ID, readFlag, TITLE, isActiveGM, queueFlagWrite, canAnswerFor, statContext, decisionWindow } from "./core.js";
 import { activityNamed, featureNamed, lower, resolveUuid } from "./lookup.js";
 import { poolOf, spendPoolUses } from "./shared.js";
 import { nearestFeet, tokenForUuid } from "./geometry.js";
@@ -13,7 +13,7 @@ import { INITIATIVE_GRANTS, initiativeGrantEntries, listedNames } from "./decide
 import { initiativeGrantDue, initiativeGrantLine } from "./decide/initiative-grants.js";
 import { riderPartFormula } from "./decide/clock.js";
 import { bfCard, esc, holdBarHTML, popupKey, foldedRuleHTML } from "./decide/present.js";
-import { livePopups, openMomentPopup, momentButton, shownMoments, scheduleBarSync, armDeadline, disarmDeadline,
+import { livePopups, openMomentPopup, momentButton, shownMoments, scheduleBarSync, armAskTimer, disarmAskTimer, subjectOwns,
   registerRelay, registerResumable } from "./ui.js";
 import { applyDamagesWithReceipt } from "./auto-apply.js";
 import { SURFACES } from "./surfaces.js";
@@ -347,12 +347,7 @@ listen("updateCombatant", "initiative-grants", (combatant, changes) => {
 /* --- the clock: No, on whoever drives the owner's moments --------------------------------------------- */
 
 function armTimer(message) {
-  const flag = readFlag(message, INITIATIVE_GRANT_FLAG);
-  if ( (flag?.status !== "pending") || !flag.deadline || !drivesMomentFor(flag.actorUuid ?? null) ) return;
-  armDeadline(timers, message.id, flag.deadline, async () => {
-    const live = game.messages.get(message.id);
-    if ( readFlag(live, INITIATIVE_GRANT_FLAG)?.status === "pending" ) await answerGrant(live, "no", { timedOut: true });
-  });
+  armAskTimer(timers, message, INITIATIVE_GRANT_FLAG, live => answerGrant(live, "no", { timedOut: true }), { owns: subjectOwns(f => f.actorUuid) });
 }
 
 /* --- the popup and the card ------------------------------------------------------------------------- */
@@ -404,9 +399,9 @@ listen("updateChatMessage", "initiative-grants", message => {
   const flag = readFlag(message, INITIATIVE_GRANT_FLAG);
   if ( !flag ) return;
   if ( flag.status === "pending" ) { armTimer(message); return; }
-  disarmDeadline(timers, message.id);
+  disarmAskTimer(timers, message.id);
   const open = livePopups.get(popupKey(message.id, INITIATIVE_GRANT_FLAG));
   if ( open ) { try { void open.close(); } catch { /* gone */ } }
 });
 
-listen("deleteChatMessage", "initiative-grants", message => { disarmDeadline(timers, message.id); });
+listen("deleteChatMessage", "initiative-grants", message => { disarmAskTimer(timers, message.id); });

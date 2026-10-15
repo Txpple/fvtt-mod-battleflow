@@ -11,7 +11,7 @@ import { maneuverFoldEntries } from "./decide/registry.js";
 import { hitTargets } from "./shared.js";
 import { bfCard, holdBarHTML, spendPhrase, rescueView, rescueSourceFor, esc } from "./decide/present.js";
 import { ATTACK_FOLDS, foldsFrom, foldedRoll, foldedVerdict } from "./decide/verdict.js";
-import { momentButton, scheduleBarSync, armAskTimer, disarmAskTimer, registerRescue,
+import { momentButton, scheduleBarSync, armAskTimer, disarmAskTimer, electOwns, registerRescue,
   syncRescuePopup } from "./ui.js";
 import { offerDamageRoll, registerMissWait, rollDamageForAttack, settleMiss } from "./auto-damage.js";
 import { SURFACES } from "./surfaces.js";
@@ -95,7 +95,7 @@ listen("dnd5e.rollAttack", "precision", async (rolls, { subject }) => {
 });
 
 const armPrecisionTimer = message =>
-  armAskTimer(precisionTimers, message, "precision", live => answerPrecision(live, "pass", { timedOut: true }));
+  armAskTimer(precisionTimers, message, "precision", live => answerPrecision(live, "pass", { timedOut: true }), { owns: electOwns });
 
 /** One answer, first writer wins — serialized through the flag lock, then executed. */
 async function answerPrecision(message, answer, { timedOut = false } = {}) {

@@ -18,7 +18,7 @@ import { ATTACK_FOLDS, SAVE_FOLDS, foldsFrom, foldedRoll, foldedVerdict } from "
 import { ADVANTAGE_BUYS, D20_FLOORS, REROLLS, SAVE_SUCCEEDS, SUPERIORITY_FOLDS, TACTICAL_FOLDS, d20FloorEntries } from "./decide/registry.js";
 import { CHIP_FLAG } from "./decide/chips.js";
 import { foldRise } from "./decide/dice-chips.js";
-import { cardRow, momentButton, scheduleBarSync, armAskTimer, disarmAskTimer, openMomentPopup, shownMoments, acknowledgeMoment, momentAcknowledged, registerRescue, syncRescuePopup, pendingDemandsFor, registerWithhold, resumeWithheld, dramaticVerdictPause } from "./ui.js";
+import { cardRow, momentButton, scheduleBarSync, armAskTimer, disarmAskTimer, electOwns, openMomentPopup, shownMoments, acknowledgeMoment, momentAcknowledged, registerRescue, syncRescuePopup, pendingDemandsFor, registerWithhold, resumeWithheld, dramaticVerdictPause } from "./ui.js";
 import { offerDamageRoll, registerMissWait, rollDamageForAttack } from "./auto-damage.js";
 import { activityUuidOf, originData, targetsOf } from "./decide/card.js";
 import { listen } from "./dispatch.js";
@@ -554,7 +554,7 @@ function pendingSaveDemandFor(actor) {
 }
 
 const armFoldTimer = message =>
-  armAskTimer(foldTimers, message, "d20fold", live => answerFold(live, "pass", { timedOut: true }));
+  armAskTimer(foldTimers, message, "d20fold", live => answerFold(live, "pass", { timedOut: true }), { owns: electOwns });
 
 // THE DEMANDED-SAVE EDGE. ⚠ WITHHOLD, DO NOT UNDO: the save machine's verdict pauses while this
 // offer is live; `offer` returns true when the caller must NOT fold yet. `by` names the machine

@@ -10,7 +10,7 @@ import { MASTERY_KINDS, MASTERY_NATIVE, MASTERY_RULES } from "./decide/registry.
 import { CHIP_FLAG, chipClock, chipIsDead } from "./decide/chips.js";
 import { chipData, chitStampOf, hitTargets, masteryLabel, placeOf, turnPlace } from "./shared.js";
 import { popupKey, bfCard, holdBarHTML, momentBarHTML, ruleLine, foldedRuleHTML, esc } from "./decide/present.js";
-import { livePopups, openMomentPopup, momentButton, scheduleBarSync, shownMoments, acknowledgeMoment, momentAcknowledged, armAskTimer, disarmAskTimer, registerOfferPart } from "./ui.js";
+import { livePopups, openMomentPopup, momentButton, scheduleBarSync, shownMoments, acknowledgeMoment, momentAcknowledged, armAskTimer, disarmAskTimer, electOwns, registerOfferPart } from "./ui.js";
 import { applyDamagesWithReceipt } from "./auto-apply.js";
 import { messageActivity } from "./effect-riders.js";
 import { SURFACES } from "./surfaces.js";
@@ -528,7 +528,7 @@ async function executeMasteryPick(message) {
 
 /** Expiry takes the stamped mastery — the weapon's own, or what the dialog chose. */
 const armPickTimer = message =>
-  armAskTimer(pickTimers, message, MASTERY_PICK_FLAG, live => answerMasteryPick(live, readFlag(live, MASTERY_PICK_FLAG)?.stamped ?? "pass", { timedOut: true }));
+  armAskTimer(pickTimers, message, MASTERY_PICK_FLAG, live => answerMasteryPick(live, readFlag(live, MASTERY_PICK_FLAG)?.stamped ?? "pass", { timedOut: true }), { owns: electOwns });
 const disarmPickTimer = messageId => disarmAskTimer(pickTimers, messageId);
 
 /** The pick popup: one button per mastery (the weapon's own first), and Pass. */
@@ -643,7 +643,7 @@ listen("deleteChatMessage", "mastery", message => {
 
 /** Expiry answers Pass — the AFK fallback for a decision nobody made. */
 const armMasteryTimer = message =>
-  armAskTimer(masteryTimers, message, "mastery", live => answerMastery(live, "pass", { timedOut: true }));
+  armAskTimer(masteryTimers, message, "mastery", live => answerMastery(live, "pass", { timedOut: true }), { owns: electOwns });
 const disarmMasteryTimer = messageId => disarmAskTimer(masteryTimers, messageId);
 
 /** The Use/Pass popup — the same two controls for everybody, on the hold's own bar. */

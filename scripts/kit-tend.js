@@ -12,7 +12,7 @@ import { bfCard, esc, holdBarHTML, popupKey, foldedRuleHTML, tickRowsHTML } from
 import { targetsOf } from "./decide/card.js";
 import { nearestFeet, tokenForUuid, tokenOfActor } from "./geometry.js";
 import { withTargets } from "./shared.js";
-import { livePopups, openMomentPopup, momentButton, shownMoments, scheduleBarSync, armDeadline, disarmDeadline,
+import { livePopups, openMomentPopup, momentButton, shownMoments, scheduleBarSync, armAskTimer, disarmAskTimer, subjectOwns,
   registerRelay, registerResumable } from "./ui.js";
 import { SURFACES } from "./surfaces.js";
 import { listen } from "./dispatch.js";
@@ -172,12 +172,7 @@ registerResumable(TEND_FLAG, {
 /* --- the clock: Pass, on whoever drives the owner's moments ---------------------------------------- */
 
 function armTimer(message) {
-  const flag = readFlag(message, TEND_FLAG);
-  if ( (flag?.status !== "pending") || !flag.deadline || !drivesMomentFor(flag.actorUuid ?? null) ) return;
-  armDeadline(timers, message.id, flag.deadline, async () => {
-    const live = game.messages.get(message.id);
-    if ( readFlag(live, TEND_FLAG)?.status === "pending" ) await answerTend(live, "pass", null, { timedOut: true });
-  });
+  armAskTimer(timers, message, TEND_FLAG, live => answerTend(live, "pass", null, { timedOut: true }), { owns: subjectOwns(f => f.actorUuid) });
 }
 
 /* --- the popup and the card -------------------------------------------------------------------------- */
@@ -263,9 +258,9 @@ listen("updateChatMessage", "kit-tend", message => {
   const flag = readFlag(message, TEND_FLAG);
   if ( !flag ) return;
   if ( flag.status === "pending" ) { armTimer(message); return; }
-  disarmDeadline(timers, message.id);
+  disarmAskTimer(timers, message.id);
   const open = livePopups.get(popupKey(message.id, TEND_FLAG));
   if ( open ) { try { void open.close(); } catch { /* gone */ } }
 });
 
-listen("deleteChatMessage", "kit-tend", message => { disarmDeadline(timers, message.id); });
+listen("deleteChatMessage", "kit-tend", message => { disarmAskTimer(timers, message.id); });

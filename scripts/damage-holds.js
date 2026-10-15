@@ -21,7 +21,7 @@ import { poolOf, poolUsesOf, reactionSpent, spendReaction, spendSuperiorityDie, 
 import { applyDamagesWithReceipt, registerDamageClaim } from "./auto-apply.js";
 import { bfCard, esc, holdBarHTML, popupKey, ruleLine, tickRowsHTML } from "./decide/present.js";
 import { livePopups, openMomentPopup, momentButton, scheduleBarSync, shownMoments,
-  armDeadline, disarmDeadline, registerRelay, registerResumable } from "./ui.js";
+  armAskTimer, disarmAskTimer, keeperOwns, registerRelay, registerResumable } from "./ui.js";
 import { SURFACES } from "./surfaces.js";
 import { listen } from "./dispatch.js";
 
@@ -252,16 +252,10 @@ async function stampHold(receiptMessage, target, actor, damages, { multiplier, n
 
 
 function armTimer(message) {
-  const flag = readFlag(message, HOLD_FLAG);
-  if ( (flag?.status !== "pending") || !flag.deadline || !keepsMessage(message) ) return;
-  armDeadline(timers, message.id, flag.deadline, async () => {
-    const live = game.messages.get(message.id);
-    if ( !live ) return;
-    await queueFlagWrite(live, HOLD_FLAG, current => {
-      if ( current.status !== "pending" ) return false;
-      current.status = "resolved"; current.answer = "pass"; current.timedOut = true; current.answeredAt = Date.now();
-    });
-  });
+  armAskTimer(timers, message, HOLD_FLAG, live => queueFlagWrite(live, HOLD_FLAG, current => {
+    if ( current.status !== "pending" ) return false;
+    current.status = "resolved"; current.answer = "pass"; current.timedOut = true; current.answeredAt = Date.now();
+  }), { owns: keeperOwns });
 }
 
 /* --- the answer ------------------------------------------------------------------------------- */
@@ -562,7 +556,7 @@ listen("updateChatMessage", "damage-holds", message => {
   const flag = readFlag(message, HOLD_FLAG);
   if ( !flag ) return;
   if ( flag.status === "pending" ) { armTimer(message); closeGuardPopups(message, flag, false); return; }
-  disarmDeadline(timers, message.id);
+  disarmAskTimer(timers, message.id);
   const open = livePopups.get(popupKey(message.id, HOLD_FLAG));
   if ( open ) { try { void open.close(); } catch { /* gone */ } }
   closeGuardPopups(message, flag, true);
@@ -577,4 +571,4 @@ function closeGuardPopups(message, flag, all) {
   }
 }
 
-listen("deleteChatMessage", "damage-holds", message => { disarmDeadline(timers, message.id); });
+listen("deleteChatMessage", "damage-holds", message => { disarmAskTimer(timers, message.id); });

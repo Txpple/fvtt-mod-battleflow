@@ -7,7 +7,7 @@ import { MODULE_ID, readFlag, TITLE, queueFlagWrite, drivesMomentFor, decisionWi
 import { applicableProfiles, cardActivity, equippedShield, foldEntryFor, resolveUuid } from "../lookup.js";
 import { forceStatus, reactionSpent, spendReaction } from "../shared.js";
 import { bfCard, esc, momentBarHTML, ruleLine } from "../decide/present.js";
-import { openMomentPopup, armDeadline, disarmDeadline, registerRelay } from "../ui.js";
+import { openMomentPopup, armAskTimer, disarmAskTimer, subjectOwns, registerRelay } from "../ui.js";
 import { RULE_TEXT, SAVE_PRESSES, tableIndex } from "../decide/registry.js";
 import { maneuverFoldEntries } from "../decide/registry.js";
 
@@ -138,15 +138,18 @@ registerRelay("saveChoiceAnswer", {
   }
 });
 
-export function disarmSaveChoiceTimer(cardId) { return disarmDeadline(saveChoiceTimers, cardId); }
+export function disarmSaveChoiceTimer(cardId) { return disarmAskTimer(saveChoiceTimers, cardId); }
 
+/** The targets whose choice still waits on a clock. */
+const choicesDue = flag => (flag.targets ?? []).filter(t => t.choice && !t.choice.answer && t.choice.deadline);
+
+/** One clock per card, on the earliest choice due; the buzzer re-arms for the next. */
 export function armSaveChoiceTimer(card) {
-  const flag = readFlag(card, "saves");
-  if ( !drivesMomentFor(flag?.sourceUuid ?? null) ) return;
-  const pending = (flag?.targets ?? []).filter(t => t.choice && !t.choice.answer && t.choice.deadline);
-  if ( !pending.length ) { disarmSaveChoiceTimer(card.id); return; }
-  armDeadline(saveChoiceTimers, card.id, Math.min(...pending.map(t => t.choice.deadline)),
-    fireSaveChoiceTimer);
+  armAskTimer(saveChoiceTimers, card, "saves", live => fireSaveChoiceTimer(live.id), {
+    owns: subjectOwns(f => f.sourceUuid),
+    pending: f => choicesDue(f).length > 0,
+    deadline: f => Math.min(...choicesDue(f).map(t => t.choice.deadline))
+  });
 }
 
 /** Expiry defaults: bash → Prone; interpose → pass. The update drives the consequence pass. */

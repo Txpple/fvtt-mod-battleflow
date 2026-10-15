@@ -13,7 +13,7 @@ import { bfCard, esc, holdBarHTML, popupKey, ruleLine } from "./decide/present.j
 import { AREA_ASK_FLAG, AREA_CHOICE_FLAG, askDefaults, askMark, askOutcome, askTicks, askWords } from "./decide/area-ask.js";
 import { saveTargetEntry } from "./decide/demand.js";
 import { activityUuidOf } from "./decide/card.js";
-import { openMomentPopup, momentButton, armAskTimer, disarmAskTimer, livePopups, scheduleBarSync } from "./ui.js";
+import { openMomentPopup, momentButton, armAskTimer, disarmAskTimer, electOwns, livePopups, scheduleBarSync } from "./ui.js";
 import { releaseHold } from "./holds.js";
 import { SURFACES } from "./surfaces.js";
 import { listen, listenOnce } from "./dispatch.js";
@@ -87,7 +87,7 @@ listen("dnd5e.renderChatMessage", "area-ask", (message, html) => {
     if ( caster && canAnswerFor(caster) ) div.appendChild(momentButton("Answer", () => { void showAreaAsk(message); }));
     scheduleBarSync(div);
     content.appendChild(div);
-    armAskTimer(askTimers, message, AREA_ASK_FLAG, live => answerAsk(live, null, { timedOut: true }));
+    armAskTimer(askTimers, message, AREA_ASK_FLAG, live => answerAsk(live, null, { timedOut: true }), { owns: electOwns });
     if ( caster && canAnswerFor(caster) ) void showAreaAsk(message);
   } catch(err) { console.warn(`${TITLE} | The ask at the area could not render.`, err); }
 });

@@ -7,7 +7,7 @@ import { MODULE_ID, readFlag, TITLE, S, setting, decisionWindow, drivesMomentFor
 import { missShareFor, resolveUuid } from "./lookup.js";
 import { hitTargets } from "./shared.js";
 import { TONE, esc, popupKey, bfCard, momentBarHTML } from "./decide/present.js";
-import { livePopups, offerParts, openManagedPopup } from "./ui.js";
+import { armDeadline, disarmDeadline, livePopups, offerParts, openManagedPopup } from "./ui.js";
 import { CONDITION_BENDS } from "./decide/registry.js";
 import { autoCritSources } from "./decide/reminders.js";
 import { foldedRoll, foldsFrom } from "./decide/verdict.js";
@@ -291,7 +291,7 @@ export async function rollDamageForSave(activity, card) {
 
 /* --- The player's own roll: offered on the client that acted, nothing crosses the wire ------- */
 // ⚠ Button and buzzer call the SAME roll function as the auto-roll; never add a popup-only variant.
-// ⚠ The window is a `setTimeout` on one client: a reload mid-popup loses the roll (the GM rolls by hand).
+// ⚠ The clock is this client's alone and is not re-armed on reload: a reload mid-popup loses the roll (the GM rolls by hand).
 
 /** The offer's window in seconds; 0 waits indefinitely and draws no bar. */
 const playerRollWindow = () => decisionWindow();
@@ -299,6 +299,8 @@ const playerRollWindow = () => decisionWindow();
 const CRIT_BADGE = `<span style="display:inline-block;padding:0.05rem 0.45rem;border-radius:3px;
   background:${TONE.crit};color:#111;font-weight:bold;letter-spacing:0.07em;
   font-size:var(--font-size-11,11px);text-transform:uppercase;">&#10022; Critical Hit</span>`;
+
+const offerTimers = new Map();
 
 /**
  * The shell every damage offer wears: button, X and buzzer funnel through ONE `roll`; one popup per card.
@@ -326,6 +328,7 @@ async function offerRoll(message, { roll, windowTitle, windowIcon, buttonLabel, 
   const fire = () => {
     if ( fired ) return;
     fired = true;
+    disarmDeadline(offerTimers, message.id);
     void roll();
     if ( deadline ) void message.setFlag(MODULE_ID, "damageOffer", { status: "done" })
       .catch(() => { /* a stale bar drains to empty and the next render drops it */ });
@@ -353,7 +356,7 @@ async function offerRoll(message, { roll, windowTitle, windowIcon, buttonLabel, 
   dialog.close = (...args) => { fire(); return close(...args); };
 
   // The buzzer, armed even if the popup never renders.
-  if ( window ) setTimeout(() => { void dialog.close(); }, window * 1000);
+  if ( deadline ) armDeadline(offerTimers, message.id, deadline, () => { void dialog.close(); });
 
   await openManagedPopup(key, message, dialog);
 

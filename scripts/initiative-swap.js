@@ -4,13 +4,13 @@
  * The GM posts one card per listed, non-Incapacitated owner per roll; the clock answers No. The
  * tracker is the GM's: a player's answer relays, and the swap reads both LIVE numbers.
  */
-import { MODULE_ID, readFlag, TITLE, isActiveGM, queueFlagWrite, canAnswerFor, statContext, drivesMomentFor, decisionWindow } from "./core.js";
+import { MODULE_ID, readFlag, TITLE, isActiveGM, queueFlagWrite, canAnswerFor, statContext, decisionWindow } from "./core.js";
 import { featureNamed, itemNamed, lower, resolveUuid } from "./lookup.js";
 import { initiativeSwapEntries, listedNames } from "./decide/registry.js";
 import { INITIATIVE_SWAPS } from "./decide/registry.js";
 import { bfCard, esc, holdBarHTML, popupKey, foldedRuleHTML } from "./decide/present.js";
 import { dispositionStyle } from "./shared.js";
-import { livePopups, openMomentPopup, momentButton, shownMoments, scheduleBarSync, armDeadline, disarmDeadline,
+import { livePopups, openMomentPopup, momentButton, shownMoments, scheduleBarSync, armAskTimer, disarmAskTimer, subjectOwns,
   registerRelay, registerResumable } from "./ui.js";
 import { SURFACES } from "./surfaces.js";
 import { listen, listenOnce } from "./dispatch.js";
@@ -189,12 +189,7 @@ registerResumable(SWAP_FLAG, {
 /* --- the clock: No, on whoever drives the owner's moments ------------------------------------------ */
 
 function armTimer(message) {
-  const flag = readFlag(message, SWAP_FLAG);
-  if ( (flag?.status !== "pending") || !flag.deadline || !drivesMomentFor(flag.actorUuid ?? null) ) return;
-  armDeadline(timers, message.id, flag.deadline, async () => {
-    const live = game.messages.get(message.id);
-    if ( readFlag(live, SWAP_FLAG)?.status === "pending" ) await answerSwap(live, "no", null, { timedOut: true });
-  });
+  armAskTimer(timers, message, SWAP_FLAG, live => answerSwap(live, "no", null, { timedOut: true }), { owns: subjectOwns(f => f.actorUuid) });
 }
 
 /* --- the popup and the card -------------------------------------------------------------------------- */
@@ -308,7 +303,7 @@ listen("updateChatMessage", "initiative-swap", message => {
   const flag = readFlag(message, SWAP_FLAG);
   if ( !flag ) return;
   if ( flag.status === "pending" ) { armTimer(message); return; }
-  disarmDeadline(timers, message.id);
+  disarmAskTimer(timers, message.id);
   const open = livePopups.get(popupKey(message.id, SWAP_FLAG));
   if ( open ) { try { void open.close(); } catch { /* gone */ } }
   floatSwap(message, flag);
@@ -335,4 +330,4 @@ function floatSwap(message, flag) {
   } catch(err) { console.warn(`${TITLE} | The initiative swap's floating text could not draw.`, err); }
 }
 
-listen("deleteChatMessage", "initiative-swap", message => { disarmDeadline(timers, message.id); });
+listen("deleteChatMessage", "initiative-swap", message => { disarmAskTimer(timers, message.id); });
