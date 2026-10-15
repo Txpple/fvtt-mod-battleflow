@@ -8,7 +8,7 @@
  * The markup (decide/present.js `ruleLine`, `foldedRuleHTML`) carries the pointer; one observer fills
  * every pointer that reaches the page, on cards, popups and sheets alike.
  */
-import { MODULE_ID, TITLE, resolveUuidAsync } from "./core.js";
+import { MODULE_ID, resolveUuidAsync, log } from "./core.js";
 import { identifierOf } from "./decide/registry.js";
 import { listenOnce } from "./dispatch.js";
 
@@ -82,7 +82,7 @@ async function readText(ref) {
       return !!lead && ((lead === want) || lead.startsWith(`${want} (`));
     });
     if ( paragraph ) return unfilled(paragraph.outerHTML);
-    console.warn(`${TITLE} | "${ref.benefit}" is no paragraph of ${doc.name}; the fold shows its first paragraph.`);
+    log.warn(`"${ref.benefit}" is no paragraph of ${doc.name}; the fold shows its first paragraph.`);
   }
   // a rules page (Unseen Attackers, Ranged Attacks in Close Combat) is short and its rule may be any paragraph: whole
   if ( ref.page ) return unfilled(box.innerHTML.trim()) || null;
@@ -122,7 +122,7 @@ export async function ruleTextFor(ref) {
   const key = keyOf(ref);
   if ( !texts.has(key) ) {
     texts.set(key, readText(ref).catch(err => {
-      console.warn(`${TITLE} | The rule text for ${ref.item ?? ref.key} could not be read.`, err);
+      log.warn(`The rule text for ${ref.item ?? ref.key} could not be read.`, err);
       return null;
     }));
   }

@@ -2,7 +2,7 @@
  * By the Books — MACHINE (ARCHITECTURE.md §7): the `hew` fold — a bonus swing's reminder card and
  * popup (Great Weapon Master's Hew; Polearm Master's Pole Strike, which is also offered and driven).
  */
-import { MODULE_ID, readFlag, TITLE, isActiveGM, canAnswerFor, combatStamp, decisionWindow, resolveUuid, resolveUuidAsync } from "./core.js";
+import { MODULE_ID, readFlag, TITLE, isActiveGM, canAnswerFor, combatStamp, decisionWindow, resolveUuid, resolveUuidAsync, log } from "./core.js";
 import { cardActivity, foldEntryFor, lower } from "./lookup.js";
 import { attackMessageForDamage } from "./auto-damage.js";
 import { creaturesWithin, tokenOf } from "./geometry.js";
@@ -129,7 +129,7 @@ async function maybeHewCritReminder(damageMessage) {
     await damageMessage.setFlag(MODULE_ID, "hewNoticed", true);
     await postHewReminder(ctx.attacker, ctx.found.item, ctx.activity.item, "A Critical Hit with a melee weapon");
   } catch(err) {
-    console.error(`${TITLE} | Hew crit reminder failed.`, err);
+    log.error(`Hew crit reminder failed.`, err);
   }
 }
 
@@ -158,7 +158,7 @@ async function maybeHewKillReminder(damageMessage) {
     await damageMessage.setFlag(MODULE_ID, "hewNoticed", true);
     await postHewReminder(ctx.attacker, ctx.found.item, ctx.activity.item, `${downed.join(", ")} down to 0 HP`);
   } catch(err) {
-    console.error(`${TITLE} | Hew kill reminder failed.`, err);
+    log.error(`Hew kill reminder failed.`, err);
   }
 }
 
@@ -257,7 +257,7 @@ async function maybeSwingReminder(attackMessage) {
     const near = ctx.near ? ` · ${ctx.near.others.join(", ")} within ${ctx.row.near} ft of ${ctx.near.target}` : "";
     await postHewReminder(ctx.attacker, ctx.item, ctx.activity.item, `An attack with ${ctx.activity.item?.name ?? "the weapon"}${uses}${near}`, ctx.row, offer);
   } catch(err) {
-    console.error(`${TITLE} | The bonus swing reminder failed.`, err);
+    log.error(`The bonus swing reminder failed.`, err);
   }
 }
 
@@ -278,7 +278,7 @@ async function maybeCastReminder(message) {
       return;
     }
   } catch(err) {
-    console.error(`${TITLE} | The cast's bonus swing reminder failed.`, err);
+    log.error(`The cast's bonus swing reminder failed.`, err);
   }
 }
 
@@ -321,7 +321,7 @@ async function answerSwingOffer(message, use) {
         { data: { ...(usageId ? originData(usageId) : {}), flags: { [MODULE_ID]: { poleStrike: message.id } } } });
     });
   } catch(err) {
-    console.error(`${TITLE} | The ${notice?.label ?? "bonus"} swing could not be driven — swing from the sheet.`, err);
+    log.error(`The ${notice?.label ?? "bonus"} swing could not be driven — swing from the sheet.`, err);
   } finally {
     swinging.delete(message.id);
   }
@@ -345,7 +345,7 @@ listen("dnd5e.preRollDamage", "hew", (config, _dialog, message) => {
     roll.options.types = ["bludgeoning"];
     foundry.utils.setProperty(message, `data.flags.${MODULE_ID}.poleStrikeDie`, { was, now: parts[i] });
   } catch(err) {
-    console.error(`${TITLE} | Pole Strike's d4 could not be swapped in — the damage is the weapon's own.`, err);
+    log.error(`Pole Strike's d4 could not be swapped in — the damage is the weapon's own.`, err);
   }
 });
 
@@ -370,7 +370,7 @@ listen("dnd5e.preCreateUsageMessage", "hew", (_activity, messageConfig) => {
     if ( item?.name && !/— Pole Strike$/.test(item.name) ) item.name = `${item.name} — Pole Strike`;
     if ( data.title ) data.title = `${data.title} — Pole Strike`;
   } catch(err) {
-    console.warn(`${TITLE} | The Pole Strike card could not be titled.`, err);
+    log.warn(`The Pole Strike card could not be titled.`, err);
   }
 });
 
@@ -381,6 +381,6 @@ listen("dnd5e.renderChatMessage", "hew", (message, html) => {
     const title = html.querySelector?.(SURFACES.cardHeaderTitle);
     if ( title && !/— Pole Strike$/.test(title.textContent ?? "") ) title.textContent = `${title.textContent} — Pole Strike`;
   } catch(err) {
-    console.warn(`${TITLE} | The Pole Strike card could not be titled.`, err);
+    log.warn(`The Pole Strike card could not be titled.`, err);
   }
 });

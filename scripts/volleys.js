@@ -4,7 +4,7 @@
  * application, one concentration check). RAYS: a real `rollAttack` each. Membership is
  * volley-registry.js alone. Everything runs on the CASTING client.
  */
-import { MODULE_ID, readFlag, TITLE, queueFlagWrite, deadlineIsLive, statContext, decisionWindow } from "./core.js";
+import { MODULE_ID, readFlag, queueFlagWrite, deadlineIsLive, statContext, decisionWindow, log } from "./core.js";
 import { volleyEntryFor, resolveVolleyCount } from "./volley-registry.js";
 import { castLevelOf, clampVolleyCount } from "./decide/eligible.js";
 import { popupKey, bfCard, esc, momentBarHTML, reminderDetailsHTML } from "./decide/present.js";
@@ -80,7 +80,7 @@ async function stampVolley(activity, message, targets, spec) {
     });
     void openVolleyPopup(message);
   } catch(err) {
-    console.error(`${TITLE} | Could not stamp the volley.`, err);
+    log.error(`Could not stamp the volley.`, err);
   }
 }
 
@@ -226,12 +226,12 @@ async function openVolleyPopup(message) {
         } else icon.style.display = "none";
       }
       try { drawRayJudgements(dialog.element, caster, activity); }
-      catch(err) { console.error(`${TITLE} | Ray judgement failed to redraw.`, err); }
+      catch(err) { log.error(`Ray judgement failed to redraw.`, err); }
     });
   }
   if ( v.kind === "attack" ) {
     try { drawRayJudgements(dialog.element, caster, activity); }
-    catch(err) { console.error(`${TITLE} | Ray judgement failed to draw.`, err); }
+    catch(err) { log.error(`Ray judgement failed to draw.`, err); }
   }
 }
 
@@ -292,13 +292,13 @@ async function fireVolley(message, assignment) {
     // Through the CARD: a scroll's last spell is gone from the sheet by now.
     const activity = cardActivity(message, v.activityUuid);
     if ( !activity ) {
-      console.warn(`${TITLE} | Volley activity ${v.activityUuid} no longer resolves — nothing driven.`);
+      log.warn(`Volley activity ${v.activityUuid} no longer resolves — nothing driven.`);
       return;
     }
     if ( v.kind === "damage" ) await driveDarts(message, activity, v);
     else await driveRays(message, activity, v);
   } catch(err) {
-    console.error(`${TITLE} | Volley drive failed.`, err);
+    log.error(`Volley drive failed.`, err);
   }
 }
 
@@ -356,7 +356,7 @@ async function driveRays(message, activity, v) {
           ...statContext(caster.uuid) };
       }
     } catch(err) {
-      console.error(`${TITLE} | Ray ${i + 1} judgement failed — rolling without a record.`, err);
+      log.error(`Ray ${i + 1} judgement failed — rolling without a record.`, err);
     }
     // The booleans, not advantageMode: applyKeybindings recomputes it from this pair.
     const cfg = (ray.mode === "advantage")

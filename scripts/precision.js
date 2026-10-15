@@ -5,7 +5,7 @@
  * ⚠ The flag never touches `hold` (one hold per message; any hold verdict is authoritative).
  * ⚠ Offered only when the attack hit NOBODY: one damage roll serves every target.
  */
-import { MODULE_ID, readFlag, TITLE, S, setting, isActiveGM, queueFlagWrite, canAnswerFor, statContext, decisionWindow, resolveUuid, resolveUuidAsync } from "./core.js";
+import { MODULE_ID, readFlag, S, setting, isActiveGM, queueFlagWrite, canAnswerFor, statContext, decisionWindow, resolveUuid, resolveUuidAsync, log } from "./core.js";
 import { cardActivity, usableManeuver, maneuverDieFormula } from "./lookup.js";
 import { maneuverFoldEntries } from "./decide/registry.js";
 import { hitTargets } from "./shared.js";
@@ -61,7 +61,7 @@ listen("dnd5e.rollAttack", "precision", async (rolls, { subject }) => {
     const resolved = await new Roll(raw, attacker.getRollData()).evaluate();
     const dieFormula = resolved.formula;
     if ( !resolved.dice.length ) {
-      console.warn(`${TITLE} | "${entry.name}" resolved to "${dieFormula}" for ${attacker.name} `
+      log.warn(`"${entry.name}" resolved to "${dieFormula}" for ${attacker.name} `
         + "— no die left in it, so the offer stays off rather than spending one for nothing.");
       return;
     }
@@ -88,7 +88,7 @@ listen("dnd5e.rollAttack", "precision", async (rolls, { subject }) => {
     stamped = true;
     armPrecisionTimer(attackMessage);
   } catch(err) {
-    console.error(`${TITLE} | Precision stamp failed.`, err);
+    log.error(`Precision stamp failed.`, err);
   } finally {
     if ( !stamped ) { refused.add(attackMessage.id); settleMiss(attackMessage); }
   }
@@ -217,7 +217,7 @@ async function resolvePrecision(message) {
     if ( setting(S.playerRollDamage) ) return void offerDamageRoll(attackActivity, message);
     await rollDamageForAttack(attackActivity, message);
   } catch(err) {
-    console.error(`${TITLE} | Precision resolution failed.`, err);
+    log.error(`Precision resolution failed.`, err);
   } finally {
     precisionInFlight.delete(message.id);
   }

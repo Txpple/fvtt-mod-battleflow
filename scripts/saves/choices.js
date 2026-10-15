@@ -3,7 +3,7 @@
  * Interpose on a listed shield-bearer's success, the bash's Prone-or-push on the listed feat's
  * failure, and the caster's WORD behind a press (Command), on the same `saves` flag.
  */
-import { MODULE_ID, readFlag, TITLE, queueFlagWrite, drivesMomentFor, decisionWindow, resolveUuid, resolveUuidAsync } from "../core.js";
+import { MODULE_ID, readFlag, queueFlagWrite, drivesMomentFor, decisionWindow, resolveUuid, resolveUuidAsync, log } from "../core.js";
 import { applicableProfiles, cardActivity, equippedShield, foldEntryFor } from "../lookup.js";
 import { forceStatus, reactionSpent, spendReaction } from "../shared.js";
 import { bfCard, esc, momentBarHTML, ruleLine } from "../decide/present.js";
@@ -169,7 +169,7 @@ async function fireSaveChoiceTimer(cardId) {
     });
     armSaveChoiceTimer(card);
   } catch(err) {
-    console.error(`${TITLE} | Save-choice buzzer failed.`, err);
+    log.error(`Save-choice buzzer failed.`, err);
   }
 }
 

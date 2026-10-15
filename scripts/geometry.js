@@ -3,7 +3,7 @@
  * distance in FEET and measured cover — the Foundry half; the arithmetic is decide/geometry.js and decide/cover.js.
  * ⚠ No hooks, no flags, no writes.
  */
-import { readFlag, TITLE, stampedSourceOf, resolveUuid } from "./core.js";
+import { readFlag, stampedSourceOf, resolveUuid, log } from "./core.js";
 import { measureCover } from "./decide/cover.js";
 import { lengthUnitKey, rectsOverlap, tokenSamplePoints } from "./decide/geometry.js";
 
@@ -210,7 +210,7 @@ export function tokensInRegions(regions) {
       if ( tok.isSecret || !tok.actor ) continue;
       let inside = false;
       try { inside = tok.testInsideRegion(region); } catch(err) {
-        console.warn(`${TITLE} | Could not test ${tok.name} against an area — counted outside.`, err);
+        log.warn(`Could not test ${tok.name} against an area — counted outside.`, err);
       }
       if ( !inside ) continue;
       const uuid = tok.actor.uuid;
@@ -255,7 +255,7 @@ export function measuredCoverBetween(attacker, target) {
       inset: Math.max(2, size * 0.03)
     });
   } catch(err) {
-    console.warn(`${TITLE} | Cover could not be measured between ${attacker?.name} and ${target?.name}.`, err);
+    log.warn(`Cover could not be measured between ${attacker?.name} and ${target?.name}.`, err);
     return null;
   }
 }

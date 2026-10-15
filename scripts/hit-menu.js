@@ -3,7 +3,7 @@
  * offered before the dice, grouped by the feature that pays; the die rides the roll, the pool is
  * spent, a save goes through the saves machine.
  */
-import { MODULE_ID, readFlag, TITLE, canAnswerFor, canApplyTo, drivesMomentFor, queueFlagWrite, statContext, decisionWindow, selfIds, resolveUuid, resolveUuidAsync } from "./core.js";
+import { MODULE_ID, readFlag, TITLE, canAnswerFor, canApplyTo, drivesMomentFor, queueFlagWrite, statContext, decisionWindow, selfIds, resolveUuid, resolveUuidAsync, log } from "./core.js";
 import { ruleHTML } from "./rule-text.js";
 import { verdictsOn } from "./decide/demand.js";
 import { featureNamed, activityNamed, activityOfType, namesAnswering, profileEffects, resolveDie, superiorityStandIn } from "./lookup.js";
@@ -218,10 +218,9 @@ async function repairTransferEffects(actor) {
       if ( !effect.transfer ) continue;
       try {
         await effect.update({ transfer: false });
-        // biome-ignore lint/suspicious/noConsole: tells the GM's console the item's data was corrected
-        console.info(`${TITLE} | ${actor.name}'s ${item.name}: "${effect.name}" is a target's effect the pack flagged as the wielder's passive — corrected on the sheet.`);
+        log.info(`${actor.name}'s ${item.name}: "${effect.name}" is a target's effect the pack flagged as the wielder's passive — corrected on the sheet.`);
       } catch(err) {
-        console.warn(`${TITLE} | Could not correct ${item.name}'s "${effect.name}" on ${actor.name}.`, err);
+        log.warn(`Could not correct ${item.name}'s "${effect.name}" on ${actor.name}.`, err);
       }
     }
   }
@@ -249,7 +248,7 @@ listen("dnd5e.postUseActivity", "hit-menu", activity => {
   void writeTurnChit(activity.actor, "rider", { name: "Flurry of Blows — this turn", img: activity.item?.img ?? null,
     description: "Flurry of Blows was used this turn: its Unarmed Strikes offer Open Hand Technique. Ends with the turn.",
     origin: activity.item?.uuid ?? null, riderKey: FLURRY })
-    .catch(err => console.warn(`${TITLE} | Could not mark Flurry of Blows this turn.`, err));
+    .catch(err => log.warn(`Could not mark Flurry of Blows this turn.`, err));
 });
 
 /* --- the offer: a group per paying feature, one pick per group ------------------------------ */
@@ -316,7 +315,7 @@ registerOfferPart({
         try {
           await attackMessage.setFlag(MODULE_ID, "hitPick", records.length ? { picks: records } : { key: null });
         } catch(err) {
-          console.error(`${TITLE} | Could not record the maneuver pick — the weapon rolls alone.`, err);
+          log.error(`Could not record the maneuver pick — the weapon rolls alone.`, err);
         }
       }
     };
@@ -364,20 +363,20 @@ listen("dnd5e.preRollDamage", "hit-menu", (config, _dialog, message) => {
           ...(standIn ? { standIn: standIn.feature, die: standIn.die } : {}) } : null;
       if ( pact && (Number(pact.value ?? 0) > 0) ) {
         void attacker.update({ "system.spells.pact.value": Number(pact.value) - 1 })
-          .catch(err => console.warn(`${TITLE} | Could not spend the Pact slot.`, err));
+          .catch(err => log.warn(`Could not spend the Pact slot.`, err));
       }
       if ( standIn ) {
-        void noteSuperiorityStandIn(attacker, standIn).catch(err => console.warn(`${TITLE} | Could not mark ${standIn.feature} this turn.`, err));
+        void noteSuperiorityStandIn(attacker, standIn).catch(err => log.warn(`Could not mark ${standIn.feature} this turn.`, err));
       } else if ( pool ) {
         void spendSuperiorityDie(attacker, pool, row.feature)
-          .catch(err => console.warn(`${TITLE} | Could not spend a ${group.dieLabel}.`, err));
+          .catch(err => log.warn(`Could not spend a ${group.dieLabel}.`, err));
       }
       if ( row.oncePerTurn ) {
         // live only: the paying feature is never used up, so the sheet is the truth (the chit's icon)
         void writeTurnChit(attacker, "rider", { name: `${row.label ?? row.feature} — used this turn`, img: resolveUuid(pick.itemUuid)?.img ?? null,
           description: `${row.label ?? row.feature} has ridden a hit this turn. Once per turn; this chit ends with the turn.`,
           origin: pick.itemUuid ?? null, riderKey: row.onceKey ?? pick.key })
-          .catch(err => console.warn(`${TITLE} | Could not write the ${row.feature} chit.`, err));
+          .catch(err => log.warn(`Could not write the ${row.feature} chit.`, err));
       }
       out.push({
         key: pick.key, feature: row.label ?? row.feature, group: group.label, dieLabel: group.dieLabel,
@@ -398,9 +397,9 @@ listen("dnd5e.preRollDamage", "hit-menu", (config, _dialog, message) => {
     });
     // Marked rolled: the card's Damage button pressed twice must not ride twice.
     void attackMessage.setFlag(MODULE_ID, "hitPick", { ...record, rolled: true })
-      .catch(err => console.warn(`${TITLE} | Could not mark the maneuver rolled.`, err));
+      .catch(err => log.warn(`Could not mark the maneuver rolled.`, err));
   } catch(err) {
-    console.error(`${TITLE} | The maneuver's die failed to ride — add it by hand.`, err);
+    log.error(`The maneuver's die failed to ride — add it by hand.`, err);
   }
 });
 
@@ -439,7 +438,7 @@ async function runConsequences(damageMessage, record) {
       if ( notes.length ) current.notes = [...(current.notes ?? []), ...notes];
     }).catch(() => { /* the latch above holds for this session */ });
   } catch(err) {
-    console.error(`${TITLE} | The maneuver's consequences failed — use the feature's activity by hand.`, err);
+    log.error(`The maneuver's consequences failed — use the feature's activity by hand.`, err);
   }
 }
 
@@ -524,7 +523,7 @@ async function settleHitEffects(message) {
       }
     }
   } catch(err) {
-    console.error(`${TITLE} | The maneuver's effect failed to apply.`, err);
+    log.error(`The maneuver's effect failed to apply.`, err);
   }
 }
 
@@ -586,7 +585,7 @@ async function settleHitFollowups(card) {
       const effects = (await Promise.all(uuids.map(u => resolveUuidAsync(u)))).filter(Boolean);
       if ( effects.length ) await applyEffectsWithReceipt(card, effects, [{ uuid: t.uuid, name: t.name }], { source: statSourceOf(card) });
     } catch(err) {
-      console.error(`${TITLE} | The maneuver's follow-up failed.`, err);
+      log.error(`The maneuver's follow-up failed.`, err);
     } finally {
       followups.delete(key);
     }
@@ -699,7 +698,7 @@ function armSweepTimer(card) {
         current.answeredAt = Date.now();
       });
     } catch(err) {
-      console.error(`${TITLE} | The sweep's buzzer failed.`, err);
+      log.error(`The sweep's buzzer failed.`, err);
     }
   }, { owns: subjectOwns(sc => sc.sourceUuid), pending: sc => !sc.chosen });
 }
@@ -735,7 +734,7 @@ async function settleSweep(card) {
       current.resolved = { rolled: roll.total, verdict, name: pick?.name ?? null, ac: actor?.system?.attributes?.ac?.value ?? null };
     });
   } catch(err) {
-    console.error(`${TITLE} | The sweep failed to resolve — roll the die by hand.`, err);
+    log.error(`The sweep failed to resolve — roll the die by hand.`, err);
   }
 }
 

@@ -4,7 +4,7 @@
  * item's owner (a `token.light.*` change, as TOKEN_LIGHTS' does): its presence is the light being on.
  * Nothing is consumed and nothing runs by the clock; a Long Rest puts it out (RULINGS *Gear lights*).
  */
-import { MODULE_ID, readFlag, TITLE, canApplyTo, drivesMomentFor, statContext } from "./core.js";
+import { MODULE_ID, readFlag, TITLE, canApplyTo, drivesMomentFor, statContext, log } from "./core.js";
 import { ruleHTML } from "./rule-text.js";
 import { GEAR_LIGHTS, gearLightEntries, listedNames, identifierOf } from "./decide/registry.js";
 import { GEAR_LIT, gearLightRow, gearLightOf, gearButtons, gearToggle, gearLightWords, gearCardTitle,
@@ -47,7 +47,7 @@ listen("dnd5e.preUseActivity", "gear-lights", activity => {
     void openToggle(activity.item, row);
     return false;
   } catch(err) {
-    console.error(`${TITLE} | Gear light failed — set the token's light by hand.`, err);
+    log.error(`Gear light failed — set the token's light by hand.`, err);
   }
 });
 
@@ -62,7 +62,7 @@ listen("renderActivityChoiceDialog", "gear-lights", (app, element) => {
     setTimeout(() => { void app.close({ animate: false }); }, 0);
     void openToggle(app.item, row);
   } catch(err) {
-    console.error(`${TITLE} | Gear light failed — set the token's light by hand.`, err);
+    log.error(`Gear light failed — set the token's light by hand.`, err);
   }
 });
 
@@ -74,7 +74,7 @@ listen("dnd5e.preDisplayCard", "gear-lights", item => {
     void openToggle(item, row);
     return false;
   } catch(err) {
-    console.error(`${TITLE} | Gear light failed — set the token's light by hand.`, err);
+    log.error(`Gear light failed — set the token's light by hand.`, err);
   }
 });
 
@@ -147,7 +147,7 @@ async function press(item, row, b) {
       effect: created ? { id: created.id, name: created.name, img: created.img ?? null, description } : null
     });
   } catch(err) {
-    console.error(`${TITLE} | Gear light failed — set the token's light by hand.`, err);
+    log.error(`Gear light failed — set the token's light by hand.`, err);
     ui.notifications?.error(`${TITLE} | ${item.name}: the light could not be changed — set the token's light by hand.`);
   }
 }
@@ -209,7 +209,7 @@ listen("dnd5e.restCompleted", "gear-lights", (actor, result, config) => {
     if ( (result?.type ?? config?.type) !== "long" ) return;
     void putOutAll(actor, "Long Rest");
   } catch(err) {
-    console.error(`${TITLE} | Could not put the gear lights out at the Long Rest — delete them by hand.`, err);
+    log.error(`Could not put the gear lights out at the Long Rest — delete them by hand.`, err);
   }
 });
 
@@ -220,9 +220,9 @@ listen("deleteItem", "gear-lights", item => {
     if ( !actor || !drivesMomentFor(actor.uuid) ) return;
     const lit = gearEffects(actor).filter(e => readFlag(e, GEAR_FLAG)?.itemId === item.id);
     if ( lit.length ) void deleteQuietly(actor, lit.map(e => e.id))
-      .catch(err => console.warn(`${TITLE} | Could not put out the light of a removed item — delete it by hand.`, err));
+      .catch(err => log.warn(`Could not put out the light of a removed item — delete it by hand.`, err));
   } catch(err) {
-    console.warn(`${TITLE} | Could not put out the light of a removed item — delete it by hand.`, err);
+    log.warn(`Could not put out the light of a removed item — delete it by hand.`, err);
   }
 });
 

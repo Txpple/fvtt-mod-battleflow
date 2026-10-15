@@ -6,7 +6,7 @@
  * platform floats the name off the token for an effect with a status or a change (NOTES §1); the float
  * here is for the bare ones. The precedent is the emanation's `trigger on "turnEnd"`.
  */
-import { MODULE_ID, readFlag, TITLE, drivesMomentFor, statContext, decisionWindow, queueFlagWrite, canAnswerFor, canApplyTo, resolveUuid } from "./core.js";
+import { MODULE_ID, readFlag, TITLE, drivesMomentFor, statContext, decisionWindow, queueFlagWrite, canAnswerFor, canApplyTo, resolveUuid, log } from "./core.js";
 import { activityNamed, activityOfType, answersOrEnchanted } from "./lookup.js";
 import { effectSourceOf, forceStatus, savesOf } from "./shared.js";
 import { REPEAT_SAVES, repeatSaveEntries, listedNames } from "./decide/registry.js";
@@ -79,7 +79,7 @@ listen("updateCombat", "repeat-saves", (combat, changes, options) => {
       }
     }
   } catch(err) {
-    console.error(`${TITLE} | The repeated save could not be raised — ask for it by hand.`, err);
+    log.error(`The repeated save could not be raised — ask for it by hand.`, err);
   }
 });
 
@@ -101,7 +101,7 @@ listen("dnd5e.damageActor", "repeat-saves", (actor, changes) => {
       void raiseRepeat(effect, row, "damaged", due.why);
     }
   } catch(err) {
-    console.error(`${TITLE} | The repeated save could not be raised — ask for it by hand.`, err);
+    log.error(`The repeated save could not be raised — ask for it by hand.`, err);
   }
 });
 
@@ -123,7 +123,7 @@ async function endOutright(effect, row, cause) {
         effectUuid: effect.uuid, effectId: effect.id, effectName: effect.name, actorUuid: actor.uuid, settled: true, ended: true, outcome: null, says } } }
     });
   } catch(err) {
-    console.error(`${TITLE} | The effect could not be ended on damage — end it by hand.`, err);
+    log.error(`The effect could not be ended on damage — end it by hand.`, err);
   }
 }
 const CAUSE_END = "ends on damage";
@@ -175,7 +175,7 @@ async function raiseRepeat(effect, row, cause, why) {
     });
     if ( hasDamage && card ) await rollDamageForSave(activity, card);
   } catch(err) {
-    console.error(`${TITLE} | The repeated save could not be raised — ask for it by hand.`, err);
+    log.error(`The repeated save could not be raised — ask for it by hand.`, err);
   }
 }
 
@@ -198,7 +198,7 @@ async function offerRepeat(effect, row, combat) {
         actorUuid: actor.uuid, combatId: combat.id, round: combat.round, turn: combat.turn } } }
     });
   } catch(err) {
-    console.error(`${TITLE} | The repeated save could not be offered.`, err);
+    log.error(`The repeated save could not be offered.`, err);
   }
 }
 
@@ -247,7 +247,7 @@ async function settleRepeat(card) {
       current.says = `${verdict.says}${landed}`;
     });
   } catch(err) {
-    console.error(`${TITLE} | The repeated save's verdict could not land — end the effect by hand.`, err);
+    log.error(`The repeated save's verdict could not land — end the effect by hand.`, err);
   } finally {
     settling.delete(card.id);
   }
@@ -279,8 +279,8 @@ listen("deleteActiveEffect", "repeat-saves", effect => {
     // the one the press made (its origin the caster's), else the canonical status standing with no origin of its own
     const pressed = actor.effects.find(e => e.statuses?.has?.(lift) && !e.disabled && (e.origin === (count?.pressedBy ?? null)))
       ?? actor.effects.find(e => e.statuses?.has?.(lift) && !e.disabled && !e.origin) ?? null;
-    if ( pressed ) void pressed.delete().catch(err => console.warn(`${TITLE} | ${lift} could not be lifted with ${effect.name} — remove it by hand.`, err));
-  } catch(err) { console.warn(`${TITLE} | The ended effect's pressed status could not be lifted.`, err); }
+    if ( pressed ) void pressed.delete().catch(err => log.warn(`${lift} could not be lifted with ${effect.name} — remove it by hand.`, err));
+  } catch(err) { log.warn(`The ended effect's pressed status could not be lifted.`, err); }
 });
 
 /* --- the float, where the platform draws none (a bare effect: Confused) --------------------------- */
@@ -299,7 +299,7 @@ listen("deleteActiveEffect", "repeat-saves", effect => {
         distance: 2 * token.h, fontSize: 28, stroke: 0x000000, strokeThickness: 4, jitter: 0.25
       });
     }
-  } catch(err) { console.warn(`${TITLE} | The ended effect's float could not draw.`, err); }
+  } catch(err) { log.warn(`The ended effect's float could not draw.`, err); }
 });
 
 /* --- the cards: the verdict's line, the offer's button ----------------------------------------- */
@@ -332,5 +332,5 @@ listen("dnd5e.renderChatMessage", "repeat-saves", (message, html) => {
       if ( pendingFor(live) ) { ui.notifications.warn(`${TITLE}: a repeat of this save is still unanswered.`); return; }
       void raiseRepeat(live, row, "action", "its action");
     }));
-  } catch(err) { console.warn(`${TITLE} | The repeated save's line could not render.`, err); }
+  } catch(err) { log.warn(`The repeated save's line could not render.`, err); }
 });

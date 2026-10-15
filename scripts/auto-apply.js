@@ -2,7 +2,7 @@
 /**
  * By the Books — auto-apply damage, the shared receipt applier, and the payout pipeline. Split shape (ARCHITECTURE.md §7).
  */
-import { MODULE_ID, readFlag, TITLE, drivesMomentFor, canApplyTo, whisperNoGM, queueFlagWrite, statContext, isActiveGM, resolveUuidAsync, writableTargets } from "./core.js";
+import { MODULE_ID, readFlag, drivesMomentFor, canApplyTo, whisperNoGM, queueFlagWrite, statContext, isActiveGM, resolveUuidAsync, writableTargets, log } from "./core.js";
 import { receiptEntry, joinDamageReceipt } from "./decide/receipt.js";
 import { interruptMultiplier, reduceDamages } from "./decide/verdict.js";
 import { INTERRUPT_MULTIPLIERS } from "./decide/registry.js";
@@ -100,7 +100,7 @@ async function stampNotApplied(message, attackMessage) {
     .map(t => `${t.rescue ?? t.reaction}${t.guardedBy?.name ? ` (${t.guardedBy.name})` : ""} turned the hit on ${t.name} into a miss`);
   const why = turned.length ? turned.join("; ") : `the attack missed ${judged.map(t => t.name).join(", ")}`;
   await message.setFlag(MODULE_ID, "notApplied", { why, at: Date.now() })
-    .catch(err => console.warn(`${TITLE} | The not-applied line could not be written.`, err));
+    .catch(err => log.warn(`The not-applied line could not be written.`, err));
 }
 
 /** The judged targets this attack MISSED — never one a duplicate absorbed — still standing and writable here. */
@@ -177,7 +177,7 @@ async function landTypedEffect(attackMessage, hold, target, damages) {
   if ( !effect ) return;
   await applyItemEffectOnHit(attackMessage, item, { name: effect.name, from: effect.name, id: `bfTypedRes${type.slice(0, 6).padEnd(6, "0")}` },
     [{ uuid: entry.uuid, name: entry.name }], { clock: row.clock ?? null, attacker: actor })
-    .catch(err => console.warn(`${TITLE} | ${key}'s effect could not land — apply it by hand.`, err));
+    .catch(err => log.warn(`${key}'s effect could not land — apply it by hand.`, err));
 }
 
 /**
@@ -195,7 +195,7 @@ export function registerDamageClaim(claim) {
 function claimed(receiptMessage, target, actor, damages, opts) {
   for ( const claim of damageClaims ) {
     try { if ( claim(receiptMessage, target, actor, damages, opts) ) return true; }
-    catch(err) { console.error(`${TITLE} | A damage claim failed — the damage lands whole.`, err); }
+    catch(err) { log.error(`A damage claim failed — the damage lands whole.`, err); }
   }
   return false;
 }
@@ -247,7 +247,7 @@ export async function applyDamagesWithReceipt(receiptMessage, hits, damages, { n
       });
     }
   } catch(err) {
-    console.error(`${TITLE} | Auto-apply failed.`, err);
+    log.error(`Auto-apply failed.`, err);
   }
 }
 

@@ -11,7 +11,7 @@
  * Incapacitated, 0 Hit Points, the Temporary Hit Points gone. The Long Rest offers the one known-form
  * swap through the mastery record's road (RULINGS *Wild Shape and the polymorph spells*).
  */
-import { MODULE_ID, readFlag, TITLE, isActiveGM, queueFlagWrite, canAnswerFor, answersHere, statContext, resolveUuid, resolveUuidAsync } from "./core.js";
+import { MODULE_ID, readFlag, TITLE, isActiveGM, queueFlagWrite, canAnswerFor, answersHere, statContext, resolveUuid, resolveUuidAsync, log } from "./core.js";
 import { cardActivity, lower, featureNamed } from "./lookup.js";
 import { TRANSFORMS, transformEntries, listedNames, tableIndex } from "./decide/registry.js";
 import { poolRuleOf, capOfTarget, knownSlotsOf, knownHolderOf, knownState, learnedList, restKnownList, transformRecord,
@@ -53,7 +53,7 @@ listen("dnd5e.preUseActivity", "transforms", (activity, usageConfig) => {
   try {
     if ( !rowOf(activity) ) return;
     stashed.set(usageConfig, usageConfig.transform?.profile ?? activity.availableProfiles?.[0]?._id ?? null);
-  } catch(err) { console.warn(`${TITLE} | Could not read the transform's profile.`, err); }
+  } catch(err) { log.warn(`Could not read the transform's profile.`, err); }
 });
 
 // After the dialog (its profile select has spoken) and before the message: the sentinel in, the pick kept.
@@ -63,7 +63,7 @@ listen("dnd5e.preActivityConsumption", "transforms", (activity, usageConfig) => 
     if ( usageConfig.transform?.profile && (usageConfig.transform.profile !== NO_PROFILE) ) stashed.set(usageConfig, usageConfig.transform.profile);
     usageConfig.transform ??= {};
     usageConfig.transform.profile = NO_PROFILE;
-  } catch(err) { console.warn(`${TITLE} | Could not switch the system's form chooser off.`, err); }
+  } catch(err) { log.warn(`Could not switch the system's form chooser off.`, err); }
 });
 
 /* --- the record on the use's card ------------------------------------------------------------ */
@@ -127,9 +127,9 @@ listen("dnd5e.postUseActivity", "transforms", (activity, usageConfig, results) =
     if ( !row || !activity.actor?.isOwner ) return;
     const message = (results?.message instanceof ChatMessage) ? results.message : null;
     if ( !message ) return;
-    void stampRecord(activity, usageConfig, message, row).catch(err => console.error(`${TITLE} | The transform could not be recorded — transform by hand.`, err));
+    void stampRecord(activity, usageConfig, message, row).catch(err => log.error(`The transform could not be recorded — transform by hand.`, err));
   } catch(err) {
-    console.error(`${TITLE} | The transform could not be recorded — transform by hand.`, err);
+    log.error(`The transform could not be recorded — transform by hand.`, err);
   }
 });
 
@@ -448,7 +448,7 @@ async function landTransform(message) {
     }
     if ( !landed.length ) throw new Error(failure ?? "nobody to transform");
   } catch(err) {
-    console.error(`${TITLE} | The transform could not be landed — transform by hand.`, err);
+    log.error(`The transform could not be landed — transform by hand.`, err);
     outcome = "failed";
     failure = String(err?.message ?? err);
   } finally {
@@ -485,7 +485,7 @@ async function changeTransform(message) {
       landed.push(await transformOne(current, source, { activity, settings: activity?.settings, flag, pick, message }));
     }
   } catch(err) {
-    console.error(`${TITLE} | The form could not be changed — transform by hand.`, err);
+    log.error(`The form could not be changed — transform by hand.`, err);
     failure = String(err?.message ?? err);
   } finally {
     await queueFlagWrite(message, TRANSFORM_FLAG, current => {
@@ -525,7 +525,7 @@ async function revertForm(actor, ended, formFlag = null) {
     const back = await actor.revertOriginalForm({ renderSheet: false });
     // an empowered companion: dnd5e's revert of an unlinked token makes a NEW token — the seat, the companion's record
     // and the caster's effect follow it
-    if ( flag?.empower && oldToken?.id ) await repointEmpowered(flag, oldToken, back).catch(err => console.warn(`${TITLE} | The reverted ${who} could not be re-seated — check the tracker.`, err));
+    if ( flag?.empower && oldToken?.id ) await repointEmpowered(flag, oldToken, back).catch(err => log.warn(`The reverted ${who} could not be re-seated — check the tracker.`, err));
     if ( message && flag && !flag.ended ) {
       await queueFlagWrite(message, TRANSFORM_FLAG, current => {
         if ( current.ended ) return false;
@@ -539,7 +539,7 @@ async function revertForm(actor, ended, formFlag = null) {
       flags: { [MODULE_ID]: { formEnd: { messageId: message?.id ?? null, actorUuid: actor.uuid, why: ended.why, word: ended.word, ...statContext(flag?.sourceUuid ?? null) } } }
     });
   } catch(err) {
-    console.error(`${TITLE} | ${actor.name} could not be reverted — use the sheet's Restore Transformation.`, err);
+    log.error(`${actor.name} could not be reverted — use the sheet's Restore Transformation.`, err);
   } finally {
     reverting.delete(key);
   }
@@ -579,7 +579,7 @@ listen("updateActiveEffect", "transforms", (effect, changes) => {
     if ( (changes?.duration?.expired !== true) || !readFlag(effect, FORM_FLAG) || !isActiveGM() ) return;
     const actor = effect.parent;
     if ( actor instanceof Actor ) void revertForm(actor, { word: "clock", why: "the time ran out" });
-  } catch(err) { console.error(`${TITLE} | The form's clock could not end it.`, err); }
+  } catch(err) { log.error(`The form's clock could not end it.`, err); }
 });
 
 // The effect removed — Revert on the bar, Concentration's end taking its dependent, a hand: the form ends with it.
@@ -596,7 +596,7 @@ listen("deleteActiveEffect", "transforms", effect => {
     const ended = (dependent && record?.empower) ? { word: "ended", why: `${record.itemName} ended` }
       : dependent ? { word: "concentration", why: "Concentration ended" } : { word: "revert", why: "the form was ended" };
     void revertForm(actor, ended, form);
-  } catch(err) { console.error(`${TITLE} | The form's end could not run.`, err); }
+  } catch(err) { log.error(`The form's end could not run.`, err); }
 });
 
 // 0 Hit Points, or the Temporary Hit Points gone: read off the creature's own update.
@@ -611,7 +611,7 @@ listen("updateActor", "transforms", (actor, changes) => {
     if ( ("value" in hp) && (Number(hp.value) <= 0) && recordOfForm(form)?.empower ) return;
     const ended = endOfForm(TRANSFORMS[form.key]?.ends ?? [], { hpValue: ("value" in hp) ? hp.value : null, tempValue: ("temp" in hp) ? hp.temp : null });
     if ( ended ) void revertForm(actor, ended);
-  } catch(err) { console.error(`${TITLE} | The form's end could not be read off the update.`, err); }
+  } catch(err) { log.error(`The form's end could not be read off the update.`, err); }
 });
 
 // The Incapacitated condition lands on the creature in its form.
@@ -624,7 +624,7 @@ listen("createActiveEffect", "transforms", effect => {
     if ( !form ) return;
     const ended = endOfForm(TRANSFORMS[form.key]?.ends ?? [], { statuses: [...(effect.statuses ?? [])] });
     if ( ended ) void revertForm(actor, ended);
-  } catch(err) { console.error(`${TITLE} | The form's end could not be read off the condition.`, err); }
+  } catch(err) { log.error(`The form's end could not be read off the condition.`, err); }
 });
 
 /** The owner (on their own card) or a GM asks to revert; the elect executes it. */
@@ -734,10 +734,10 @@ listen("dnd5e.restCompleted", "transforms", (actor, result, config) => {
           title: state.open ? `${actor.name} — ${state.open} open known form${state.open === 1 ? "" : "s"}` : `${actor.name} — swap a known form?`,
           subtitle: "chosen at the Long Rest · one swap" }),
         flags: { [MODULE_ID]: { [FORM_SWAP_FLAG]: flag } }
-      }).catch(err => console.error(`${TITLE} | The known-form swap could not be asked.`, err));
+      }).catch(err => log.error(`The known-form swap could not be asked.`, err));
     }
   } catch(err) {
-    console.error(`${TITLE} | The known-form swap failed at the rest's end.`, err);
+    log.error(`The known-form swap failed at the rest's end.`, err);
   }
 });
 
@@ -798,7 +798,7 @@ async function landFormSwap(message) {
     }
     if ( item ) after = knownOf(item);
   } catch(err) {
-    console.error(`${TITLE} | ${flag.actorName}'s known forms could not be changed.`, err);
+    log.error(`${flag.actorName}'s known forms could not be changed.`, err);
     outcome = "failed";
   } finally {
     await queueFlagWrite(message, FORM_SWAP_FLAG, current => {
@@ -906,7 +906,7 @@ listen("dnd5e.renderChatMessage", "transforms", (message, html) => {
     const swap = readFlag(message, FORM_SWAP_FLAG);
     if ( swap ) drawSwap(message, html, swap);
   } catch(err) {
-    console.error(`${TITLE} | The transform's row could not be drawn.`, err);
+    log.error(`The transform's row could not be drawn.`, err);
   }
 });
 

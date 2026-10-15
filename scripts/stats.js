@@ -4,7 +4,7 @@
  * ⚠ The roster is STATIC — a snapshot and a closing round, never clock ownership.
  * ⚠ Ungated by design (a toggle would punch holes in the ledger).
  */
-import { MODULE_ID, readFlag, TITLE, isActiveGM, statContext, gmIds } from "./core.js";
+import { MODULE_ID, readFlag, TITLE, isActiveGM, statContext, gmIds, log } from "./core.js";
 import { bfCard, esc } from "./decide/present.js";
 // Safe: shared.js registers no hooks and evaluates first.
 import { statSourceOf } from "./shared.js";
@@ -32,9 +32,9 @@ for ( const hook of D20_TEST_HOOKS ) {
       if ( readFlag(message, "rollCtx") ) return;   // first stamp wins
       // ⚠ The MESSAGE's actor leads: the hook's subject is the WORLD actor, not the unlinked token.
       void message.setFlag(MODULE_ID, "rollCtx", statContext(statSourceOf(message) ?? actor?.uuid ?? null))
-        .catch(err => console.error(`${TITLE} | rollCtx stamp failed (${hook}).`, err));
+        .catch(err => log.error(`rollCtx stamp failed (${hook}).`, err));
     } catch(err) {
-      console.error(`${TITLE} | rollCtx stamp failed (${hook}).`, err);
+      log.error(`rollCtx stamp failed (${hook}).`, err);
     }
   });
 }
@@ -88,7 +88,7 @@ async function stampRoster(combat) {
       } } }
     });
   } catch(err) {
-    console.error(`${TITLE} | Combat roster stamp failed.`, err);
+    log.error(`Combat roster stamp failed.`, err);
   }
 }
 
@@ -134,6 +134,6 @@ async function closeRoster(combat) {
       [`flags.${MODULE_ID}.combatRoster`]: flag
     });
   } catch(err) {
-    console.error(`${TITLE} | Combat roster close failed.`, err);
+    log.error(`Combat roster close failed.`, err);
   }
 }

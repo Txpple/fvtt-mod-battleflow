@@ -5,7 +5,7 @@
  * beyond the bond's reach a card says so; the caster at 0 Hit Points ends it. Rulings: RULINGS *The spells
  * slice — the held spells*.
  */
-import { MODULE_ID, readFlag, TITLE, canApplyTo, whisperNoGM, statContext } from "./core.js";
+import { MODULE_ID, readFlag, canApplyTo, whisperNoGM, statContext, log } from "./core.js";
 import { effectSourceOf } from "./shared.js";
 import { DAMAGE_SHARES, answers, damageShareEntries, listedNames } from "./decide/registry.js";
 import { repeatRowFor, needsFloat } from "./decide/repeat-saves.js";
@@ -59,7 +59,7 @@ listen("dnd5e.applyDamage", "damage-shares", (actor, amount, options) => {
     if ( !listedNames(damageShareEntries()).size ) return;
     for ( const bond of bondsOn(actor) ) void share(bond, actor, Number(amount), origin instanceof ChatMessage ? origin : null);
   } catch(err) {
-    console.error(`${TITLE} | The damage share failed — apply the caster's share by hand.`, err);
+    log.error(`The damage share failed — apply the caster's share by hand.`, err);
   }
 });
 
@@ -98,7 +98,7 @@ async function share({ row, effect, item, caster }, bearer, amount, origin) {
     const ends = shareEnds(row, { casterHp: Number(caster.system?.attributes?.hp?.value ?? 0) });
     if ( ends.ends && canApplyTo(bearer) && bearer.effects.get(effect.id) ) await endBond(card, bearer, effect, ends.why);
   } catch(err) {
-    console.error(`${TITLE} | ${row?.key ?? "The bond"}'s share could not land — apply it by hand.`, err);
+    log.error(`${row?.key ?? "The bond"}'s share could not land — apply it by hand.`, err);
   } finally {
     sharing.delete(key);
   }
@@ -133,5 +133,5 @@ listen("dnd5e.renderChatMessage", "damage-shares", (message, html) => {
     div.style.cssText = "margin:0.25rem 0;font-size:var(--font-size-11,11px);font-weight:bold;opacity:0.9;color:var(--dnd5e-color-blue, #3a7ca5);";
     div.innerHTML = `<i class="fa-solid fa-link-slash"></i> ${esc(`${s.key} ended — ${s.ended}`)}`;
     content.appendChild(div);
-  } catch(err) { console.warn(`${TITLE} | The share's line could not render.`, err); }
+  } catch(err) { log.warn(`The share's line could not render.`, err); }
 });

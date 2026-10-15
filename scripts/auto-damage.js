@@ -3,7 +3,7 @@
  * By the Books — auto-roll damage on hit (the attacker's client) and the damage offer popup.
  * Owns the one crit judgement (`critFor`). Split shape (ARCHITECTURE.md §7).
  */
-import { MODULE_ID, readFlag, TITLE, S, setting, decisionWindow, drivesMomentFor, resolveUuid } from "./core.js";
+import { MODULE_ID, readFlag, S, setting, decisionWindow, drivesMomentFor, resolveUuid, log } from "./core.js";
 import { missShareFor } from "./lookup.js";
 import { hitTargets, holdOf, savesOf } from "./shared.js";
 import { TONE, esc, popupKey, bfCard, momentBarHTML } from "./decide/present.js";
@@ -66,7 +66,7 @@ const missWaits = [];
 /** A machine that may reopen a clean miss registers the synchronous half of its stamp. */
 export function registerMissWait(fn) { missWaits.push(fn); }
 const rescueComing = (subject, message, roll) => missWaits.some(fn => {
-  try { return !!fn(subject, message, roll); } catch(err) { console.warn(`${TITLE} | A miss wait failed — the miss's share waits for nothing.`, err); return false; }
+  try { return !!fn(subject, message, roll); } catch(err) { log.warn(`A miss wait failed — the miss's share waits for nothing.`, err); return false; }
 });
 
 /** The attack-card flags that hold a miss open while pending. */
@@ -98,7 +98,7 @@ export function settleMiss(attackMessage) {
     if ( !drivesMomentFor(attackMessage.getAssociatedActor?.()?.uuid ?? null) ) return;
     void rollMissShare(activity, attackMessage);
   } catch(err) {
-    console.error(`${TITLE} | The miss's share could not be rolled — roll the damage from the card.`, err);
+    log.error(`The miss's share could not be rolled — roll the damage from the card.`, err);
   }
 }
 
@@ -129,12 +129,12 @@ export async function damageAfterHold(attackMessage) {
     if ( game.messages.contents.some(m => (m.type === "damage") && (readFlag(m, "attackFor") === attackMessage.id)) ) return;
     const activity = attackMessage.getAssociatedActivity?.() ?? null;
     if ( !activity ) {
-      console.warn(`${TITLE} | The held crit's damage has no activity to roll from — roll it from the card.`);
+      log.warn(`The held crit's damage has no activity to roll from — roll it from the card.`);
       return;
     }
     return offerOrRollDamage(activity, attackMessage);
   } catch(err) {
-    console.error(`${TITLE} | The held crit's damage failed — roll it from the card.`, err);
+    log.error(`The held crit's damage failed — roll it from the card.`, err);
   }
 }
 
@@ -183,7 +183,7 @@ function critFor(attackMessage) {
       out.dropped = qualifying.map(p => p.name);
     }
   } catch(err) {
-    console.error(`${TITLE} | Automatic crit judgement failed — the d20's own verdict stands.`, err);
+    log.error(`Automatic crit judgement failed — the d20's own verdict stands.`, err);
   }
   return out;
 }
@@ -197,7 +197,7 @@ function foldedCritStands(attackMessage, hits) {
     const base = { total: roll?.total, isCritical: own, isFumble: roll?.isFumble === true };
     return hits.every(t => foldedRoll(base, folds.filter(f => f.uuid === t.uuid)).isCritical);
   } catch(err) {
-    console.error(`${TITLE} | The folded roll's crit could not be read — the d20's own verdict stands.`, err);
+    log.error(`The folded roll's crit could not be read — the d20's own verdict stands.`, err);
     return own;
   }
 }
@@ -242,7 +242,7 @@ listen("dnd5e.preRollDamage", "auto-damage", (config, _dialog, message) => {
     foundry.utils.setProperty(message, `data.flags.${MODULE_ID}.autoCrit`,
       { sources: crit.sources.map(s => ({ status: s.status, label: s.label })), attackId: attackMessage.id });
   } catch(err) {
-    console.error(`${TITLE} | Automatic crit failed to apply — the d20's own verdict stands.`, err);
+    log.error(`Automatic crit failed to apply — the d20's own verdict stands.`, err);
   }
 });
 
@@ -276,7 +276,7 @@ export async function rollDamageForAttack(activity, attackMessage) {
         flags: { [MODULE_ID]: { attackFor: attackMessage.id, ...(holdPending ? { attackHoldPending: true } : {}) } } } }
     );
   } catch(err) {
-    console.error(`${TITLE} | Auto-roll damage failed.`, err);
+    log.error(`Auto-roll damage failed.`, err);
   }
 }
 
@@ -294,7 +294,7 @@ export async function rollDamageForSave(activity, card) {
     if ( Array.isArray(aimed) && aimed.length ) foundry.utils.setProperty(data, "system.targets", foundry.utils.deepClone(aimed));
     await activity.rollDamage(scaling > 0 ? { scaling } : {}, { configure: false }, { data });
   } catch(err) {
-    console.error(`${TITLE} | Could not auto-roll the save spell's damage.`, err);
+    log.error(`Could not auto-roll the save spell's damage.`, err);
   }
 }
 
@@ -370,7 +370,7 @@ async function offerRoll(message, { roll, windowTitle, windowIcon, buttonLabel, 
 
   // A failed render leaves nothing to press (the native Damage button is hidden): roll now.
   if ( livePopups.get(key) !== dialog ) return fire();
-  if ( wire ) { try { wire(dialog.element); } catch(err) { console.error(`${TITLE} | Offer controls failed to wire.`, err); } }
+  if ( wire ) { try { wire(dialog.element); } catch(err) { log.error(`Offer controls failed to wire.`, err); } }
 }
 
 /* The offer's contributions are declared by machines at their evaluation, into ui.js's registry
@@ -379,7 +379,7 @@ async function offerRoll(message, { roll, windowTitle, windowIcon, buttonLabel, 
 function offerPartsDue(attackMessage, activity) {
   return offerParts.some(p => {
     try { return !!p.due?.(attackMessage, activity); }
-    catch(err) { console.error(`${TITLE} | An offer contribution (${p.key}) failed its due check.`, err); return false; }
+    catch(err) { log.error(`An offer contribution (${p.key}) failed its due check.`, err); return false; }
   });
 }
 
@@ -390,7 +390,7 @@ function offerPartsFor(attackMessage, activity, ctx) {
       const parts = p.parts?.(attackMessage, activity, ctx);
       if ( parts ) out.push(parts);
     } catch(err) {
-      console.error(`${TITLE} | An offer contribution (${p.key}) failed to render — the offer opens without it.`, err);
+      log.error(`An offer contribution (${p.key}) failed to render — the offer opens without it.`, err);
     }
   }
   return out;

@@ -2,8 +2,8 @@
  * By the Books — MACHINE (ARCHITECTURE.md §7): the chip spend — the attack roll that uses up a Vex or Sap
  * chip (or a listed effect's marker), receipted on the attack card — and the tidies of expired chips.
  */
-import { readFlag, TITLE, isActiveGM, drivesMomentFor, canApplyTo, whisperNoGM, queueFlagWrite,
-  statContext, stampedSourceOf, resolveUuidAsync } from "./core.js";
+import { readFlag, isActiveGM, drivesMomentFor, canApplyTo, whisperNoGM, queueFlagWrite,
+  statContext, stampedSourceOf, resolveUuidAsync, log } from "./core.js";
 import { EFFECT_BENDS } from "./decide/registry.js";
 import { TURN_CHIPS, chipOwnedBy, chipSpentBy, netShownFor, rollModeOf, spendRecord } from "./decide/chips.js";
 import { REMINDER_FLAG, rolledWith } from "./decide/reminders.js";
@@ -118,7 +118,7 @@ async function spendChips(message, ctx) {
       if ( live.length ) await actor.deleteEmbeddedDocuments("ActiveEffect", live);
     }
   } catch(err) {
-    console.error(`${TITLE} | Chip spend failed.`, err);
+    log.error(`Chip spend failed.`, err);
   } finally {
     for ( const id of claimed ) spendingNow.delete(id);
   }
@@ -155,7 +155,7 @@ async function tidyExpiredChips(parent) {
     await parent.deleteEmbeddedDocuments("ActiveEffect", ids);
   } catch(err) {
     // Already gone — a twin elect, a hand, or the spend that beat the clock.
-    if ( ids.some(id => parent.effects.get(id)) ) console.warn(`${TITLE} | Expired chip tidy failed on ${parent.name}.`, err);
+    if ( ids.some(id => parent.effects.get(id)) ) log.warn(`Expired chip tidy failed on ${parent.name}.`, err);
   }
 }
 
@@ -183,7 +183,7 @@ async function sweepTurnMutes(actor, combat) {
     if ( !ids.length ) return;
     await actor.deleteEmbeddedDocuments("ActiveEffect", ids);
   } catch(err) {
-    if ( actor.effects.some(e => bystanderMuteOf(e)?.until === "turn") ) console.warn(`${TITLE} | The turn's mute sweep failed on ${actor.name}.`, err);
+    if ( actor.effects.some(e => bystanderMuteOf(e)?.until === "turn") ) log.warn(`The turn's mute sweep failed on ${actor.name}.`, err);
   }
 }
 
@@ -201,11 +201,11 @@ async function sweepCombatChips(combat) {
         await actor.deleteEmbeddedDocuments("ActiveEffect", ids);
       } catch(err) {
         // Already gone is fine; only a chip that REMAINS is worth a word.
-        if ( ids.some(id => actor.effects.get(id)) ) console.warn(`${TITLE} | Combat chip sweep failed on ${actor.name}.`, err);
+        if ( ids.some(id => actor.effects.get(id)) ) log.warn(`Combat chip sweep failed on ${actor.name}.`, err);
       }
     }));
   } catch(err) {
-    console.error(`${TITLE} | Combat chip sweep failed.`, err);
+    log.error(`Combat chip sweep failed.`, err);
   }
 }
 

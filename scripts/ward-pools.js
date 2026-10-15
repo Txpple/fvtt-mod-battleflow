@@ -4,7 +4,7 @@
  * applier carries it — the module's and the card's own buttons; the pop rides the actor's update to every
  * client, the take rides the apply options to the receipt. An Abjuration cast from a slot creates or refills it.
  */
-import { MODULE_ID, readFlag, TITLE } from "./core.js";
+import { MODULE_ID, readFlag, log } from "./core.js";
 import { activityNamed, featureNamed, lower } from "./lookup.js";
 import { WARD_POOLS, listedNames, wardPoolEntries } from "./decide/registry.js";
 import { afterWard, wardAbsorb, wardRefill } from "./decide/ward-pools.js";
@@ -72,7 +72,7 @@ listen("dnd5e.preApplyDamage", "ward-pools", (actor, amount, updates, options) =
       const write = (uses.value - took > 0)
         ? worn.effect.update({ [`flags.${MODULE_ID}.${POOL_FLAG}`]: { ...worn.pool, left: uses.value - took }, name: `${worn.row.effect} (${uses.value - took})` })
         : worn.effect.delete();
-      void write.catch(err => console.error(`${TITLE} | ${worn.name} took ${took} but its ward could not be lowered — adjust by hand.`, err));
+      void write.catch(err => log.error(`${worn.name} took ${took} but its ward could not be lowered — adjust by hand.`, err));
       return;
     }
     const hp = actor.system.attributes.hp;
@@ -87,9 +87,9 @@ listen("dnd5e.preApplyDamage", "ward-pools", (actor, amount, updates, options) =
     updates[`flags.${MODULE_ID}.${WARD_TAKE_FLAG}`] = { ...take, at: Date.now() };
     if ( options ) options[WARD] = { ...take, itemUuid: found.item.uuid };
     void found.item.update({ "system.uses.spent": uses.spent + took })
-      .catch(err => console.error(`${TITLE} | ${found.name} took ${took} but its hit points could not be spent — lower them by hand.`, err));
+      .catch(err => log.error(`${found.name} took ${took} but its hit points could not be spent — lower them by hand.`, err));
   } catch(err) {
-    console.error(`${TITLE} | The ward could not take the damage — it landed whole; adjust by hand.`, err);
+    log.error(`The ward could not take the damage — it landed whole; adjust by hand.`, err);
   }
 });
 
@@ -104,7 +104,7 @@ listen("updateActor", "ward-pools", (actor, changes) => {
     if ( popped.has(key) ) return;
     popped.add(key);
     for ( const token of tokensOf(actor) ) driftChip(token, token, `−${take.took} ${take.feature}`);
-  } catch(err) { console.warn(`${TITLE} | The ward's take could not draw.`, err); }
+  } catch(err) { log.warn(`The ward's take could not draw.`, err); }
 });
 
 /* --- THE CAST: created on the first slot-cast of the school after a Long Rest, else refilled ------------ */
@@ -122,7 +122,7 @@ listen("dnd5e.postUseActivity", "ward-pools", (activity, usageConfig, results) =
     if ( !found ) return;
     void createEffectWard(found[0], found[1], activity, usageConfig, results?.message ?? null, actor);
   } catch(err) {
-    console.error(`${TITLE} | The ward could not be created — place it by hand.`, err);
+    log.error(`The ward could not be created — place it by hand.`, err);
   }
 });
 
@@ -156,7 +156,7 @@ listen("dnd5e.postUseActivity", "ward-pools", (activity, usageConfig, results) =
     if ( !found?.row.refill || (lower(item.system?.school) !== found.row.refill.school) || !actor.isOwner ) return;
     void castOnWard(found, activity, usageConfig, results?.message ?? null);
   } catch(err) {
-    console.error(`${TITLE} | The ward's refill could not be read — restore it from the sheet.`, err);
+    log.error(`The ward's refill could not be read — restore it from the sheet.`, err);
   }
 });
 
@@ -184,5 +184,5 @@ listen("dnd5e.renderChatMessage", "ward-pools", (message, html) => {
       : r.gained ? `${r.feature} — +${r.gained} (${r.value} of ${r.max})` : `${r.feature} — full (${r.value} of ${r.max})`;
     div.innerHTML = `<i class="fa-solid fa-shield-halved" data-tooltip="${esc(r.feature)}"></i> ${esc(said)}`;
     content.appendChild(div);
-  } catch(err) { console.warn(`${TITLE} | The ward's line could not render.`, err); }
+  } catch(err) { log.warn(`The ward's line could not render.`, err); }
 });

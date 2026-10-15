@@ -2,7 +2,7 @@
  * By the Books — Receipts: the revert row on damage cards, a view of the receipt flags. Who and
  * what is public; HP pools and the revert controls are GM-only.
  */
-import { readFlag, TITLE, queueFlagWrite, resolveUuid, resolveUuidAsync } from "./core.js";
+import { readFlag, TITLE, queueFlagWrite, resolveUuid, resolveUuidAsync, log } from "./core.js";
 import { clearStatus } from "./shared.js";
 import { exhaustionPhrase, receiptAmounts, revertPlan, traitPhrase } from "./decide/receipt.js";
 import { revertEffect, effectReceiptOf } from "./effect-riders.js";
@@ -144,7 +144,7 @@ listen("dnd5e.renderChatMessage", "receipts", (message, html) => {
       // ⚠ The catch is load-bearing: an un-caught await in a listener rejects into nothing
       // (NOTES.md §1). A failed revert must SAY so.
       button.addEventListener("click", () => revertTarget(message, t.uuid).catch(err => {
-        console.error(`${TITLE} | Revert failed.`, err);
+        log.error(`Revert failed.`, err);
         ui.notifications.error(`${TITLE}: the revert did not complete — see the console.`);
       }));
       line.append(button);
@@ -219,7 +219,7 @@ listen("dnd5e.renderChatMessage", "receipts", (message, html) => {
         });
         // Same catch as the damage revert above.
         button.addEventListener("click", () => revertEffect(message, t.uuid, e.id).catch(err => {
-          console.error(`${TITLE} | Effect revert failed.`, err);
+          log.error(`Effect revert failed.`, err);
           ui.notifications.error(`${TITLE}: the revert did not complete — see the console.`);
         }));
         line.append(button);
@@ -280,7 +280,7 @@ async function clearDefeated(actor) {
       try {
         await c.update({ defeated: false });
       } catch(err) {
-        console.warn(`${TITLE} | Could not clear the defeated mark for ${actor.name}.`, err);
+        log.warn(`Could not clear the defeated mark for ${actor.name}.`, err);
       }
     }
   }

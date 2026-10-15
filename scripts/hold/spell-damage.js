@@ -3,7 +3,7 @@
  * By the Books — the reaction hold: THE NO-ATTACK DAMAGE APPLIER and the `negate` veto at
  * `dnd5e.preApplyDamage` (which blocks wherever the tray's button is pressed).
  */
-import { MODULE_ID, readFlag, TITLE, drivesMomentFor, whisperNoGM, writableTargets } from "../core.js";
+import { MODULE_ID, readFlag, TITLE, drivesMomentFor, whisperNoGM, writableTargets, log } from "../core.js";
 import { damagePartsOf } from "../shared.js";
 import { CARD, isCard, itemNameOf, originIdOf, targetsOf } from "../decide/card.js";
 import { registerResumable } from "../ui.js";
@@ -68,7 +68,7 @@ async function applySpellDamage(message) {
     if ( !writable.length ) return;
     await applyDamagesWithReceipt(message, writable, damages);
   } catch(err) {
-    console.error(`${TITLE} | Spell damage auto-apply failed.`, err);
+    log.error(`Spell damage auto-apply failed.`, err);
   }
 }
 

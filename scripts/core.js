@@ -9,6 +9,31 @@ export const LEGACY_ID = "fvtt-mod-battleflow";
 // The `data-bf-*` DOM anchors predate the rename and stay: cards posted before 3.0.0 carry them in their stored HTML.
 export const TITLE = "By the Books";
 
+// THE LOGGER (ARCHITECTURE §7 *The shared readers*): every console line the module writes goes out here, opening
+// with its title; biome.json fails a console call anywhere else in scripts/. The console is read at each call, so a
+// page that swaps it (a live suite gathering the module's errors) hears every line.
+
+/** The module's debug switch: `CONFIG.debug.bythebooks = true` (in the console) turns `log.debug` on. */
+const debugging = () => globalThis.CONFIG?.debug?.bythebooks === true;
+
+/** A line's arguments with the title in front of the first: `log.warn("Could not …", err)` → "By the Books | Could not …". */
+const titled = args => ((typeof args[0] === "string") ? [`${TITLE} | ${args[0]}`, ...args.slice(1)] : [`${TITLE} |`, ...args]);
+
+/**
+ * `log.warn`, `log.error`, `log.info`: the console's own, the title in front; `log.debug` the same behind the debug
+ * switch.
+ */
+export const log = Object.freeze({
+  /** @param {...any} args */
+  warn: (...args) => console.warn(...titled(args)),
+  /** @param {...any} args */
+  error: (...args) => console.error(...titled(args)),
+  /** @param {...any} args */
+  info: (...args) => console.info(...titled(args)),
+  /** @param {...any} args */
+  debug: (...args) => { if ( debugging() ) console.debug(...titled(args)); }
+});
+
 /**
  * Publish one of the module's public hooks (`bythebooks.<name>`). 3.0.x also fired each under its
  * Battle Flow name (`battleflow.<name>`) so readers could move on their own schedule; 3.1.0 stopped
@@ -189,7 +214,7 @@ export async function whisperNoGM(what, stands = null) {
         + `${stands ? ` ${stands}` : ""}</p>`
     });
   } catch(err) {
-    console.warn(`${TITLE} | Could not post the no-GM notice.`, err);
+    log.warn("Could not post the no-GM notice.", err);
   }
 }
 

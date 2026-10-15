@@ -7,7 +7,7 @@
  * on a failure by this machine (the pack ties both effects to the Cast). The cone is instantaneous and goes
  * with the rays. Rulings: RULINGS *The spells slice — the held spells*.
  */
-import { MODULE_ID, readFlag, TITLE, drivesMomentFor, statContext, decisionWindow, queueFlagWrite, canApplyTo, whisperNoGM, resolveUuid } from "./core.js";
+import { MODULE_ID, readFlag, drivesMomentFor, statContext, decisionWindow, queueFlagWrite, canApplyTo, whisperNoGM, resolveUuid, log } from "./core.js";
 import { activityNamed, cardActivity, lower } from "./lookup.js";
 import { RAY_TABLES, tableIndex, rayTableEntries, listedNames } from "./decide/registry.js";
 import { raysFor, rayWords, raySummaryLines, rayVerdict } from "./decide/prismatic.js";
@@ -54,7 +54,7 @@ listen("preCreateChatMessage", "prismatic", doc => {
         item: { name: activity.item.name, img: activity.item.img ?? null }, casterName: caster?.name ?? null, targets: [] }),
       [SPRAY_FLAG]: { ...statContext(caster?.uuid ?? null), key: row.key, status: "pending", activityUuid: activity.uuid }
     } } });
-  } catch(err) { console.warn(`${TITLE} | The ray table could not close the cast's demand — the cast asks as the pack has it.`, err); }
+  } catch(err) { log.warn(`The ray table could not close the cast's demand — the cast asks as the pack has it.`, err); }
 });
 
 /* --- the cone: the placement, or a region placed after, starts the rays ----------------------------- */
@@ -65,7 +65,7 @@ listen("dnd5e.postUseActivity", "prismatic", (activity, _usageConfig, results) =
     const card = (results?.message instanceof ChatMessage) ? results.message : null;
     const regions = (results?.templates ?? []).flat().filter(r => r?.parent);
     if ( card && regions.length ) void spray(card, regions);
-  } catch(err) { console.error(`${TITLE} | The ray table failed at the cast — roll the rays by hand.`, err); }
+  } catch(err) { log.error(`The ray table failed at the cast — roll the rays by hand.`, err); }
 });
 
 listen("createRegion", "prismatic", region => {
@@ -77,7 +77,7 @@ listen("createRegion", "prismatic", region => {
       return (p?.status === "pending") && (p.activityUuid === activityUuid);
     }).at(-1);
     if ( card ) void spray(card, [region]);
-  } catch(err) { console.error(`${TITLE} | The ray table failed at the placement — roll the rays by hand.`, err); }
+  } catch(err) { log.error(`The ray table failed at the placement — roll the rays by hand.`, err); }
 });
 
 const spraying = new Set();
@@ -135,7 +135,7 @@ async function spray(card, regions) {
       if ( region.parent?.regions?.get(region.id) && region.canUserModify?.(game.user, "delete") ) await region.delete().catch(() => {});
     }
   } catch(err) {
-    console.error(`${TITLE} | The rays could not be raised — roll them by hand.`, err);
+    log.error(`The rays could not be raised — roll them by hand.`, err);
   } finally {
     spraying.delete(card.id);
   }
@@ -148,7 +148,7 @@ async function raiseRay({ row, activity, caster, casterTok, card, target, ray, s
     const save = ray.save ? activityNamed(item, ray.save) : activity;
     const dc = save?.save?.dc?.value;
     const abilities = [...(save?.save?.ability ?? [])];
-    if ( !save || !(dc > 0) || !abilities.length ) { console.warn(`${TITLE} | ${row.key}: no save for the ${ray.colour} ray — ask for it by hand.`); return; }
+    if ( !save || !(dc > 0) || !abilities.length ) { log.warn(`${row.key}: no save for the ${ray.colour} ray — ask for it by hand.`); return; }
     const hasDamage = !!ray.type && !!activity.damage?.parts?.length;
     const window = decisionWindow();
     const words = rayWords({ spell: row.key, ray, target: target.name, caster: caster?.name ?? null });
@@ -176,7 +176,7 @@ async function raiseRay({ row, activity, caster, casterTok, card, target, ray, s
     });
     if ( hasDamage && demand ) await rollDamageForSave(activity, demand);
   } catch(err) {
-    console.error(`${TITLE} | The ${ray?.colour ?? ""} ray could not be demanded — ask for the save by hand.`, err);
+    log.error(`The ${ray?.colour ?? ""} ray could not be demanded — ask for the save by hand.`, err);
   }
 }
 
@@ -191,7 +191,7 @@ listen("dnd5e.preRollDamage", "prismatic", (config, _dialog, message) => {
       const offered = [...(roll.options?.types ?? [])].map(t => String(t).toLowerCase());
       if ( offered.includes(ray.type) || !offered.length ) { roll.options ??= {}; roll.options.type = ray.type; }
     }
-  } catch(err) { console.warn(`${TITLE} | The ray's type could not be set — the roll wears the pack's first.`, err); }
+  } catch(err) { log.warn(`The ray's type could not be set — the roll wears the pack's first.`, err); }
 });
 
 /* --- the verdict of a condition ray: the effect on a failure, landed by this machine ---------------- */
@@ -227,7 +227,7 @@ async function settleRay(card) {
     }
     await queueFlagWrite(card, RAY_FLAG, current => { current.outcome = entry.outcome; current.says = `${verdict.says}${landed}`; });
   } catch(err) {
-    console.error(`${TITLE} | The ray's verdict could not land — apply its effect by hand.`, err);
+    log.error(`The ray's verdict could not land — apply its effect by hand.`, err);
   } finally {
     settling.delete(card.id);
   }
@@ -247,5 +247,5 @@ listen("dnd5e.renderChatMessage", "prismatic", (message, html) => {
     div.style.cssText = `margin:0.25rem 0;font-size:var(--font-size-11,11px);font-weight:bold;opacity:0.9;color:${ray.outcome === "saved" ? "var(--dnd5e-color-blue, #3a7ca5)" : "var(--dnd5e-color-maroon, #740b0b)"};`;
     div.innerHTML = `<i class="fa-solid fa-rainbow"></i> ${esc(ray.says)}`;
     content.appendChild(div);
-  } catch(err) { console.warn(`${TITLE} | The ray's line could not render.`, err); }
+  } catch(err) { log.warn(`The ray's line could not render.`, err); }
 });

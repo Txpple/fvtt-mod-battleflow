@@ -4,7 +4,7 @@
  * answering client. The trigger is `dnd5e.applyDamage`, the one seam that knows the ORIGINATING
  * card (a raw HP edit offers nothing). "That you can see" is the table's.
  */
-import { MODULE_ID, readFlag, TITLE, keepsMessage, queueFlagWrite, canAnswerFor, statContext, decisionWindow, resolveUuid, resolveUuidAsync } from "./core.js";
+import { MODULE_ID, readFlag, keepsMessage, queueFlagWrite, canAnswerFor, statContext, decisionWindow, resolveUuid, resolveUuidAsync, log } from "./core.js";
 import { lower, itemNamed, activityNamed, cardActivity, meleeOptions, preferredMeleeOption, wearsEffectNamed } from "./lookup.js";
 import { rebukeEntries, listedNames } from "./decide/registry.js";
 import { REBUKES } from "./decide/registry.js";
@@ -119,7 +119,7 @@ listen("dnd5e.applyDamage", "rebukes", (actor, amount, options) => {
     if ( attackHit ) void stampWards(actor, source, Number(amount), origin);
     if ( becameBloodied ) void stampWatchers(actor, source, Number(amount), origin);
   } catch(err) {
-    console.error(`${TITLE} | The rebuke offer failed — use the reaction from the sheet.`, err);
+    log.error(`The rebuke offer failed — use the reaction from the sheet.`, err);
   }
 });
 
@@ -219,7 +219,7 @@ listen("createChatMessage", "rebukes", async message => {
     }
     for ( const bearer of bearers.values() ) void stampRebuke(bearer, attacker, 0, message, { onAttack: true });
   } catch(err) {
-    console.error(`${TITLE} | The attack rebuke offer failed — use the reaction from the sheet.`, err);
+    log.error(`The attack rebuke offer failed — use the reaction from the sheet.`, err);
   }
 });
 
@@ -247,7 +247,7 @@ listen("createChatMessage", "rebukes", async message => {
       void stampRebuke(actor, attacker, 0, message, { miss: true, missMelee });
     }
   } catch(err) {
-    console.error(`${TITLE} | The miss rebuke offer failed — use the reaction from the sheet.`, err);
+    log.error(`The miss rebuke offer failed — use the reaction from the sheet.`, err);
   }
 });
 
@@ -363,7 +363,7 @@ async function driveRebuke(message, option) {
     });
     await spendReaction(actor, { origin: item?.uuid ?? null, what: option.name });
   } catch(err) {
-    console.error(`${TITLE} | ${option.name} could not be driven — use it from the sheet.`, err);
+    log.error(`${option.name} could not be driven — use it from the sheet.`, err);
   } finally {
     driving.delete(key);
   }
@@ -420,7 +420,7 @@ listen("dnd5e.renderChatMessage", "rebukes", (message, html) => {
           row.appendChild(momentButton(name, () => void (async () => {
             await act.use({}, { configure: false }, {});
             if ( message.canUserModify?.(game.user, "update") ) await queueFlagWrite(message, REBUKE_FLAG, current => { current.followed = name; });
-          })().catch(err => console.error(`${TITLE} | ${name} could not be used — use it from the sheet.`, err))));
+          })().catch(err => log.error(`${name} could not be used — use it from the sheet.`, err))));
         }
         div.appendChild(row);
       }
@@ -437,7 +437,7 @@ listen("dnd5e.renderChatMessage", "rebukes", (message, html) => {
       });
     }
     content.appendChild(div);
-  } catch(err) { console.warn(`${TITLE} | The rebuke line could not render.`, err); }
+  } catch(err) { log.warn(`The rebuke line could not render.`, err); }
 });
 
 // An answer anywhere closes the popup everywhere (law 4); the clock stands down with it.

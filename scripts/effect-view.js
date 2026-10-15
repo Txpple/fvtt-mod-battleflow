@@ -5,7 +5,7 @@
  * the ONE interactive surface, whose chip folds offer Remove, Disable or Clear to an owner.
  * ⚠ It writes nothing of its own: a fold's click goes through the platform's own permission.
  */
-import { MODULE_ID, TITLE, isActiveGM, S, setting, resolveUuid } from "./core.js";
+import { MODULE_ID, isActiveGM, S, setting, resolveUuid, log } from "./core.js";
 import { allRows, drawnAlways, drawsOnToken, everyRow, marksHeldBy, panelGroups, rowAction } from "./decide/effect-view.js";
 import { EMANATIONS, RANGE_FEATS, answers, tableIndex } from "./decide/registry.js";
 import { measuredCoverBetween, tokenDocOf } from "./geometry.js";
@@ -248,7 +248,7 @@ listen("hoverToken", "effect-view", (token, hovered) => {
     if ( !setting(S.effectHover) ) return;
     // Not for a controlled token: the bar is its list already.
     if ( hovered && !token.controlled ) showHover(token); else if ( hoverCard?.dataset.token === token.id ) hideHover();
-  } catch(err) { console.error(`${MODULE_ID} | effect view (hover) failed.`, err); }
+  } catch(err) { log.error(`effect view (hover) failed.`, err); }
 });
 
 // Taking control of the token under the pointer takes its card down the same way.
@@ -282,7 +282,7 @@ listen("highlightObjects", "effect-view", active => {
   try {
     if ( !setting(S.effectHover) ) return;
     if ( active ) showOverlay(); else clearOverlay();
-  } catch(err) { console.error(`${MODULE_ID} | effect view (held key) failed.`, err); }
+  } catch(err) { log.error(`effect view (held key) failed.`, err); }
 });
 
 /* --- the bar -------------------------------------------------------------------------------- */
@@ -402,7 +402,7 @@ function wireBar(bar) {
       if ( act ) {
         ev.preventDefault();
         closeFolds(bar);
-        void doAction(actor, act.dataset.action, act.dataset.row).catch(err => console.error(`${MODULE_ID} | effect view (action) failed.`, err));
+        void doAction(actor, act.dataset.action, act.dataset.row).catch(err => log.error(`effect view (action) failed.`, err));
         return;
       }
       const chip = ev.target.closest("button.bf-ev-chip");
@@ -417,7 +417,7 @@ function wireBar(bar) {
         ev.preventDefault();
         if ( who.getAttribute("aria-expanded") === "true" ) closeFolds(bar); else openPanel(bar, who, actor);
       }
-    } catch(err) { console.error(`${MODULE_ID} | effect view (bar click) failed.`, err); }
+    } catch(err) { log.error(`effect view (bar click) failed.`, err); }
   });
   // Anywhere else, or Escape: the folds close.
   document.addEventListener("pointerdown", ev => { if ( !bar.contains(ev.target) ) closeFolds(bar); });
@@ -428,7 +428,7 @@ let barTimer = null;
 /** Coalesce a burst of effect writes into one draw. */
 function redrawBar() {
   if ( barTimer ) clearTimeout(barTimer);
-  barTimer = setTimeout(() => { barTimer = null; try { drawBar(); } catch(err) { console.error(`${MODULE_ID} | effect view (bar) failed.`, err); } }, 50);
+  barTimer = setTimeout(() => { barTimer = null; try { drawBar(); } catch(err) { log.error(`effect view (bar) failed.`, err); } }, 50);
 }
 
 /* --- drawn on the token: every effect the module writes on a creature (RULINGS *The effect view*) ------- */
@@ -441,7 +441,7 @@ listen("preCreateActiveEffect", "effect-view", (effect, data) => {
     if ( !drawnAlways({ onActor, transfer: data?.transfer === true, showIconSet: (data?.showIcon !== undefined) && (data?.showIcon !== null),
       moduleFlags: data?.flags?.[MODULE_ID] ?? null }) ) return;
     effect.updateSource({ showIcon: CONST.ACTIVE_EFFECT_SHOW_ICON.ALWAYS });
-  } catch(err) { console.warn(`${TITLE} | Could not mark an effect to show on the token.`, err); }
+  } catch(err) { log.warn(`Could not mark an effect to show on the token.`, err); }
 });
 
 // The effects written before that, once, on the active GM's load: the module's own, not drawn, drawn ALWAYS.
@@ -456,7 +456,7 @@ listen("ready", "effect-view", () => {
         .map(e => ({ _id: e.id, showIcon: CONST.ACTIVE_EFFECT_SHOW_ICON.ALWAYS }));
       if ( writes.length ) await actor.updateEmbeddedDocuments("ActiveEffect", writes);
     }
-  })().catch(err => console.warn(`${TITLE} | Could not mark the earlier effects to show on the token.`, err));
+  })().catch(err => log.warn(`Could not mark the earlier effects to show on the token.`, err));
 });
 
 listen("canvasReady", "effect-view", redrawBar);

@@ -191,6 +191,7 @@ function dispatch(hook, args) {
     let result;
     try { result = h.fn(...args); }
     catch(err) {
+      // biome-ignore lint/suspicious/noConsole: a leaf imports nothing, so core.js's log is out of reach; the line opens with the title by hand
       console.error(`By the Books | ${h.key}'s ${hook} handler failed.`, err);
       continue;
     }

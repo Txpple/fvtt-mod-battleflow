@@ -5,7 +5,7 @@
  * choose their targets*) raise it via `newAsk`/`raiseAsk`, and may add an ANSWER PART
  * (`registerAskAnswerPart`). ⚠ The flag KEY stays `metamagicAsk`: stored on cards, read by the moment registry.
  */
-import { MODULE_ID, readFlag, TITLE, publish, statContext, queueFlagWrite, canAnswerFor, decisionWindow, resolveUuid } from "./core.js";
+import { MODULE_ID, readFlag, publish, statContext, queueFlagWrite, canAnswerFor, decisionWindow, resolveUuid, log } from "./core.js";
 import { itemNamed } from "./lookup.js";
 import { isPartyMember } from "./shared.js";
 import { bfCard, esc, holdBarHTML, ruleLine, pickInputHTML } from "./decide/present.js";
@@ -98,7 +98,7 @@ listen("dnd5e.renderChatMessage", "area-ask", (message, html) => {
     pendingRow(message, div, { bar: holdBarHTML(ask, "to answer"), answer: may && { show: () => showAreaAsk(message) }, arm: armAsk });
     content.appendChild(div);
     if ( may ) void showAreaAsk(message);
-  } catch(err) { console.warn(`${TITLE} | The ask at the area could not render.`, err); }
+  } catch(err) { log.warn(`The ask at the area could not render.`, err); }
 });
 
 /** The ask's popup, defaults ticked: ticks for Careful and a chosen area, a radio for Heightened
@@ -193,7 +193,7 @@ export async function answerAsk(message, picked, { timedOut = false, mark = null
     });
     publish("areaAskAnswered", message);
   } catch(err) {
-    console.error(`${TITLE} | The ask at the area could not be answered — the demand waits; the card's Answer button reopens it.`, err);
+    log.error(`The ask at the area could not be answered — the demand waits; the card's Answer button reopens it.`, err);
   }
 }
 

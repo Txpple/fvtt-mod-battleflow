@@ -7,7 +7,7 @@
  * word is a contract version bump. Consumers dedupe native cards by `momentId`.
  */
 
-import { MODULE_ID, LEGACY_ID, TITLE, publish, resolveUuid } from "./core.js";
+import { MODULE_ID, LEGACY_ID, publish, resolveUuid, log } from "./core.js";
 import { MOMENT_KINDS, MOMENT_RECORDS, MOMENT_WORDS, isMomentWord, momentId, newMoments, resolvedMoments } from "./decide/moments.js";
 import { hitTargets } from "./shared.js";
 import { listen, listenOnce } from "./dispatch.js";
@@ -73,7 +73,7 @@ function spendRow(spend) {
 export function publishMoment(event, { actor = null, item = null, activity = null, ability = null, message = null,
   attackMessage = null, targets = [], spend = null, details = {}, kind = null, marker = null } = {}) {
   if ( !isMomentWord(event) ) {
-    console.warn(`${TITLE} | publishMoment: "${event}" is not in the moment vocabulary — nothing published.`);
+    log.warn(`publishMoment: "${event}" is not in the moment vocabulary — nothing published.`);
     return null;
   }
   let payload;
@@ -103,7 +103,7 @@ export function publishMoment(event, { actor = null, item = null, activity = nul
       at: Date.now()
     });
   } catch(err) {
-    console.warn(`${TITLE} | publishMoment: could not build the "${event}" payload — nothing published.`, err);
+    log.warn(`publishMoment: could not build the "${event}" payload — nothing published.`, err);
     return null;
   }
   // Guards a Hooks that is not the platform's (a test, a broken boot).
@@ -111,7 +111,7 @@ export function publishMoment(event, { actor = null, item = null, activity = nul
     publish("moment", payload);
     publish(event, payload);
   } catch(err) {
-    console.warn(`${TITLE} | publishMoment: a subscriber to "${event}" failed — the moment stands.`, err);
+    log.warn(`publishMoment: a subscriber to "${event}" failed — the moment stands.`, err);
   }
   return payload;
 }
@@ -167,7 +167,7 @@ export function observeMessage(message, writerId, publish = true) {
     if ( !MOMENT_RECORDS[key] ) continue;
     let moments;
     try { moments = resolvedMoments(key, flags[key], ctx); }
-    catch(err) { console.warn(`${TITLE} | the moment registry's "${key}" row failed to read a record — nothing published for it.`, err); continue; }
+    catch(err) { log.warn(`the moment registry's "${key}" row failed to read a record — nothing published for it.`, err); continue; }
     for ( const m of newMoments(message.id, key, moments, seen) ) {
       seen.add(momentId(message.id, key, m.marker));
       if ( !publish ) continue;
@@ -195,7 +195,7 @@ listen("updateChatMessage", "events", (message, changes, _options, userId) => {
 // The log as it stands is history: remembered, never republished.
 listenOnce("ready", "events", () => {
   try { for ( const message of game.messages ?? [] ) observeMessage(message, null, false); }
-  catch(err) { console.warn(`${TITLE} | the moment gate could not read the log on ready — old resolves may republish once.`, err); }
+  catch(err) { log.warn(`the moment gate could not read the log on ready — old resolves may republish once.`, err); }
 });
 
 listen("deleteChatMessage", "events", message => {

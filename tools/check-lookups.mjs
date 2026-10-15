@@ -1,7 +1,8 @@
 // Static lookups check (no Foundry, milliseconds): a uuid is resolved and a token is found through one reader
-// each (ARCHITECTURE §7 *The shared readers*). A raw `fromUuidSync` throws mid-render on a bad uuid; a token found
-// by hand answers by a rule of its own (a placeable where a document is wanted, the controlled one on one client and
-// the first on another).
+// each, and a console line goes out through one logger (ARCHITECTURE §7 *The shared readers*). A raw
+// `fromUuidSync` throws mid-render on a bad uuid; a token found by hand answers by a rule of its own (a placeable
+// where a document is wanted, the controlled one on one client and the first on another); a console line written
+// past the logger is a line the debug switch and the title do not reach.
 //
 //   node tools/check-lookups.mjs            # the check (gate: npm run lookups)
 //   node tools/check-lookups.mjs --list     # every site counted, and every pin
@@ -12,6 +13,8 @@
 //   2. THE TOKEN: outside geometry.js (`tokenDocOf`, `tokenOf`, `tokenOnScene`, `tokensOf`) no `getActiveTokens`,
 //      no `canvas.tokens.get(…)`, no `canvas.tokens.placeables.find(…)` or `.filter(…)`, no scene's `tokens.find(…)`
 //      and no `x.document ?? x`; a site that stands is pinned in TOKENS by file and function, with its reason.
+//   3. THE CONSOLE: Biome fails a console call in scripts/ outside core.js's `log` (biome.json); a
+//      `biome-ignore lint/suspicious/noConsole` suppression stands only in a file pinned in CONSOLE, with its reason.
 // A stale pin fails. It prints what it counts, so a commit can carry the numbers before and after.
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
@@ -34,11 +37,17 @@ const TOKENS = new Map([
   ["summons.js casterTokenOn", "the caster's token on the landing scene, matched by its base actor's id as well as its uuid: a cast from a sidebar sheet stands as an unlinked token of its actor, whose look and side the summon copies"]
 ]);
 
+/** Files whose console suppression stands, `"<file>"` → the reason. */
+const CONSOLE = new Map([
+  ["decide/present.js", "the pure layer imports nothing (ARCHITECTURE §7), so its one warning cannot reach core.js's log; it opens with the title by hand"],
+  ["dispatch.js", "the dispatcher is a leaf that imports nothing (§7 *Registration order*), so a failed handler's line cannot reach core.js's log; it opens with the title by hand"]
+]);
+
 const list = process.argv.includes("--list");
 const failures = [];
 const report = [];
-const seen = { uuid: new Set(), token: new Set() };
-const count = { uuid: 0, uuidPinned: 0, token: 0, tokenPinned: 0 };
+const seen = { uuid: new Set(), token: new Set(), console: new Set() };
+const count = { uuid: 0, uuidPinned: 0, token: 0, tokenPinned: 0, suppressions: 0, consoleCalls: 0 };
 const kinds = new Map();   // token kind → count
 
 const isFn = n => ts.isFunctionDeclaration(n) || ts.isFunctionExpression(n) || ts.isArrowFunction(n) || ts.isMethodDeclaration(n);
@@ -121,19 +130,34 @@ for (const path of jsFiles(SCRIPTS)) {
       }
       const kind = tokenCall(node);
       if (kind) token(node, kind);
+      if (/^console\.\w+$/.test(callee) && (rel !== UUID_HOME)) count.consoleCalls++;
     }
     if (documentFold(node)) token(node, "x.document ?? x");
     ts.forEachChild(node, visit);
   };
   visit(sf);
+
+  // 3. the console suppressions, off the comments
+  const suppressions = [...text.matchAll(/biome-ignore\s+lint\/suspicious\/noConsole/g)].length;
+  if (suppressions) {
+    count.suppressions += suppressions;
+    if (CONSOLE.has(rel)) { seen.console.add(rel); if (list) report.push(`CONSOLE ${rel.padEnd(30)} ${suppressions} suppression(s) — pinned`); }
+    else {
+      if (list) report.push(`CONSOLE ${rel.padEnd(30)} ${suppressions} suppression(s)`);
+      failures.push(`scripts/${rel} suppresses Biome's noConsole ${suppressions} time(s) — write the line through core.js's log `
+        + "(log.warn, log.error, log.info; log.debug behind the debug switch)");
+    }
+  }
 }
 
 for (const pin of UUIDS.keys()) if (!seen.uuid.has(pin)) failures.push(`stale pin: ${pin} is in UUIDS and resolves no uuid there — remove the row`);
 for (const pin of TOKENS.keys()) if (!seen.token.has(pin)) failures.push(`stale pin: ${pin} is in TOKENS and finds no token there — remove the row`);
+for (const file of CONSOLE.keys()) if (!seen.console.has(file)) failures.push(`stale pin: ${file} is in CONSOLE and suppresses no console call — remove the row`);
 
 const kindList = [...kinds].map(([k, n]) => `${k} ${n}`).join(", ") || "none";
 const counts = `raw uuid lookups outside ${UUID_HOME} ${count.uuid} (${count.uuidPinned} pinned); `
-  + `raw token lookups outside ${TOKEN_HOME} ${count.token} (${count.tokenPinned} pinned; ${kindList})`;
+  + `raw token lookups outside ${TOKEN_HOME} ${count.token} (${count.tokenPinned} pinned; ${kindList}); `
+  + `console calls outside core.js ${count.consoleCalls}, console suppressions ${count.suppressions} (${seen.console.size} file(s) pinned)`;
 
 for (const line of report) console.log(line);
 if (failures.length) {
@@ -141,7 +165,7 @@ if (failures.length) {
   for (const f of failures) console.error(`FAIL ${f}`);
   console.error(`\n${failures.length} lookup failure(s). ${counts}.`);
   console.error("A uuid is resolved through core.js resolveUuid / resolveUuidAsync, a token found through geometry.js "
-    + "tokenDocOf / tokenOf / tokenOnScene / tokensOf (ARCHITECTURE §7).");
+    + "tokenDocOf / tokenOf / tokenOnScene / tokensOf, a console line written through core.js log (ARCHITECTURE §7).");
   process.exit(1);
 }
-console.log(`PASS every uuid and token goes through its one reader (${counts} — ARCHITECTURE §7).`);
+console.log(`PASS every uuid, token and console line goes through its one reader (${counts} — ARCHITECTURE §7).`);

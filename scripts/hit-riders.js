@@ -2,7 +2,7 @@
  * By the Books — hit riders: a mark on the target (Hunter's Mark, Hex) pays its die into the attack's own
  * damage roll, on the attacker's client, instead of a separate damage press after every hit.
  */
-import { TITLE, selfAndGmIds, resolveUuid } from "./core.js";
+import { TITLE, selfAndGmIds, resolveUuid, log } from "./core.js";
 import { lower } from "./lookup.js";
 import { MARK_USES, riderEntries, riderUpgradeEntries } from "./decide/registry.js";
 import { riderKey } from "./decide/eligible.js";
@@ -103,7 +103,7 @@ listen("dnd5e.preRollDamage", "hit-riders", (config, _dialog, message) => {
       to: selfAndGmIds(),
       alias: TITLE
     });
-    console.warn(`${TITLE} | Rider(s) ${[...dropped].join(", ")} not folded in: one damage roll `
+    log.warn(`Rider(s) ${[...dropped].join(", ")} not folded in: one damage roll `
       + "covers targets that are not all marked. Roll the bonus damage by hand for the marked one.");
   }
 
@@ -139,7 +139,7 @@ listen("renderActivityChoiceDialog", "hit-riders", (app, element) => {
       const name = label ? button.querySelector(SURFACES.activityChoiceName) : null;
       if ( name ) name.textContent = label;
     }
-  } catch(err) { console.warn(`${TITLE} | Could not label the mark's uses — pick from the system's list.`, err); }
+  } catch(err) { log.warn(`Could not label the mark's uses — pick from the system's list.`, err); }
 });
 
 // The move spends no slot and begins no Concentration: the system's dialog (a slot select, nothing to answer) is skipped.

@@ -3,7 +3,7 @@
  * a melee attack roll hits — the hit rider mirrored (RULINGS *Damage shields*). The table is
  * decide/registry.js DAMAGE_SHIELDS; membership is the Damage Shields list.
  */
-import { MODULE_ID, readFlag, TITLE, activeCombatFor, canApplyTo, drivesMomentFor, queueFlagWrite, statContext, whisperNoGM, resolveUuid } from "./core.js";
+import { MODULE_ID, readFlag, activeCombatFor, canApplyTo, drivesMomentFor, queueFlagWrite, statContext, whisperNoGM, resolveUuid, log } from "./core.js";
 import { ruleHTML } from "./rule-text.js";
 import { lower, itemNamed, activityNamed, activityOfType } from "./lookup.js";
 import { registerResumable, postCard } from "./ui.js";
@@ -64,7 +64,7 @@ function shieldsOn(defender) {
         }
       }
       if ( !source?.item ) {
-        console.warn(`${TITLE} | ${key} stands on ${defender.name} but its spell could not be found — the ward strikes by hand.`);
+        log.warn(`${key} stands on ${defender.name} but its spell could not be found — the ward strikes by hand.`);
         continue;
       }
       const activity = activityNamed(source.item, row.activity);
@@ -131,7 +131,7 @@ async function settle(damageMessage, attackMessage, { wasHeld = false } = {}) {
     // attacker's elect, once; every client's own memory is `judged`.
     if ( wasHeld && drivesMomentFor(attacker.uuid) ) {
       try { await queueFlagWrite(damageMessage, "damageShields", current => { current.judged = true; }); }
-      catch(err) { console.warn(`${TITLE} | Could not stamp the shield judgement on the damage card.`, err); }
+      catch(err) { log.warn(`Could not stamp the shield judgement on the damage card.`, err); }
     }
     const hits = hitTargets(attackMessage);
     const attackerToken = tokenOf(attacker);
@@ -164,7 +164,7 @@ async function settle(damageMessage, attackMessage, { wasHeld = false } = {}) {
             claimed = true;
           });
         } catch(err) {
-          console.warn(`${TITLE} | Could not claim ${s.key}'s payout on the damage card — the ward strikes by hand.`, err);
+          log.warn(`Could not claim ${s.key}'s payout on the damage card — the ward strikes by hand.`, err);
           continue;
         }
         if ( !claimed ) continue;
@@ -172,7 +172,7 @@ async function settle(damageMessage, attackMessage, { wasHeld = false } = {}) {
       }
     }
   } catch(err) {
-    console.error(`${TITLE} | Damage shield payout failed — roll the ward's damage by hand.`, err);
+    log.error(`Damage shield payout failed — roll the ward's damage by hand.`, err);
   }
 }
 
@@ -191,7 +191,7 @@ async function pay({ damageMessage, attackMessage, attacker, defender, ward, jud
   try {
     rolls = await activity.rollDamage(scaling > 0 ? { scaling } : {}, { configure: false }, { create: false });
   } catch(err) {
-    console.error(`${TITLE} | Could not roll ${key}'s damage.`, err);
+    log.error(`Could not roll ${key}'s damage.`, err);
   }
   const record = { ...statContext(defender.uuid), key, attackId: attackMessage.id, damageId: damageMessage.id,
     defenderName: defender.name, attackerName: attacker.name, attackerUuid: attacker.uuid,
@@ -241,7 +241,7 @@ listen("dnd5e.postUseActivity", "damage-shields", (activity, _usageConfig, resul
     const scaling = Math.max(0, spellLevel - Number(item.system?.level ?? 0));
     void writeMark(actor, item, row, { spellLevel, scaling, message });
   } catch(err) {
-    console.error(`${TITLE} | Could not mark the ward's cast — the shield strikes by hand.`, err);
+    log.error(`Could not mark the ward's cast — the shield strikes by hand.`, err);
   }
 });
 
@@ -275,7 +275,7 @@ listen("updateActor", "damage-shields", (actor, changes) => {
     endings.add(actor.uuid);
     void endMarks(actor, marks).finally(() => endings.delete(actor.uuid));
   } catch(err) {
-    console.error(`${TITLE} | Could not end the ward with its pool.`, err);
+    log.error(`Could not end the ward with its pool.`, err);
   }
 });
 

@@ -4,7 +4,7 @@
  * Inspiration). The grant rides `dnd5e.preRestCompleted`'s one actor update (`result.updateData`),
  * on the resting client, and the rest card says what was gained. Nothing is asked.
  */
-import { MODULE_ID, readFlag, TITLE, isActiveGM, queueFlagWrite, canAnswerFor, statContext, resolveUuid, resolveUuidAsync } from "./core.js";
+import { MODULE_ID, readFlag, isActiveGM, queueFlagWrite, canAnswerFor, statContext, resolveUuid, resolveUuidAsync, log } from "./core.js";
 import { lower, activityNamed, asiAssigned, featureNamed } from "./lookup.js";
 import { answers, listedNames, restGrantEntries } from "./decide/registry.js";
 import { bfCard, esc, holdBarHTML, foldedRuleHTML, pickInputHTML } from "./decide/present.js";
@@ -73,7 +73,7 @@ listen("dnd5e.preRestCompleted", "rest-grants", (actor, result, config) => {
     for ( const g of grants ) foundry.utils.mergeObject(result.updateData, g.write);
     result.bfRestGrants = grants.map(({ name, grant }) => ({ name, grant }));
   } catch(err) {
-    console.error(`${TITLE} | Rest grant failed — the rest goes on without it.`, err);
+    log.error(`Rest grant failed — the rest goes on without it.`, err);
   }
 });
 
@@ -85,12 +85,12 @@ listen("dnd5e.restCompleted", "rest-grants", (_actor, result) => {
   if ( !message?.isOwner ) return;
   if ( blocks?.length ) {
     void message.setFlag(MODULE_ID, "restBlock", blocks)
-      .catch(err => console.error(`${TITLE} | Rest block line failed.`, err));
+      .catch(err => log.error(`Rest block line failed.`, err));
     return;
   }
   if ( !grants?.length ) return;
   void message.setFlag(MODULE_ID, "restGrant", grants)
-    .catch(err => console.error(`${TITLE} | Rest grant line failed.`, err));
+    .catch(err => log.error(`Rest grant line failed.`, err));
 });
 
 listen("dnd5e.renderChatMessage", "rest-grants", (message, html) => {
@@ -107,7 +107,7 @@ listen("dnd5e.renderChatMessage", "rest-grants", (message, html) => {
       host.appendChild(line);
     }
   } catch(err) {
-    console.error(`${TITLE} | Rest block line failed to draw.`, err);
+    log.error(`Rest block line failed to draw.`, err);
   }
 });
 
@@ -124,9 +124,9 @@ listen("dnd5e.restCompleted", "rest-grants", (actor, result, config) => {
     const type = result?.type ?? config?.type;
     if ( !(actor instanceof Actor) || !actor.isOwner || ((type !== "short") && (type !== "long")) ) return;
     void endAtRest(actor, type, result?.message ?? null)
-      .catch(err => console.error(`${TITLE} | Could not end the rest's short effects — delete them by hand.`, err));
+      .catch(err => log.error(`Could not end the rest's short effects — delete them by hand.`, err));
   } catch(err) {
-    console.error(`${TITLE} | Could not end the rest's short effects — delete them by hand.`, err);
+    log.error(`Could not end the rest's short effects — delete them by hand.`, err);
   }
 });
 
@@ -167,7 +167,7 @@ listen("dnd5e.renderChatMessage", "rest-grants", (message, html) => {
       subtitle: (f.type === "long") ? "Concentration and every effect of 8 hours or less" : "every effect of 1 hour or less, Concentration included" });
     host.appendChild(line);
   } catch(err) {
-    console.error(`${TITLE} | The rest's ended line failed to draw.`, err);
+    log.error(`The rest's ended line failed to draw.`, err);
   }
 });
 
@@ -185,7 +185,7 @@ listen("dnd5e.renderChatMessage", "rest-grants", (message, html) => {
       host.appendChild(line);
     }
   } catch(err) {
-    console.error(`${TITLE} | Rest grant line failed to draw.`, err);
+    log.error(`Rest grant line failed to draw.`, err);
   }
 });
 
@@ -354,7 +354,7 @@ listen("dnd5e.restCompleted", "rest-grants", (actor, result, config) => {
     void message.setFlag(MODULE_ID, SPENT_FLAG, { actorUuid: actor.uuid, hitDice: Math.max(0, -(Number(result.dhd) || 0)),
       requestId: config?.request?.id ?? null, at: Date.now() }).catch(() => {});
   } catch(err) {
-    console.warn(`${TITLE} | Could not record the Hit Dice spent in the rest.`, err);
+    log.warn(`Could not record the Hit Dice spent in the rest.`, err);
   }
 });
 
@@ -369,7 +369,7 @@ listen("dnd5e.restCompleted", "rest-grants", (actor, result, config) => {
       if ( (row.grant === "temphp") || (row.grant === "meal") ) {
         const formula = grantFormulaOf(actor, grantActivityOf(actor, item, row));
         if ( !formula ) {
-          console.warn(`${TITLE} | ${name}: its heal activity could not be read off ${actor.name}'s sheet — give it by hand.`);
+          log.warn(`${name}: its heal activity could not be read off ${actor.name}'s sheet — give it by hand.`);
           continue;
         }
         base.formula = formula;
@@ -386,10 +386,10 @@ listen("dnd5e.restCompleted", "rest-grants", (actor, result, config) => {
         actor,
         card: bfCard({ img: item.img, eyebrow: name, tone: "pending", title: `${name} — ${grantText(flag)} for allies` }),
         flags: { [MODULE_ID]: { [SONG_FLAG]: flag } }
-      }).catch(err => console.error(`${TITLE} | ${name}'s ask could not be posted.`, err));
+      }).catch(err => log.error(`${name}'s ask could not be posted.`, err));
     }
   } catch(err) {
-    console.error(`${TITLE} | The rest song failed — give it by hand.`, err);
+    log.error(`The rest song failed — give it by hand.`, err);
   }
 });
 
@@ -418,7 +418,7 @@ listen("dnd5e.renderChatMessage", "rest-grants", (message, html) => {
       }
     }
   } catch(err) {
-    console.warn(`${TITLE} | The rest card's activity list could not be trimmed.`, err);
+    log.warn(`The rest card's activity list could not be trimmed.`, err);
   }
 });
 
@@ -540,7 +540,7 @@ async function landSong(message) {
       }
     }
   } catch(err) {
-    console.error(`${TITLE} | ${flag.row}'s grant failed part-way — check the sheets.`, err);
+    log.error(`${flag.row}'s grant failed part-way — check the sheets.`, err);
   } finally {
     await queueFlagWrite(message, SONG_FLAG, current => {
       current.applied = true; current.applying = false; current.given = given;
@@ -568,9 +568,9 @@ listen("dnd5e.restCompleted", "rest-grants", (actor, result, config) => {
     void (async () => {
       await actor.unsetFlag(MODULE_ID, FED_FLAG);
       if ( standing === "spent" ) await serveMeal({ formula: fed.formula, actorName: fed.chef }, [actor]);
-    })().catch(err => console.error(`${TITLE} | ${fed.chef}'s meal could not be served — heal ${fed.formula} by hand.`, err));
+    })().catch(err => log.error(`${fed.chef}'s meal could not be served — heal ${fed.formula} by hand.`, err));
   } catch(err) {
-    console.error(`${TITLE} | The meal at the rest's end failed.`, err);
+    log.error(`The meal at the rest's end failed.`, err);
   }
 });
 
@@ -718,7 +718,7 @@ listen("dnd5e.renderChatMessage", "rest-grants", (message, html) => {
       });
     }
     content.appendChild(div);
-  } catch(err) { console.warn(`${TITLE} | The rest song line could not render.`, err); }
+  } catch(err) { log.warn(`The rest song line could not render.`, err); }
 });
 
 // An answer anywhere closes the popup everywhere (law 4).

@@ -9,7 +9,7 @@
  * rollDeathSave); the configuration hook fires before the dice land.
  * Rulings: RULINGS *Ravenloft: The Horrors Within*.
  */
-import { MODULE_ID, TITLE } from "./core.js";
+import { MODULE_ID, log } from "./core.js";
 import { activityNamed, featureNamed, lower, d20FactsOf } from "./lookup.js";
 import { withTargets } from "./shared.js";
 import { MISHAPS, mishapEntries, listedNames } from "./decide/registry.js";
@@ -27,7 +27,7 @@ function mishapsOf(actor) {
     const feature = featureNamed(actor, key);
     const activity = feature ? activityNamed(feature, row.activity) : null;
     if ( !feature ) continue;
-    if ( !activity ) { console.warn(`${TITLE} | ${key}: no "${row.activity}" activity on ${actor.name}'s copy — roll the save by hand.`); continue; }
+    if ( !activity ) { log.warn(`${key}: no "${row.activity}" activity on ${actor.name}'s copy — roll the save by hand.`); continue; }
     out.push({ key, row, feature, activity });
   }
   return out;
@@ -54,7 +54,7 @@ for ( const [hook, kind] of D20_HOOKS ) {
       // After the roll's own card: the save's card then follows the test it answers.
       setTimeout(() => { void raise(actor, rows, { kind, total: Number(roll.total) }); }, 150);
     } catch(err) {
-      console.error(`${TITLE} | The mishap could not be read — roll the dark gift's save by hand.`, err);
+      log.error(`The mishap could not be read — roll the dark gift's save by hand.`, err);
     }
   });
 }
@@ -68,7 +68,7 @@ async function raise(actor, rows, { kind, total }) {
       const use = () => activity.use({ subsequentActions: false }, { configure: false }, data);
       await (token ? withTargets([token], use) : use());
     } catch(err) {
-      console.error(`${TITLE} | ${key}'s save could not be demanded — use "${row.activity}" from the sheet.`, err);
+      log.error(`${key}'s save could not be demanded — use "${row.activity}" from the sheet.`, err);
     }
   }
 }

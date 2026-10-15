@@ -3,7 +3,7 @@
  * authority — adoption, the toolbar area's claim, the spent-area sweep. The area is a REGION tied by
  * `flags.dnd5e.activity`; the card's render is the reliability floor.
  */
-import { readFlag, TITLE, queueFlagWrite, drivesMomentFor } from "../core.js";
+import { readFlag, queueFlagWrite, drivesMomentFor, log } from "../core.js";
 import { cardActivity } from "../lookup.js";
 import { saveTargetEntry } from "../decide/demand.js";
 import { regionShapeTypeFor } from "../decide/geometry.js";
@@ -129,7 +129,7 @@ export async function refreshDemandFromTemplates(card) {
       }
     });
   } catch(err) {
-    console.error(`${TITLE} | Area containment refresh failed.`, err);
+    log.error(`Area containment refresh failed.`, err);
   } finally {
     templateRefreshes.delete(card.id);
     if ( latch.again ) void refreshDemandFromTemplates(card);

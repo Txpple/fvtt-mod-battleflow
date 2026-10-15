@@ -2,7 +2,7 @@
  * By the Books — the cast path: the caster's flow elect lands a stamped cast's utility effects and
  * healing, with receipts, and asks the caster's EFFECT_CHOICES pick.
  */
-import { MODULE_ID, readFlag, TITLE, canAnswerFor, canApplyTo, drivesMomentFor, queueFlagWrite, whisperNoGM, resolveUuid, writableTargets } from "./core.js";
+import { MODULE_ID, readFlag, TITLE, canAnswerFor, canApplyTo, drivesMomentFor, queueFlagWrite, whisperNoGM, resolveUuid, writableTargets, log } from "./core.js";
 import { activityNamed, cardActivity, cardItem, featureNamed, lower } from "./lookup.js";
 import { chipData, damagePartsOf, statSourceOf } from "./shared.js";
 import { bfCard, esc, ruleLine } from "./decide/present.js";
@@ -62,7 +62,7 @@ async function executeCastApply(message) {
       activity // the one resolved above — live, or the card's snapshot of a used-up item
     });
   } catch(err) {
-    console.error(`${TITLE} | Cast auto-apply failed.`, err);
+    log.error(`Cast auto-apply failed.`, err);
   }
 }
 
@@ -89,7 +89,7 @@ async function slotClock(activity, concentration, spellLevel, move) {
   const hours = slotHours(steps, spellLevel);
   if ( !hours ) return null;
   const duration = { value: hours * 3600, units: "seconds" };
-  if ( concentration?.isOwner ) await concentration.update({ duration }).catch(err => console.warn(`${TITLE} | ${activity.item.name}'s Concentration kept its base clock — set it by hand.`, err));
+  if ( concentration?.isOwner ) await concentration.update({ duration }).catch(err => log.warn(`${activity.item.name}'s Concentration kept its base clock — set it by hand.`, err));
   return chipData({ duration });
 }
 
@@ -111,7 +111,7 @@ async function liftEarlierMarks(concentration, item, targets) {
     if ( !(dependent instanceof ActiveEffect) || !(bearer instanceof Actor) || keep.has(bearer.uuid) ) continue;
     if ( (dependent.system?.origin?.item ?? null) !== item?.uuid ) continue;
     if ( !canApplyTo(bearer) ) continue;
-    await dependent.delete().catch(err => console.warn(`${TITLE} | The earlier ${item.name} on ${bearer.name} could not be lifted — remove it by hand.`, err));
+    await dependent.delete().catch(err => log.warn(`The earlier ${item.name} on ${bearer.name} could not be lifted — remove it by hand.`, err));
   }
 }
 
@@ -151,7 +151,7 @@ async function applyCastHealing(message) {
       }
     }
   } catch(err) {
-    console.error(`${TITLE} | Healing auto-apply failed.`, err);
+    log.error(`Healing auto-apply failed.`, err);
   }
 }
 
@@ -236,7 +236,7 @@ async function afterPick(card, payload, name) {
       else ui.notifications?.warn(`${TITLE}: ${key} — no "${name}" on ${actor.name}'s sheet; use it by hand.`);
     }
   } catch(err) {
-    console.error(`${TITLE} | ${key} — the ${name} pick could not land; use it from the sheet.`, err);
+    log.error(`${key} — the ${name} pick could not land; use it from the sheet.`, err);
   }
 }
 

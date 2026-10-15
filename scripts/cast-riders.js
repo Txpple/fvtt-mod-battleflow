@@ -8,7 +8,7 @@
  * creatures within reach — the rest song's popup (rest-grants.js `askHandOut`), its clock giving all to the
  * paladin (a bend by choice); the Channel Divinity is spent only when something is given.
  */
-import { MODULE_ID, readFlag, TITLE, decisionWindow, queueFlagWrite, resolveUuid, resolveUuidAsync } from "./core.js";
+import { MODULE_ID, readFlag, decisionWindow, queueFlagWrite, resolveUuid, resolveUuidAsync, log } from "./core.js";
 import { activityNamed, activityOfType, featureNamed, lower } from "./lookup.js";
 import { CAST_RIDERS, castRiderEntries, listedNames, answers } from "./decide/registry.js";
 import { castWithSlot, spellClassOf, surgeLine, surgeOutcome } from "./decide/cast-riders.js";
@@ -71,7 +71,7 @@ listen("dnd5e.postUseActivity", "cast-riders", (activity, usageConfig, results) 
       if ( row.use ) void useOnSelf({ name, row, feature, actor });
     }
   } catch(err) {
-    console.error(`${TITLE} | A cast rider could not be read — play it from the sheet.`, err);
+    log.error(`A cast rider could not be read — play it from the sheet.`, err);
   }
 });
 
@@ -106,7 +106,7 @@ async function surge({ name, row, actor, message }) {
     else await postCard({ actor, card: `<p>${esc(surgeLine(record))}</p>`,
       flags: { [MODULE_ID]: { [SURGE_FLAG]: record } } });
   } catch(err) {
-    console.error(`${TITLE} | ${name} failed — roll the d20 and the table by hand.`, err);
+    log.error(`${name} failed — roll the d20 and the table by hand.`, err);
   }
 }
 
@@ -127,7 +127,7 @@ function resultText(r) {
 /** The pack's table rolled (never marked drawn — a compendium table is not written) and posted; its text back. */
 async function rollTable(uuid, actor) {
   const table = uuid ? await resolveUuidAsync(uuid) : null;
-  if ( !table ) { console.warn(`${TITLE} | The Wild Magic Surge table (${uuid}) is not on this box — roll it by hand.`); return null; }
+  if ( !table ) { log.warn(`The Wild Magic Surge table (${uuid}) is not on this box — roll it by hand.`); return null; }
   const { roll, results } = await table.roll();
   await table.toMessage(results, { roll, messageData: { speaker: ChatMessage.getSpeaker({ actor }) } });
   return resultText(results?.[0]);
@@ -180,7 +180,7 @@ listen("dnd5e.renderChatMessage", "cast-riders", (message, html) => {
       div.appendChild(tame);
     }
     content.appendChild(div);
-  } catch(err) { console.warn(`${TITLE} | The surge line could not render.`, err); }
+  } catch(err) { log.warn(`The surge line could not render.`, err); }
 });
 
 /** The Controlled Chaos pick, on the caster's own card (the caster rolled it — the caster may write it). */
@@ -242,7 +242,7 @@ async function auraEffect({ name, row, feature, actor, message }) {
     await message.setFlag(MODULE_ID, "auraRider", { feature: name, actorUuid: actor.uuid, aura: row.aura, effect: row.effect,
       members: members.map(m => m.name) }).catch(() => {});
   } catch(err) {
-    console.error(`${TITLE} | ${name} could not land on the aura — apply its effect by hand.`, err);
+    log.error(`${name} could not land on the aura — apply its effect by hand.`, err);
   }
 }
 
@@ -257,7 +257,7 @@ listen("dnd5e.renderChatMessage", "cast-riders", (message, html) => {
     div.style.cssText = "margin:0.25rem 0;font-size:var(--font-size-11,11px);opacity:0.85;";
     div.innerHTML = `<i class="fa-solid fa-shield-halved" data-tooltip="${esc(r.feature)}"></i> ${esc(`${r.feature} — ${r.effect} (Half Cover) on ${r.members.join(", ")} until the start of your next turn`)}`;
     content.appendChild(div);
-  } catch(err) { console.warn(`${TITLE} | The cast rider's line could not render.`, err); }
+  } catch(err) { log.warn(`The cast rider's line could not render.`, err); }
 });
 
 /* --- INSPIRING SMITE ------------------------------------------------------------------------------- */
@@ -266,11 +266,11 @@ listen("dnd5e.renderChatMessage", "cast-riders", (message, html) => {
 async function useOnSelf({ name, row, feature, actor }) {
   try {
     const activity = activityNamed(feature, row.use);
-    if ( !activity ) { console.warn(`${TITLE} | ${name}: no "${row.use}" on the sheet — use it by hand.`); return; }
+    if ( !activity ) { log.warn(`${name}: no "${row.use}" on the sheet — use it by hand.`); return; }
     const token = tokenOf(actor);
     await withTargets(token ? [token] : [], () => activity.use({}, { configure: false }, {}));
   } catch(err) {
-    console.error(`${TITLE} | ${name} could not be used — use it from the sheet.`, err);
+    log.error(`${name} could not be used — use it from the sheet.`, err);
   }
 }
 
@@ -281,13 +281,13 @@ async function inspire({ name, row, feature, actor }) {
     if ( !activity || !pool || !(Number(pool.system?.uses?.value ?? 0) > 0) ) return;   // no Channel Divinity: nothing to offer
     const h = activity.healing;
     const raw = h ? riderPartFormula({ number: h.number, denomination: h.denomination, custom: h.custom, bonus: h.bonus }) : null;
-    if ( !raw ) { console.warn(`${TITLE} | ${name}: no healing part on its activity — give it by hand.`); return; }
+    if ( !raw ) { log.warn(`${name}: no healing part on its activity — give it by hand.`); return; }
     const roll = await new Roll(raw, activity.getRollData?.() ?? actor.getRollData()).evaluate();
     if ( !(roll.total > 0) ) return;
     const window = decisionWindow();
     await askHandOut(actor, { name, row, item: feature, amount: roll.total, roll, table: "cast", distribute: true,
       cost: { itemId: pool.id, name: pool.name }, window });
   } catch(err) {
-    console.error(`${TITLE} | ${name} could not be asked — give it by hand.`, err);
+    log.error(`${name} could not be asked — give it by hand.`, err);
   }
 }

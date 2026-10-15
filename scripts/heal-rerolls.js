@@ -3,7 +3,7 @@
  * is rerolled automatically, never a choice (DESIGN R1). The roll is born `healReroll` DUE and the
  * heal applier waits, so healing lands ONCE; a pack's own `r1` is taken off. A second 1 stands.
  */
-import { MODULE_ID, readFlag, TITLE, statContext, queueFlagWrite, drivesMomentFor, canAnswerFor, resolveUuid } from "./core.js";
+import { MODULE_ID, readFlag, statContext, queueFlagWrite, drivesMomentFor, canAnswerFor, resolveUuid, log } from "./core.js";
 import { lower, featureNamed, activityNamed, cardActivity } from "./lookup.js";
 import { healRerollEntries, listedNames } from "./decide/registry.js";
 import { rebuildRolls, withTargets } from "./shared.js";
@@ -85,7 +85,7 @@ listen("dnd5e.preRollDamage", "heal-rerolls", (config, _dialog, message) => {
       source: item?.name ?? null, ...statContext(actor.uuid)
     });
   } catch(err) {
-    console.error(`${TITLE} | The healing reroll could not be offered — reroll the 1s by hand.`, err);
+    log.error(`The healing reroll could not be offered — reroll the 1s by hand.`, err);
   }
 });
 
@@ -134,7 +134,7 @@ async function selfHeals(message, rolls) {
       if ( card ) await applyDamagesWithReceipt(card, [{ uuid: actor.uuid, name: actor.name }], [{ value: amount, type: "healing", properties: new Set() }], { note: name });
     }
   } catch(err) {
-    console.error(`${TITLE} | Blessed Healer's own healing could not land — apply it by hand.`, err);
+    log.error(`Blessed Healer's own healing could not land — apply it by hand.`, err);
   }
 }
 
@@ -219,7 +219,7 @@ async function reroll(message, keys) {
     if ( announce ) await dramaticVerdictPause(announce);
     await complete(message);
   } catch(err) {
-    console.error(`${TITLE} | The healing reroll failed — reroll the 1s by hand.`, err);
+    log.error(`The healing reroll failed — reroll the 1s by hand.`, err);
     if ( readFlag(message, HEAL_FLAG)?.pending ) await complete(message).catch(() => {});
     else await queueFlagWrite(message, HEAL_FLAG, current => {
       if ( current.status !== "answering" ) return false;
@@ -290,7 +290,7 @@ listen("dnd5e.renderChatMessage", "heal-rerolls", (message, html) => {
     div.style.cssText = "margin:0.25rem 0;font-size:var(--font-size-11,11px);opacity:0.85;";
     div.innerHTML = `<i class="fa-solid fa-hand-holding-medical" data-tooltip="${esc(flag.feature ?? "")}"></i> ${esc(cardLine(flag))}`;
     content.appendChild(div);
-  } catch(err) { console.warn(`${TITLE} | The healing-reroll line could not render.`, err); }
+  } catch(err) { log.warn(`The healing-reroll line could not render.`, err); }
 });
 
 /** The `bonus` rows' numbers on a healing roll, read off the labelled terms the roll was born with. */
@@ -316,7 +316,7 @@ listen("dnd5e.renderChatMessage", "heal-rerolls", (message, html) => {
     div.style.cssText = "margin:0.25rem 0;font-size:var(--font-size-11,11px);opacity:0.85;";
     div.innerHTML = found.map(b => `<i class="fa-solid fa-hand-holding-medical" data-tooltip="${esc(b.name)}"></i> ${esc(b.name)} — +${b.amount} healing`).join("<br>");
     content.appendChild(div);
-  } catch(err) { console.warn(`${TITLE} | The healing bonus line could not render.`, err); }
+  } catch(err) { log.warn(`The healing bonus line could not render.`, err); }
 });
 
 /* --- `also`: one more creature healed after the caster's own healing spell (Starry Form's Chalice) --- */
@@ -377,7 +377,7 @@ async function pickAlso(message, found, candidate) {
       await found.heal.rollDamage({}, { configure: false }, { data: usageId ? originData(usageId) : {} });
     });
   } catch(err) {
-    console.error(`${TITLE} | ${found.row.also} could not be used — use it from the sheet.`, err);
+    log.error(`${found.row.also} could not be used — use it from the sheet.`, err);
   }
 }
 
@@ -419,6 +419,6 @@ listen("dnd5e.renderChatMessage", "heal-rerolls", (message, html) => {
       });
     }
   } catch(err) {
-    console.warn(`${TITLE} | The second heal could not be offered — use it from the sheet.`, err);
+    log.warn(`The second heal could not be offered — use it from the sheet.`, err);
   }
 });

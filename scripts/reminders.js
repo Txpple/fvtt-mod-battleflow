@@ -3,7 +3,7 @@
  * BEFORE the dice; plus the attack's cover (measured, or ignored by a feat). EDGE layer
  * (ARCHITECTURE.md §7). RULINGS *The gate before the roll*.
  */
-import { MODULE_ID, readFlag, TITLE, activeCombatFor, statContext, sheetModeEffects, rollLabelFor, canApplyTo, whisperNoGM, resolveUuid } from "./core.js";
+import { MODULE_ID, readFlag, activeCombatFor, statContext, sheetModeEffects, rollLabelFor, canApplyTo, whisperNoGM, resolveUuid, log } from "./core.js";
 import { featureNamed, isWorn, lower, namesAnswering } from "./lookup.js";
 import { damagedSince } from "./decide/turn-grants.js";
 import { conditionEntries, effectEntries, reminderEntries } from "./decide/registry.js";
@@ -128,7 +128,7 @@ listen("dnd5e.preRollAttack", "reminders", (config, dialog, message) => {
     dialog.configure = true;
     dialog.options.defaultButton = first.net;
   } catch(err) {
-    console.error(`${TITLE} | Reminder gate failed — rolling natively.`, err);
+    log.error(`Reminder gate failed — rolling natively.`, err);
   }
 });
 
@@ -148,7 +148,7 @@ listen("dnd5e.preRollAttack", "reminders", (config, _dialog, message) => {
     if ( !Array.isArray(roll?.parts) ) return;
     for ( const s of plus ) roll.parts.push(String(s.plus));
   } catch(err) {
-    console.error(`${TITLE} | The attack's plus could not be added — add it by hand.`, err);
+    log.error(`The attack's plus could not be added — add it by hand.`, err);
   }
 });
 
@@ -213,7 +213,7 @@ listen("dnd5e.preRollAttack", "reminders", (config, _dialog, message) => {
     if ( measured.length ) foundry.utils.setProperty(message, `data.flags.${MODULE_ID}.coverMeasured`, { targets: measured });
     if ( ignored.length ) foundry.utils.setProperty(message, `data.flags.${MODULE_ID}.coverIgnored`, { feature: feat.feature, targets: ignored });
   } catch(err) {
-    console.error(`${TITLE} | The attack's cover could not be put on (or taken off) the AC — judge the hit by hand.`, err);
+    log.error(`The attack's cover could not be put on (or taken off) the AC — judge the hit by hand.`, err);
   }
 });
 
@@ -252,7 +252,7 @@ listen("dnd5e.renderChatMessage", "reminders", (message, html) => {
     box.dataset.bfCoverMeasured = `Cover — ${words}`;
     const header = content.querySelector(SURFACES.cardHeader);
     if ( header ) header.after(box); else content.prepend(box);
-  } catch(err) { console.warn(`${TITLE} | The measured cover's line could not draw.`, err); }
+  } catch(err) { log.warn(`The measured cover's line could not draw.`, err); }
 });
 
 // the line: "Sharpshooter — ignores the Goblin's cover (+2 AC)"
@@ -269,7 +269,7 @@ listen("dnd5e.renderChatMessage", "reminders", (message, html) => {
     div.textContent = `${flag.feature} — ignores ${words}`;
     div.dataset.bfCoverLine = div.textContent;
     content.appendChild(div);
-  } catch(err) { console.warn(`${TITLE} | The ignored cover's line could not draw.`, err); }
+  } catch(err) { log.warn(`The ignored cover's line could not draw.`, err); }
 });
 
 /** Draw or redraw the section from the form as it stands, default button on the net. Idempotent. */
@@ -326,14 +326,14 @@ listen("renderRollConfigurationDialog", "reminders", (app, element) => {
     openGates.add(app);
     drawGate(app);
   } catch(err) {
-    console.error(`${TITLE} | Reminder section failed to draw.`, err);
+    log.error(`Reminder section failed to draw.`, err);
   }
 });
 
 // A re-target fires no dialog render; the judgement follows the canvas.
 listen("targetToken", "reminders", () => {
   for ( const app of openGates ) {
-    if ( app.rendered && app.element ) { try { drawGate(app, { force: true }); } catch(err) { console.error(`${TITLE} | Reminder section failed to redraw.`, err); } }
+    if ( app.rendered && app.element ) { try { drawGate(app, { force: true }); } catch(err) { log.error(`Reminder section failed to redraw.`, err); } }
     else openGates.delete(app);
   }
 });
@@ -373,7 +373,7 @@ listen("dnd5e.preRollAbilityCheck", "reminders", (config, dialog, _message) => {
     dialog.configure = true;
     dialog.options.defaultButton = gate.net;
   } catch(err) {
-    console.error(`${TITLE} | Check gate failed — rolling natively.`, err);
+    log.error(`Check gate failed — rolling natively.`, err);
   }
 });
 
@@ -404,7 +404,7 @@ listen("dnd5e.postRollConfiguration", "reminders", (rolls, config, _dialog, mess
       ...statContext(gate.actorUuid)
     });
   } catch(err) {
-    console.error(`${TITLE} | Check gate record failed.`, err);
+    log.error(`Check gate record failed.`, err);
   }
 });
 
@@ -429,7 +429,7 @@ listen("dnd5e.postRollConfiguration", "reminders", (rolls, config, _dialog, mess
       });
     }
   } catch(err) {
-    console.error(`${TITLE} | Reminder record failed.`, err);
+    log.error(`Reminder record failed.`, err);
   }
 });
 
@@ -619,7 +619,7 @@ function circleSourcesFor(attacker, targetToken, attackerName) {
       const bend = circleBend(row, { attackerType, picked: f.picked ?? askDefaults(row.ask), targetInside: inside });
       if ( bend ) out.push(reminderSource("effect", bend.bend, `${attackerName} — ${bend.label}`, row.rule));
     }
-  } catch(err) { console.warn(`${TITLE} | The circle's gate could not be read.`, err); }
+  } catch(err) { log.warn(`The circle's gate could not be read.`, err); }
   return out;
 }
 
@@ -836,7 +836,7 @@ listen("dnd5e.preRollSavingThrow", "reminders", (config, dialog, _message) => {
     // Fails/Succeeds take focus themselves; the dialog's own default stays Normal behind them.
     dialog.options.defaultButton = (gate.autoFail || gate.autoSucceed) ? "normal" : gate.net;
   } catch(err) {
-    console.error(`${TITLE} | Save gate failed — rolling natively.`, err);
+    log.error(`Save gate failed — rolling natively.`, err);
   }
 });
 
@@ -913,7 +913,7 @@ function postSheetAutoFail(gate) {
     }),
     flags: { [MODULE_ID]: { saveAutoFail: { ...statContext(actor.uuid), ability: gate.ability,
       sources: failing.map(s => ({ status: s.status, label: s.label })) } } }
-  }).catch(err => console.error(`${TITLE} | Automatic-failure card failed.`, err));
+  }).catch(err => log.error(`Automatic-failure card failed.`, err));
 }
 
 // The save's record: the attack gate's flag, on the save message.
@@ -929,7 +929,7 @@ listen("dnd5e.postRollConfiguration", "reminders", (rolls, config, _dialog, mess
     });
     void spendSaveEffects(gate);
   } catch(err) {
-    console.error(`${TITLE} | Save gate record failed.`, err);
+    log.error(`Save gate record failed.`, err);
   }
 });
 
@@ -949,6 +949,6 @@ async function spendSaveEffects(gate) {
     }
     await actor.deleteEmbeddedDocuments("ActiveEffect", live);
   } catch(err) {
-    console.error(`${TITLE} | The save's spend failed.`, err);
+    log.error(`The save's spend failed.`, err);
   }
 }

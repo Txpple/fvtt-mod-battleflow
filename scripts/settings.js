@@ -4,7 +4,7 @@
  * edited in its own window (summon-art.js). Everything else is the module itself and always on. Two of the
  * ten own dnd5e's Visibility menu, so a fresh world plays with the results on the table (issue #4).
  */
-import { MODULE_ID, S, TITLE, isActiveGM, setting } from "./core.js";
+import { MODULE_ID, S, isActiveGM, setting, log } from "./core.js";
 import { ROLL_RESULTS, bloodiedFor, visibilityWrites } from "./decide/visibility.js";
 import { KIND_SETS, interruptEntries, blockEntries, maneuverFoldEntries, d20FoldEntries,
   riderEntries, riderUpgradeEntries } from "./decide/registry.js";
@@ -21,13 +21,13 @@ async function syncVisibility() {
   const have = {};
   for ( const key of Object.keys(want) ) {
     if ( game.settings.settings.has(`dnd5e.${key}`) ) have[key] = game.settings.get("dnd5e", key);
-    else console.warn(`${TITLE} | dnd5e has no ${key} setting; its visibility is left alone.`);
+    else log.warn(`dnd5e has no ${key} setting; its visibility is left alone.`);
   }
   // All at once, not one after another: on a GM load a world-setting write takes seconds to settle
   // while the client is still busy, and three in a row left keys queued long after ready (issue #5).
   await Promise.all(visibilityWrites(want, have).map(([key, value]) =>
     game.settings.set("dnd5e", key, value)
-      .catch(err => console.warn(`${TITLE} | Could not set dnd5e's ${key}.`, err))));
+      .catch(err => log.warn(`Could not set dnd5e's ${key}.`, err))));
 }
 
 listenOnce("ready", "settings", syncVisibility);

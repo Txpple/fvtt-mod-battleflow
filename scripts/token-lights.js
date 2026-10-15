@@ -1,7 +1,7 @@
 /**
  * By the Books — token lights, senses and sizes: a use or effect whose text changes the token, carried on an effect.
  */
-import { MODULE_ID, readFlag, TITLE, canApplyTo, drivesMomentFor, isActiveGM, queueFlagWrite, statContext, resolveUuid, resolveUuidAsync } from "./core.js";
+import { MODULE_ID, readFlag, canApplyTo, drivesMomentFor, isActiveGM, queueFlagWrite, statContext, resolveUuid, resolveUuidAsync, log } from "./core.js";
 import { ruleHTML } from "./rule-text.js";
 import { lower, namesAnswering } from "./lookup.js";
 import { tokenLightEntries, tokenSenseEntries, tokenSizeEntries, listedNames } from "./decide/registry.js";
@@ -39,7 +39,7 @@ listen("dnd5e.preUseActivity", "token-lights", (activity, usageConfig) => {
     if ( (row?.on !== "targets") || !game.user.targets.size ) return;
     usageConfig.create ??= {};
     usageConfig.create.summons = false;
-  } catch(err) { console.warn(`${TITLE} | Could not switch off the summon for a token light.`, err); }
+  } catch(err) { log.warn(`Could not switch off the summon for a token light.`, err); }
 });
 
 listen("dnd5e.postUseActivity", "token-lights", (activity, usageConfig, results) => {
@@ -62,10 +62,10 @@ listen("dnd5e.postUseActivity", "token-lights", (activity, usageConfig, results)
     if ( !targets.length ) return;
     const payload = { ...statContext(actor.uuid), key: row.key, itemUuid: activity.item.uuid, activityUuid: activity.uuid,
       targets, done: false };
-    if ( message ) void message.setFlag(MODULE_ID, LIGHT_FLAG, payload).catch(err => console.error(`${TITLE} | Could not stamp the token light.`, err));
+    if ( message ) void message.setFlag(MODULE_ID, LIGHT_FLAG, payload).catch(err => log.error(`Could not stamp the token light.`, err));
     else void applyLight(payload);   // no card to carry it: this client lands what it may
   } catch(err) {
-    console.error(`${TITLE} | Token light failed — set the token's light by hand.`, err);
+    log.error(`Token light failed — set the token's light by hand.`, err);
   }
 });
 
@@ -86,7 +86,7 @@ function standingLights(key, sourceUuid) {
 /** The caster's standing light of a row put out where this client may write (a recast on an object). */
 async function putOutStanding(key, sourceUuid) {
   for ( const e of standingLights(key, sourceUuid) ) {
-    if ( canApplyTo(e.parent) ) await e.delete().catch(err => console.warn(`${TITLE} | Could not put the earlier light out — delete it by hand.`, err));
+    if ( canApplyTo(e.parent) ) await e.delete().catch(err => log.warn(`Could not put the earlier light out — delete it by hand.`, err));
   }
 }
 
@@ -212,9 +212,9 @@ listen("deleteActiveEffect", "token-lights", effect => {
     if ( still ) return;
     const lit = actor.effects.filter(e => keys.includes(readFlag(e, LIGHT_FLAG)?.key));
     if ( lit.length ) void actor.deleteEmbeddedDocuments("ActiveEffect", lit.map(e => e.id))
-      .catch(err => console.warn(`${TITLE} | Could not put the light out — delete it by hand.`, err));
+      .catch(err => log.warn(`Could not put the light out — delete it by hand.`, err));
   } catch(err) {
-    console.warn(`${TITLE} | Could not put an enchantment's light out — delete it by hand.`, err);
+    log.warn(`Could not put an enchantment's light out — delete it by hand.`, err);
   }
 });
 
@@ -232,7 +232,7 @@ listen("preCreateActiveEffect", "token-lights", (effect, data) => {
     const changes = [...(effect._source.system?.changes ?? data?.system?.changes ?? [])];
     if ( carriesSense(changes) ) return;
     effect.updateSource({ "system.changes": [...changes, ...senseChanges(TOKEN_SENSES[key])] });
-  } catch(err) { console.warn(`${TITLE} | Could not add the token sense — set the token's vision by hand.`, err); }
+  } catch(err) { log.warn(`Could not add the token sense — set the token's vision by hand.`, err); }
 });
 
 // TOKEN SIZES: the senses' shape — size, width and height added as the pack's effect is created; a step
@@ -250,5 +250,5 @@ listen("preCreateActiveEffect", "token-lights", (effect, data) => {
     const size = sizeAfter(found.entry, actor.system?.traits?.size ?? "med", sizes);
     if ( !size ) return;
     effect.updateSource({ "system.changes": [...changes, ...sizeChanges(size, sizes)] });
-  } catch(err) { console.warn(`${TITLE} | Could not add the size — resize the token by hand.`, err); }
+  } catch(err) { log.warn(`Could not add the size — resize the token by hand.`, err); }
 });

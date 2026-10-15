@@ -3,7 +3,7 @@
  * can read it and the roll can spend it; plus the card chips (Tinker) and the coatings (Poisoner).
  * EDGE layer (ARCHITECTURE.md §7).
  */
-import { MODULE_ID, readFlag, TITLE, statContext, queueFlagWrite, drivesMomentFor, resolveUuid, resolveUuidAsync } from "./core.js";
+import { MODULE_ID, readFlag, statContext, queueFlagWrite, drivesMomentFor, resolveUuid, resolveUuidAsync, log } from "./core.js";
 import { CARD, isCard, targetsOf } from "./decide/card.js";
 import { messageActivity } from "./effect-riders.js";
 import { ruleHTML } from "./rule-text.js";
@@ -37,7 +37,7 @@ listen("dnd5e.postUseActivity", "use-chips", (activity, _usageConfig, results) =
     const message = (results?.message instanceof ChatMessage) ? results.message : null;
     void writeUseChip(actor, item, USE_CHIPS[key], message);
   } catch(err) {
-    console.error(`${TITLE} | Use chip failed — apply the feature by hand.`, err);
+    log.error(`Use chip failed — apply the feature by hand.`, err);
   }
 });
 
@@ -82,7 +82,7 @@ listen("createChatMessage", "use-chips", message => {
       void writeMissChips(attacker, item, row, missed, message);
     }
   } catch(err) {
-    console.error(`${TITLE} | The miss chip failed — note the Advantage by hand.`, err);
+    log.error(`The miss chip failed — note the Advantage by hand.`, err);
   }
 });
 
@@ -109,7 +109,7 @@ listen("createChatMessage", "use-chips", message => {
       }
     }
   } catch(err) {
-    console.error(`${TITLE} | The hit chip failed — note the AC by hand.`, err);
+    log.error(`The hit chip failed — note the AC by hand.`, err);
   }
 });
 
@@ -189,9 +189,9 @@ listen("dnd5e.postUseActivity", "use-chips", (activity, _usageConfig, results) =
     if ( !key ) return;
     void message.setFlag(MODULE_ID, CARD_FLAG, { ...statContext(actor.uuid), key, chip: CARD_CHIPS[key].chip, made: false })
       .then(() => askCardChip(message))
-      .catch(err => console.error(`${TITLE} | Could not offer ${key}.`, err));
+      .catch(err => log.error(`Could not offer ${key}.`, err));
   } catch(err) {
-    console.error(`${TITLE} | Card chip offer failed — keep the feature by hand.`, err);
+    log.error(`Card chip offer failed — keep the feature by hand.`, err);
   }
 });
 
@@ -212,7 +212,7 @@ async function askCardChip(message) {
     content: `<p>Build a <strong>${esc(row.chip)}</strong>? <strong>${left} of ${row.max}</strong> remaining.</p><p style="opacity:0.75;">It falls apart after 8 hours; what it does is played at the table.</p>`,
     buttons: [
       { action: "build", label: "Build it", icon: "fa-solid fa-gear", default: true, callback: () => void buildCardChip(message)
-        .catch(err => console.error(`${TITLE} | Could not build the ${row.chip}.`, err)) },
+        .catch(err => log.error(`Could not build the ${row.chip}.`, err)) },
       { action: "skip", label: "Not now" }
     ] });
 }
@@ -323,10 +323,10 @@ listen("dnd5e.preUseActivity", "use-chips", activity => {
     const actor = activity?.actor;
     if ( !found || !actor?.isOwner ) return;
     void writeCoat(actor, activity, found.name, found.row)
-      .catch(err => console.error(`${TITLE} | ${found.row.chip} could not be written — track it by hand.`, err));
+      .catch(err => log.error(`${found.row.chip} could not be written — track it by hand.`, err));
     return false;   // the pack's enchantment card is not drawn: the chip on the actor IS the use
   } catch(err) {
-    console.error(`${TITLE} | A coating's use failed — use the feature by hand.`, err);
+    log.error(`A coating's use failed — use the feature by hand.`, err);
   }
 });
 
@@ -388,7 +388,7 @@ const floatCoat = (effect, on) => {
         distance: 2 * token.h, fontSize: 28, stroke: 0x000000, strokeThickness: 4, jitter: 0.25
       });
     }
-  } catch(err) { console.warn(`${TITLE} | The coating's float could not draw.`, err); }
+  } catch(err) { log.warn(`The coating's float could not draw.`, err); }
 };
 listen("createActiveEffect", "use-chips", effect => floatCoat(effect, true));
 listen("deleteActiveEffect", "use-chips", effect => floatCoat(effect, false));
@@ -408,7 +408,7 @@ listen("dnd5e.preRollDamage", "use-chips", (config, _dialog, message) => {
       ...statContext(attacker.uuid), status: "due", key: readFlag(chip, COAT_FLAG), chipId: chip.id, attackId: attackMessage.id
     });
   } catch(err) {
-    console.error(`${TITLE} | The coating could not ride the hit — use the feature's save by hand.`, err);
+    log.error(`The coating could not ride the hit — use the feature's save by hand.`, err);
   }
 });
 
@@ -469,7 +469,7 @@ async function spendCoat(message) {
     // The DMG — the vial is spent on the hit (its dose went at the use; the vial itself goes now).
     if ( found.row.item && feature && !dosesLeft({ max: feature.system?.uses?.max, spent: feature.system?.uses?.spent }) ) await consumeVial(feature);
   } catch(err) {
-    console.error(`${TITLE} | The coating's save failed — use the feature's save by hand.`, err);
+    log.error(`The coating's save failed — use the feature's save by hand.`, err);
   } finally {
     spending.delete(message.id);
   }

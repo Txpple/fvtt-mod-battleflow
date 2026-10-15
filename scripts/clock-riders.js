@@ -1,7 +1,7 @@
 /**
  * By the Books — damage riders on the combat clock: a feature's extra damage rides the hit when the round or the turn says so.
  */
-import { MODULE_ID, readFlag, TITLE, activeCombatFor, canAnswerFor, drivesMomentFor, queueFlagWrite, statContext, resolveUuid } from "./core.js";
+import { MODULE_ID, readFlag, TITLE, activeCombatFor, canAnswerFor, drivesMomentFor, queueFlagWrite, statContext, resolveUuid, log } from "./core.js";
 import { ruleHTML } from "./rule-text.js";
 import { lower, featureNamed, itemNamed, activityNamed, activityOfType, asiAssigned, cardActivity, dealtTypesOf, pactWeaponFits, wieldsAs, wornNamed } from "./lookup.js";
 import { coatSaveAbility } from "./decide/chips.js";
@@ -336,13 +336,13 @@ function clockRiderOfferParts(attackMessage, activity) {
           const o = a.options.find(x => x.value === picked);
           if ( o?.due && o.key ) chosen.add(o.key);
         } catch(err) {
-          console.error(`${TITLE} | Could not keep the ${a.feature} option — it will be asked again.`, err);
+          log.error(`Could not keep the ${a.feature} option — it will be asked again.`, err);
         }
       }
       try {
         await attackMessage.setFlag(MODULE_ID, "clockPick", [...chosen]);
       } catch(err) {
-        console.error(`${TITLE} | Could not record the rider pick — every due rider rides.`, err);
+        log.error(`Could not record the rider pick — every due rider rides.`, err);
       }
     }
   };
@@ -396,7 +396,7 @@ listen("dnd5e.preRollDamage", "clock-riders", (config, _dialog, message) => {
       }
       // The Inspired die is spent as it rides: the effect is the die (d20-folds.js BARDIC's spend).
       if ( r.inspired ) void attacker.effects.get(r.inspired.effectId)?.delete()
-        .catch(err => console.warn(`${TITLE} | Could not spend the Inspired die — delete it by hand.`, err));
+        .catch(err => log.warn(`Could not spend the Inspired die — delete it by hand.`, err));
       record.push({ key: r.key, label: r.label, formula: r.formula, type, why: r.why, rule: r.row.rule,
         ...(r.says ? { says: r.says } : {}),
         ...(r.inspired ? { spent: `${r.inspired.bard}'s Inspired die spent` } : {}),
@@ -424,14 +424,14 @@ listen("dnd5e.preRollDamage", "clock-riders", (config, _dialog, message) => {
         void writeTurnChit(attacker, "rider", { name: `${r.label} — used this turn`, img: r.feature.img ?? null,
           description: `${r.label} has ridden a hit this turn (${r.feature.name}). Once per turn; this chit ends with the turn.`,
           origin: r.feature.uuid, riderKey: r.key })
-          .catch(err => console.warn(`${TITLE} | Could not write the ${r.label} chit.`, err));
+          .catch(err => log.warn(`Could not write the ${r.label} chit.`, err));
       }
       if ( r.row.uses && r.activity && r.uses ) {
         const spent = r.uses.spent + 1;
         const write = r.uses.item
           ? r.uses.item.update({ "system.uses.spent": spent })
           : r.feature.update({ [`system.activities.${r.activity.id}.uses.spent`]: spent });
-        void write.catch(err => console.warn(`${TITLE} | Could not spend a use of ${r.label}.`, err));
+        void write.catch(err => log.warn(`Could not spend a use of ${r.label}.`, err));
         // The uniform pool-spend record (shared.js poolSpendsOn).
         const max = r.uses.max;
         if ( max > 0 ) spends.push({ pool: r.uses.item ? r.uses.item.name : (r.activity.name || r.feature.name), spent: 1, left: Math.max(0, max - spent), max,
@@ -442,7 +442,7 @@ listen("dnd5e.preRollDamage", "clock-riders", (config, _dialog, message) => {
       { ...statContext(attacker?.uuid ?? null), attackId: attackMessage.id, riders: record });
     if ( spends.length ) foundry.utils.setProperty(message, `data.flags.${MODULE_ID}.poolSpend`, spends);
   } catch(err) {
-    console.error(`${TITLE} | Clock rider failed to ride — add its damage by hand.`, err);
+    log.error(`Clock rider failed to ride — add its damage by hand.`, err);
   }
 });
 
@@ -473,7 +473,7 @@ async function settleRiderEffects(message) {
           const target = resolveUuid(h.uuid);
           const marker = r.bearerUuid ? resolveUuid(r.bearerUuid) : null;
           const gone = (target?.effects ?? []).filter(e => (lower(e.name) === lower(r.endsMark)) && (!marker || wearsMarkOf(target, marker, r.endsMark))).map(e => e.id);
-          if ( gone.length ) await target.deleteEmbeddedDocuments("ActiveEffect", gone).catch(err => console.warn(`${TITLE} | ${r.label}: the mark could not be removed — end it by hand.`, err));
+          if ( gone.length ) await target.deleteEmbeddedDocuments("ActiveEffect", gone).catch(err => log.warn(`${r.label}: the mark could not be removed — end it by hand.`, err));
         }
         if ( !r.save && !r.effects && !r.lands && !r.random && !r.tempHp && !r.exhaustion ) continue;
       }
@@ -524,7 +524,7 @@ async function settleRiderEffects(message) {
       await applyActivityEffectsOnHit(message, activity, hits, { clock: r.clock ?? null, attacker, source: statSourceOf(message) });
     }
   } catch(err) {
-    console.error(`${TITLE} | A clock rider's effect failed to apply — apply it by hand.`, err);
+    log.error(`A clock rider's effect failed to apply — apply it by hand.`, err);
   }
 }
 
@@ -575,9 +575,9 @@ async function destroyAfterReceipt(message) {
 listen("updateChatMessage", "clock-riders", message => {
   try {
     if ( hasReceipt(message) && readFlag(message, "clockRiders")?.riders?.some?.(r => r.destroy && !r.destroyed) ) {
-      void destroyAfterReceipt(message).catch(err => console.error(`${TITLE} | The destroy could not land — set it by hand.`, err));
+      void destroyAfterReceipt(message).catch(err => log.error(`The destroy could not land — set it by hand.`, err));
     }
-  } catch(err) { console.warn(`${TITLE} | The destroy check failed.`, err); }
+  } catch(err) { log.warn(`The destroy check failed.`, err); }
 });
 
 // The card says it (R5): an item's property rode this hit — what it does, and what it did.
@@ -596,7 +596,7 @@ listen("dnd5e.renderChatMessage", "clock-riders", (message, html) => {
       return bfCard({ eyebrow: r.label, tone: "good", title: `${r.label} — ${r.why}`, subtitle: `${what}${did}`, lines: [ruleLine(r.rule)] });
     }).join("");
     content.appendChild(wrap);
-  } catch(err) { console.warn(`${TITLE} | The item's rider line could not draw.`, err); }
+  } catch(err) { log.warn(`The item's rider line could not draw.`, err); }
 });
 
 /* --- the form chip: a transformation that marks nothing on its bearer (Necrotic Shroud) --------- */
@@ -615,7 +615,7 @@ listen("dnd5e.postUseActivity", "clock-riders", activity => {
       if ( form ) void writeFormChip(actor, activity, key, row, form);
     }
   } catch(err) {
-    console.error(`${TITLE} | Could not mark the transformation — its extra damage is yours to add.`, err);
+    log.error(`Could not mark the transformation — its extra damage is yours to add.`, err);
   }
 });
 
@@ -628,7 +628,7 @@ async function writeFormChip(actor, activity, key, row, form) {
     origin: activity.item.uuid, disabled: false, transfer: false,
     duration: activity.duration?.getEffectData?.() ?? {},
     flags: { [MODULE_ID]: { [FORM_FLAG]: { riderKey: key, form: lower(form.form) } } }
-  }, { parent: actor }).catch(err => console.warn(`${TITLE} | Could not write the ${form.form} chip.`, err));
+  }, { parent: actor }).catch(err => log.warn(`Could not write the ${form.form} chip.`, err));
 }
 
 /* --- a spell's damage with no attack roll: the ONE target is the caster's pick ------------------ */
@@ -661,7 +661,7 @@ listen("dnd5e.renderChatMessage", "clock-riders", (message, html) => {
       for ( const o of r.follow.options ) row.appendChild(momentButton(o.label, () => void pickThen(message, r.key, o, attacker)));
       content.appendChild(row);
     }
-  } catch(err) { console.warn(`${TITLE} | The rider's follow-up could not draw.`, err); }
+  } catch(err) { log.warn(`The rider's follow-up could not draw.`, err); }
 });
 
 /** The pick: a `says` option is the reminder (the card says it); an `activity` option is used at the enemies within its
@@ -688,7 +688,7 @@ async function pickThen(message, key, option, attacker) {
       : [];
     await withTargets(targets, () => act.use({ subsequentActions: false, create: { measuredTemplate: false } }, { configure: false }, {}));
   } catch(err) {
-    console.error(`${TITLE} | ${option.label} could not be used — use it from the sheet.`, err);
+    log.error(`${option.label} could not be used — use it from the sheet.`, err);
   }
 }
 
@@ -779,7 +779,7 @@ listen("dnd5e.renderChatMessage", "clock-riders", (message, html) => {
       html.querySelector(SURFACES.messageContent)?.appendChild(row);
     }
   } catch(err) {
-    console.warn(`${TITLE} | Could not offer the spell's extra damage — add it by hand.`, err);
+    log.warn(`Could not offer the spell's extra damage — add it by hand.`, err);
   }
 });
 
@@ -815,10 +815,10 @@ listen("dnd5e.renderChatMessage", "clock-riders", (message, html) => {
             rider.offerUsed = true;
           });
         }
-      })().catch(err => console.error(`${TITLE} | ${r.offers.activity} could not be used — use it from the sheet.`, err))));
+      })().catch(err => log.error(`${r.offers.activity} could not be used — use it from the sheet.`, err))));
       content.appendChild(row);
     }
-  } catch(err) { console.warn(`${TITLE} | The rider's offer could not draw.`, err); }
+  } catch(err) { log.warn(`The rider's offer could not draw.`, err); }
 });
 
 /** The caster's pick, on the spell's damage card (the caster rolled it — the caster may write it). */
@@ -868,13 +868,13 @@ async function driveSpellRider(message) {
       if ( u ) {
         const write = u.item ? u.item.update({ "system.uses.spent": u.spent + 1 })
           : (act ? feature.update({ [`system.activities.${act.id}.uses.spent`]: u.spent + 1 }) : Promise.resolve());
-        await write.catch(err => console.warn(`${TITLE} | Could not spend a use of ${p.label}.`, err));
+        await write.catch(err => log.warn(`Could not spend a use of ${p.label}.`, err));
       }
     }
     if ( caster && (CLOCK_RIDERS[p.key]?.when === "oncePerTurn") ) {
       await writeTurnChit(caster, "rider", { name: `${p.label} — used this turn`, img: feature?.img ?? null,
         description: `${p.label} has ridden a spell's damage this turn. Once per turn; this chit ends with the turn.`,
-        origin: feature?.uuid ?? null, riderKey: p.key }).catch(err => console.warn(`${TITLE} | Could not write the ${p.label} chit.`, err));
+        origin: feature?.uuid ?? null, riderKey: p.key }).catch(err => log.warn(`Could not write the ${p.label} chit.`, err));
     }
     await queueFlagWrite(message, SPELL_FLAG, current => { if ( current[p.key] ) current[p.key].applied = true; });
   }
@@ -917,6 +917,6 @@ async function clearOption(feature) {
     await feature.unsetFlag(MODULE_ID, OPTION_FLAG);
     ui.notifications?.info(`${TITLE}: ${feature.name} — the next hit asks which option again.`);
   } catch(err) {
-    console.error(`${TITLE} | Could not clear the ${feature?.name} option.`, err);
+    log.error(`Could not clear the ${feature?.name} option.`, err);
   }
 }

@@ -6,7 +6,7 @@
  * AC, a demanded save's DC); a raw check has no DC in dnd5e, so a check's fold is always a
  * button. Depend downward only: core → decide → spine (ui) → here.
  */
-import { MODULE_ID, readFlag, TITLE, S, setting, queueFlagWrite, canAnswerFor, isActiveGM, statContext, decisionWindow, resolveUuid, resolveUuidAsync } from "./core.js";
+import { MODULE_ID, readFlag, TITLE, S, setting, queueFlagWrite, canAnswerFor, isActiveGM, statContext, decisionWindow, resolveUuid, resolveUuidAsync, log } from "./core.js";
 import { ruleHTML } from "./rule-text.js";
 import { answers, d20FoldEntries, metamagicEntries, listedNames } from "./decide/registry.js";
 import { activityNamed, cardActivity, featureNamed, itemNamed, itemsNamed, lower, resolveDie, rerollD20, wieldedNamed, wornNamed } from "./lookup.js";
@@ -59,7 +59,7 @@ const TACTICAL = {
       if ( c.type !== "itemUses" ) continue;
       const pool = c.target ? actor.items.get(c.target) : item;
       if ( !pool ) {
-        warnOnce(`${entry.name}|unremapped`, `${TITLE} | "${entry.name}" consumes uses of an item `
+        warnOnce(`${entry.name}|unremapped`, `"${entry.name}" consumes uses of an item `
           + `this actor does not have (target "${c.target}"). If that looks like a compendium `
           + "UUID rather than an id, the actor's copy of the pool item was not imported from the "
           + "pack the feature expects, so dnd5e could not re-link it — the fold stays off.");
@@ -90,7 +90,7 @@ const BARDIC = {
   die: marker => {
     const bard = grantingActor(marker.effect);
     if ( !bard ) {
-      warnOnce(`bardic|${marker.effect.id}`, `${TITLE} | "${marker.effect.name}" does not lead back `
+      warnOnce(`bardic|${marker.effect.id}`, `"${marker.effect.name}" does not lead back `
         + `to the actor who granted it (origin "${marker.effect.origin}"), and the die size is `
         + "theirs to know — the fold stays off rather than guessing one.");
       return null;
@@ -100,7 +100,7 @@ const BARDIC = {
     const scale = foundry.utils.getProperty(bard.getRollData(), "scale.bard.inspiration");
     const formula = scale?.formula ?? scale?.die ?? null;
     if ( (typeof formula !== "string") || !formula.trim() ) {
-      warnOnce(`bardic|scale|${bard.id}`, `${TITLE} | ${bard.name} has no readable bard inspiration `
+      warnOnce(`bardic|scale|${bard.id}`, `${bard.name} has no readable bard inspiration `
         + "scale value, so the die they grant cannot be known — the fold stays off rather than "
         + "guessing a d6.");
       return null;
@@ -261,7 +261,7 @@ const REROLL = {
     // A row with no bonus (Disciplined Survivor) rerolls flat; a bonus the sheet cannot resolve keeps the fold off.
     const bonus = (row.bonus === null) ? 0 : rerollBonus(actor, item, row);
     if ( bonus === null ) {
-      warnOnce(`reroll|${key}|${actor.id}`, `${TITLE} | ${actor.name}'s ${key} bonus (${row.bonus}) could not be read off `
+      warnOnce(`reroll|${key}|${actor.id}`, `${actor.name}'s ${key} bonus (${row.bonus}) could not be read off `
         + "the sheet, so the fold stays off rather than guessing a number.");
       return null;
     }
@@ -335,7 +335,7 @@ const warned = new Set();
 function warnOnce(key, message) {
   if ( warned.has(key) ) return;
   warned.add(key);
-  console.warn(message);
+  log.warn(message);
 }
 
 /** A `tactical` entry with a SCOPE of its own — the Battle Master's Ambush / Tactical Assessment (decide/registry.js SUPERIORITY_FOLDS). */
@@ -454,7 +454,7 @@ listen("dnd5e.rollAttack", "d20-folds", async (rolls, { subject }) => {
     });
     armFoldTimer(message);
   } catch(err) {
-    console.error(`${TITLE} | D20 fold stamp (attack) failed.`, err);
+    log.error(`D20 fold stamp (attack) failed.`, err);
   }
 });
 
@@ -492,7 +492,7 @@ for ( const [hook, testKind] of PLAIN_HOOKS ) {
         { ...baseFlag(subject, offers, testKind, rolls[0].total, window), ...(skill ? { skill } : {}), ...(ability ? { ability } : {}) });
       armFoldTimer(message);
     } catch(err) {
-      console.error(`${TITLE} | D20 fold stamp (${hook}) failed.`, err);
+      log.error(`D20 fold stamp (${hook}) failed.`, err);
     }
   });
 }
@@ -531,7 +531,7 @@ listen("dnd5e.rollInitiative", "d20-folds", async (actor, combatants) => {
       && ((m.speaker?.actor === actor.id) || (m.getAssociatedActor?.()?.uuid === actor.uuid)));
     await stampInitiative(actor, combatants, message);
   } catch(err) {
-    console.error(`${TITLE} | D20 fold stamp (initiative) failed.`, err);
+    log.error(`D20 fold stamp (initiative) failed.`, err);
   }
 });
 
@@ -545,7 +545,7 @@ listen("createChatMessage", "d20-folds", async message => {
     const combatants = game.combat?.combatants?.filter(c => c.actor?.uuid === actor.uuid) ?? [];
     await stampInitiative(actor, combatants, message);
   } catch(err) {
-    console.error(`${TITLE} | D20 fold stamp (initiative message) failed.`, err);
+    log.error(`D20 fold stamp (initiative message) failed.`, err);
   }
 });
 
@@ -589,7 +589,7 @@ async function offerFoldOnSave(rollMessage, card, uuid, total, dc, by = null) {
     armFoldTimer(rollMessage);
     return true;
   } catch(err) {
-    console.error(`${TITLE} | D20 fold offer on save failed.`, err);
+    log.error(`D20 fold offer on save failed.`, err);
     return false;   // ⚠ fail OPEN: a broken offer must never swallow a save's verdict
   }
 }
@@ -601,7 +601,7 @@ async function resumeWithheldSave(flag, rollMessage) {
   try {
     await resumeWithheld(flag.resume.by ?? null, flag.resume, rollMessage);
   } catch(err) {
-    console.error(`${TITLE} | resuming the withheld save failed.`, err);
+    log.error(`resuming the withheld save failed.`, err);
   }
 }
 
@@ -805,7 +805,7 @@ async function resolveFold(message, answer) {
       const combat = flag.combatId ? game.combats.get(flag.combatId) : game.combat;
       for ( const id of (flag.combatantIds ?? []) ) {
         const c = combat?.combatants?.get(id);
-        if ( c ) await c.update({ initiative: composed.total }).catch(err => console.warn(`${TITLE} | Could not move the initiative.`, err));
+        if ( c ) await c.update({ initiative: composed.total }).catch(err => log.warn(`Could not move the initiative.`, err));
       }
       lines.push(`Initiative <strong>${flag.baseTotal} → ${composed.total}</strong> — the order is updated.`);
     }
@@ -835,7 +835,7 @@ async function resolveFold(message, answer) {
     if ( setting(S.playerRollDamage) ) return void offerDamageRoll(attackActivity, message);
     await rollDamageForAttack(attackActivity, message);
   } catch(err) {
-    console.error(`${TITLE} | D20 fold resolution failed.`, err);
+    log.error(`D20 fold resolution failed.`, err);
   } finally {
     foldInFlight.delete(message.id);
   }
@@ -974,7 +974,7 @@ listen("dnd5e.renderChatMessage", "d20-folds", cardRow((message, host) => {
       host.append(block);
     }
   } catch(err) {
-    console.error(`${TITLE} | D20 fold render failed.`, err);
+    log.error(`D20 fold render failed.`, err);
   }
 }));
 
@@ -1186,7 +1186,7 @@ listen("dnd5e.postUseActivity", "d20-folds", async (activity, usageConfig, resul
     if ( readFlag(message, "foldSpend") || usageConfig?.data?.flags?.[MODULE_ID]?.foldSpend ) return;
     const formula = resolveDie(actor, activity.roll?.formula || null);
     const rolled = formula ? await rollDie(formula, actor) : null;
-    if ( !rolled ) { console.warn(`${TITLE} | ${entry.name}'s die could not be read off the sheet — add it by hand.`); return; }
+    if ( !rolled ) { log.warn(`${entry.name}'s die could not be read off the sheet — add it by hand.`); return; }
     await rolled.roll.toMessage({ speaker: ChatMessage.getSpeaker({ actor }), flavor: `${entry.name} — the die` });
     const total = Number(rolled.summary.total) || 0;
     const stale = actor.effects.filter(e => (readFlag(e, CHIP_FLAG) === "use") && (readFlag(e, "useKey") === ARMED_KEY) && (readFlag(e, "armed")?.name === entry.name));
@@ -1197,7 +1197,7 @@ listen("dnd5e.postUseActivity", "d20-folds", async (activity, usageConfig, resul
       description: `${await ruleHTML(scope.rule)}<p>Written by By the Books when ${esc(entry.name)} was used: the die rolled ${total}; the next ${what} adds it.</p>`,
       origin: activity.item.uuid, disabled: false, transfer: false,
       flags: { [MODULE_ID]: { [CHIP_FLAG]: "use", useKey: ARMED_KEY, armed: { name: entry.name, total, skills: [...(scope.skills ?? [])], initiative: !!scope.initiative, cardId: message?.id ?? null } } }
-    }, { parent: actor }).catch(err => { console.error(`${TITLE} | ${entry.name} could not be armed — add the die by hand.`, err); return null; });
+    }, { parent: actor }).catch(err => { log.error(`${entry.name} could not be armed — add the die by hand.`, err); return null; });
     if ( !message ) return;
     const window = decisionWindow();
     await message.setFlag(MODULE_ID, "tacticalArmed", { ...statContext(actor.uuid), name: entry.name, total, what, rule: scope.rule,
@@ -1205,7 +1205,7 @@ listen("dnd5e.postUseActivity", "d20-folds", async (activity, usageConfig, resul
       itemImg: activity.item.img ?? null, chipId: chip?.id ?? null, spent: null,
       ...(window ? { window, deadline: Date.now() + (window * 1000) } : {}) });
   } catch(err) {
-    console.error(`${TITLE} | A maneuver's use failed to arm — add the die by hand.`, err);
+    log.error(`A maneuver's use failed to arm — add the die by hand.`, err);
   }
 });
 
@@ -1231,7 +1231,7 @@ async function applyArmedFold(message, actor, testKind, { skill = null, combatan
     const combat = flag.combatId ? game.combats.get(flag.combatId) : game.combat;
     for ( const id of (flag.combatantIds ?? []) ) {
       const c = combat?.combatants?.get(id);
-      if ( c ) await c.update({ initiative: composed.total }).catch(err => console.warn(`${TITLE} | Could not move the initiative.`, err));
+      if ( c ) await c.update({ initiative: composed.total }).catch(err => log.warn(`Could not move the initiative.`, err));
     }
     lines.push(`Initiative <strong>${base} → ${composed.total}</strong> — the order is updated.`);
   }
@@ -1324,7 +1324,7 @@ async function stampRefundAsk(message, actor, offer, marker, numbers = {}) {
       });
     });
   } catch(err) {
-    console.error(`${TITLE} | The ${offer.name} refund ask failed to stamp.`, err);
+    log.error(`The ${offer.name} refund ask failed to stamp.`, err);
   }
 }
 
@@ -1378,7 +1378,7 @@ async function answerRefund(message, choice) {
       })
     });
   } catch(err) {
-    console.error(`${TITLE} | The ${r.poolName} refund failed to write.`, err);
+    log.error(`The ${r.poolName} refund failed to write.`, err);
     ui.notifications?.warn(`${TITLE} | The refund could not be written — restore the use of ${r.poolName} by hand.`);
   }
 }
@@ -1420,7 +1420,7 @@ listen("dnd5e.renderChatMessage", "d20-folds", cardRow((message, host) => {
       answer: may && `Answer — ${r.label}`
     });
   } catch(err) {
-    console.error(`${TITLE} | The refund ask failed to render.`, err);
+    log.error(`The refund ask failed to render.`, err);
   }
 }));
 
@@ -1469,7 +1469,7 @@ function floorRolls(config, actor, facts) {
 
 listen("dnd5e.preRollAttack", "d20-folds", config => {
   try { floorRolls(config, config?.subject?.item?.actor ?? config?.subject?.actor ?? null, { test: "attack" }); }
-  catch(err) { console.error(`${TITLE} | The d20 floor could not be set on the attack.`, err); }
+  catch(err) { log.error(`The d20 floor could not be set on the attack.`, err); }
 });
 listen("dnd5e.preRollSavingThrow", "d20-folds", config => {
   try {
@@ -1478,11 +1478,11 @@ listen("dnd5e.preRollSavingThrow", "d20-folds", config => {
     floorRolls(config, config?.subject ?? null, death ? { test: "death" }
       : { test: "save", ability: config?.ability ?? null, concentration: !!config?.isConcentration });
   }
-  catch(err) { console.error(`${TITLE} | The d20 floor could not be set on the save.`, err); }
+  catch(err) { log.error(`The d20 floor could not be set on the save.`, err); }
 });
 listen("dnd5e.preRollAbilityCheck", "d20-folds", config => {
   try { floorRolls(config, config?.subject ?? null, { test: "check", ability: config?.ability ?? null }); }
-  catch(err) { console.error(`${TITLE} | The d20 floor could not be set on the check.`, err); }
+  catch(err) { log.error(`The d20 floor could not be set on the check.`, err); }
 });
 
 // The card says it (R5): the floor that stood on the roll, when the d20 was lifted by it.

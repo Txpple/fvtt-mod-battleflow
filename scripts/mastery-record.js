@@ -10,7 +10,7 @@
  * an over-long list is trimmed there first); the RECORD on the Weapon Mastery feature's card; the PARTY VIEW
  * in the group sheet's header controls. Nothing here decides who may use a mastery — the system does.
  */
-import { MODULE_ID, readFlag, TITLE, isActiveGM, queueFlagWrite, canAnswerFor, statContext, gmIds, resolveUuid } from "./core.js";
+import { MODULE_ID, readFlag, TITLE, isActiveGM, queueFlagWrite, canAnswerFor, statContext, gmIds, resolveUuid, log } from "./core.js";
 import { cardItem, lower } from "./lookup.js";
 import { allowanceOf, fillPicks, recordState, missingPick, restList, trimList } from "./decide/mastery-record.js";
 import { TONE, bfCard, esc, foldedRuleHTML, pickInputHTML } from "./decide/present.js";
@@ -116,7 +116,7 @@ export async function fillActors(actors, cause) {
       const after = recordOf(actor);
       filled.push({ actorUuid: actor.uuid, name: actor.name, picks, allowance: r.allowance, open: after.open });
     } catch(err) {
-      console.error(`${TITLE} | ${actor.name}'s masteries could not be filled — set them on the sheet.`, err);
+      log.error(`${actor.name}'s masteries could not be filled — set them on the sheet.`, err);
     }
   }
   if ( !filled.length ) return null;
@@ -139,14 +139,14 @@ export async function fillActors(actors, cause) {
 // On load, the elect fills the party; after a level-up, the client that levelled fills that one.
 listen("ready", "mastery-record", () => {
   if ( !isActiveGM() ) return;
-  fillActors(partyActors(), "load").catch(err => console.error(`${TITLE} | The mastery fill failed on load.`, err));
+  fillActors(partyActors(), "load").catch(err => log.error(`The mastery fill failed on load.`, err));
 });
 
 listen("dnd5e.advancementManagerComplete", "mastery-record", manager => {
   const actor = manager?.actor;
   if ( !(actor instanceof Actor) || (actor.type !== "character") || !actor.isOwner ) return;
   if ( !isPartyMember(actor.uuid) ) return;
-  fillActors([actor], "level").catch(err => console.error(`${TITLE} | The mastery fill failed after the level-up.`, err));
+  fillActors([actor], "level").catch(err => log.error(`The mastery fill failed after the level-up.`, err));
 });
 
 /* --- the line on the attack card ---------------------------------------------------------------- */
@@ -317,9 +317,9 @@ listen("dnd5e.restCompleted", "mastery-record", (actor, result, config) => {
         title: over ? `${actor.name} — ${over} too many masteries` : r.open ? `${actor.name} — ${r.open} open mastery slot${r.open === 1 ? "" : "s"}` : pool.length ? `${actor.name} — swap a mastery?` : `${actor.name} — masteries`,
         subtitle: over ? "the list is put right at the Long Rest" : "chosen at the Long Rest" }),
       flags: { [MODULE_ID]: { [MASTERY_SWAP_FLAG]: flag } }
-    }).catch(err => console.error(`${TITLE} | The mastery swap could not be asked.`, err));
+    }).catch(err => log.error(`The mastery swap could not be asked.`, err));
   } catch(err) {
-    console.error(`${TITLE} | The mastery swap failed at the rest's end.`, err);
+    log.error(`The mastery swap failed at the rest's end.`, err);
   }
 });
 
@@ -379,7 +379,7 @@ async function landSwap(message) {
     }
     if ( actor instanceof Actor ) after = kindRows(recordOf(actor));
   } catch(err) {
-    console.error(`${TITLE} | ${flag.actorName}'s mastery change failed — set it on the sheet.`, err);
+    log.error(`${flag.actorName}'s mastery change failed — set it on the sheet.`, err);
     outcome = "failed";
   } finally {
     await queueFlagWrite(message, MASTERY_SWAP_FLAG, current => {
@@ -551,7 +551,7 @@ listen("dnd5e.renderChatMessage", "mastery-record", (message, html) => {
     const swap = readFlag(message, MASTERY_SWAP_FLAG);
     if ( swap ) drawSwap(message, html, swap);
   } catch(err) {
-    console.error(`${TITLE} | The mastery record's row could not be drawn.`, err);
+    log.error(`The mastery record's row could not be drawn.`, err);
   }
 });
 

@@ -5,7 +5,7 @@
  * is null. ⚠ Refcounts, opaque keys and explicit release serve BACKLOG *The modal sequence*.
  */
 
-import { MODULE_ID, TITLE, publish } from "./core.js";
+import { MODULE_ID, publish, log } from "./core.js";
 import { listenOnce } from "./dispatch.js";
 
 /** The contract's version, for other modules. */
@@ -53,7 +53,7 @@ export function raiseHold(subject, { reason = "unspecified", bound = null } = {}
     entry = { promise, resolve, count: 1, reason, timer: null, settled: false };
     if ( Number.isFinite(bound) && (Number(bound) > 0) ) {
       entry.timer = setTimeout(() => {
-        console.warn(`${TITLE} | A hold on ${key} (${reason}) outlived its clock — lifting it so nothing waits forever.`);
+        log.warn(`A hold on ${key} (${reason}) outlived its clock — lifting it so nothing waits forever.`);
         settle(key, HOLD_LIFTED);
       }, Number(bound));
     }

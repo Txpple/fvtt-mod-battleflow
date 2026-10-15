@@ -4,7 +4,7 @@
  * are; a cast AC reaction's bonus over the creature hit, whose AC it is. Every client, once, off the
  * record landing; a reload replays nothing.
  */
-import { readFlag, TITLE } from "../core.js";
+import { readFlag, log } from "../core.js";
 import { bentChips } from "../decide/rescue-hit.js";
 import { acChips } from "../decide/dice-chips.js";
 import { duplicateChips } from "../decide/duplicates.js";
@@ -42,7 +42,7 @@ listen("updateChatMessage", "hold/dice", message => {
         riseDice(token, duplicateChips({ faces: target.duplicates.faces, winner: target.duplicates.winner ?? null, absorbed: !!target.duplicates.absorbed }));
       }
     } catch(err) {
-      console.warn(`${TITLE} | the bent roll's dice could not draw.`, err);
+      log.warn(`the bent roll's dice could not draw.`, err);
     }
   }
 });

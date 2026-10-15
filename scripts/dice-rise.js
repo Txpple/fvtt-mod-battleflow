@@ -6,7 +6,7 @@
  * the milliseconds it waits before it shows (a second card that appears once the first has been read).
  */
 
-import { readFlag, TITLE } from "./core.js";
+import { readFlag, log } from "./core.js";
 import { changedDice } from "./decide/dice-chips.js";
 import { listen } from "./dispatch.js";
 import { tokenOf } from "./geometry.js";
@@ -157,7 +157,7 @@ listen("createChatMessage", "dice-rise", message => {
     riseDice(from, rise.chips ?? []);
     if ( rise.drift?.label ) setTimeout(() => driftChip(from, tokenOf(rise.drift.to ?? rise.on), rise.drift.label), 900);
   } catch(err) {
-    console.warn(`${TITLE} | the dice could not draw.`, err);
+    log.warn(`the dice could not draw.`, err);
   }
 });
 
@@ -172,6 +172,6 @@ function platformChanged(message) {
     const token = tokenOf(speaker.token) ?? tokenOf(game.actors?.get(speaker.actor ?? ""));
     riseDice(token, chips);
   } catch(err) {
-    console.warn(`${TITLE} | the changed dice could not draw.`, err);
+    log.warn(`the changed dice could not draw.`, err);
   }
 }

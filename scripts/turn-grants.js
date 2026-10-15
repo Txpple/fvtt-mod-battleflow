@@ -13,7 +13,7 @@
  * Rage); `while: "raging"` pays only while the Rage stands; `to: "ally"` rolls the amount and GIVES it to one
  * creature within reach — the owner's pick, the rest song's popup (Life-Giving Force).
  */
-import { MODULE_ID, readFlag, TITLE, drivesMomentFor, statContext, isActiveGM, queueFlagWrite, canAnswerFor, decisionWindow, resolveUuid } from "./core.js";
+import { MODULE_ID, readFlag, drivesMomentFor, statContext, isActiveGM, queueFlagWrite, canAnswerFor, decisionWindow, resolveUuid, log } from "./core.js";
 import { activityNamed, activityOfType, cardActivity, featureNamed, lower } from "./lookup.js";
 import { chitStampOf, effectSourceOf, poolOf } from "./shared.js";
 import { endOptionsOf } from "./decide/turn-grants.js";
@@ -96,7 +96,7 @@ async function remindExtend({ effect, row, item, actor, place, combat, round, tu
         actorUuid: actor.uuid, remind: row.remind, why: verdict.why } } }
     });
   } catch(err) {
-    console.error(`${TITLE} | ${row?.key ?? "The"} reminder could not post.`, err);
+    log.error(`${row?.key ?? "The"} reminder could not post.`, err);
   }
 }
 
@@ -151,7 +151,7 @@ listen("updateCombat", "turn-grants", (combat, changes, options) => {
       void pay({ effect: null, row: { key, ...row }, item, actor, place, why: due.why, on: "turnStart" });
     }
   } catch(err) {
-    console.error(`${TITLE} | Turn-start grant failed — apply it by hand.`, err);
+    log.error(`Turn-start grant failed — apply it by hand.`, err);
   }
 });
 
@@ -189,7 +189,7 @@ listen("dnd5e.postUseActivity", "turn-grants", (activity, _usageConfig, results)
       void pay({ effect: null, row: { key, ...row }, item, actor, place, why: `${used.name} used`, on: "use" });
     }
   } catch(err) {
-    console.error(`${TITLE} | A grant on the use could not be read — apply it by hand.`, err);
+    log.error(`A grant on the use could not be read — apply it by hand.`, err);
   }
 });
 
@@ -228,7 +228,7 @@ async function grantInspiration({ row, item, actor, place }) {
       flags: { [MODULE_ID]: { [GRANT_FLAG]: { ...statContext(actor.uuid), key: row.key, place, effectUuid: null, actorUuid: actor.uuid,
         grant: "inspiration", why: "the start of its turn" } } }
     });
-  } catch(err) { console.error(`${TITLE} | ${row.key} could not write Heroic Inspiration — tick it by hand.`, err); }
+  } catch(err) { log.error(`${row.key} could not write Heroic Inspiration — tick it by hand.`, err); }
 }
 
 /** The bearer's applied effects as plain facts (the actor's own and its items' transferred ones). */
@@ -252,7 +252,7 @@ async function offerEnd({ row, item, actor, bearer, place, on, why }) {
     const options = endOptionsOf(row.statuses ?? [], effectFactsOf(bearer), statusLabels());
     if ( !options.length ) return;
     const activity = row.activity ? activityNamed(item, row.activity) : null;
-    if ( row.activity && !activity ) { console.warn(`${TITLE} | ${row.key}: no "${row.activity}" on ${item.name} — end it by hand.`); return; }
+    if ( row.activity && !activity ) { log.warn(`${row.key}: no "${row.activity}" on ${item.name} — end it by hand.`); return; }
     const pool = activity ? (poolOf(actor, activity) ?? item) : null;
     const left = pool ? Number(pool.system?.uses?.value ?? 0) : null;
     if ( pool && !(left > 0) ) return;   // nothing to pay with: not offered
@@ -267,7 +267,7 @@ async function offerEnd({ row, item, actor, bearer, place, on, why }) {
         title: `${row.key} — end a condition on ${bearer.name}?`, subtitle: options.map(o => o.label).join(" · ") }),
       flags: { [MODULE_ID]: { [END_FLAG]: flag } }
     });
-  } catch(err) { console.error(`${TITLE} | ${row.key} could not be offered — end the condition by hand.`, err); }
+  } catch(err) { log.error(`${row.key} could not be offered — end the condition by hand.`, err); }
 }
 
 const settleEnd = (current, answer, timedOut = false) => {
@@ -323,7 +323,7 @@ async function landEnd(message) {
     record.ended = option.status;
     record.gone = gone;
   } catch(err) {
-    console.error(`${TITLE} | ${flag.row} failed part-way — check the sheet.`, err);
+    log.error(`${flag.row} failed part-way — check the sheet.`, err);
     record.failed = true;
   } finally {
     await queueFlagWrite(message, END_FLAG, current => { Object.assign(current, record, { applied: true, applying: false }); });
@@ -391,7 +391,7 @@ listen("dnd5e.renderChatMessage", "turn-grants", (message, html) => {
       });
     }
     content.appendChild(div);
-  } catch(err) { console.warn(`${TITLE} | The condition-end line could not render.`, err); }
+  } catch(err) { log.warn(`The condition-end line could not render.`, err); }
 });
 
 // An answer anywhere closes the popup everywhere (law 4); the clock stands down with it.
@@ -411,12 +411,12 @@ async function giveToAlly({ row, item, actor }) {
     const activity = row.activity ? activityNamed(item, row.activity) : activityOfType(item, "heal");
     const h = activity?.healing ?? null;
     const raw = h ? riderPartFormula({ number: h.number, denomination: h.denomination, custom: h.custom, bonus: h.bonus }) : null;
-    if ( !raw ) { console.warn(`${TITLE} | ${row.key}: no healing part on "${row.activity}" — give it by hand.`); return; }
+    if ( !raw ) { log.warn(`${row.key}: no healing part on "${row.activity}" — give it by hand.`); return; }
     const roll = await new Roll(raw, activity.getRollData?.() ?? item.getRollData?.() ?? {}).evaluate();
     if ( !(roll.total > 0) ) return;
     await askHandOut(actor, { name: row.key, row, item, amount: roll.total, roll });
   } catch(err) {
-    console.error(`${TITLE} | ${row?.key ?? "The gift"} could not be asked — give it by hand.`, err);
+    log.error(`${row?.key ?? "The gift"} could not be asked — give it by hand.`, err);
   }
 }
 
@@ -432,7 +432,7 @@ function damagePartOf(item, row) {
 async function dealToGrappled({ row, item, actor, place, held, why }) {
   try {
     const { activity, raw, type } = damagePartOf(item, row);
-    if ( !raw ) { console.warn(`${TITLE} | ${row.key}: no damage part on "${row.activity ?? "its damage activity"}" — deal it by hand.`); return; }
+    if ( !raw ) { log.warn(`${row.key}: no damage part on "${row.activity ?? "its damage activity"}" — deal it by hand.`); return; }
     const roll = await new Roll(raw, activity.getRollData?.() ?? item.getRollData?.() ?? {}).evaluate();
     const targets = held.map(c => ({ uuid: c.uuid, name: c.name }));
     const card = await postCard({
@@ -447,7 +447,7 @@ async function dealToGrappled({ row, item, actor, place, held, why }) {
     });
     if ( card ) await applyDamagesWithReceipt(card, targets, [{ value: roll.total, type, properties: new Set() }], { note: row.key });
   } catch(err) {
-    console.error(`${TITLE} | ${row?.key ?? "The grappler's damage"} failed — deal it by hand.`, err);
+    log.error(`${row?.key ?? "The grappler's damage"} failed — deal it by hand.`, err);
   }
 }
 
@@ -474,7 +474,7 @@ async function blockedCard({ row, item, actor, place, block }) {
         actorUuid: actor.uuid, blocked: block.type, why: `took ${block.label} damage since its last turn` } } }
     });
   } catch(err) {
-    console.error(`${TITLE} | ${row.key}'s card could not post.`, err);
+    log.error(`${row.key}'s card could not post.`, err);
   }
 }
 
@@ -487,7 +487,7 @@ async function pay({ effect, row, item, actor, place, why, on = "turnStart" }) {
     const activity = deals ? damagePartOf(item, row).activity : (row.activity ? activityNamed(item, row.activity) : activityOfType(item, "heal"));
     const part = deals ? (activity?.damage?.parts?.[0] ?? null) : (activity?.healing ?? null);
     const raw = part ? riderPartFormula({ number: part.number, denomination: part.denomination, custom: part.custom, bonus: part.bonus }) : null;
-    if ( !raw ) { console.warn(`${TITLE} | ${row.key}: no ${deals ? "damage" : "healing"} part on "${row.activity ?? (deals ? "its damage activity" : "its heal activity")}" — ${deals ? "deal" : "grant"} it by hand.`); return; }
+    if ( !raw ) { log.warn(`${row.key}: no ${deals ? "damage" : "healing"} part on "${row.activity ?? (deals ? "its damage activity" : "its heal activity")}" — ${deals ? "deal" : "grant"} it by hand.`); return; }
     const caster = item.actor ?? null;
     const roll = await new Roll(raw, activity.getRollData?.() ?? item.getRollData?.() ?? {}).evaluate();
     const type = [...(part.types ?? [])][0] ?? (deals ? "bludgeoning" : "healing");
@@ -503,6 +503,6 @@ async function pay({ effect, row, item, actor, place, why, on = "turnStart" }) {
     });
     if ( card ) await applyDamagesWithReceipt(card, [{ uuid: actor.uuid, name: actor.name }], [{ value: roll.total, type, properties: new Set() }], { note: row.key });
   } catch(err) {
-    console.error(`${TITLE} | Turn-start grant failed — apply it by hand.`, err);
+    log.error(`Turn-start grant failed — apply it by hand.`, err);
   }
 }

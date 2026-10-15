@@ -18,7 +18,7 @@
  *     runs almost nothing, scripts/dispatch.js `PASSIVE_KEEPS`), nothing here moves, and the GM is told
  *     once. The question is asked here because the legacy id lives in core.js.
  */
-import { MODULE_ID, LEGACY_ID, TITLE, S, isActiveGM } from "./core.js";
+import { MODULE_ID, LEGACY_ID, TITLE, S, isActiveGM, log } from "./core.js";
 import { scopeMoves, scopeMove, behaviorMove, behaviorType, settingMoves, clientCopies, summaryLine, MIGRATED_FROM } from "./decide/migrate.js";
 import { listen, listenOnce, setPassiveGate, isPassive, MIGRATION_MARK } from "./dispatch.js";
 
@@ -44,7 +44,7 @@ listenOnce("init", "migrate", () => {
   if ( !store ) return;
   for ( const [, to, value] of clientCopies(Object.values(S), k => store.getItem(k), IDS) ) {
     try { store.setItem(to, value); clientCopied++; }
-    catch(err) { console.warn(`${TITLE} | Could not copy the client setting ${to} from ${LEGACY_TITLE}.`, err); }
+    catch(err) { log.warn(`Could not copy the client setting ${to} from ${LEGACY_TITLE}.`, err); }
   }
 });
 
@@ -52,7 +52,7 @@ listenOnce("init", "migrate", () => {
 
 listenOnce("ready", "migrate", () => {
   if ( isPassive() ) {
-    console.warn(`${TITLE} | ${PASSIVE_WARNING}`);
+    log.warn(`${PASSIVE_WARNING}`);
     if ( game.user?.isGM ) ui.notifications?.warn(PASSIVE_WARNING, { permanent: true });
     return;
   }
@@ -77,7 +77,7 @@ let started = false;
  */
 async function step(what, fn) {
   try { await fn(); }
-  catch(err) { console.error(`${TITLE} | The move from ${LEGACY_TITLE} could not finish ${what}; the rest goes on, and the next load tries again.`, err); }
+  catch(err) { log.error(`The move from ${LEGACY_TITLE} could not finish ${what}; the rest goes on, and the next load tries again.`, err); }
 }
 
 /** Move everything; one summary when anything moved. */
@@ -94,13 +94,12 @@ async function migrateWorld() {
   await step("the users", () => batch([...game.users], u => getDocumentClass("User").updateDocuments(u, MARK()),
     "users", counts, filled, "world"));
   if ( filled.length ) {
-    console.warn(`${TITLE} | Where both flag scopes stood, the keys only ${LEGACY_TITLE}'s held were copied under the `
+    log.warn(`Where both flag scopes stood, the keys only ${LEGACY_TITLE}'s held were copied under the `
       + `new id and the old scope removed (the new one's own keys kept):\n  ${filled.join("\n  ")}`);
   }
   const line = summaryLine(counts, { title: TITLE, legacyTitle: LEGACY_TITLE });
   if ( !line ) return;
-  // biome-ignore lint/suspicious/noConsole: the one record of what the rename's migration moved
-  console.info(`${TITLE} | ${line}`);
+  log.info(line);   // the one record of what the rename's migration moved
   ui.notifications?.info(line);
   // The regions' standing effects are re-swept now their behaviours carry the new type.
   if ( counts.behaviors || counts.regions ) Hooks.callAll(`${MODULE_ID}.emanationsChanged`);
@@ -131,7 +130,7 @@ async function moveSettings() {
   const all = [...(world?.contents ?? world ?? [])].map(doc => ({ key: doc.key, value: doc._source?.value ?? doc.value, doc }));
   const { moves, unregistered } = settingMoves(all, key => game.settings.settings.has(`${MODULE_ID}.${key}`), IDS);
   if ( unregistered.length ) {
-    console.warn(`${TITLE} | Left ${LEGACY_TITLE}'s world settings that ${TITLE} does not register in place: ${unregistered.join(", ")}.`);
+    log.warn(`Left ${LEGACY_TITLE}'s world settings that ${TITLE} does not register in place: ${unregistered.join(", ")}.`);
   }
   let moved = 0;
   for ( const { key, value } of moves ) {
@@ -140,7 +139,7 @@ async function moveSettings() {
       await all.find(s => s.key === `${LEGACY_ID}.${key}`)?.doc.delete(MARK());
       moved++;
     } catch(err) {
-      console.warn(`${TITLE} | Could not move the setting ${key} from ${LEGACY_TITLE}.`, err);
+      log.warn(`Could not move the setting ${key} from ${LEGACY_TITLE}.`, err);
     }
   }
   return moved;
@@ -225,7 +224,7 @@ async function moveBehaviors(region, counts, conflicts) {
   try {
     await region.updateEmbeddedDocuments("RegionBehavior", convert.map(c => ({ ...c.update,
       system: replace ? replace.create(c.update.system) : c.update.system })), MARK());
-  } catch(err) { console.warn(`${TITLE} | ${region.uuid}: the behaviours' type would not update in place, so they are recreated.`, err); }
+  } catch(err) { log.warn(`${region.uuid}: the behaviours' type would not update in place, so they are recreated.`, err); }
   const now = () => region._source?.behaviors ?? [];
   const type = behaviorType(MODULE_ID);
   const left = convert.filter(c => now().find(b => b._id === c.id)?.type !== type);

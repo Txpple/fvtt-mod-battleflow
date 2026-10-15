@@ -3,7 +3,7 @@
  * By the Books — the reaction hold: THE VIEWS. The durable card row (with the reload resumes) and the
  * popups. The row renders below ui.js's damage-offer bar (dispatch.js ORDER).
  */
-import { readFlag, TITLE, S, setting, canAnswerFor, isContinuingClient, resolveUuid, resolveUuidAsync } from "../core.js";
+import { readFlag, S, setting, canAnswerFor, isContinuingClient, resolveUuid, resolveUuidAsync, log } from "../core.js";
 import { INTERRUPT_REDUCTIONS, INTERRUPT_ROLLS } from "../decide/registry.js";
 import { bfCard, holdBarHTML, ruleLine, spendLine, spendPhrase, tickRowsHTML, esc } from "../decide/present.js";
 import { bentLines, d20ModeOf, dieMaxOf, futileGuardLine, guardRow, guardSign, liveRows, neededOnDieLine, neutraliseOutcome, rescueTitle } from "../decide/rescue-hit.js";
@@ -67,7 +67,7 @@ listen("dnd5e.renderChatMessage", "hold/views", (message, html) => {
       html.querySelector(SURFACES.messageContent)?.appendChild(line);
     }
   } catch(err) {
-    console.warn(`${TITLE} | The offer at 0 could not render — use it from the sheet.`, err);
+    log.warn(`The offer at 0 could not render — use it from the sheet.`, err);
   }
 });
 

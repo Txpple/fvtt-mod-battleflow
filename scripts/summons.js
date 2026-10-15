@@ -14,7 +14,7 @@
  * stamps `applied`. With no GM online the card holds and says so (DESIGN §4). Dismiss deletes what the
  * elect made, and the concentration effect's end asks it.
  */
-import { MODULE_ID, readFlag, TITLE, activeCombatFor, isActiveGM, queueFlagWrite, answersHere, statContext, resolveUuid } from "./core.js";
+import { MODULE_ID, readFlag, TITLE, activeCombatFor, isActiveGM, queueFlagWrite, answersHere, statContext, resolveUuid, log } from "./core.js";
 import { activityNamed, cardActivity, featureNamed, lower } from "./lookup.js";
 import { COMPANIONS, SUMMON_AS, SUMMON_BOONS, SUMMON_CHOICES, SUMMON_COMMANDS, SUMMON_EMPOWERS, SUMMON_EXTRAS, SUMMON_FALLS, SUMMON_GUISES, SUMMON_LIGHTS, SUMMON_LOOKS, SUMMON_ONE_FORM, TRANSFORMS,
   summonChoiceEntries, summonEmpowerEntries, summonFallEntries, summonOwnInitiativeEntries, summonSingleEntries, listedNames } from "./decide/registry.js";
@@ -122,7 +122,7 @@ listenOnce("init", "summons", () => {
   let proto = CONFIG.DND5E?.activityTypes?.summon?.documentClass?.prototype ?? null;
   while ( proto && !Object.hasOwn(proto, "isHidden") ) proto = Object.getPrototypeOf(proto);
   const was = proto ? Object.getOwnPropertyDescriptor(proto, "isHidden") : null;
-  if ( !was?.get ) { console.warn(`${TITLE} | Could not hide a summon spell's other activities: dnd5e's Activity#isHidden was not found.`); return; }
+  if ( !was?.get ) { log.warn(`Could not hide a summon spell's other activities: dnd5e's Activity#isHidden was not found.`); return; }
   Object.defineProperty(proto, "isHidden", { ...was, get: hiddenGetter(was.get) });
 });
 
@@ -135,7 +135,7 @@ listen("renderActivityChoiceDialog", "summons", (app, element) => {
     if ( element?.style ) element.style.display = "none";
     setTimeout(() => { void app.close({ animate: false }); }, 0);
     void activity.use();
-  } catch(err) { console.error(`${TITLE} | Could not open the summon — use the spell's summon from the sheet.`, err); }
+  } catch(err) { log.error(`Could not open the summon — use the spell's summon from the sheet.`, err); }
 });
 
 // The use of a summon activity opens the system's own Cast Spell dialog (the slot, the spend ticks, the
@@ -189,7 +189,7 @@ listen("dnd5e.preUseActivity", "summons", (activity, usageConfig, dialogConfig) 
         return false;
       }
     }
-  } catch(err) { console.warn(`${TITLE} | Could not take the summon — the spell is cast as usual.`, err); }
+  } catch(err) { log.warn(`Could not take the summon — the spell is cast as usual.`, err); }
 });
 
 /** The empower question's answers, by activity uuid, read by the dialog's answer: the companion to dismiss, or to empower. */
@@ -212,7 +212,7 @@ async function askEmpowerQuestion(activity, erow, route, cause) {
   const go = answer => {
     empowerAnswers.set(activity.uuid, { ...answer, companionMessageId: route.messageId });
     castThrough.add(activity.uuid);
-    void activity.use(cause ? { cause } : {}).catch(err => console.error(`${TITLE} | ${activity.item.name} could not be cast.`, err));
+    void activity.use(cause ? { cause } : {}).catch(err => log.error(`${activity.item.name} could not be cast.`, err));
   };
   await openPicker({ id: `empower-${activity.uuid}` }, "empowerAsk", caster, {
     title: `${activity.item.name} — ${caster.name}`, icon: "fa-solid fa-spaghetti-monster-flying", width: 440, by: game.user.id,
@@ -246,14 +246,14 @@ listen("dnd5e.preActivityConsumption", "summons", (activity, usageConfig) => {
       const asked = { cause: { activity: other.relativeUUID }, consume: { spellSlot: false, resources: false },
         concentration: usageConfig.concentration ? foundry.utils.deepClone(usageConfig.concentration) : undefined };
       void openCastMenu(live, asked, Number(live.item.system?.level) || live.relevantLevel).catch(err => {
-        console.error(`${TITLE} | The summon menu failed — cast the spell again.`, err);
+        log.error(`The summon menu failed — cast the spell again.`, err);
         ui.notifications?.error(`${TITLE}: the summon menu could not open (${err?.message ?? err}).`);
       });
       return false;
     }
     if ( other ) {
       void openCastMenu(other, {}, Number(other.item.system?.level) || other.relevantLevel).catch(err => {
-        console.error(`${TITLE} | The summon menu failed — use it again.`, err);
+        log.error(`The summon menu failed — use it again.`, err);
         ui.notifications?.error(`${TITLE}: the summon menu could not open (${err?.message ?? err}).`);
       });
       return false;
@@ -275,17 +275,17 @@ listen("dnd5e.preActivityConsumption", "summons", (activity, usageConfig) => {
     empowerAnswers.delete(activity.uuid);
     if ( empower?.empower ) {
       void openEmpowerMenu(live, asked, level, empower.companionMessageId).catch(err => {
-        console.error(`${TITLE} | The empower menu failed — cast the spell again.`, err);
+        log.error(`The empower menu failed — cast the spell again.`, err);
         ui.notifications?.error(`${TITLE}: the empower menu could not open (${err?.message ?? err}).`);
       });
       return false;
     }
     void openCastMenu(live, asked, level, empower?.dismiss ? empower.companionMessageId : null).catch(err => {
-      console.error(`${TITLE} | The summon menu failed — cast the spell again.`, err);
+      log.error(`The summon menu failed — cast the spell again.`, err);
       ui.notifications?.error(`${TITLE}: the summon menu could not open (${err?.message ?? err}).`);
     });
     return false;
-  } catch(err) { console.warn(`${TITLE} | Could not take the summon — the spell is cast as usual.`, err); }
+  } catch(err) { log.warn(`Could not take the summon — the spell is cast as usual.`, err); }
 });
 
 /** The module's menu after the system's dialog, at the cast's level; Place casts with the dialog's answer.
@@ -335,7 +335,7 @@ async function openEmpowerMenu(activity, asked, level, companionMessageId) {
         planned.set(activity.uuid, { empower: { companionMessageId, profileId: profile.id, level: Number(level) || 0,
           pick: { uuid: profile.uuid, name: profile.label || profile.name, img: profile.img ?? null } } });
         void (async () => { try { await activity.use(usage, { configure: false }, {}); } finally { planned.delete(activity.uuid); } })()
-          .catch(err => console.error(`${TITLE} | ${item.name} could not be cast — cast it again.`, err));
+          .catch(err => log.error(`${item.name} could not be cast — cast it again.`, err));
       } },
       { action: "cancel", label: "Not now" }
     ]
@@ -456,7 +456,7 @@ listen("renderActivityUsageDialog", "summons", (app, element) => {
       for ( const other of boxes ) if ( other !== box ) other.checked = false;
       if ( box.dataset.bfPayWay ) paidWith.set(activity.uuid, box.dataset.bfPayWay); else paidWith.delete(activity.uuid);
     });
-  } catch(err) { console.warn(`${TITLE} | Could not offer the other ways to pay.`, err); }
+  } catch(err) { log.warn(`Could not offer the other ways to pay.`, err); }
 });
 
 /* --- gone at the Long Rest (SUMMON_AS `longRest`) ---------------------------------------------------- */
@@ -472,7 +472,7 @@ listen("dnd5e.restCompleted", "summons", (actor, result, config) => {
       if ( !asRowOf(flag.itemName)?.longRest ) continue;
       void askDismiss(message);
     }
-  } catch(err) { console.warn(`${TITLE} | Could not end the companion at the Long Rest — dismiss it by hand.`, err); }
+  } catch(err) { log.warn(`Could not end the companion at the Long Rest — dismiss it by hand.`, err); }
 });
 
 /* --- the record on the cast card ------------------------------------------------------------------ */
@@ -566,10 +566,10 @@ listen("dnd5e.postUseActivity", "summons", (activity, usageConfig, results) => {
     const message = (results?.message instanceof ChatMessage) ? results.message : null;
     if ( !message ) return;
     // the familiar empowered (SUMMON_EMPOWERS): a transform record for transforms.js, no summon record
-    if ( answer?.empower ) { void stampEmpower(activity, message, answer.empower).catch(err => console.error(`${TITLE} | Could not stamp the empower on the card — transform the familiar by hand.`, err)); return; }
-    void stampRecord(activity, message, answer).catch(err => console.error(`${TITLE} | Could not stamp the summon on the card — place the creature by hand.`, err));
+    if ( answer?.empower ) { void stampEmpower(activity, message, answer.empower).catch(err => log.error(`Could not stamp the empower on the card — transform the familiar by hand.`, err)); return; }
+    void stampRecord(activity, message, answer).catch(err => log.error(`Could not stamp the summon on the card — place the creature by hand.`, err));
   } catch(err) {
-    console.error(`${TITLE} | The summon could not be recorded — place the creature by hand.`, err);
+    log.error(`The summon could not be recorded — place the creature by hand.`, err);
   }
 });
 
@@ -578,7 +578,7 @@ function dismissSingles(sourceUuid, itemName, keep) {
   const ids = replacedSummons(summonRecords(), { id: keep ?? "", sourceUuid, itemName: rulesName(itemName) }, listedNames(summonSingleEntries()));
   for ( const id of ids ) {
     const earlier = game.messages.get(id);
-    if ( earlier ) void askDismiss(earlier).catch(err => console.warn(`${TITLE} | Could not dismiss the earlier summon — delete its token by hand.`, err));
+    if ( earlier ) void askDismiss(earlier).catch(err => log.warn(`Could not dismiss the earlier summon — delete its token by hand.`, err));
   }
   return ids;
 }
@@ -702,7 +702,7 @@ async function askSummon(key, facts, { light = null } = {}, onAnswer) {
               creatureSize: light ? (sizes.includes(light.size) ? light.size : (sizes[0] ?? null)) : needs.size ? creatureSize : (sizes[0] ?? null),
               creatureType: needs.type ? creatureType : (types[0] ?? null) });
           } catch(err) {
-            console.error(`${TITLE} | The summon could not be placed — place the creature by hand.`, err);
+            log.error(`The summon could not be placed — place the creature by hand.`, err);
             ui.notifications?.error(`${TITLE}: the summon could not be placed (${err?.message ?? err}).`);
           }
         })();
@@ -965,7 +965,7 @@ async function landSummon(message) {
     // the companion given up for this one (the empower question's "Summon a new one"): dismissed forever now
     if ( flag.dismisses && game.messages.get(flag.dismisses) && !replaced.includes(flag.dismisses) ) replaced = [...replaced, flag.dismisses];
   } catch(err) {
-    console.error(`${TITLE} | The summon could not be landed — place the creature by hand.`, err);
+    log.error(`The summon could not be landed — place the creature by hand.`, err);
     outcome = "failed";
     failure = String(err?.message ?? err);
   } finally {
@@ -982,7 +982,7 @@ async function landSummon(message) {
     });
     for ( const id of replaced ) {
       const earlier = game.messages.get(id);
-      if ( earlier ) void askDismiss(earlier).catch(err => console.warn(`${TITLE} | Could not dismiss the earlier summon — delete its token by hand.`, err));
+      if ( earlier ) void askDismiss(earlier).catch(err => log.warn(`Could not dismiss the earlier summon — delete its token by hand.`, err));
     }
     if ( resistance ) await queueFlagWrite(message, "effectReceipt", current => {
       joinEffectReceipt(current, { uuid: resistance.uuid, name: resistance.name, img: resistance.img,
@@ -1059,7 +1059,7 @@ async function dismissSummon(message) {
     const held = flag.standing?.effectId ? caster?.effects?.get(flag.standing.effectId) : null;
     if ( held ) await held.delete({ [MODULE_ID]: { summonEnd: true } });
   } catch(err) {
-    console.error(`${TITLE} | The summon could not be dismissed — delete the token by hand.`, err);
+    log.error(`The summon could not be dismissed — delete the token by hand.`, err);
   } finally {
     await queueFlagWrite(message, SUMMON_FLAG, current => {
       current.dismissed = true; current.dismissing = false; current.dismissedAt = Date.now();
@@ -1098,9 +1098,9 @@ listen("deleteActiveEffect", "summons", effect => {
     for ( const message of game.messages.contents ) {
       const f = readFlag(message, SUMMON_FLAG);
       if ( !f?.applied || f.dismissAsked || (f.concentrationId !== effect.id) || (f.sourceUuid !== casterUuid) ) continue;
-      void askDismiss(message).catch(err => console.warn(`${TITLE} | Could not dismiss the summon with its concentration — delete the token by hand.`, err));
+      void askDismiss(message).catch(err => log.warn(`Could not dismiss the summon with its concentration — delete the token by hand.`, err));
     }
-  } catch(err) { console.warn(`${TITLE} | Could not end the summon with its concentration — delete the token by hand.`, err); }
+  } catch(err) { log.warn(`Could not end the summon with its concentration — delete the token by hand.`, err); }
 });
 
 // The standing effect of a summon without Concentration, removed (by its owner or a GM, or its clock),
@@ -1112,8 +1112,8 @@ listen("deleteActiveEffect", "summons", (effect, options) => {
     const message = game.messages.get(id);
     const f = message ? readFlag(message, SUMMON_FLAG) : null;
     if ( !f?.applied || f.dismissAsked || (f.standing?.effectId !== effect.id) ) return;
-    void askDismiss(message).catch(err => console.warn(`${TITLE} | Could not dismiss the summon with its effect — delete the token by hand.`, err));
-  } catch(err) { console.warn(`${TITLE} | Could not end the summon with its effect — delete the token by hand.`, err); }
+    void askDismiss(message).catch(err => log.warn(`Could not dismiss the summon with its effect — delete the token by hand.`, err));
+  } catch(err) { log.warn(`Could not end the summon with its effect — delete the token by hand.`, err); }
 });
 
 /* --- companions: a summon that stays (COMPANIONS, RULINGS *Summons*) ---------------------------- */
@@ -1202,7 +1202,7 @@ async function showCompanionMenu(message, activity, cause = null) {
     sections: [{ rows: [{ value: flag.summonUuid, ...creature }] }, { note: flag.companion.empower ? `${row.brief ?? ""} Empowered, it stays on the table until the spell ends.`.trim() : (row.brief ?? "") }],
     buttons: [
       ...companionMenu(state, row, { empowered: !!flag.companion.empower }).map((kind, i) => ({ action: kind, label: MENU[kind].label, default: i === 0,
-        submit: () => { if ( !needsGM(row) ) void Promise.resolve(act[kind]()).catch(err => console.error(`${TITLE} | The ${lower(row.noun)} could not ${kind}.`, err)); } })),
+        submit: () => { if ( !needsGM(row) ) void Promise.resolve(act[kind]()).catch(err => log.error(`The ${lower(row.noun)} could not ${kind}.`, err)); } })),
       { action: "cancel", label: "Not now" }
     ]
   });
@@ -1225,7 +1225,7 @@ async function dropCarried(doc, baseItems) {
       const chest = await shelf.api.createLootContainer({ name: `${doc.name}'s gear`, img: items[0]?.img ?? undefined, items, ephemeral: true });
       const token = await chest.getTokenDocument({ x: doc.x, y: doc.y, elevation: doc.elevation ?? 0 });
       await doc.parent.createEmbeddedDocuments("Token", [token.toObject()]);
-    } catch(err) { console.warn(`${TITLE} | Loot Shelf could not take what it carried — the items are lost.`, err); }
+    } catch(err) { log.warn(`Loot Shelf could not take what it carried — the items are lost.`, err); }
   }
   await actor.deleteEmbeddedDocuments("Item", ids);
   return ids;
@@ -1323,7 +1323,7 @@ async function actCompanion(message) {
       }
     }
   } catch(err) {
-    console.error(`${TITLE} | The ${lower(companion.noun)} could not ${companion.ask.kind === "away" ? "go to its pocket" : "come back"}.`, err);
+    log.error(`The ${lower(companion.noun)} could not ${companion.ask.kind === "away" ? "go to its pocket" : "come back"}.`, err);
     ui.notifications?.error(`${TITLE}: the ${lower(companion.noun)} could not ${companion.ask.kind === "away" ? "go to its pocket" : "come back"} (${err?.message ?? err}).`);
   } finally {
     await queueFlagWrite(message, SUMMON_FLAG, current => { Object.assign(current.companion, patch); });
@@ -1342,7 +1342,7 @@ listen("preDeleteActiveEffect", "summons", (effect, options, userId) => {
     if ( !standing ) return;   // an orphan, or a companion already gone: removed as usual
     if ( userId === game.user.id ) void confirmCompanionEnd(effect, message);
     return false;
-  } catch(err) { console.warn(`${TITLE} | Could not read the companion's effect — it is removed as usual.`, err); }
+  } catch(err) { log.warn(`Could not read the companion's effect — it is removed as usual.`, err); }
 });
 
 async function confirmCompanionEnd(effect, message) {
@@ -1373,8 +1373,8 @@ listen("updateActor", "summons", (actor, changes) => {
     void (async () => {
       await queueFlagWrite(message, SUMMON_FLAG, current => { if ( current.companion ) current.companion.fell = true; else current.fell = true; });
       await askDismiss(message);
-    })().catch(err => console.warn(`${TITLE} | Could not take the summon off the table at 0 HP.`, err));
-  } catch(err) { console.warn(`${TITLE} | Could not read the summon's Hit Points.`, err); }
+    })().catch(err => log.warn(`Could not take the summon off the table at 0 HP.`, err));
+  } catch(err) { log.warn(`Could not read the summon's Hit Points.`, err); }
 });
 
 // The caster dies (the `dead` status lands on it; 0 Hit Points alone is Dying): a summon whose text says so
@@ -1385,10 +1385,10 @@ listen("createActiveEffect", "summons", effect => {
     const caster = effect.parent;
     for ( const id of casterDeathSummons(summonRecords(), caster.uuid, SUMMON_FALLS, listedNames(summonFallEntries())) ) {
       const message = game.messages.get(id);
-      if ( message ) void askDismiss(message).catch(err => console.warn(`${TITLE} | Could not dismiss the summon at its caster's death — delete its token by hand.`, err));
+      if ( message ) void askDismiss(message).catch(err => log.warn(`Could not dismiss the summon at its caster's death — delete its token by hand.`, err));
     }
-    for ( const e of caster.effects.filter(x => !!readFlag(x, "empowerEffect")) ) void e.delete().catch(err => console.warn(`${TITLE} | Could not end the empowerment at the caster's death.`, err));
-  } catch(err) { console.warn(`${TITLE} | Could not read the caster's death.`, err); }
+    for ( const e of caster.effects.filter(x => !!readFlag(x, "empowerEffect")) ) void e.delete().catch(err => log.warn(`Could not end the empowerment at the caster's death.`, err));
+  } catch(err) { log.warn(`Could not read the caster's death.`, err); }
 });
 
 // The caster's empower effect removed (a hand, its clock, a rest; never the elect's own `empowerEnd`): the
@@ -1404,8 +1404,8 @@ listen("deleteActiveEffect", "summons", (effect, options) => {
       if ( !current.applied || current.ended || current.revertAsked ) return false;
       current.revertAsked = true;
       current.revertWhy = "ended";   // the spell's effect went: the end card says the spell ended, not a choice
-    }).catch(err => console.warn(`${TITLE} | Could not end the empowerment with its effect — revert the familiar from its sheet.`, err));
-  } catch(err) { console.warn(`${TITLE} | Could not end the empowerment with its effect.`, err); }
+    }).catch(err => log.warn(`Could not end the empowerment with its effect — revert the familiar from its sheet.`, err));
+  } catch(err) { log.warn(`Could not end the empowerment with its effect.`, err); }
 });
 
 /**
@@ -1446,7 +1446,7 @@ listen("updateChatMessage", "summons", message => {
         distance: 2 * h, fontSize: 28, stroke: 0x000000, strokeThickness: 4, jitter: 0.25
       });
     }
-  } catch(err) { console.warn(`${TITLE} | The summon's float could not draw.`, err); }
+  } catch(err) { log.warn(`The summon's float could not draw.`, err); }
 });
 listen("ready", "summons", () => {
   // what stood before this client loaded has already floated
@@ -1493,7 +1493,7 @@ listen("dnd5e.renderChatMessage", "summons", (message, html) => {
     const flag = readFlag(message, SUMMON_FLAG);
     if ( flag ) drawSummon(message, html, flag);
   } catch(err) {
-    console.error(`${TITLE} | The summon's row could not be drawn.`, err);
+    log.error(`The summon's row could not be drawn.`, err);
   }
 });
 

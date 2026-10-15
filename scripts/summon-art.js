@@ -7,7 +7,7 @@
  * by name (`owl.webp`, `owl-portrait.webp`). Save writes the table once. Each opens from its own button in the
  * module's settings (GM only). The art is read where it is shown (gallery.js `summonArt`, `formArt`).
  */
-import { MODULE_ID, S, TITLE, setting, resolveUuidAsync } from "./core.js";
+import { MODULE_ID, S, TITLE, setting, resolveUuidAsync, log } from "./core.js";
 import { artTag, esc } from "./decide/present.js";
 import { ART_SPELLS, artKey, cleanTable, fillBlanks, matchFiles } from "./decide/summon-art.js";
 import { SUMMON_EXTRAS, SUMMON_GUISES, SUMMON_ONE_FORM } from "./decide/registry.js";
@@ -375,7 +375,7 @@ function artWindow(kind) {
         ui.notifications?.info(`${TITLE}: ${spec.saved}`);
         await this.close();
       } catch(err) {
-        console.error(`${TITLE} | The ${spec.title} could not be saved.`, err);
+        log.error(`The ${spec.title} could not be saved.`, err);
         ui.notifications?.error(`${TITLE}: the ${spec.title} could not be saved (${err?.message ?? err}).`);
       }
     }
@@ -402,7 +402,7 @@ function artWindow(kind) {
         } }).render(true);
       });
       root.querySelector("[data-bf-art-match]")?.addEventListener("click", () => {
-        void this.matchFolder().catch(err => console.error(`${TITLE} | The folder match failed.`, err));
+        void this.matchFolder().catch(err => log.error(`The folder match failed.`, err));
       });
       root.querySelector("[data-bf-art-search]")?.addEventListener("input", ev => { this.search = ev.currentTarget.value; this.filter(); });
       for ( const rowEl of root.querySelectorAll("[data-bf-art-row]") ) {

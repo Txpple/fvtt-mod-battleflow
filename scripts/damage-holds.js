@@ -7,7 +7,7 @@
  * sheet edits are never held (RULINGS *Where the table bends the rule*). Order: save multiplier,
  * reduction, resistances.
  */
-import { MODULE_ID, readFlag, TITLE, keepsMessage, queueFlagWrite, canAnswerFor, statContext, decisionWindow, resolveUuid } from "./core.js";
+import { MODULE_ID, readFlag, TITLE, keepsMessage, queueFlagWrite, canAnswerFor, statContext, decisionWindow, resolveUuid, log } from "./core.js";
 import { lower, itemNamed, reductionFor, holdsFor, featureNamed, activityNamed, bystanderRows, bystanderDie } from "./lookup.js";
 import { alliesWithin, nearestFeet, tokenOf } from "./geometry.js";
 import { interruptEntries } from "./decide/registry.js";
@@ -195,7 +195,7 @@ registerDamageClaim((receiptMessage, target, actor, damages, { multiplier = 1, n
     claimedShares.set(key, Date.now());
     void stampHold(receiptMessage, target, actor, damages, { multiplier, note }, guards, { guarded: true })
       .catch(async err => {
-        console.error(`${TITLE} | ${guards.name}'s hold could not be stamped — the damage lands whole.`, err);
+        log.error(`${guards.name}'s hold could not be stamped — the damage lands whole.`, err);
         await applyDamagesWithReceipt(receiptMessage, [target], damages, { multiplier, ...(note ? { note } : {}), held: true });
       });
     return true;
@@ -203,7 +203,7 @@ registerDamageClaim((receiptMessage, target, actor, damages, { multiplier = 1, n
   claimedShares.set(key, Date.now());
   void stampHold(receiptMessage, target, actor, damages, { multiplier, note }, found)
     .catch(async err => {
-      console.error(`${TITLE} | ${found.name}'s hold could not be stamped — the damage lands whole.`, err);
+      log.error(`${found.name}'s hold could not be stamped — the damage lands whole.`, err);
       await applyDamagesWithReceipt(receiptMessage, [target], damages, { multiplier, ...(note ? { note } : {}), held: true });
     });
   return true;
@@ -318,7 +318,7 @@ async function answerHold(message, answer, who = null) {
             ...(rise ? { flags: { [MODULE_ID]: { diceRise: rise } } } : {}) });
           reduceBy = Math.max(0, Number(roll.total) || 0);
         } catch(err) {
-          console.error(`${TITLE} | ${key}'s die could not be rolled — reduce by hand.`, err);
+          log.error(`${key}'s die could not be rolled — reduce by hand.`, err);
         }
         const row = INTERRUPT_ROLLS[key];
         if ( row?.uses && (pool ?? item) ) poolSpend = await spendPoolUses(actor, pool ?? item, key, 1, (pool && (pool !== item)) ? pool.name : null).catch(() => null);
@@ -349,7 +349,7 @@ async function answerHold(message, answer, who = null) {
             ...(rise ? { flags: { [MODULE_ID]: { diceRise: rise } } } : {}) });
           reduceBy = Math.max(0, Number(roll.total) || 0);
         } catch(err) {
-          console.error(`${TITLE} | ${flag.label ?? flag.reaction}'s reduction could not be rolled — reduce by hand.`, err);
+          log.error(`${flag.label ?? flag.reaction}'s reduction could not be rolled — reduce by hand.`, err);
         }
         if ( pool ) poolSpend = await spendSuperiorityDie(actor, pool, flag.reaction).catch(() => null);
         await spendReaction(actor, { origin: item?.uuid ?? null, what: flag.reaction });
@@ -411,7 +411,7 @@ async function landHeld(message) {
       const actor = resolveUuid(flag.actorUuid);
       const item = actor?.items?.get(flag.itemId) ?? null;
       if ( item ) await applyItemEffectOnHit(receipt, item, flag.lands, [flag.target], { clock: flag.clock ?? null, attacker: actor })
-        .catch(err => console.warn(`${TITLE} | ${flag.reaction}'s effect could not land — apply it by hand.`, err));
+        .catch(err => log.warn(`${flag.reaction}'s effect could not land — apply it by hand.`, err));
     }
   } finally {
     await queueFlagWrite(message, HOLD_FLAG, current => { current.applied = true; current.applying = false; });
@@ -441,7 +441,7 @@ async function showCutterPopup(message, guard, flag, actor, key, row) {
   const tag = [row?.reaction ? "a Reaction" : null, row?.uses ? `${(pool && (pool !== item)) ? `${pool.name} ` : ""}${left} left` : null].filter(Boolean).join(" · ");
   const target = flag.target?.name ?? "the target";
   const mute = async until => {
-    await muteBystander(actor, key, { img: item?.img ?? null, until }).catch(err => console.warn(`${TITLE} | Could not mute ${key}.`, err));
+    await muteBystander(actor, key, { img: item?.img ?? null, until }).catch(err => log.warn(`Could not mute ${key}.`, err));
     void answerHold(message, "pass", guard.actorUuid);
   };
   // THE CHOICES AS RADIOS (RULINGS *The asks widened*): cut, "Pass just this time" checked, the mutes (none on a down-saver); Apply.
@@ -541,7 +541,7 @@ listen("dnd5e.renderChatMessage", "damage-holds", (message, html) => {
       });
     }
     content.appendChild(div);
-  } catch(err) { console.warn(`${TITLE} | The damage hold's line could not render.`, err); }
+  } catch(err) { log.warn(`The damage hold's line could not render.`, err); }
 });
 
 // An answer anywhere closes the popup everywhere; the clock stands down with it.

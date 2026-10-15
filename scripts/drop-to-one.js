@@ -12,7 +12,7 @@
  * THE KEEPER of an ask is the client that applied the damage, or the GM once it has gone; any
  * other answer is relayed to it.
  */
-import { MODULE_ID, S, readFlag, TITLE, keepsMessage, queueFlagWrite, canAnswerFor, statContext, decisionWindow, isActiveGM, setting, resolveUuid } from "./core.js";
+import { MODULE_ID, S, readFlag, keepsMessage, queueFlagWrite, canAnswerFor, statContext, decisionWindow, isActiveGM, setting, resolveUuid, log } from "./core.js";
 import { featureNamed, lower, activityNamed, activityOfType, applicableProfiles, wearsEffectNamed } from "./lookup.js";
 import { poolOf } from "./shared.js";
 import { nearestFeet, tokenOf } from "./geometry.js";
@@ -179,16 +179,16 @@ listen("dnd5e.preApplyDamage", "drop-to-one", (actor, amount, updates, options) 
       const saveAct = found.row.save.activity ? activityNamed(found.item, found.row.save.activity) : null;
       const dc = (found.row.save.dc === "activity") ? (Number(saveAct?.save?.dc?.value) || dropSaveDc(null, amount)) : dropSaveDc(found.row.save.dc, amount);
       void rollDropSave(actor, found, { amount, source, dc, saveAct })
-        .catch(err => { asking.delete(actor.uuid); console.error(`${TITLE} | ${found.name}'s save failed — the creature stays at 1 HP; set it by hand.`, err); });
+        .catch(err => { asking.delete(actor.uuid); log.error(`${found.name}'s save failed — the creature stays at 1 HP; set it by hand.`, err); });
       return;
     }
     updates[HP] = 1;                                                   // held at 1, in this very update
     if ( !found.row.ask ) { void settle(actor, found, { amount, source }); return; }
     asking.add(actor.uuid);
     void stampAsk(actor, found, { amount, source })
-      .catch(err => { asking.delete(actor.uuid); console.error(`${TITLE} | ${found.name}'s ask failed — the creature stays at 1 HP; set it by hand.`, err); });
+      .catch(err => { asking.delete(actor.uuid); log.error(`${found.name}'s ask failed — the creature stays at 1 HP; set it by hand.`, err); });
   } catch(err) {
-    console.error(`${TITLE} | Drop to 1 HP failed — the damage lands as the system has it.`, err);
+    log.error(`Drop to 1 HP failed — the damage lands as the system has it.`, err);
   }
 });
 
@@ -206,7 +206,7 @@ listen("dnd5e.preApplyDamage", "drop-to-one", (actor, amount, updates, _options)
     const now = Number(actor.system?.attributes?.exhaustion ?? 0) || 0;
     updates["system.attributes.exhaustion"] = Math.min(6, now + 1);
   } catch(err) {
-    console.error(`${TITLE} | Going down costs failed — add the level of Exhaustion by hand.`, err);
+    log.error(`Going down costs failed — add the level of Exhaustion by hand.`, err);
   }
 });
 
@@ -237,21 +237,21 @@ listen("updateActor", "drop-to-one", (actor, changes, _options, userId) => {
       if ( toApply === "dead" ) flags.core = { overlay: true };
       effect.updateSource({ flags });
       await ActiveEffect.implementation.create(effect, { parent: actor, keepId: true });
-    })().catch(err => console.warn(`${TITLE} | The downed condition could not be applied out of combat — set it by hand.`, err))
+    })().catch(err => log.warn(`The downed condition could not be applied out of combat — set it by hand.`, err))
       .finally(() => downing.delete(actor.uuid));
   } catch(err) {
-    console.error(`${TITLE} | The downed condition failed out of combat.`, err);
+    log.error(`The downed condition failed out of combat.`, err);
   }
 });
 
 /** An automatic row (Death Ward): the effect ends, the card says so. */
 async function settle(actor, found, { amount, source }) {
   try { if ( found.effect && actor.effects.get(found.effect.id) ) await found.effect.delete(); }
-  catch(err) { console.warn(`${TITLE} | ${found.name}'s effect could not be removed — end it by hand.`, err); }
+  catch(err) { log.warn(`${found.name}'s effect could not be removed — end it by hand.`, err); }
   // B4 — a named row's activity pays (Protect's once per Long Rest), on the keeper's item.
   if ( found.activity && found.item ) {
     await found.item.update({ [`system.activities.${found.activity.id}.uses.spent`]: Number(found.activity.uses?.spent ?? 0) + 1 })
-      .catch(err => console.warn(`${TITLE} | ${found.name}'s use could not be spent — mark it by hand.`, err));
+      .catch(err => log.warn(`${found.name}'s use could not be spent — mark it by hand.`, err));
   }
   await postCard({
     actor,
@@ -276,7 +276,7 @@ async function exemptCard(actor, found, why, { amount, source }) {
       flags: { [MODULE_ID]: { [DROP_FLAG]: { status: "resolved", answer: "exempt", why, row: found.name, actorUuid: actor.uuid,
         actorName: actor.name, amount, applied: true, ...statContext(source?.uuid ?? null) } } }
     });
-  } catch(err) { console.warn(`${TITLE} | ${found.name}'s card could not post.`, err); }
+  } catch(err) { log.warn(`${found.name}'s card could not post.`, err); }
 }
 
 /** The bearer's save, rolled here on the keeper with the computed DC; the verdict lands the 1 or the 0. */
@@ -289,14 +289,14 @@ async function rollDropSave(actor, found, { amount, source, dc, saveAct = null }
     const t = Number(rolls?.[0]?.total);
     total = Number.isFinite(t) ? t : null;
   } catch(err) {
-    console.error(`${TITLE} | ${found.name}'s save did not roll — the creature stays at 1 HP; roll it by hand.`, err);
+    log.error(`${found.name}'s save did not roll — the creature stays at 1 HP; roll it by hand.`, err);
   }
   const saved = (total !== null) && (total >= dc);
   // C1 — `uses` on a save row (Relentless Rage): the roll itself spends the use, saved or not (the DC climbs with it).
   // RAVENLOFT — `spendOn: "success"` (Strength of the Grave): the success alone spends it.
   if ( found.row.uses && found.item && (total !== null) && ((found.row.spendOn !== "success") || saved) ) {
     await found.item.update({ "system.uses.spent": Number(found.item.system.uses?.spent ?? 0) + 1 })
-      .catch(err => console.warn(`${TITLE} | ${found.name}'s use could not be spent — mark it by hand.`, err));
+      .catch(err => log.warn(`${found.name}'s use could not be spent — mark it by hand.`, err));
   }
   try {
     if ( !saved && (total !== null) && (Number(actor.system.attributes.hp.value) === 1) ) {
@@ -328,7 +328,7 @@ async function healOnHold(card, actor, found) {
     const activity = item ? activityNamed(item, found.row.heal) : null;
     const h = activity?.healing;
     const raw = h ? riderPartFormula({ number: h.number, denomination: h.denomination, custom: h.custom, bonus: h.bonus }) : null;
-    if ( !raw ) { console.warn(`${TITLE} | ${found.name}: no healing part on "${found.row.heal}" — heal by hand.`); return; }
+    if ( !raw ) { log.warn(`${found.name}: no healing part on "${found.row.heal}" — heal by hand.`); return; }
     const owner = found.keeper ?? actor;
     const roll = await new Roll(raw, activity.getRollData?.() ?? owner.getRollData()).evaluate();
     if ( !(roll.total > 0) ) return;
@@ -336,7 +336,7 @@ async function healOnHold(card, actor, found) {
     const value = found.row.sets ? Math.max(0, Number(roll.total) - Math.max(0, Number(actor.system?.attributes?.hp?.value ?? 0))) : Number(roll.total);
     if ( !(value > 0) ) return;
     await applyDamagesWithReceipt(card, [{ uuid: actor.uuid, name: actor.name }], [{ value, type: "healing", properties: new Set() }], { note: found.name });
-  } catch(err) { console.error(`${TITLE} | ${found.name}'s heal failed — heal by hand.`, err); }
+  } catch(err) { log.error(`${found.name}'s heal failed — heal by hand.`, err); }
 }
 
 /* --- the `died` row: the death's side (Death Throes) --------------------------------------------- */
@@ -354,7 +354,7 @@ listen("dnd5e.applyDamage", "drop-to-one", (actor, _amount, _options) => {
     if ( Number(actor.system?.attributes?.hp?.value ?? 1) > 0 ) return;   // something else held it
     void landedZero(actor, ctx);
   } catch(err) {
-    console.error(`${TITLE} | The death's side failed — use the trait by hand.`, err);
+    log.error(`The death's side failed — use the trait by hand.`, err);
   }
 });
 
@@ -377,10 +377,10 @@ async function landedZero(actor, { source }) {
       const activity = found.row.activity ? activityNamed(item, found.row.activity) : activityOfType(item, "save");
       const dc = activity?.save?.dc?.value;
       const abilities = [...(activity?.save?.ability ?? [])];
-      if ( !activity || !(dc > 0) || !abilities.length ) { console.warn(`${TITLE} | ${found.name}: no save activity on ${actor.name}'s sheet — use it by hand.`); continue; }
+      if ( !activity || !(dc > 0) || !abilities.length ) { log.warn(`${found.name}: no save activity on ${actor.name}'s sheet — use it by hand.`); continue; }
       const corpse = tokenOf(actor);
       const feet = feetOf(Number(activity.target?.template?.size), activity.target?.template?.units || "ft");
-      if ( !corpse || !(feet > 0) ) { console.warn(`${TITLE} | ${found.name}: ${actor.name} has no token in view, or its activity no Emanation — use it by hand.`); continue; }
+      if ( !corpse || !(feet > 0) ) { log.warn(`${found.name}: ${actor.name} has no token in view, or its activity no Emanation — use it by hand.`); continue; }
       const victims = creaturesWithin(corpse, feet);
       const entries = (await applicableProfiles(activity)).map(({ profile, effect }) => ({ onSave: profile.onSave, effect }));
       const effectNames = { fail: entries.filter(e => !e.onSave).map(e => e.effect.name), always: entries.filter(e => e.onSave).map(e => e.effect.name) };
@@ -419,7 +419,7 @@ async function landedZero(actor, { source }) {
       });
       if ( hasDamage && card ) await rollDamageForSave(activity, card);
     } catch(err) {
-      console.error(`${TITLE} | ${found.name} failed — use the trait by hand.`, err);
+      log.error(`${found.name} failed — use the trait by hand.`, err);
     }
   }
 }
@@ -602,7 +602,7 @@ listen("dnd5e.renderChatMessage", "drop-to-one", (message, html) => {
       });
     }
     content.appendChild(div);
-  } catch(err) { console.warn(`${TITLE} | The drop-to-1 line could not render.`, err); }
+  } catch(err) { log.warn(`The drop-to-1 line could not render.`, err); }
 });
 
 // An answer anywhere closes the popup everywhere (law 4); the clock stands down with it.
@@ -661,7 +661,7 @@ listen("dnd5e.rollDeathSave", "drop-to-one", (rolls, ctx) => {
     offeredFor.add(message.id);
     for ( const found of deathSaveKeepersOf(actor) ) void stampDeathOffer(actor, found, message);
   } catch(err) {
-    console.error(`${TITLE} | The death save's offer failed — use the feature by hand.`, err);
+    log.error(`The death save's offer failed — use the feature by hand.`, err);
   }
 });
 
@@ -761,10 +761,10 @@ async function landOffer(message) {
       const targets = victims.map(t => ({ uuid: t.actor.uuid, name: t.document?.name ?? t.actor.name }));
       await applyDamagesWithReceipt(message, targets, damages, { note: flag.row });
       await applyActivityEffectsOnHit(message, activity, targets, { clock: row.clock ?? null, attacker: keeper })
-        .catch(err => console.warn(`${TITLE} | ${flag.row}'s effect could not land — apply it by hand.`, err));
+        .catch(err => log.warn(`${flag.row}'s effect could not land — apply it by hand.`, err));
     }
   } catch(err) {
-    console.error(`${TITLE} | ${flag.row} failed part-way — check the sheets.`, err);
+    log.error(`${flag.row} failed part-way — check the sheets.`, err);
   } finally {
     await queueFlagWrite(message, DEATH_OFFER_FLAG, current => { Object.assign(current, record, { applied: true, applying: false }); });
   }
@@ -827,7 +827,7 @@ listen("dnd5e.renderChatMessage", "drop-to-one", (message, html) => {
       });
     }
     content.appendChild(div);
-  } catch(err) { console.warn(`${TITLE} | The death save offer's line could not render.`, err); }
+  } catch(err) { log.warn(`The death save offer's line could not render.`, err); }
 });
 
 listen("updateChatMessage", "drop-to-one", message => {

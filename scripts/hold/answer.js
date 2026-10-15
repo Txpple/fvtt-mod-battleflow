@@ -3,7 +3,7 @@
  * By the Books — the reaction hold, part 5: THE ANSWER. `answerHold` and its relay fold, the cast
  * that IS the answer, and the popup's Cast button (natively, or Parry's die rolled in the open).
  */
-import { MODULE_ID, readFlag, TITLE, queueFlagWrite, canAnswerFor, isContinuingClient, resolveUuidAsync } from "../core.js";
+import { MODULE_ID, readFlag, TITLE, queueFlagWrite, canAnswerFor, isContinuingClient, resolveUuidAsync, log } from "../core.js";
 import { isTextOnlyFeature } from "../decide/eligible.js";
 import { interruptEntries } from "../decide/registry.js";
 import { joinEffectReceipt } from "../decide/receipt.js";
@@ -249,7 +249,7 @@ async function bendTheRoll(attackMessage, actor, name) {
       await die.toMessage({ speaker: ChatMessage.getSpeaker({ actor }), flavor: `${name} — the second d20 (Disadvantage)` });
       second = Number(die.total);
     } catch(err) {
-      console.error(`${TITLE} | ${name}'s second d20 could not be rolled — the first stands.`, err);
+      log.error(`${name}'s second d20 could not be rolled — the first stands.`, err);
     }
   }
   const faces = (d20?.results ?? []).filter(r => !r?.rerolled).map(r => r.result);
@@ -284,11 +284,11 @@ export async function rescueReaction(attackMessage, target, name) {
   }
   let poolSpend = null;
   if ( row.uses ) poolSpend = await spendPoolUses(actor, item, key, 1, row.point ? `${row.point}s` : null)
-    .catch(err => { console.warn(`${TITLE} | Could not spend a use of ${key}.`, err); return null; });
+    .catch(err => { log.warn(`Could not spend a use of ${key}.`, err); return null; });
   if ( row.reaction ) await spendReaction(actor, { origin: item.uuid, what: key });
   const bent = await bendTheRoll(attackMessage, actor, key);
   // B4 — a `heal` row (Improved Warding Flare): the named feature's heal activity lands on the flared creature with the answer.
-  if ( row.heal ) void landRowHeal(attackMessage, actor, row.heal).catch(err => console.error(`${TITLE} | ${row.heal} could not land — apply it by hand.`, err));
+  if ( row.heal ) void landRowHeal(attackMessage, actor, row.heal).catch(err => log.error(`${row.heal} could not land — apply it by hand.`, err));
   return answerHold(attackMessage, target.uuid, "roll", { poolSpend, bent, rescue: key });
 }
 
@@ -299,7 +299,7 @@ async function landRowHeal(attackMessage, actor, featureName) {
   const activity = [...(feature.system?.activities ?? [])].find(a => a.type === "heal") ?? null;
   const h = activity?.healing ?? null;
   const raw = h ? riderPartFormula({ number: h.number, denomination: h.denomination, custom: h.custom, bonus: h.bonus }) : null;
-  if ( !raw ) { console.warn(`${TITLE} | ${featureName}: no healing part on the sheet — apply it by hand.`); return; }
+  if ( !raw ) { log.warn(`${featureName}: no healing part on the sheet — apply it by hand.`); return; }
   const roll = await new Roll(raw, activity.getRollData?.() ?? feature.getRollData?.() ?? {}).evaluate();
   const type = [...(h.types ?? [])][0] ?? "healing";
   await roll.toMessage({ speaker: ChatMessage.getSpeaker({ actor }), flavor: `${featureName} — ${type === "temphp" ? "Temporary Hit Points" : "healing"} with the Flare` });
@@ -371,10 +371,10 @@ export async function bystanderReaction(attackMessage, target, guard, { face = n
   if ( !roll || !Number.isFinite(facts.kept) ) return;
   let poolSpend = null;
   if ( row.uses ) poolSpend = await spendPoolUses(actor, pool, key, 1, (pool === item) ? null : pool.name)
-    .catch(err => { console.warn(`${TITLE} | Could not spend a use for ${key}.`, err); return null; });
+    .catch(err => { log.warn(`Could not spend a use for ${key}.`, err); return null; });
   if ( reaction ) await spendReaction(actor, { origin: item?.uuid ?? inspired?.origin ?? null, what: key });
   // The Inspired die is spent as it is rolled (d20-folds.js BARDIC's spend).
-  if ( inspired ) await inspired.delete().catch(err => console.warn(`${TITLE} | Could not spend the Inspired die — delete it by hand.`, err));
+  if ( inspired ) await inspired.delete().catch(err => log.warn(`Could not spend the Inspired die — delete it by hand.`, err));
   let bent = null;
   if ( row.bend === "die" ) {
     const formula = guard.die ?? bystanderDie(actor, row);
@@ -383,13 +383,13 @@ export async function bystanderReaction(attackMessage, target, guard, { face = n
       die = await new Roll(String(formula)).evaluate();
       n = Math.max(0, Number(die.total) || 0);
     } catch(err) {
-      console.error(`${TITLE} | ${key}'s die could not be rolled — bend the roll by hand.`, err);
+      log.error(`${key}'s die could not be rolled — bend the roll by hand.`, err);
     }
     bent = dieOutcome({ kept: Number(facts.kept), total: Number(roll.total), add: guardSign(guard, row) * n,
       critAt: facts.critAt, fumbleAt: facts.fumbleAt });
     // The dice over the attacker are the hold's (hold/dice.js), off the record landing.
     if ( die ) await die.toMessage({ speaker: ChatMessage.getSpeaker({ actor }), flavor: `${key} — off the attack at ${target.name}` })
-      .catch(err => console.warn(`${TITLE} | ${key}'s die could not be posted.`, err));
+      .catch(err => log.warn(`${key}'s die could not be posted.`, err));
   } else if ( row.bend === "neutralise" ) {
     bent = neutraliseOutcome({ mode: facts.mode, kept: Number(facts.kept), plain: facts.plain, total: Number(roll.total),
       critAt: facts.critAt, fumbleAt: facts.fumbleAt, faces: facts.faces });
@@ -427,7 +427,7 @@ async function offerStrike(attackMessage, actor, key) {
       { action: "strike", label: "Strike", default: true, callback: () => void driveStrike(actor, option, token, attackMessage.id) },
       { action: "pass", label: "Pass", callback: () => {} }
     ]
-  }).catch(err => console.warn(`${TITLE} | ${key}'s strike could not be offered — attack from the sheet.`, err));
+  }).catch(err => log.warn(`${key}'s strike could not be offered — attack from the sheet.`, err));
 }
 
 async function driveStrike(actor, option, token, attackId) {
@@ -440,7 +440,7 @@ async function driveStrike(actor, option, token, attackId) {
       await activity.rollAttack({}, { configure: false }, { data: { ...(usageId ? originData(usageId) : {}), flags: { [MODULE_ID]: { riposteFor: attackId } } } });
     });
   } catch(err) {
-    console.error(`${TITLE} | The strike could not be driven — attack from the sheet.`, err);
+    log.error(`The strike could not be driven — attack from the sheet.`, err);
   }
 }
 
@@ -454,7 +454,7 @@ async function driveStrike(actor, option, token, attackId) {
 export async function muteAndPass(attackMessage, target, guard, until = "combat") {
   const actor = await resolveUuidAsync(guard.uuid);
   const img = actor?.items?.get(guard.itemId)?.img ?? null;
-  await muteBystander(actor, guard.row, { img, until }).catch(err => console.warn(`${TITLE} | Could not mute ${guard.row}.`, err));
+  await muteBystander(actor, guard.row, { img, until }).catch(err => log.warn(`Could not mute ${guard.row}.`, err));
   if ( !guard.passed ) return answerHold(attackMessage, target.uuid, "pass", { by: guard.uuid });
 }
 
@@ -511,7 +511,7 @@ export async function castReaction(attackMessage, target) {
       ui.notifications.warn(`${TITLE}: ${actor?.name ?? target.name} has no use of ${target.reaction} left.`);
       return;
     }
-    await spendPoolUses(actor, ownItem, target.reaction).catch(err => console.warn(`${TITLE} | Could not spend a use of ${target.reaction}.`, err));
+    await spendPoolUses(actor, ownItem, target.reaction).catch(err => log.warn(`Could not spend a use of ${target.reaction}.`, err));
   }
   const attackerUuid = attackMessage.getAssociatedActor?.()?.uuid ?? null;
   const aim = (multiplierRow?.at === "attacker") ? tokenOf(attackerUuid) : null;
@@ -543,10 +543,10 @@ async function parryReaction(attackMessage, target, actor) {
       ...(rise ? { flags: { [MODULE_ID]: { diceRise: rise } } } : {}) });
     total = Math.max(0, Number(roll.total) || 0);
   } catch(err) {
-    console.error(`${TITLE} | ${target.reaction}'s reduction could not be rolled — reduce by hand.`, err);
+    log.error(`${target.reaction}'s reduction could not be rolled — reduce by hand.`, err);
   }
   let poolSpend = null;
-  if ( pool ) poolSpend = await spendSuperiorityDie(actor, pool, target.reaction).catch(err => { console.warn(`${TITLE} | Could not spend a ${target.reduce.spend ?? "Superiority Die"} for ${target.reaction}.`, err); return null; });
+  if ( pool ) poolSpend = await spendSuperiorityDie(actor, pool, target.reaction).catch(err => { log.warn(`Could not spend a ${target.reduce.spend ?? "Superiority Die"} for ${target.reaction}.`, err); return null; });
   await spendReaction(actor, { origin: item?.uuid ?? null, what: target.reaction });
   return answerHold(attackMessage, target.uuid, "cast", { reduceBy: total, poolSpend });
 }
@@ -573,6 +573,6 @@ export async function useAtZero(damageMessage, actor, offer) {
     if ( !activity || !token ) { ui.notifications?.warn(`${TITLE}: ${offer.row} — ${offer.activity} or the attacker is gone; use it from the sheet.`); return; }
     await withTargets([token], () => activity.use({ subsequentActions: false }, { configure: false }));
   } catch(err) {
-    console.error(`${TITLE} | ${offer.row}'s ${offer.activity} could not be used — use it from the sheet.`, err);
+    log.error(`${offer.row}'s ${offer.activity} could not be used — use it from the sheet.`, err);
   }
 }

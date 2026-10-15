@@ -7,7 +7,7 @@
  * is stated as arithmetic and the verdict stays the DM's (the raw-check shape). One flag on the ROLL
  * message, `bystanderRoll`; a bystander who does not own the roll answers through the relay.
  */
-import { MODULE_ID, readFlag, TITLE, queueFlagWrite, canAnswerFor, keepsMessage, statContext, decisionWindow, resolveUuid, resolveUuidAsync } from "./core.js";
+import { MODULE_ID, readFlag, TITLE, queueFlagWrite, canAnswerFor, keepsMessage, statContext, decisionWindow, resolveUuid, resolveUuidAsync, log } from "./core.js";
 import { INTERRUPT_ROLLS, STORED_DICE } from "./decide/registry.js";
 import { bystanderMatters, dieMaxOf, dieOutcome, guardSign, neededOnDieLine, neutraliseOutcome, rerollOutcome, signFor } from "./decide/rescue-hit.js";
 import { bfCard, esc, holdBarHTML } from "./decide/present.js";
@@ -118,7 +118,7 @@ function rerollBonusOf(actor, formula) {
     const n = Number(Roll.safeEval(resolved));
     return Number.isFinite(n) ? n : 0;
   } catch {
-    console.warn(`${TITLE} | The reroll bonus "${formula}" could not be read off ${actor.name}'s sheet — the reroll stands without it.`);
+    log.warn(`The reroll bonus "${formula}" could not be read off ${actor.name}'s sheet — the reroll stands without it.`);
     return 0;
   }
 }
@@ -168,7 +168,7 @@ registerWithhold(KEY, {
       return await stampBystanders(rollMessage, roller, "save", { dc, demand: { statuses: demand.statuses ?? [], ability, spell: !!demand.spell },
         resume: { cardId: card.id, uuid, ...(by ? { by } : {}) } });
     } catch(err) {
-      console.error(`${TITLE} | The bystander offer on a save failed — the save folds as rolled.`, err);
+      log.error(`The bystander offer on a save failed — the save folds as rolled.`, err);
       return false;
     }
   }
@@ -190,7 +190,7 @@ for ( const hook of ["dnd5e.rollAbilityCheck", "dnd5e.rollSkill", "dnd5e.rollToo
       const dc = dcOnRoll(rolls[0]);
       await stampBystanders(message, roller, "check", (dc === null) ? {} : { dc });
     } catch(err) {
-      console.error(`${TITLE} | The bystander offer on a check failed.`, err);
+      log.error(`The bystander offer on a check failed.`, err);
     }
   });
 }
@@ -211,7 +211,7 @@ listen("dnd5e.rollSavingThrow", "bystanders", async (rolls, data) => {
     const ability = message.getFlag("dnd5e", "roll")?.ability ?? data?.ability ?? null;
     await stampBystanders(message, roller, "save", { dc, demand: { statuses: [], ability, spell: false } });
   } catch(err) {
-    console.error(`${TITLE} | The bystander offer on a requested save failed.`, err);
+    log.error(`The bystander offer on a requested save failed.`, err);
   }
 });
 
@@ -270,7 +270,7 @@ async function bystanderAnswer(message, guard, choice, face = null) {
   // The mutes (RULINGS *The asks widened*): "mute-turn" until the bystander's next turn, "mute-combat" until the combat ends.
   if ( String(choice).startsWith("mute") ) {
     await muteBystander(actor, guard.row, { img: actor?.items?.get?.(guard.itemId)?.img ?? null, until: (choice === "mute-turn") ? "turn" : "combat" })
-      .catch(err => console.warn(`${TITLE} | Could not mute ${guard.row}.`, err));
+      .catch(err => log.warn(`Could not mute ${guard.row}.`, err));
     choice = "pass";
   }
   if ( choice === "pass" ) return sendAnswer(message, { ...base, answer: "pass" }, actor);
@@ -311,7 +311,7 @@ async function bystanderAnswer(message, guard, choice, face = null) {
     if ( row.reaction ) await spendReaction(actor, { origin: item.uuid, what: guard.row });
     const twist = { targetUuid: aim.actor.uuid, targetName: aim.document?.name ?? aim.actor.name };
     await withTargets([aim], () => activity.use({ subsequentActions: false }, { configure: false }, { data: { flags: { [MODULE_ID]: { twistFor: message.id } } } }))
-      .catch(err => console.error(`${TITLE} | ${guard.row}'s save could not be demanded — use it from the sheet.`, err));
+      .catch(err => log.error(`${guard.row}'s save could not be demanded — use it from the sheet.`, err));
     return sendAnswer(message, { ...base, answer: "roll", bent: null, twist, poolSpend: null }, actor);
   }
   if ( row.bend === "set" ) {
@@ -324,7 +324,7 @@ async function bystanderAnswer(message, guard, choice, face = null) {
     return sendAnswer(message, { ...base, answer: "roll", bent, poolSpend: null }, actor);
   }
   const poolSpend = row.uses ? await spendPoolUses(actor, pool, guard.row, 1, (pool === item) ? null : pool.name)
-    .catch(err => { console.warn(`${TITLE} | Could not spend a use for ${guard.row}.`, err); return null; }) : null;
+    .catch(err => { log.warn(`Could not spend a use for ${guard.row}.`, err); return null; }) : null;
   if ( row.reaction ) await spendReaction(actor, { origin: item.uuid, what: guard.row });
   let bent = null;
   if ( row.bend === "neutralise" ) {
@@ -333,7 +333,7 @@ async function bystanderAnswer(message, guard, choice, face = null) {
     // THE REROLL (Countercharm): the roller's own d20 rolled again, at Advantage where the row says, in the open; the new
     // roll stands, whatever it shows. The dice rise off the ROLLER, whose save it is.
     const rolled = await rerollD20(roll, resolveUuid(flag.rollerUuid), { advantage: row.advantage === true })
-      .catch(err => { console.error(`${TITLE} | ${guard.row}'s reroll failed — reroll the save by hand.`, err); return null; });
+      .catch(err => { log.error(`${guard.row}'s reroll failed — reroll the save by hand.`, err); return null; });
     if ( !rolled ) return;
     const newFacts = d20FactsOf(rolled.roll);
     // A reroll row's `bonus` (Shared Resilience: the fighter's level) is read off the ANSWERER and added to the new total.
@@ -351,14 +351,14 @@ async function bystanderAnswer(message, guard, choice, face = null) {
       die = await new Roll(String(guard.die)).evaluate();
       n = Math.max(0, Number(die.total) || 0);
     } catch(err) {
-      console.error(`${TITLE} | ${guard.row}'s die could not be rolled — bend the roll by hand.`, err);
+      log.error(`${guard.row}'s die could not be rolled — bend the roll by hand.`, err);
     }
     bent = dieOutcome({ kept: Number(facts.kept), total: Number(roll.total), add: guardSign(guard, row) * n, critAt: 99, fumbleAt: 0 });
     // The dice over the ROLLER, whose check it is: the modifier, then the total as rolled turning over to the bent total.
     const rise = bendRise({ add: bent.add, oldTotal: bent.firstTotal, newTotal: bent.total, on: flag.rollerUuid ?? null });
     if ( die ) await die.toMessage({ speaker: ChatMessage.getSpeaker({ actor }), flavor: `${guard.row} — on ${flag.rollerName}'s ${TEST_WORD[flag.testKind] ?? "roll"}`,
       ...(rise ? { flags: { [MODULE_ID]: { diceRise: rise } } } : {}) })
-      .catch(err => console.warn(`${TITLE} | ${guard.row}'s die could not be posted.`, err));
+      .catch(err => log.warn(`${guard.row}'s die could not be posted.`, err));
   }
   return sendAnswer(message, { ...base, answer: "roll", bent, poolSpend }, actor);
 }
@@ -388,7 +388,7 @@ listen("updateChatMessage", "bystanders", message => {
       await queueFlagWrite(message, KEY, current => { if ( current.resumed ) return false; current.resumed = true; claimed = true; });
       if ( claimed ) await resumeWithheld(flag.resume.by ?? null, flag.resume, message);
     } catch(err) {
-      console.error(`${TITLE} | Resuming the save a bystander held failed.`, err);
+      log.error(`Resuming the save a bystander held failed.`, err);
     } finally {
       resuming.delete(message.id);
     }

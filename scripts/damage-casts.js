@@ -3,7 +3,7 @@
  * demands the save its text names after the damage lands (RULINGS *Damage casts*). EDGE layer
  * (ARCHITECTURE.md §7).
  */
-import { MODULE_ID, readFlag, TITLE, S, setting, statContext } from "./core.js";
+import { MODULE_ID, readFlag, S, setting, statContext, log } from "./core.js";
 import { lower, activityNamed, namesAnswering } from "./lookup.js";
 import { damageSaveEntries, emanationEntries, listedNames } from "./decide/registry.js";
 import { withTargets } from "./shared.js";
@@ -48,7 +48,7 @@ listen("dnd5e.preUseActivity", "damage-casts", (activity, usageConfig, _dialogCo
     if ( !drives(activity, n) ) return;
     usageConfig.subsequentActions = false;
   } catch(err) {
-    console.warn(`${TITLE} | Could not claim the damage cast's roll.`, err);
+    log.warn(`Could not claim the damage cast's roll.`, err);
   }
 });
 const { rowFor } = tableIndex(DAMAGE_SAVES);
@@ -67,7 +67,7 @@ listen("dnd5e.postUseActivity", "damage-casts", (activity, _usageConfig, results
     } catch { /* refund keeps working through the deltas either way */ }
     void driveDamageCast(activity, message, targets);
   } catch(err) {
-    console.error(`${TITLE} | Damage cast failed — roll the dice from the card.`, err);
+    log.error(`Damage cast failed — roll the dice from the card.`, err);
   }
 });
 
@@ -83,14 +83,14 @@ async function driveDamageCast(activity, message, targets) {
   if ( !follows ) return;
   // The save, used at the same targets; the saves machine takes it from here. No slot: already cast.
   const save = activityNamed(activity.item, row.save);
-  if ( !save ) { console.warn(`${TITLE} | ${row.key}: no activity named "${row.save}" on the sheet — ask for the save by hand.`); return; }
+  if ( !save ) { log.warn(`${row.key}: no activity named "${row.save}" on the sheet — ask for the save by hand.`); return; }
   const tokens = targets.map(t => tokenOf(t.uuid)).filter(Boolean);
   if ( !tokens.length ) return;
   try {
     await withTargets(tokens, () => save.use({ consume: { spellSlot: false, resources: false, action: false }, subsequentActions: false }, { configure: false },
       { data: { flags: { [MODULE_ID]: { damageSaveCard: { ...statContext(actor.uuid), key: row.key, damageCardId: message.id, line: row.line ?? null, rule: row.rule } } } } }));
   } catch(err) {
-    console.error(`${TITLE} | ${row.key}: the save could not be put to the targets — ask for it by hand.`, err);
+    log.error(`${row.key}: the save could not be put to the targets — ask for it by hand.`, err);
   }
 }
 

@@ -2,7 +2,7 @@
  * By the Books — effect riders (a hit applies the attack activity's own effects, per target) and
  * the one shared effect applier, mirroring the native tray's `_prepareEffectData`.
  */
-import { MODULE_ID, readFlag, TITLE, isActiveGM, queueFlagWrite, statContext, resolveUuid, resolveUuidAsync } from "./core.js";
+import { MODULE_ID, readFlag, isActiveGM, queueFlagWrite, statContext, resolveUuid, resolveUuidAsync, log } from "./core.js";
 import { cardActivity, lower, profileEffects } from "./lookup.js";
 import { CLOCK_RIDERS } from "./decide/registry.js";
 import { effectRecord, joinEffectReceipt, revertableEffect } from "./decide/receipt.js";
@@ -51,7 +51,7 @@ export async function applyEffectRiders(damageMessage, attackMessage, hits) {
       activity
     });
   } catch(err) {
-    console.error(`${TITLE} | Effect riders failed.`, err);
+    log.error(`Effect riders failed.`, err);
   }
 }
 

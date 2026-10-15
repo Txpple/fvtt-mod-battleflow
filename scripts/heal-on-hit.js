@@ -5,7 +5,7 @@
  * pays the caster with a receipt on the same card, once per creature per card, no choice (R1).
  * Rulings: RULINGS *The spells slice — the held spells*.
  */
-import { MODULE_ID, readFlag, TITLE, canApplyTo, whisperNoGM, queueFlagWrite } from "./core.js";
+import { MODULE_ID, readFlag, canApplyTo, whisperNoGM, queueFlagWrite, log } from "./core.js";
 import { activityNamed, activityOfType, cardActivity, featureNamed, lower, wearsEffectNamed } from "./lookup.js";
 import { damagePartsOf, turnChitStands, writeTurnChit } from "./shared.js";
 import { nearestFeet, tokenOf } from "./geometry.js";
@@ -40,7 +40,7 @@ listen("dnd5e.applyDamage", "heal-on-hit", (actor, amount, options) => {
     if ( !(caster instanceof Actor) || (caster.uuid === actor.uuid) ) return;
     void heal({ row, activity, caster, target: actor, taken: Number(amount), origin });
   } catch(err) {
-    console.error(`${TITLE} | The heal on hit failed — heal the caster by hand.`, err);
+    log.error(`The heal on hit failed — heal the caster by hand.`, err);
   }
 });
 
@@ -66,7 +66,7 @@ async function offerOnDamage({ activity, caster, origin }) {
       const heal = row.activity ? [...(feature.system?.activities ?? [])].find(a => a.name === row.activity) : activityOfType(feature, "heal");
       const h = heal?.healing;
       const raw = h ? riderPartFormula({ number: h.number, denomination: h.denomination, custom: h.custom, bonus: h.bonus }) : null;
-      if ( !raw ) { console.warn(`${TITLE} | ${key}: no healing part on its activity — give it by hand.`); continue; }
+      if ( !raw ) { log.warn(`${key}: no healing part on its activity — give it by hand.`); continue; }
       const roll = await new Roll(raw, heal.getRollData?.() ?? caster.getRollData()).evaluate();
       if ( !(roll.total > 0) ) continue;
       offered.add(origin.id);
@@ -75,7 +75,7 @@ async function offerOnDamage({ activity, caster, origin }) {
       return;
     }
   } catch(err) {
-    console.error(`${TITLE} | The temp HP offer failed — give them by hand.`, err);
+    log.error(`The temp HP offer failed — give them by hand.`, err);
   }
 }
 
@@ -101,7 +101,7 @@ async function payHit({ activity, caster, origin, target }) {
       const heal = row.activity ? activityNamed(feature, row.activity) : activityOfType(feature, "heal");
       const h = heal?.healing;
       const raw = h ? riderPartFormula({ number: h.number, denomination: h.denomination, custom: h.custom, bonus: h.bonus }) : null;
-      if ( !raw ) { console.warn(`${TITLE} | ${key}: no healing part on its activity — heal by hand.`); continue; }
+      if ( !raw ) { log.warn(`${key}: no healing part on its activity — heal by hand.`); continue; }
       hitPaid.add(latch);
       const roll = await new Roll(raw, heal.getRollData?.() ?? caster.getRollData()).evaluate();
       if ( !(roll.total > 0) ) continue;
@@ -124,7 +124,7 @@ async function payHit({ activity, caster, origin, target }) {
       if ( card ) await applyDamagesWithReceipt(card, [{ uuid: caster.uuid, name: caster.name }], [{ value: roll.total, type: "healing", properties: new Set() }], { note: key });
     }
   } catch(err) {
-    console.error(`${TITLE} | The heal on the hit failed — heal by hand.`, err);
+    log.error(`The heal on the hit failed — heal by hand.`, err);
   }
 }
 
@@ -159,7 +159,7 @@ async function heal({ row, activity, caster, target, taken, origin }) {
     });
     if ( card ) await applyDamagesWithReceipt(card, [{ uuid: caster.uuid, name: caster.name }], [{ value: verdict.amount, type: "healing", properties: new Set() }], { note: row.key });
   } catch(err) {
-    console.error(`${TITLE} | ${row?.key ?? "The heal on hit"} could not land — heal by hand.`, err);
+    log.error(`${row?.key ?? "The heal on hit"} could not land — heal by hand.`, err);
   } finally {
     healing.delete(key);
   }
@@ -177,7 +177,7 @@ listen("dnd5e.renderChatMessage", "heal-on-hit", (message, html) => {
     div.style.cssText = "margin:0.25rem 0;font-size:var(--font-size-11,11px);opacity:0.85;";
     div.innerHTML = `<i class="fa-solid fa-heart-pulse"></i> ${esc(`${h.key} — the caster regains half the damage that landed (its own card)`)}`;
     content.appendChild(div);
-  } catch(err) { console.warn(`${TITLE} | The heal-on-hit line could not render.`, err); }
+  } catch(err) { log.warn(`The heal-on-hit line could not render.`, err); }
 });
 
 /* --- `on: "kill"`: an enemy dropped to 0 pays a feature's bearer (Dark One's Blessing) -------------- */
@@ -213,7 +213,7 @@ listen("dnd5e.preApplyDamage", "heal-on-hit", (actor, amount, updates, options) 
     if ( !(origin instanceof ChatMessage) ) return;                  // no card, no dealer (the bend)
     falling.set(actor.uuid, origin);
   } catch(err) {
-    console.error(`${TITLE} | The kill's heal could not be stamped — heal by hand.`, err);
+    log.error(`The kill's heal could not be stamped — heal by hand.`, err);
   }
 });
 
@@ -225,7 +225,7 @@ listen("dnd5e.applyDamage", "heal-on-hit", (actor, _amount, _options) => {
     if ( Number(actor.system?.attributes?.hp?.value ?? 1) > 0 ) return;   // something held it above 0
     void payKill(actor, origin);
   } catch(err) {
-    console.error(`${TITLE} | The kill's heal failed — heal by hand.`, err);
+    log.error(`The kill's heal failed — heal by hand.`, err);
   }
 });
 
@@ -271,12 +271,12 @@ async function payKill(fallen, origin) {
         const resolved = raw ? Roll.replaceFormulaData(raw, b.bearer.getRollData()) : null;
         amount = (resolved && Roll.validate(resolved)) ? Math.floor(Number((await new Roll(resolved).evaluate()).total) || 0) : 0;
       } catch { amount = 0; }
-      if ( !(amount > 0) ) { console.warn(`${TITLE} | ${b.key}: no amount could be read off ${b.bearer.name}'s sheet — heal by hand.`); continue; }
+      if ( !(amount > 0) ) { log.warn(`${b.key}: no amount could be read off ${b.bearer.name}'s sheet — heal by hand.`); continue; }
       const what = b.row.temphp ? "Temporary Hit Points" : "Hit Points";
       // RAVENLOFT — `uses`: the feature's own use spent as it pays; `pick`: the heal OFFERED to one creature within reach
       // (the bearer too) — the rest song's popup, on the bearer's client.
       if ( b.row.uses ) await b.feature.update({ "system.uses.spent": Number(b.feature.system?.uses?.spent ?? 0) + 1 })
-        .catch(err => console.warn(`${TITLE} | Could not spend a use of ${b.key}.`, err));
+        .catch(err => log.warn(`Could not spend a use of ${b.key}.`, err));
       if ( b.row.pick ) {
         const roll = await new Roll(String(amount)).evaluate();
         await askHandOut(b.bearer, { name: b.key, row: { ...b.row, reach: b.row.within ?? null, self: !!b.row.self }, item: b.feature, amount, roll,
@@ -295,7 +295,7 @@ async function payKill(fallen, origin) {
       if ( card ) await applyDamagesWithReceipt(card, [{ uuid: b.bearer.uuid, name: b.bearer.name }],
         [{ value: amount, type: b.row.temphp ? "temphp" : "healing", properties: new Set() }], { note: b.key });
     } catch(err) {
-      console.error(`${TITLE} | ${b.key} could not land — apply it by hand.`, err);
+      log.error(`${b.key} could not land — apply it by hand.`, err);
     }
   }
 }

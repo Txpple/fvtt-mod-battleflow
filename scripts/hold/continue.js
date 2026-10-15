@@ -4,7 +4,7 @@
  * the LIVE AC after the settle window, write the verdicts, announce, release the dice. Also closes
  * answered popups (the parts stay a DAG: views → continue, never back).
  */
-import { MODULE_ID, readFlag, TITLE, queueFlagWrite, isContinuingClient, drivesMomentFor, canApplyTo, HOLD_SETTLE_SECONDS, resolveUuid, resolveUuidAsync } from "../core.js";
+import { MODULE_ID, readFlag, TITLE, queueFlagWrite, isContinuingClient, drivesMomentFor, canApplyTo, HOLD_SETTLE_SECONDS, resolveUuid, resolveUuidAsync, log } from "../core.js";
 import { chipClock } from "../decide/chips.js";
 import { placeOf, chipData, attackIdOf } from "../shared.js";
 import { applyEffectsTo } from "../effect-riders.js";
@@ -228,7 +228,7 @@ async function rollDuplicates(attackMessage, target) {
           { data: { flags: { [MODULE_ID]: { duplicatesSave: { key: live.key, defenderUuid: actor.uuid, attackerUuid: attacker.uuid, dc: s.dc } } } } });
         const t = Number(rolls?.[0]?.total);
         total = Number.isFinite(t) ? t : null;
-      } catch(err) { console.error(`${TITLE} | ${live.key}'s save did not roll — judge the hit by hand.`, err); }
+      } catch(err) { log.error(`${live.key}'s save did not roll — judge the hit by hand.`, err); }
       const absorbed = (total !== null) && (total < s.dc);
       const effect = actor.effects.get(s.effectId);
       // ⚠ A uuid's dots would expand into nested keys on the flag: the stamp is keyed by the uuid with its dots folded.
@@ -260,7 +260,7 @@ async function rollDuplicates(attackMessage, target) {
     return bfCard({ img: live.img, eyebrow: live.key, title: words.title, subtitle: target.name, tone: outcome.absorbed ? "good" : "bad",
       lines: [words.dice, words.count] });
   } catch(err) {
-    console.error(`${TITLE} | ${target?.duplicates?.key ?? "The duplicates"} could not roll — judge the hit by hand.`, err);
+    log.error(`${target?.duplicates?.key ?? "The duplicates"} could not roll — judge the hit by hand.`, err);
     return null;
   }
 }
@@ -285,7 +285,7 @@ async function landDuplicates(message, hold) {
         t.duplicates.landed = true;
       });
     } catch(err) {
-      console.error(`${TITLE} | ${d.key}'s destroyed duplicate could not leave ${target.name} — remove "${d.took.name}" by hand.`, err);
+      log.error(`${d.key}'s destroyed duplicate could not leave ${target.name} — remove "${d.took.name}" by hand.`, err);
     }
   }
 }
@@ -328,7 +328,7 @@ async function landProtection(message, hold) {
         });
       }
     } catch(err) {
-      console.error(`${TITLE} | ${rowKey}'s standing Disadvantage could not land on ${target.name} — apply "${row.effect}" by hand.`, err);
+      log.error(`${rowKey}'s standing Disadvantage could not land on ${target.name} — apply "${row.effect}" by hand.`, err);
     }
   }
 }

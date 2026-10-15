@@ -4,7 +4,7 @@
  * that recovers on a rest announces (no name list). Player-owned actors only; NPC pools stay secret.
  * The elect also stamps a `spend` flag for the ledger.
  */
-import { MODULE_ID, readFlag, TITLE, S, setting, isActiveGM, statContext, resolveUuid } from "./core.js";
+import { MODULE_ID, readFlag, S, setting, isActiveGM, statContext, resolveUuid, log } from "./core.js";
 import { poolSpendsOn } from "./shared.js";
 import { esc, spendLine } from "./decide/present.js";
 import { SURFACES } from "./surfaces.js";
@@ -147,7 +147,7 @@ listen("createChatMessage", "resources", message => {
     ...statContext(actor?.uuid ?? null),
     ...(rows.length ? { rows } : {}),
     ...(slots.length ? { slots } : {})
-  }).catch(err => console.error(`${TITLE} | Spend stamp failed.`, err));
+  }).catch(err => log.error(`Spend stamp failed.`, err));
 });
 
 // The durable record: one line on the usage card, every render, idempotent.

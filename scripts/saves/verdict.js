@@ -3,7 +3,7 @@
  * the stored DC, the die-less folds, the demand's registration, and the legendary-resistance flip.
  * index.js is the directory's only public face.
  */
-import { readFlag, TITLE, drivesMomentFor, queueFlagWrite } from "../core.js";
+import { readFlag, drivesMomentFor, queueFlagWrite, log } from "../core.js";
 import { resistedOf } from "../decide/card.js";
 import { SAVE_FOLDS, foldedSave, foldsFrom } from "../decide/verdict.js";
 import { registerDemand, demandAnsweredBy, registerWithheld, withholds } from "../ui.js";
@@ -209,7 +209,7 @@ export async function flipForcedSave(rollMessage) {
       return; // one roll answers one entry
     }
   } catch(err) {
-    console.error(`${TITLE} | Legendary-resistance flip failed.`, err);
+    log.error(`Legendary-resistance flip failed.`, err);
   }
 }
 

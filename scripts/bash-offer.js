@@ -2,7 +2,7 @@
  * By the Books — MACHINE (ARCHITECTURE.md §7): the bash OFFER — a listed carrier's melee hit offers
  * Shield Master's bash (or a `shove` feat's push); the save and Prone-or-push are the saves machine's.
  */
-import { MODULE_ID, readFlag, TITLE, isActiveGM, queueFlagWrite, canAnswerFor, inRunningCombat, combatStamp, statContext, drivesMomentFor, decisionWindow, resolveUuid, resolveUuidAsync } from "./core.js";
+import { MODULE_ID, readFlag, isActiveGM, queueFlagWrite, canAnswerFor, inRunningCombat, combatStamp, statContext, drivesMomentFor, decisionWindow, resolveUuid, resolveUuidAsync, log } from "./core.js";
 import { foldEntryFor, itemNamed, dealtTypesOf } from "./lookup.js";
 import { maneuverFoldEntries } from "./decide/registry.js";
 import { RULE_TEXT, SHOVES, tableIndex } from "./decide/registry.js";
@@ -109,7 +109,7 @@ listen("dnd5e.rollAttack", "bash-offer", async (rolls, { subject }) => {
       ...statContext(attacker.uuid) // the data-plane stamp
     });
   } catch(err) {
-    console.error(`${TITLE} | Bash offer stamp failed.`, err);
+    log.error(`Bash offer stamp failed.`, err);
   }
 });
 
@@ -173,7 +173,7 @@ export async function sequenceBashOffer(attackMessage, { damageLanded } = {}) {
     });
     if ( moved && (step === "promote") ) armBashOfferTimer(attackMessage);
   } catch(err) {
-    console.error(`${TITLE} | Bash offer sequencing failed.`, err);
+    log.error(`Bash offer sequencing failed.`, err);
   }
 }
 
@@ -230,7 +230,7 @@ async function resolveBashOffer(message) {
       for ( const id of priorTargets ) tokenOf(id)?.setTarget(true, { releaseOthers: false });
     }
   } catch(err) {
-    console.error(`${TITLE} | Bash offer resolution failed.`, err);
+    log.error(`Bash offer resolution failed.`, err);
   } finally {
     bashOfferInFlight.delete(message.id);
   }

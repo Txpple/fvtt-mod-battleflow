@@ -4,7 +4,7 @@
  * failure presses `endConcentration`, whose `dependentOn` cascade strips every riding effect.
  * ⚠ dnd5e never ends concentration at 0 HP or on Incapacitated; this machine does (no save).
  */
-import { MODULE_ID, readFlag, TITLE, S, setting, rollerUserFor, leadsWindow, canAnswerFor, drivesMomentFor, canApplyTo, whisperNoGM, statContext, decisionWindow, savesRollThemselves, ownersAndGmIds, resolveUuid, resolveUuidAsync } from "./core.js";
+import { MODULE_ID, readFlag, TITLE, S, setting, rollerUserFor, leadsWindow, canAnswerFor, drivesMomentFor, canApplyTo, whisperNoGM, statContext, decisionWindow, savesRollThemselves, ownersAndGmIds, resolveUuid, resolveUuidAsync, log } from "./core.js";
 import { cardItem, featureNamed, lower, wieldedNamed } from "./lookup.js";
 import { askConcentrationEnd, concentrationEnding, CONCENTRATION_ASKED, rollConfigFor } from "./shared.js";
 import { concentrationExemptEntries, damageRuleEntries, listedNames } from "./decide/registry.js";
@@ -127,7 +127,7 @@ async function exemptCard(actor, { key, row, item }, changes) {
         lines: [ruleLine(row.rule)] }),
       flags: { [MODULE_ID]: { concentrationExempt: { ...statContext(actor.uuid), key, spell: row.spell, actorUuid: actor.uuid, damage } } }
     });
-  } catch(err) { console.warn(`${TITLE} | ${key}'s card could not post.`, err); }
+  } catch(err) { log.warn(`${key}'s card could not post.`, err); }
 }
 
 // Incapacitated breaks concentration, no save; dnd5e does not end it when the status lands.
@@ -139,7 +139,7 @@ function breakOnIncapacitated(effect) {
     if ( !drivesMomentFor(actor.uuid) ) return;
     void breakConcentration(actor, { names: concentratingOn(actor), reason: "incapacitated" });
   } catch(err) {
-    console.error(`${TITLE} | Incapacitated concentration break failed.`, err);
+    log.error(`Incapacitated concentration break failed.`, err);
   }
 }
 listen("createActiveEffect", "concentration", effect => breakOnIncapacitated(effect));
@@ -243,7 +243,7 @@ async function rollConcentrationAnswer(askMessage, { timedOut = false, mode = nu
       }
     );
   } catch(err) {
-    console.error(`${TITLE} | Concentration roll failed — roll it from the sheet.`, err);
+    log.error(`Concentration roll failed — roll it from the sheet.`, err);
   } finally {
     concRollsInFlight.delete(askMessage.id);
   }
@@ -368,7 +368,7 @@ async function resumeConcOutcome(askMessage) {
     }
     await markConcApplied(askMessage);
   } catch(err) {
-    console.error(`${TITLE} | Concentration outcome resume failed.`, err);
+    log.error(`Concentration outcome resume failed.`, err);
   } finally {
     concResumes.delete(askMessage.id);
   }
@@ -400,7 +400,7 @@ async function breakConcentration(actor, { names = [], effectIds = null, ask = n
     const targets = effectIds ?? [...(actor.concentration?.effects ?? [])].map(e => e.id);
     for ( const id of targets ) {
       try { await actor.endConcentration(id); }
-      catch(err) { console.error(`${TITLE} | Could not end concentration.`, err); }
+      catch(err) { log.error(`Could not end concentration.`, err); }
     }
   }
   if ( blocked ) {
@@ -585,7 +585,7 @@ async function showConcPopup(message, ask) {
     );
     if ( !rolls?.length && demand.failed ) await foldConcentrationAutoFail(message, demand.failed);
   } catch(err) {
-    console.error(`${TITLE} | Concentration dialog failed — roll it from the sheet.`, err);
+    log.error(`Concentration dialog failed — roll it from the sheet.`, err);
   } finally {
     concDialogsOpening.delete(key);
   }
@@ -646,7 +646,7 @@ listen("dnd5e.preUseActivity", "concentration", (activity, usageConfig, dialogCo
       if ( !go ) return;
       await live.use({ ...usageConfig, concentration: { ...(usageConfig?.concentration ?? {}), begin: true, end },
         [MODULE_ID]: { ...(usageConfig?.[MODULE_ID] ?? {}), [CONCENTRATION_ASKED]: true } }, dialogConfig, messageConfig);
-    })().catch(err => console.error(`${TITLE} | The cast could not go on after the Concentration question — cast it again.`, err));
+    })().catch(err => log.error(`The cast could not go on after the Concentration question — cast it again.`, err));
     return false;
-  } catch(err) { console.warn(`${TITLE} | Could not check the cast against Concentration — it is cast as usual.`, err); }
+  } catch(err) { log.warn(`Could not check the cast against Concentration — it is cast as usual.`, err); }
 });

@@ -2,7 +2,7 @@
  * By the Books — Sneak Attack: the dice ride the damage, Cunning Strike costs come off first, the
  * effects go through the saves machine, once per turn is a chit. Split shape (ARCHITECTURE.md §7).
  */
-import { MODULE_ID, readFlag, TITLE, activeCombatFor, drivesMomentFor, queueFlagWrite, statContext, resolveUuidAsync } from "./core.js";
+import { MODULE_ID, readFlag, activeCombatFor, drivesMomentFor, queueFlagWrite, statContext, resolveUuidAsync, log } from "./core.js";
 import { verdictsOn } from "./decide/demand.js";
 import { lower, featureNamed, namesAnswering } from "./lookup.js";
 import { registerResumable, registerOfferPart, pickInputs } from "./ui.js";
@@ -112,7 +112,7 @@ function sneakOfferParts(attackMessage, activity) {
       try {
         await attackMessage.setFlag(MODULE_ID, "sneak", { ...sneak, cunning: keys, cost: keys.length ? pick.cost : 0, dc });
       } catch(err) {
-        console.error(`${TITLE} | Could not record the Cunning Strike pick — rolling the full Sneak Attack.`, err);
+        log.error(`Could not record the Cunning Strike pick — rolling the full Sneak Attack.`, err);
       }
     }
   };
@@ -161,14 +161,14 @@ listen("dnd5e.preRollDamage", "sneak", (config, _dialog, message) => {
     });
     // Spent by dealing damage: the arm consumed (a second Damage press must not ride), the chit written.
     void attackMessage.setFlag(MODULE_ID, "sneak", { ...sneak, rolled: true })
-      .catch(err => console.warn(`${TITLE} | Could not mark the Sneak Attack rolled.`, err));
+      .catch(err => log.warn(`Could not mark the Sneak Attack rolled.`, err));
     void writeTurnChit(attacker, "sneak", {
       name: "Sneak Attack — used this turn", img: featureNamed(attacker, "Sneak Attack")?.img ?? null,
       description: "Sneak Attack has been dealt this turn. Once per turn; this chit ends with the turn.",
       origin: activity.item?.uuid ?? null
-    }).catch(err => console.warn(`${TITLE} | Could not write the Sneak Attack chit.`, err));
+    }).catch(err => log.warn(`Could not write the Sneak Attack chit.`, err));
   } catch(err) {
-    console.error(`${TITLE} | Sneak Attack dice failed to ride — roll them by hand.`, err);
+    log.error(`Sneak Attack dice failed to ride — roll them by hand.`, err);
   }
 });
 
@@ -229,7 +229,7 @@ async function runCunningEffects(damageMessage, sd, activity) {
     await damageMessage.setFlag(MODULE_ID, "sneakDamage", { ...sd, effectsDone: true, ...(stamps.length ? { notes: stamps } : {}) })
       .catch(() => { /* the latch above holds for this session */ });
   } catch(err) {
-    console.error(`${TITLE} | Cunning Strike effects failed — use the feature's activity by hand.`, err);
+    log.error(`Cunning Strike effects failed — use the feature's activity by hand.`, err);
   }
 }
 
@@ -268,7 +268,7 @@ async function settleCunningFollowups(card) {
         if ( damages.length ) await applyDamagesWithReceipt(card, target, damages, { note: "Death Strike — the attack's damage again" });
       }
     } catch(err) {
-      console.error(`${TITLE} | Cunning Strike follow-up failed.`, err);
+      log.error(`Cunning Strike follow-up failed.`, err);
     } finally {
       followups.delete(key);
     }

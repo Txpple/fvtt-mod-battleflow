@@ -7,7 +7,7 @@
  * (the target is the attacker's to change — a new attack is a new attack). The ward ends on the bearer's
  * own attack roll, cast or damage roll, no choice (R1). Rulings: RULINGS *The spells slice — Tier 3*.
  */
-import { MODULE_ID, readFlag, TITLE, drivesMomentFor, statContext, decisionWindow, queueFlagWrite, canApplyTo, resolveUuid } from "./core.js";
+import { MODULE_ID, readFlag, TITLE, drivesMomentFor, statContext, decisionWindow, queueFlagWrite, canApplyTo, resolveUuid, log } from "./core.js";
 import { activityNamed } from "./lookup.js";
 import { effectSourceOf, saveEntryFor } from "./shared.js";
 import { WARDS, answers, wardEntries, listedNames } from "./decide/registry.js";
@@ -87,7 +87,7 @@ listen("dnd5e.preRollAttack", "wards", (config, dialog, message) => {
     if ( !pendingFor(attacker.uuid, found.ward.uuid) ) void raiseWard(found, attacker, activity, "attack", dialog?.configure !== false);
     else ui.notifications.warn(`${TITLE}: ${found.row.key}'s save is still unanswered.`);
     return false;   // the roll waits for the save
-  } catch(err) { console.error(`${TITLE} | The ward's gate failed — rolling natively.`, err); }
+  } catch(err) { log.error(`The ward's gate failed — rolling natively.`, err); }
 });
 
 listen("dnd5e.preUseActivity", "wards", (activity, _usageConfig, dialogConfig) => {
@@ -102,7 +102,7 @@ listen("dnd5e.preUseActivity", "wards", (activity, _usageConfig, dialogConfig) =
     if ( !pendingFor(attacker.uuid, found.ward.uuid) ) void raiseWard(found, attacker, activity, "damagingSpell", dialogConfig?.configure !== false);
     else ui.notifications.warn(`${TITLE}: ${found.row.key}'s save is still unanswered.`);
     return false;   // the cast waits for the save
-  } catch(err) { console.error(`${TITLE} | The ward's gate failed — casting natively.`, err); }
+  } catch(err) { log.error(`The ward's gate failed — casting natively.`, err); }
 });
 
 /** The demand: the ward item's save activity, of the ATTACKER, on a card of this file's. */
@@ -112,7 +112,7 @@ async function raiseWard({ row, effect, item, ward }, attacker, activity, gate, 
     const dc = save?.save?.dc?.value;
     const abilities = [...(save?.save?.ability ?? [])];
     if ( !save || !(dc > 0) || !abilities.length ) {
-      console.warn(`${TITLE} | ${row.key} on ${ward.name}: no save activity to demand — the attack rolls natively.`);
+      log.warn(`${row.key} on ${ward.name}: no save activity to demand — the attack rolls natively.`);
       passes.set(passKey(attacker.uuid, ward.uuid, gate), Date.now() + PASS_MS);
       return retrigger(activity, gate, configure);
     }
@@ -148,7 +148,7 @@ async function raiseWard({ row, effect, item, ward }, attacker, activity, gate, 
       } }
     });
   } catch(err) {
-    console.error(`${TITLE} | ${row?.key ?? "The ward"}'s save could not be demanded — ask for it by hand.`, err);
+    log.error(`${row?.key ?? "The ward"}'s save could not be demanded — ask for it by hand.`, err);
   }
 }
 
@@ -185,7 +185,7 @@ async function settleWard(card) {
     if ( !activity ) { ui.notifications.info(`${TITLE}: ${w.key}'s save passed — make the ${w.gate === "attack" ? "attack" : "cast"} again.`); return; }
     retrigger(activity, w.gate, w.configure !== false);
   } catch(err) {
-    console.error(`${TITLE} | The ward's verdict could not land — make the attack again by hand.`, err);
+    log.error(`The ward's verdict could not land — make the attack again by hand.`, err);
   } finally {
     settling.delete(card.id);
   }
@@ -209,7 +209,7 @@ function floatAside(message) {
       anchor: CONST.TEXT_ANCHOR_POINTS.CENTER, direction: CONST.TEXT_ANCHOR_POINTS.TOP,
       distance: 2 * token.h, fontSize: 28, stroke: 0x000000, strokeThickness: 4, jitter: 0.25
     });
-  } catch(err) { console.warn(`${TITLE} | The ward's cue could not draw.`, err); }
+  } catch(err) { log.warn(`The ward's cue could not draw.`, err); }
 }
 
 /* --- the card: the verdict's line ---------------------------------------------------------------- */
@@ -229,7 +229,7 @@ listen("dnd5e.renderChatMessage", "wards", (message, html) => {
     div.style.cssText = `margin:0.25rem 0;font-size:var(--font-size-11,11px);font-weight:bold;opacity:0.9;color:${verdict.through ? "var(--dnd5e-color-maroon, #740b0b)" : "var(--dnd5e-color-blue, #3a7ca5)"};`;
     div.innerHTML = `<i class="fa-solid fa-shield-halved"></i> ${esc(verdict.says)}${verdict.through ? "" : ` — ${esc(words.failed)}`}`;
     content.appendChild(div);
-  } catch(err) { console.warn(`${TITLE} | The ward's line could not render.`, err); }
+  } catch(err) { log.warn(`The ward's line could not render.`, err); }
 });
 
 /* --- the end: the bearer's own attack roll, cast or damage roll ends it, on its driver ----------- */
@@ -241,7 +241,7 @@ async function endWards(actor, act, { ownItem = null } = {}) {
       const own = !!ownItem && !!item && ((ownItem.uuid === item.uuid) || answers(row.key, ownItem));
       const verdict = wardEnds(row, act, { ownItem: own });
       if ( !verdict.ends ) continue;
-      if ( !canApplyTo(actor) ) { console.warn(`${TITLE} | ${row.key} on ${actor.name} should end (${verdict.why}) — no owner here to end it.`); continue; }
+      if ( !canApplyTo(actor) ) { log.warn(`${row.key} on ${actor.name} should end (${verdict.why}) — no owner here to end it.`); continue; }
       const floats = needsFloat({ statuses: effect.statuses, changes: effect.changes ?? [] });
       await effect.delete();
       if ( floats ) floatEnd(actor, effect.name);
@@ -255,7 +255,7 @@ async function endWards(actor, act, { ownItem = null } = {}) {
       });
     }
   } catch(err) {
-    console.error(`${TITLE} | The ward could not end — remove its effect by hand.`, err);
+    log.error(`The ward could not end — remove its effect by hand.`, err);
   }
 }
 
@@ -270,7 +270,7 @@ function floatEnd(actor, name) {
         distance: 2 * token.h, fontSize: 28, stroke: 0x000000, strokeThickness: 4, jitter: 0.25
       });
     }
-  } catch(err) { console.warn(`${TITLE} | The ended ward's float could not draw.`, err); }
+  } catch(err) { log.warn(`The ended ward's float could not draw.`, err); }
 }
 
 listen("dnd5e.rollAttack", "wards", (_rolls, data) => { void endWards(data?.subject?.actor ?? null, "attack"); });

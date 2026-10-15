@@ -5,7 +5,7 @@
  * spent, a card; an `ask` row is OFFERED to the owner (the use is theirs to keep) and the clock answers No. The
  * sheet writes are the GM's; a player's answer relays.
  */
-import { MODULE_ID, readFlag, TITLE, isActiveGM, queueFlagWrite, canAnswerFor, statContext, decisionWindow, resolveUuid } from "./core.js";
+import { MODULE_ID, readFlag, isActiveGM, queueFlagWrite, canAnswerFor, statContext, decisionWindow, resolveUuid, log } from "./core.js";
 import { activityNamed, featureNamed, lower } from "./lookup.js";
 import { poolOf, spendPoolUses } from "./shared.js";
 import { nearestFeet, tokenOf } from "./geometry.js";
@@ -111,7 +111,7 @@ async function rearm(combat, ids) {
   const drop = ids.filter(id => read[id]);
   if ( !drop.length ) return;
   await combat.update(Object.fromEntries(drop.map(id => [`flags.${MODULE_ID}.${INITIATIVE_READ_FLAG}.-=${id}`, null])))
-    .catch(err => console.error(`${TITLE} | The Initiative grants could not re-arm.`, err));
+    .catch(err => log.error(`The Initiative grants could not re-arm.`, err));
 }
 
 /** In flight on this client: `combat|combatant` — the updates of one Roll All land in one tick. */
@@ -129,7 +129,7 @@ async function readFor(combat, combatant) {
     for ( const g of grantsFor(actor, combatant) ) await post(combat, combatant, actor, g);
     await combat.update({ [`flags.${MODULE_ID}.${INITIATIVE_READ_FLAG}.${combatant.id}`]: true });
   } catch(err) {
-    console.error(`${TITLE} | The Initiative grants could not be read — regain them from the sheet.`, err);
+    log.error(`The Initiative grants could not be read — regain them from the sheet.`, err);
   } finally {
     reading.delete(key);
   }
@@ -138,7 +138,7 @@ async function readFor(combat, combatant) {
 async function post(combat, combatant, actor, { name, row, item, regain, heal, give = null, fallback = null, reroll = null }) {
   const r = usesOf(regain);
   const formula = give ? give.formula : heal ? healFormulaOf(actor, heal) : null;
-  if ( heal && !formula ) console.warn(`${TITLE} | ${name}: its heal could not be read off ${actor.name}'s sheet — roll it by hand.`);
+  if ( heal && !formula ) log.warn(`${name}: its heal could not be read off ${actor.name}'s sheet — roll it by hand.`);
   const window = row.ask ? decisionWindow() : 0;
   // C1 — `upTo` (Perfect Focus): what comes back is what is missing below the ceiling; `count` (Ever-Ready Shot): that many.
   const back = row.upTo ? Math.max(0, Math.min(Number(row.upTo) - r.value, r.spent))
@@ -206,7 +206,7 @@ async function landFallback(message, flag) {
       record.fallbackRegained = Math.min(upTo, r.max) - r.value;
     }
   } catch(err) {
-    console.error(`${TITLE} | ${flag.fallback?.row} failed — check the sheet.`, err);
+    log.error(`${flag.fallback?.row} failed — check the sheet.`, err);
   } finally {
     await queueFlagWrite(message, INITIATIVE_GRANT_FLAG, current => { Object.assign(current, record, { fallbackApplied: true }); });
   }
@@ -276,7 +276,7 @@ async function landGrant(message) {
         { note: flag.row });
     }
   } catch(err) {
-    console.error(`${TITLE} | ${flag.row} failed part-way — check the sheet.`, err);
+    log.error(`${flag.row} failed part-way — check the sheet.`, err);
   } finally {
     await queueFlagWrite(message, INITIATIVE_GRANT_FLAG, current => { Object.assign(current, record, { applied: true, applying: false }); });
   }
@@ -312,12 +312,12 @@ async function giveToAllies(flag, actor, item) {
     if ( (feet === null) || (feet > (flag.reach ?? 30)) ) continue;
     if ( (c.initiative === null) || (c.initiative === undefined) ) { due.push(c.id); continue; }
     const from = Number(c.initiative);
-    await c.update({ initiative: from + n }).catch(err => console.warn(`${TITLE} | ${flag.row}: could not move ${c.name}'s Initiative.`, err));
+    await c.update({ initiative: from + n }).catch(err => log.warn(`${flag.row}: could not move ${c.name}'s Initiative.`, err));
     given.push({ id: c.id, name: c.name, from, to: from + n });
   }
   if ( due.length ) {
     await combat.update(Object.fromEntries(due.map(id => [`flags.${MODULE_ID}.${BONUS_DUE_FLAG}.${id}`, { n, row: flag.row, from: actor.name }])))
-      .catch(err => console.warn(`${TITLE} | ${flag.row}: the bonus due to late rollers could not be noted.`, err));
+      .catch(err => log.warn(`${flag.row}: the bonus due to late rollers could not be noted.`, err));
   }
   return { rolled: n, given, due };
 }
@@ -336,8 +336,8 @@ listen("updateCombatant", "initiative-grants", (combatant, changes) => {
       await postCard({ actor: combatant.actor, token: combatant.token,
         card: bfCard({ eyebrow: "Initiative", tone: "good", title: `${note.row} — +${note.n} Initiative for ${combatant.name} (${from} → ${from + Number(note.n)})`,
           subtitle: `${note.from}'s gift, rolled before ${combatant.name}'s Initiative` }) });
-    })().catch(err => console.error(`${TITLE} | ${note.row}'s late bonus could not land — add it by hand.`, err));
-  } catch(err) { console.error(`${TITLE} | The Initiative bonus due could not be read.`, err); }
+    })().catch(err => log.error(`${note.row}'s late bonus could not land — add it by hand.`, err));
+  } catch(err) { log.error(`The Initiative bonus due could not be read.`, err); }
 });
 
 /* --- the clock: No, on whoever drives the owner's moments --------------------------------------------- */
@@ -385,7 +385,7 @@ listen("dnd5e.renderChatMessage", "initiative-grants", (message, html) => {
       });
     }
     content.appendChild(div);
-  } catch(err) { console.warn(`${TITLE} | The Initiative grant's line could not render.`, err); }
+  } catch(err) { log.warn(`The Initiative grant's line could not render.`, err); }
 });
 
 // An answer anywhere closes the popup everywhere (law 4); the clock stands down with it.

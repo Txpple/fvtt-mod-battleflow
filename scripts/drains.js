@@ -7,7 +7,7 @@
  * one copy per row, refreshed with the total) — receipted on the drain's own card, once per creature per
  * card, no choice (R1). Rulings: RULINGS *The Monster Manual — the waiting rows built*.
  */
-import { MODULE_ID, readFlag, TITLE, canApplyTo, whisperNoGM, queueFlagWrite, statContext } from "./core.js";
+import { MODULE_ID, readFlag, canApplyTo, whisperNoGM, queueFlagWrite, statContext, log } from "./core.js";
 import { cardActivity } from "./lookup.js";
 import { damagePartsOf, statSourceOf } from "./shared.js";
 import { DRAINS, tableIndex, drainEntries, listedNames } from "./decide/registry.js";
@@ -35,7 +35,7 @@ listen("dnd5e.applyDamage", "drains", (actor, amount, options) => {
     if ( !(attacker instanceof Actor) || (attacker.uuid === actor.uuid) ) return;
     void drain({ row, activity, attacker, target: actor, taken: Number(amount), origin });
   } catch(err) {
-    console.error(`${TITLE} | The drain failed — lower the target by hand.`, err);
+    log.error(`The drain failed — lower the target by hand.`, err);
   }
 });
 
@@ -79,7 +79,7 @@ async function drain({ row, activity, attacker, target, taken, origin }) {
     });
     if ( card ) await applyEffectsWithReceipt(card, [template], [{ uuid: target.uuid, name: target.name }], { source: statSourceOf(origin) ?? attacker.uuid });
   } catch(err) {
-    console.error(`${TITLE} | ${row?.key ?? "The drain"} could not land — lower the target by hand.`, err);
+    log.error(`${row?.key ?? "The drain"} could not land — lower the target by hand.`, err);
   } finally {
     draining.delete(key);
   }
@@ -88,7 +88,7 @@ async function drain({ row, activity, attacker, target, taken, origin }) {
 /** A score row (Draining Swipe): the die off the item's text rolled on the attacker, the pack's own "−N" effect landed, the total kept. */
 async function drainScore({ row, item, attacker, target, origin }) {
   const die = (row.amount === "text") ? drainDieFrom(item.system?.description?.value ?? "") : (row.amount ?? null);
-  if ( !die ) { console.warn(`${TITLE} | ${row.key}: no die in its text — lower the score by hand.`); return; }
+  if ( !die ) { log.warn(`${row.key}: no die in its text — lower the score by hand.`); return; }
   const roll = await new Roll(die, attacker.getRollData()).evaluate();
   const ability = String(row.ability ?? "str").toUpperCase();
   const prior = [...target.effects].find(e => readFlag(e, DRAIN_FLAG)?.key === row.key) ?? null;
@@ -98,7 +98,7 @@ async function drainScore({ row, item, attacker, target, origin }) {
   const steps = [...(item.effects ?? [])].filter(e => new RegExp(`^Hit:\\s*${ability}\\s*Score\\s*-\\d+`, "i").test(e.name))
     .map(e => ({ e, n: Number(/-(\d+)/.exec(e.name)?.[1] ?? 0) })).sort((a, b) => a.n - b.n);
   const pick = steps.filter(s => s.n <= total).pop() ?? steps[0] ?? null;
-  if ( !pick ) { console.warn(`${TITLE} | ${row.key}: the pack ships no "Hit: ${ability} Score −N" effect — lower the score by hand.`); return; }
+  if ( !pick ) { log.warn(`${row.key}: the pack ships no "Hit: ${ability} Score −N" effect — lower the score by hand.`); return; }
   if ( prior ) await prior.delete();
   const data = pick.e.toObject();
   Object.assign(data, { transfer: false, disabled: false, flags: { ...(data.flags ?? {}), [MODULE_ID]: { ...(data.flags?.[MODULE_ID] ?? {}), [DRAIN_FLAG]: { key: row.key, amount: total } } } });
@@ -129,5 +129,5 @@ listen("dnd5e.renderChatMessage", "drains", (message, html) => {
     div.style.cssText = "margin:0.25rem 0;font-size:var(--font-size-11,11px);opacity:0.85;";
     div.innerHTML = `<i class="fa-solid fa-arrow-down-wide-short"></i> ${esc(`${d.key} — the drain landed (its own card)`)}`;
     content.appendChild(div);
-  } catch(err) { console.warn(`${TITLE} | The drain line could not render.`, err); }
+  } catch(err) { log.warn(`The drain line could not render.`, err); }
 });

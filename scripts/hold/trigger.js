@@ -3,7 +3,7 @@
  * By the Books — the reaction hold: THE ATTACK TRIGGER. "You are hit" reactions fire BEFORE damage,
  * so the chain pauses and a human answers; the module never plays the reaction (DESIGN.md §4).
  */
-import { MODULE_ID, readFlag, TITLE, S, setting, drivesMomentFor, statContext, decisionWindow, resolveUuidAsync } from "../core.js";
+import { MODULE_ID, readFlag, S, setting, drivesMomentFor, statContext, decisionWindow, resolveUuidAsync, log } from "../core.js";
 import { spendReaction, statSourceOf } from "../shared.js";
 import { findInterrupt, hasReactionEffect, reactionACBonus, rescueStateOf, protectionGuardsOf, bystandersOf, duplicatesOf, attackFactsOf } from "./lookup.js";
 import { bfCard } from "../decide/present.js";
@@ -102,7 +102,7 @@ export async function stampHoldIfInterrupted(attackMessage, roll, hits) {
   if ( skipped.length ) {
     void attackMessage.setFlag(MODULE_ID, "holdSkipped", {
       targets: skipped, ...statContext(statSourceOf(attackMessage))
-    }).catch(err => console.error(`${TITLE} | holdSkipped stamp failed.`, err));
+    }).catch(err => log.error(`holdSkipped stamp failed.`, err));
   }
   if ( !held.length ) return false;
 
@@ -160,7 +160,7 @@ async function seenThroughCard(defender, attacker, duplicates) {
         lines: [`${duplicates.seenThrough}: the duplicates don't fool it.`] }),
       flags: { [MODULE_ID]: { duplicatesSeen: { key: duplicates.key, defenderUuid: defender?.uuid ?? null, attackerUuid: attacker?.uuid ?? null, why: duplicates.seenThrough } } }
     });
-  } catch(err) { console.warn(`${TITLE} | The duplicates' line could not post.`, err); }
+  } catch(err) { log.warn(`The duplicates' line could not post.`, err); }
 }
 
 /**

@@ -4,7 +4,7 @@
  * ⚠ Imports NO machine (ARCHITECTURE §7).
  */
 import { MODULE_ID, readFlag, TITLE, S, setting, isActiveGM, deadlineIsLive, canAnswerFor, keepsMessage, queueFlagWrite, DICE_WAIT_SECONDS,
-  LEAD_FLAG, WINDOW_ID, drivesMomentFor, isContinuingClient, gmIds, selfIds } from "./core.js";
+  LEAD_FLAG, WINDOW_ID, drivesMomentFor, isContinuingClient, gmIds, selfIds, log } from "./core.js";
 import { TONE, popupKey, bfCard, momentBarHTML, holdBarHTML, nextCascadeSlot, cascadePosition,
   pileBackToFront, rescuePaneHTML, rescueRowsHTML, esc, tickRowsHTML, choiceRows } from "./decide/present.js";
 import { pendingDemands, resolveDemand } from "./decide/demand.js";
@@ -64,7 +64,7 @@ export async function openManagedPopup(key, message, dialog) {
     livePopups.delete(key);
     popupSlots.delete(key);
     if ( !popupSlots.size ) cascadeAnchor = null;
-    console.error(`${TITLE} | Could not open the popup — answer from the card.`, err);
+    log.error(`Could not open the popup — answer from the card.`, err);
   }
 }
 
@@ -148,7 +148,7 @@ listen("renderRollConfigurationDialog", "ui", (app, element) => {
     const demand = app.options?.bfSaveDemand ?? null;
     if ( demand?.present ) drawDemandFieldset(app, element, demand);
   } catch(err) {
-    console.error(`${TITLE} | Demand fieldset failed to draw.`, err);
+    log.error(`Demand fieldset failed to draw.`, err);
   }
 });
 
@@ -337,7 +337,7 @@ export async function acknowledgeMoment(message, flagKey) {
       flags: { [MODULE_ID]: { momentAck: { cardId: message.id, flagKey } } }
     });
   } catch(err) {
-    console.warn(`${TITLE} | Could not relay the acknowledgement.`, err);
+    log.warn(`Could not relay the acknowledgement.`, err);
   }
 }
 
@@ -603,7 +603,7 @@ listen("dnd5e.renderChatMessage", "ui", (_message, html) => {
     if ( !summarized ) continue;
     for ( const draw of summaryRows ) {
       try { draw(summarized, el, el); }
-      catch(err) { console.error(`${TITLE} | A summary row failed to render.`, err); }
+      catch(err) { log.error(`A summary row failed to render.`, err); }
     }
   }
 });
@@ -646,7 +646,7 @@ export function postCard({ actor, token, alias, speaker, card = "", flags, rolls
  * @param {{ toElect?: boolean, noGM?: string|null, actor?: any, token?: any, alias?: string, speaker?: any, card?: string, flags?: any, rolls?: any[], to?: string[]|null }} opts
  */
 export async function postAnswer(envelope, { toElect = false, noGM = null, ...card }) {
-  if ( !card.flags?.[MODULE_ID]?.[envelope] ) console.warn(`${TITLE} | An answer posted without its envelope (${envelope}).`);
+  if ( !card.flags?.[MODULE_ID]?.[envelope] ) log.warn(`An answer posted without its envelope (${envelope}).`);
   if ( noGM && !game.users.activeGM ) {
     ui.notifications?.warn(noGM);
     return null;
@@ -823,7 +823,7 @@ async function answerRescue(message, flagKey, action) {
   const rescue = rescues.get(flagKey);
   if ( !rescue ) return;
   try { await rescue.answer(message, action); }
-  catch(err) { console.error(`${TITLE} | The rescue "${flagKey}" could not be answered.`, err); }
+  catch(err) { log.error(`The rescue "${flagKey}" could not be answered.`, err); }
 }
 
 /** ⚠ One Pass answers EVERY pending source, or the other's clock and offer live on. */
@@ -924,7 +924,7 @@ function queueRescueDraw(message, opts) {
   const prior = rescueDrawChain.get(message.id) ?? Promise.resolve();
   const next = prior.then(run, run);
   const tail = next.catch(err =>
-    console.error(`${TITLE} | The rescue window could not be drawn.`, err));
+    log.error(`The rescue window could not be drawn.`, err));
   rescueDrawChain.set(message.id, tail);
   void tail.then(() => {
     if ( rescueDrawChain.get(message.id) === tail ) rescueDrawChain.delete(message.id);
@@ -1040,13 +1040,13 @@ function resume(message, cause) {
     try {
       if ( !r.pending(flag, message, cause) || !r.drives(flag, message) ) continue;
     } catch(err) {
-      console.error(`${TITLE} | The ${flagKey} resume check failed.`, err);
+      log.error(`The ${flagKey} resume check failed.`, err);
       continue;
     }
     resuming.add(key);
     Promise.resolve()
       .then(() => r.drive(message))
-      .catch(err => console.error(`${TITLE} | The ${flagKey} drive failed.`, err))
+      .catch(err => log.error(`The ${flagKey} drive failed.`, err))
       .finally(() => resuming.delete(key));
   }
 }
@@ -1060,8 +1060,8 @@ const claimLead = () => {
     if ( !game.user?.isGM || (game.user.flags?.[MODULE_ID]?.[LEAD_FLAG] === WINDOW_ID) ) return;
     void game.user.setFlag(MODULE_ID, LEAD_FLAG, WINDOW_ID)
       .then(() => { for ( const message of game.messages.contents.slice(-60) ) resume(message, "lead"); })
-      .catch(err => console.warn(`${TITLE} | This window could not take the lead.`, err));
-  } catch(err) { console.warn(`${TITLE} | This window could not take the lead.`, err); }
+      .catch(err => log.warn(`This window could not take the lead.`, err));
+  } catch(err) { log.warn(`This window could not take the lead.`, err); }
 };
 listen("ready", "ui", () => {
   claimLead();
@@ -1098,7 +1098,7 @@ export async function withholds(rollMessage, ctx) {
     try {
       if ( await w.offer(rollMessage, ctx) ) return true;
     } catch(err) {
-      console.error(`${TITLE} | The ${flagKey} withhold offer failed — folding the verdict as it is.`, err);
+      log.error(`The ${flagKey} withhold offer failed — folding the verdict as it is.`, err);
     }
   }
   return false;
@@ -1107,7 +1107,7 @@ export async function withholds(rollMessage, ctx) {
 /** Without `by`, falls to the one machine registered. */
 export async function resumeWithheld(by, ctx, rollMessage) {
   const machine = withheldMachines.get(by) ?? ((withheldMachines.size === 1) ? [...withheldMachines.values()][0] : null);
-  if ( !machine ) { console.warn(`${TITLE} | No machine registered to resume a withheld verdict${by ? ` for ${by}` : ""}.`); return; }
+  if ( !machine ) { log.warn(`No machine registered to resume a withheld verdict${by ? ` for ${by}` : ""}.`); return; }
   await machine.resume(ctx, rollMessage);
 }
 

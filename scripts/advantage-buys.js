@@ -6,7 +6,7 @@
  * d20-folds.js's (`bfBuyShown`). Runs on the roller's client; sets no mode (R-A).
  * ⚠ HOOK ORDER: imported AFTER reminders.js, so this re-nets the gate's record with the buy included.
  */
-import { MODULE_ID, readFlag, TITLE, statContext, resolveUuid } from "./core.js";
+import { MODULE_ID, readFlag, statContext, resolveUuid, log } from "./core.js";
 import { itemsNamed, standingCompanion } from "./lookup.js";
 import { nearestFeet, tokenOf } from "./geometry.js";
 import { reminderEntries } from "./decide/registry.js";
@@ -27,9 +27,9 @@ listen("updateCombat", "advantage-buys", (_combat, changes) => {
 /** C1 — did this actor use a Trip or Withdraw Cunning Strike this turn? The sneak record on its attack cards says. */
 function cunningStrikeThisTurn(actor) {
   const since = game.combat?.started ? turnStartedAt : (Date.now() - 120_000);
-  const log = game.messages.contents;
-  for ( let i = log.length - 1, n = 0; (i >= 0) && (n < 60); i--, n++ ) {
-    const m = log[i];
+  const messages = game.messages.contents;
+  for ( let i = messages.length - 1, n = 0; (i >= 0) && (n < 60); i--, n++ ) {
+    const m = messages[i];
     if ( m.timestamp < since ) return false;
     const sneak = readFlag(m, "sneak");
     if ( !sneak?.cunning?.length || (m.getAssociatedActor?.()?.uuid !== actor.uuid) ) continue;
@@ -102,13 +102,13 @@ listen("dnd5e.preRollAttack", "advantage-buys", (config, dialog) => {
     const activity = config?.subject;
     if ( activity?.type !== "attack" ) return;
     carry(config, dialog, activity.item?.actor, "attack", activity.ability || "str");
-  } catch(err) { console.error(`${TITLE} | Advantage buy (attack) failed — rolling natively.`, err); }
+  } catch(err) { log.error(`Advantage buy (attack) failed — rolling natively.`, err); }
 });
 
 // Death saves and concentration saves ride this hook too: every one is a D20 Test.
 listen("dnd5e.preRollSavingThrow", "advantage-buys", (config, dialog) => {
   try { carry(config, dialog, config?.subject, "save"); }
-  catch(err) { console.error(`${TITLE} | Advantage buy (save) failed — rolling natively.`, err); }
+  catch(err) { log.error(`Advantage buy (save) failed — rolling natively.`, err); }
 });
 
 // Raw checks, skills, tools and INITIATIVE's dialog (its hookNames carry `initiativeDialog`).
@@ -116,7 +116,7 @@ listen("dnd5e.preRollAbilityCheck", "advantage-buys", (config, dialog) => {
   try {
     const initiative = !!config?.hookNames?.includes?.("initiativeDialog");
     carry(config, dialog, config?.subject, initiative ? "initiative" : "check", null, { skill: config?.skill ?? null });
-  } catch(err) { console.error(`${TITLE} | Advantage buy (check) failed — rolling natively.`, err); }
+  } catch(err) { log.error(`Advantage buy (check) failed — rolling natively.`, err); }
 });
 
 /** The gate this dialog carries, whichever table it is (the attack's, the save's, the check's), or null. */
@@ -190,14 +190,14 @@ listen("renderRollConfigurationDialog", "advantage-buys", app => {
     openBuys.add(app);
     drawBuy(app);
   } catch(err) {
-    console.error(`${TITLE} | Advantage buy box failed to draw.`, err);
+    log.error(`Advantage buy box failed to draw.`, err);
   }
 });
 
 // The attack gate redraws its whole section on a re-target (reminders.js, registered first); the box follows.
 listen("targetToken", "advantage-buys", () => {
   for ( const app of openBuys ) {
-    if ( app.rendered && app.element ) { try { drawBuy(app); } catch(err) { console.error(`${TITLE} | Advantage buy box failed to redraw.`, err); } }
+    if ( app.rendered && app.element ) { try { drawBuy(app); } catch(err) { log.error(`Advantage buy box failed to redraw.`, err); } }
     else openBuys.delete(app);
   }
 });
@@ -244,7 +244,7 @@ listen("dnd5e.postRollConfiguration", "advantage-buys", (rolls, config, _dialog,
     const left = Number(item?.system?.uses?.value ?? 0);
     if ( !item || !(left > 0) ) return;
     void item.update({ "system.uses.spent": Number(item.system.uses.spent ?? 0) + 1 })
-      .catch(err => console.error(`${TITLE} | Advantage buy spend failed.`, err));
+      .catch(err => log.error(`Advantage buy spend failed.`, err));
     const record = { pool: `${row.point}s`, spent: 1, left: left - 1, max: Number(item.system.uses.max ?? 0),
       ability: row.name, actorUuid: actor.uuid, at: Date.now() };
     rolls[0].options.bfBought = row.name;
@@ -257,7 +257,7 @@ listen("dnd5e.postRollConfiguration", "advantage-buys", (rolls, config, _dialog,
       ...statContext(actor.uuid)
     });
   } catch(err) {
-    console.error(`${TITLE} | Advantage buy record failed.`, err);
+    log.error(`Advantage buy record failed.`, err);
   }
 });
 
@@ -272,6 +272,6 @@ listen("dnd5e.renderChatMessage", "advantage-buys", (message, html) => {
       title: `${bought} — Advantage bought`, subtitle: row ? `1 ${row.point} spent` : "" });
     (html instanceof HTMLElement ? html : html?.[0])?.querySelector(SURFACES.messageContent)?.appendChild(line);
   } catch(err) {
-    console.error(`${TITLE} | Advantage buy card line failed.`, err);
+    log.error(`Advantage buy card line failed.`, err);
   }
 });

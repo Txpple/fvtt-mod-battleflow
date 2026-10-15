@@ -5,7 +5,7 @@
  *   count  a formula (@item.level the cast level, @scaling) or ({ activity, castLevel, rollData }) => n; under 2 is native
  *   distinctTargets  one projectile per creature, clamped to the target count
  */
-import { MODULE_ID, TITLE } from "./core.js";
+import { MODULE_ID, log } from "./core.js";
 import { VOLLEY_KINDS, matchOf } from "./decide/registry.js";
 import { listenOnce } from "./dispatch.js";
 
@@ -38,7 +38,7 @@ export function volleyEntryFor(item) {
   if ( entry && !VOLLEY_KINDS.has(entry.kind) ) {
     if ( !warnedEntries.has(key) ) {
       warnedEntries.add(key);
-      console.warn(`${TITLE} | Volley registry: "${key}" declares kind "${entry.kind}" (${[...VOLLEY_KINDS].join("/")}) — ignored, never guessed.`);
+      log.warn(`Volley registry: "${key}" declares kind "${entry.kind}" (${[...VOLLEY_KINDS].join("/")}) — ignored, never guessed.`);
     }
     return null;
   }

@@ -4,7 +4,7 @@
  * flag; `postUseActivity` spends the points (`poolSpend`). Empowered is a dice-changers row, Seeking a
  * d20 fold kind, the ask at the area is area-ask.js.
  */
-import { MODULE_ID, readFlag, TITLE, publish, statContext, decisionWindow, ownersAndGmIds, resolveUuid } from "./core.js";
+import { MODULE_ID, readFlag, publish, statContext, decisionWindow, ownersAndGmIds, resolveUuid, log } from "./core.js";
 import { cardActivity, featureNamed, lower, namesAnswering } from "./lookup.js";
 import { metamagicEntries, listedNames, chosenAreaListed } from "./decide/registry.js";
 import { poolOf, spendPoolUses, isPartyMember } from "./shared.js";
@@ -135,7 +135,7 @@ listen("dnd5e.preUseActivity", "metamagic", (activity, usageConfig, dialogConfig
     const menu = windowMenuFor(activity);
     if ( !menu?.some(r => r.eligible && r.affordable) ) return;
     usageConfig.scaling = 0;
-  } catch(err) { console.warn(`${TITLE} | Could not open the casting window for the metamagic group.`, err); }
+  } catch(err) { log.warn(`Could not open the casting window for the metamagic group.`, err); }
 });
 
 listen("renderActivityUsageDialog", "metamagic", (app, element) => {
@@ -229,7 +229,7 @@ listen("renderActivityUsageDialog", "metamagic", (app, element) => {
     sync();
     const footer = element.querySelector(SURFACES.dialogFooter);
     if ( footer ) footer.before(fs); else (element.querySelector("form") ?? element).appendChild(fs);
-  } catch(err) { console.warn(`${TITLE} | Could not add the metamagic fieldset.`, err); }
+  } catch(err) { log.warn(`Could not add the metamagic fieldset.`, err); }
 });
 
 // ⚠ An unclaimed pick (window cancelled, template never placed) must not land on the NEXT cast:
@@ -313,7 +313,7 @@ listen("dnd5e.preRollDamage", "metamagic", (config, _dialog, message) => {
     }
     if ( changed ) foundry.utils.setProperty(message, `data.flags.${MODULE_ID}.metamagicType`, { type: to, feature: record.feature });
   } catch(err) {
-    console.warn(`${TITLE} | Transmuted Spell could not set the damage type — the roll wears the spell's own.`, err);
+    log.warn(`Transmuted Spell could not set the damage type — the roll wears the spell's own.`, err);
   }
 });
 
@@ -335,7 +335,7 @@ listen("dnd5e.preRollDamage", "metamagic", (config, _dialog, message) => {
     }
     if ( changed ) foundry.utils.setProperty(message, `data.flags.${MODULE_ID}.metamagicType`, { type: to, feature: last.feature });
   } catch(err) {
-    console.warn(`${TITLE} | A free damage-type row could not set the type — the roll wears the spell's own.`, err);
+    log.warn(`A free damage-type row could not set the type — the roll wears the spell's own.`, err);
   }
 });
 
@@ -349,7 +349,7 @@ listen("preCreateChatMessage", "metamagic", doc => {
     const free = freePending.get(uuid).filter(r => (Date.now() - (r.at ?? 0)) <= PICK_TTL_MS);
     freePending.delete(uuid);
     if ( free.length ) doc.updateSource({ flags: { [MODULE_ID]: { [FREE_FLAG]: free.map(r => ({ key: r.key, feature: r.feature, type: r.type })) } } });
-  } catch(err) { console.warn(`${TITLE} | The free row's tick could not be stamped on the card.`, err); }
+  } catch(err) { log.warn(`The free row's tick could not be stamped on the card.`, err); }
 });
 
 listen("preCreateChatMessage", "metamagic", doc => {
@@ -377,7 +377,7 @@ listen("preCreateChatMessage", "metamagic", doc => {
       return false;
     }
     doc.updateSource({ flags });
-  } catch(err) { console.warn(`${TITLE} | The metamagic pick could not be stamped on the card.`, err); }
+  } catch(err) { log.warn(`The metamagic pick could not be stamped on the card.`, err); }
 });
 
 /** activity uuid → the usage card held back until the ask at the area is answered. */
@@ -417,9 +417,9 @@ listen("deleteChatMessage", "metamagic", message => {
     if ( !held || (ask?.status !== "pending") ) return;
     const uuid = held.activityUuid ?? held.pick?.activityUuid ?? "";
     if ( !isHeld(uuid) ) return;
-    console.warn(`${TITLE} | The ask at the area was deleted — posting ${held.pick?.feature ?? "the cast"}'s card as cast.`);
+    log.warn(`The ask at the area was deleted — posting ${held.pick?.feature ?? "the cast"}'s card as cast.`);
     void postDeferredCard({ data: held.data, pick: held.pick }, held.poolSpend ?? null, null, held.templateIds ?? []);
-  } catch(err) { console.error(`${TITLE} | The deleted ask's card could not be posted.`, err); }
+  } catch(err) { log.error(`The deleted ask's card could not be posted.`, err); }
 });
 
 listen("dnd5e.postUseActivity", "metamagic", (activity, _usageConfig, results) => {
@@ -435,7 +435,7 @@ listen("dnd5e.postUseActivity", "metamagic", (activity, _usageConfig, results) =
     }
     const message = (results?.message instanceof ChatMessage) ? results.message : null;
     void spendForPick(activity, pick, message);
-  } catch(err) { console.error(`${TITLE} | The metamagic spend failed — spend the Sorcery Points by hand.`, err); }
+  } catch(err) { log.error(`The metamagic spend failed — spend the Sorcery Points by hand.`, err); }
 });
 
 /** Spend now; if the area holds anyone a CARRIER whisper asks and its answer posts the real card, else post it now. */
@@ -443,7 +443,7 @@ async function carryDeferredCard(activity, held, templates) {
   const actor = activity?.actor;
   const pool = held.pick.poolId ? actor?.items?.get(held.pick.poolId) : null;
   const record = pool ? await spendPoolUses(actor, pool, held.pick.feature, held.pick.cost ?? 1, POOL_NAME) : null;
-  if ( !pool ) console.warn(`${TITLE} | ${held.pick.feature}: no Sorcery Points pool on ${actor?.name} — nothing spent.`);
+  if ( !pool ) log.warn(`${held.pick.feature}: no Sorcery Points pool on ${actor?.name} — nothing spent.`);
   const casterTok = tokenOf(actor) ?? null;
   // A chosen area never asks its caster about themself.
   const spell = activity.item?.name ?? "the spell";
@@ -477,7 +477,7 @@ async function carryDeferredCard(activity, held, templates) {
       [AREA_ASK_FLAG]: ask,
       [DEFERRED_FLAG]: { data: held.data, pick: held.pick, poolSpend: record, templateIds, activityUuid: activity.uuid }
     } }
-  }); return true; })().catch(err => { console.error(`${TITLE} | The ask's carrier could not be posted — the card posts as cast.`, err); return false; });
+  }); return true; })().catch(err => { log.error(`The ask's carrier could not be posted — the card posts as cast.`, err); return false; });
   if ( !carrierMade ) await postDeferredCard(held, record, null, templateIds);
   void uuid;
 }
@@ -504,7 +504,7 @@ async function spendForPick(activity, pick, message) {
   if ( pick?.free || !(Number(pick?.cost) > 0) ) return;   // B4 — a free row (Sculpt Spells) spends nothing
   const actor = activity?.actor;
   const pool = pick.poolId ? actor?.items?.get(pick.poolId) : null;
-  if ( !pool ) { console.warn(`${TITLE} | ${pick.feature}: no Sorcery Points pool on ${actor?.name} — nothing spent.`); return; }
+  if ( !pool ) { log.warn(`${pick.feature}: no Sorcery Points pool on ${actor?.name} — nothing spent.`); return; }
   const record = await spendPoolUses(actor, pool, pick.feature, pick.cost ?? 1, POOL_NAME);
   if ( !message || !record ) return;
   // ⚠ An update, not a birth flag: the flash's `updateChatMessage` reader catches it (resources.js).
@@ -525,7 +525,7 @@ listen("dnd5e.renderChatMessage", "metamagic", (message, html) => {
     div.style.cssText = "margin:0.25rem 0;font-size:var(--font-size-11,11px);opacity:0.85;";
     div.innerHTML = `<i class="fa-solid fa-wand-sparkles" data-tooltip="Metamagic"></i> ${esc(metamagicCardLine(record))}`;
     content.appendChild(div);
-  } catch(err) { console.warn(`${TITLE} | The metamagic line could not render.`, err); }
+  } catch(err) { log.warn(`The metamagic line could not render.`, err); }
 });
 
 listen("dnd5e.renderChatMessage", "metamagic", (message, html) => {
@@ -539,7 +539,7 @@ listen("dnd5e.renderChatMessage", "metamagic", (message, html) => {
     div.style.cssText = "margin:0.25rem 0;font-size:var(--font-size-11,11px);opacity:0.85;";
     div.innerHTML = free.map(r => `<i class="fa-solid fa-brain" data-tooltip="${esc(r.feature)}"></i> ${esc(metamagicCardLine(r))}`).join("<br>");
     content.appendChild(div);
-  } catch(err) { console.warn(`${TITLE} | The free row's line could not render.`, err); }
+  } catch(err) { log.warn(`The free row's line could not render.`, err); }
 });
 
 /* --- Empowered Spell: a row of the dice changers' popup (dice-changers.js) --------------------- */

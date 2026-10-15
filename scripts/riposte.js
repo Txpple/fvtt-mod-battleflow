@@ -2,7 +2,7 @@
  * By the Books — MACHINE (ARCHITECTURE.md §7): Riposte, the `riposte` fold. An enemy's melee miss
  * answered with a real driven attack, the superiority die riding its damage (why a fold: precision.js).
  */
-import { MODULE_ID, readFlag, TITLE, isActiveGM, queueFlagWrite, canAnswerFor, statContext, decisionWindow, resolveUuid, resolveUuidAsync } from "./core.js";
+import { MODULE_ID, readFlag, isActiveGM, queueFlagWrite, canAnswerFor, statContext, decisionWindow, resolveUuid, resolveUuidAsync, log } from "./core.js";
 import { cardActivity, usableManeuver, maneuverDieFormula, meleeOptions, preferredMeleeOption } from "./lookup.js";
 import { maneuverFoldEntries } from "./decide/registry.js";
 import { RULE_TEXT } from "./decide/registry.js";
@@ -69,7 +69,7 @@ listen("createChatMessage", "riposte", async message => {
     });
     armRiposteTimer(message);
   } catch(err) {
-    console.error(`${TITLE} | Riposte stamp failed.`, err);
+    log.error(`Riposte stamp failed.`, err);
   }
 });
 
@@ -94,7 +94,7 @@ async function fireRiposteTimer(messageId) {
       if ( (current.reactors ?? []).every(r => r.answer) ) current.status = "resolved";
     });
   } catch(err) {
-    console.error(`${TITLE} | Riposte buzzer failed.`, err);
+    log.error(`Riposte buzzer failed.`, err);
   }
 }
 
@@ -218,7 +218,7 @@ async function resolveRiposte(message, uuid, weaponId, { trusted = false } = {})
       for ( const id of priorTargets ) tokenOf(id)?.setTarget(true, { releaseOthers: false });
     }
   } catch(err) {
-    console.error(`${TITLE} | Riposte resolution failed.`, err);
+    log.error(`Riposte resolution failed.`, err);
   } finally {
     riposteInFlight.delete(key);
   }
@@ -254,7 +254,7 @@ listen("dnd5e.preRollDamage", "riposte", (config, _dialog, message) => {
       options: { type: armed.type, types: armed.type ? [armed.type] : [] }
     });
   } catch(err) {
-    console.error(`${TITLE} | Riposte die injection failed.`, err);
+    log.error(`Riposte die injection failed.`, err);
   }
 });
 
@@ -280,7 +280,7 @@ listen("dnd5e.rollAttack", "riposte", async rolls => {
       })
     });
   } catch(err) {
-    console.error(`${TITLE} | Riposte miss announce failed.`, err);
+    log.error(`Riposte miss announce failed.`, err);
   }
 });
 

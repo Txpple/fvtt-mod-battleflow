@@ -4,7 +4,7 @@
  * die size (a Pass leaves the kit's use as it was); the flow elect spends the creature's die and rolls
  * the feature's OWN heal activity of that size at it, so the healing rerolls and cast applier carry the rest.
  */
-import { MODULE_ID, readFlag, TITLE, isActiveGM, queueFlagWrite, canAnswerFor, canApplyTo, drivesMomentFor, statContext, whisperNoGM, decisionWindow, resolveUuid } from "./core.js";
+import { MODULE_ID, readFlag, isActiveGM, queueFlagWrite, canAnswerFor, canApplyTo, drivesMomentFor, statContext, whisperNoGM, decisionWindow, resolveUuid, log } from "./core.js";
 import { featureNamed, lower } from "./lookup.js";
 import { answers, kitTendEntries, listedNames } from "./decide/registry.js";
 import { KIT_TENDS } from "./decide/registry.js";
@@ -83,9 +83,9 @@ listen("dnd5e.postUseActivity", "kit-tend", (activity, _usage, results) => {
       status: "pending", row: found.name, actorUuid: actor.uuid, actorName: actor.name, featureId: found.feature.id,
       targetUuid: target.uuid, targetName: token.name ?? target.name, pools, ...statContext(actor.uuid),
       ...(window ? { window, deadline: Date.now() + (window * 1000) } : {})
-    }).catch(err => console.error(`${TITLE} | ${found.name} could not be offered — use its Heal activity by hand.`, err));
+    }).catch(err => log.error(`${found.name} could not be offered — use its Heal activity by hand.`, err));
   } catch(err) {
-    console.error(`${TITLE} | The kit's tending could not be offered — use the feature's Heal activity by hand.`, err);
+    log.error(`The kit's tending could not be offered — use the feature's Heal activity by hand.`, err);
   }
 });
 
@@ -156,7 +156,7 @@ async function landTend(message) {
     });
     record.faces = pool.faces;
   } catch(err) {
-    console.error(`${TITLE} | ${flag.row}'s tending failed — spend the die and use its Heal activity by hand.`, err);
+    log.error(`${flag.row}'s tending failed — spend the die and use its Heal activity by hand.`, err);
   } finally {
     await queueFlagWrite(message, TEND_FLAG, current => { Object.assign(current, record, { applied: true, applying: false }); });
   }
@@ -247,7 +247,7 @@ listen("dnd5e.renderChatMessage", "kit-tend", (message, html) => {
       });
     }
     content.appendChild(div);
-  } catch(err) { console.warn(`${TITLE} | The kit-tend line could not render.`, err); }
+  } catch(err) { log.warn(`The kit-tend line could not render.`, err); }
 });
 
 // An answer anywhere closes the popup everywhere (law 4); the clock stands down with it.

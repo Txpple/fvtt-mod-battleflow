@@ -2,7 +2,7 @@
  * By the Books — MACHINE, part of scripts/saves/ (ARCHITECTURE.md §7): the CONSEQUENCES per target,
  * receipted — effects per outcome, status presses, Evasion, chained damage at the verdict's multiplier.
  */
-import { readFlag, TITLE, queueFlagWrite, canApplyTo, whisperNoGM, statContext, resolveUuid, resolveUuidAsync } from "../core.js";
+import { readFlag, queueFlagWrite, canApplyTo, whisperNoGM, statContext, resolveUuid, resolveUuidAsync, log } from "../core.js";
 import { ruleHTML } from "../rule-text.js";
 import { bfCard } from "../decide/present.js";
 import { applicableProfiles, cardActivity, enchantedAs, featureNamed, lower, namesAnswering } from "../lookup.js";
@@ -90,7 +90,7 @@ export async function applySaveConsequences(card, uuid, rollMessage = null) {
     });
     await cleanupSpentTemplates(card);
   } catch(err) {
-    console.error(`${TITLE} | Save consequences failed.`, err);
+    log.error(`Save consequences failed.`, err);
   } finally {
     saveApplications.delete(key);
   }
@@ -240,7 +240,7 @@ async function pressSaveStatus(card, flag, entry, press, activity = null) {
   if ( !landed ) return;
   // THE DMG — `slain` (Nine Lives Stealer): 0 Hit Points too. ⚠ After the status: the platform's own Dead at 0 would race it.
   if ( press.slain && (Number(saver.system?.attributes?.hp?.value) > 0) ) await saver.update({ "system.attributes.hp.value": 0 });
-  if ( press.spend ) await spendActivityCharge(activity).catch(err => console.warn(`${TITLE} | Could not spend the charge — mark it by hand.`, err));
+  if ( press.spend ) await spendActivityCharge(activity).catch(err => log.warn(`Could not spend the charge — mark it by hand.`, err));
   const effect = saver.effects.find(e => e.statuses?.has?.(status));
   if ( !effect ) return;
   const description = await ruleHTML(press.rule);

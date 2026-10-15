@@ -99,6 +99,16 @@
           "nursery": { "noFloatingPromises": "off" }
         }
       }
+    },
+    {
+      "includes": ["scripts/**"],
+      "linter": {
+        "rules": { "suspicious": { "noConsole": { "level": "error", "options": { "allow": [] } } } }
+      }
+    },
+    {
+      "includes": ["scripts/core.js"],
+      "linter": { "rules": { "suspicious": { "noConsole": "off" } } }
     }
   ]
 }

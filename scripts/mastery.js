@@ -3,7 +3,7 @@
  * ask, the reminders and the Cleave arm. topple.js owns the `topple` flag's lifecycle;
  * chip-spend.js owns the spend, the expiry tidy and the combat sweep.
  */
-import { MODULE_ID, readFlag, TITLE, S, setting, drivesMomentFor, canApplyTo, whisperNoGM, queueFlagWrite, canAnswerFor, combatStamp, activeCombatFor, statContext, decisionWindow, resolveUuid, resolveUuidAsync, writableTargets } from "./core.js";
+import { MODULE_ID, readFlag, TITLE, S, setting, drivesMomentFor, canApplyTo, whisperNoGM, queueFlagWrite, canAnswerFor, combatStamp, activeCombatFor, statContext, decisionWindow, resolveUuid, resolveUuidAsync, writableTargets, log } from "./core.js";
 import { effectRecord, joinEffectReceipt, takenOf } from "./decide/receipt.js";
 import { MASTERY_KINDS, MASTERY_NATIVE, MASTERY_RULES } from "./decide/registry.js";
 import { CHIP_FLAG, chipClock, chipIsDead } from "./decide/chips.js";
@@ -127,12 +127,12 @@ export async function resolveHitMastery(damageMessage, attackMessage, hits, { pi
         // Nick is native. ⚠ Anything else is a NEW system mastery — warn loudly (DESIGN R4 tripwire).
         if ( !MASTERY_NATIVE.has(key) && !warnedMasteries.has(key) ) {
           warnedMasteries.add(key);
-          console.warn(`${TITLE} | Weapon mastery "${key}" is not one this module resolves (${[...MASTERY_KINDS].join("/")}) — left native. If the system added it, that is a NEW KIND against the R4 tripwire (DESIGN.md R4).`);
+          log.warn(`Weapon mastery "${key}" is not one this module resolves (${[...MASTERY_KINDS].join("/")}) — left native. If the system added it, that is a NEW KIND against the R4 tripwire (DESIGN.md R4).`);
         }
         return;
     }
   } catch(err) {
-    console.error(`${TITLE} | Mastery rider failed.`, err);
+    log.error(`Mastery rider failed.`, err);
   }
 }
 
@@ -162,7 +162,7 @@ async function resolveMissMastery(attackMessage) {
     }
     if ( missed.length ) await askOrTake(attackMessage, null, ctx, "graze", missed);
   } catch(err) {
-    console.error(`${TITLE} | Graze failed.`, err);
+    log.error(`Graze failed.`, err);
   }
 }
 
@@ -461,7 +461,7 @@ listen("dnd5e.preRollDamage", "mastery", (config, _dialog, message) => {
     foundry.utils.setProperty(message, `data.flags.${MODULE_ID}.cleaveStripped`,
       { itemName: arm.itemName ?? item.name });
   } catch(err) {
-    console.error(`${TITLE} | Cleave strip failed.`, err);
+    log.error(`Cleave strip failed.`, err);
   }
 });
 

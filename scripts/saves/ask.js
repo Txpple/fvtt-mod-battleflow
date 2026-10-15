@@ -3,7 +3,7 @@
  * dialog wearing the demand's fieldset, the straight roll, and the buzzer. index.js is the
  * directory's only public face.
  */
-import { MODULE_ID, readFlag, TITLE, queueFlagWrite, resolveUuid, resolveUuidAsync } from "../core.js";
+import { MODULE_ID, readFlag, queueFlagWrite, resolveUuid, resolveUuidAsync, log } from "../core.js";
 import { namesAnswering } from "../lookup.js";
 import { rollConfigFor } from "../shared.js";
 import { popupKey, bfCard, holdBarHTML } from "../decide/present.js";
@@ -56,7 +56,7 @@ async function rollSaveAnswer(card, uuid, { mode = null, bonus = null, timedOut 
       saveAnswerData(card, uuid, timedOut)
     );
   } catch(err) {
-    console.error(`${TITLE} | Save roll failed — roll it from the sheet.`, err);
+    log.error(`Save roll failed — roll it from the sheet.`, err);
   } finally {
     saveRollsInFlight.delete(key);
   }
@@ -89,7 +89,7 @@ export async function openSaveDialog(card, uuid) {
     if ( !rolls?.length && demand.failed ) await foldSaveAutoFail(card, uuid, { sources: demand.failed });
     else if ( !rolls?.length && demand.succeeded ) await foldSaveAutoSucceed(card, uuid, { sources: demand.succeeded });
   } catch(err) {
-    console.error(`${TITLE} | Save dialog failed — roll it from the sheet.`, err);
+    log.error(`Save dialog failed — roll it from the sheet.`, err);
   } finally {
     saveDialogsOpening.delete(key);
   }
@@ -143,7 +143,7 @@ listen("renderRollConfigurationDialog", "saves/ask", (app, element) => {
     // ⚠ A demand carrying `present` is another machine's (ui.js drawDemandFieldset).
     if ( demand && !demand.present ) drawSaveDemand(app, element, demand);
   } catch(err) {
-    console.error(`${TITLE} | Save dialog section failed to draw.`, err);
+    log.error(`Save dialog section failed to draw.`, err);
   }
 });
 
@@ -224,6 +224,6 @@ async function fireSaveTimer(card) {
     await closePopup(card, `save:${entry.uuid}`);
     await rollWithoutAsking(card, flag, actor, entry.uuid, { timedOut: true });
   }
-  // biome-ignore lint/suspicious/noConsole: a debug trace of the creatures gone before the save was asked
-  if ( goneNames.length ) console.debug(`${TITLE} | Gone at the buzzer: ${goneNames.join(", ")}.`);
+  // a debug trace of the creatures gone before the save was asked
+  if ( goneNames.length ) log.debug(`Gone at the buzzer: ${goneNames.join(", ")}.`);
 }

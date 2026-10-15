@@ -2,7 +2,7 @@
  * By the Books — MACHINE (ARCHITECTURE.md §7): Commander's Strike, the `command` fold — the
  * fighter's die on an ally's Reaction attack.
  */
-import { MODULE_ID, readFlag, TITLE, isActiveGM, queueFlagWrite, canAnswerFor, statContext, decisionWindow, resolveUuid, resolveUuidAsync } from "./core.js";
+import { MODULE_ID, readFlag, isActiveGM, queueFlagWrite, canAnswerFor, statContext, decisionWindow, resolveUuid, resolveUuidAsync, log } from "./core.js";
 import { ruleHTML } from "./rule-text.js";
 import { resolveDie, foldEntryFor, maneuverDieFormula } from "./lookup.js";
 import { maneuverFoldEntries } from "./decide/registry.js";
@@ -25,7 +25,7 @@ listen("dnd5e.preUseActivity", "command", (activity, usageConfig) => {
     const found = foldEntryFor(activity.actor, "command", maneuverFoldEntries());
     if ( found.item.id !== activity.item?.id ) return;
     usageConfig.subsequentActions = false;   // the die is the ally's hit's, not the Bonus Action's
-  } catch(err) { console.warn(`${TITLE} | Could not claim Commander's Strike's use.`, err); }
+  } catch(err) { log.warn(`Could not claim Commander's Strike's use.`, err); }
 });
 
 listen("dnd5e.postUseActivity", "command", (activity, _usageConfig, results) => {
@@ -37,7 +37,7 @@ listen("dnd5e.postUseActivity", "command", (activity, _usageConfig, results) => 
     if ( !message || readFlag(message, "command") ) return;
     void stampCommand(activity, activity.actor, message, found);
   } catch(err) {
-    console.error(`${TITLE} | Commander's Strike failed at the use — direct the strike by hand.`, err);
+    log.error(`Commander's Strike failed at the use — direct the strike by hand.`, err);
   }
 });
 
@@ -75,7 +75,7 @@ async function ensureCommandChip(message) {
       origin: flag.itemUuid ?? null, disabled: false, transfer: false,
       ...(clock ? chipData(clock) : {}),
       flags: { [MODULE_ID]: { [CHIP_FLAG]: "use", useKey: "command", die: flag.dieFormula ?? null, sourceUuid: flag.attackerUuid, sourceName: flag.attackerName, cardId: message.id } }
-    }, { parent: ally }).catch(err => { console.error(`${TITLE} | Commander's Strike could not mark the ally — add the die by hand.`, err); return null; });
+    }, { parent: ally }).catch(err => { log.error(`Commander's Strike could not mark the ally — add the die by hand.`, err); return null; });
   }
   if ( chip ) await queueFlagWrite(message, "command", current => { if ( current.chipId ) return false; current.chipId = chip.id; });
 }
@@ -122,7 +122,7 @@ listen("dnd5e.preRollDamage", "command", (config, _dialog, message) => {
     void chip.delete().catch(() => {});
     void spendReaction(actor, { origin: chip.origin ?? null, what: "Commander's Strike" });
   } catch(err) {
-    console.error(`${TITLE} | Commander's Strike's die failed to ride — add it by hand.`, err);
+    log.error(`Commander's Strike's die failed to ride — add it by hand.`, err);
   }
 });
 
@@ -135,7 +135,7 @@ listen("createChatMessage", "command", message => {
   void queueFlagWrite(card, "command", current => {
     if ( current.status !== "directed" ) return false;
     current.status = "struck"; current.struck = { by: ride.by, weapon: ride.weapon ?? null, at: Date.now() };
-  }).catch(err => console.warn(`${TITLE} | Could not record the directed strike on the card.`, err));
+  }).catch(err => log.warn(`Could not record the directed strike on the card.`, err));
 });
 
 listen("dnd5e.renderChatMessage", "command", (message, html) => {

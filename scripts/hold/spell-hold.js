@@ -4,7 +4,7 @@
  * at the moment of USE (Magic Missile against Shield) has no attack roll, so the hold enters here;
  * a `negate` answer IS the verdict (no re-test, no AC arithmetic). Resolution: `continueSpellHold`.
  */
-import { MODULE_ID, readFlag, TITLE, statContext, decisionWindow, queueFlagWrite, resolveUuidAsync } from "../core.js";
+import { MODULE_ID, readFlag, TITLE, statContext, decisionWindow, queueFlagWrite, resolveUuidAsync, log } from "../core.js";
 import { answers, blockEntries } from "../decide/registry.js";
 import { bfCard, esc } from "../decide/present.js";
 import { reactionSpent, statSourceOf } from "../shared.js";
@@ -49,7 +49,7 @@ async function releaseUnheldSpellDamage(activity, holdMessage) {
     if ( readFlag(damage, "spellHoldPending") )
       await damage.setFlag(MODULE_ID, "spellHoldPending", false);
   } catch(err) {
-    console.error(`${TITLE} | Could not release the spell damage claim.`, err);
+    log.error(`Could not release the spell damage claim.`, err);
   }
 }
 

@@ -2,7 +2,7 @@
  * By the Books — Shared EDGE helpers: the hit test, the attack-chain lookup, status forcing, turn
  * chits, the Reaction chip and pool spends (ARCHITECTURE.md §7).
  */
-import { MODULE_ID, readFlag, TITLE, activeCombatFor, canApplyTo, combatStamp, stampedSourceOf, resolveUuid } from "./core.js";
+import { MODULE_ID, readFlag, TITLE, activeCombatFor, canApplyTo, combatStamp, stampedSourceOf, resolveUuid, log } from "./core.js";
 import { CHIP_FLAG, chipClock, chitStamp, reactionStands, reactionStandsEveryTurn } from "./decide/chips.js";
 import { REACTION_RESETS, identifierOf } from "./decide/registry.js";
 import { foldsFrom, hitsAmong } from "./decide/verdict.js";
@@ -154,9 +154,9 @@ export function chipSpentOnRecord(effect, { limit = 100 } = {}) {
   const bearerUuid = effect?.parent?.uuid;
   if ( !effect?.id || !bearerUuid ) return false;
   const since = effect._stats?.modifiedTime ?? 0;
-  const log = game.messages.contents;
-  for ( let i = log.length - 1, n = 0; (i >= 0) && (n < limit); i--, n++ ) {
-    const m = log[i];
+  const messages = game.messages.contents;
+  for ( let i = messages.length - 1, n = 0; (i >= 0) && (n < limit); i--, n++ ) {
+    const m = messages[i];
     if ( m.timestamp < since ) continue;
     if ( chipSpendsOn(m).some(s => (s.id === effect.id) && (s.uuid === bearerUuid)) ) return true;
   }
@@ -189,12 +189,12 @@ export async function forceStatus(actor, statusId, { origin = null, expiry = nul
       if ( duration ) effect.updateSource({ duration });   // a press that lasts (SAVE_PRESSES `lasts`, B2)
       await ActiveEffect.implementation.create(effect, { parent: actor, keepId: true });
     } catch(err) {
-      console.error(`${TITLE} | Could not build status "${statusId}" directly.`, err);
+      log.error(`Could not build status "${statusId}" directly.`, err);
     }
     if ( !actor.statuses.has(statusId) ) await actor.toggleStatusEffect(statusId, { active: true });
   }
   const landed = actor.statuses.has(statusId);
-  if ( !landed ) console.error(`${TITLE} | Status "${statusId}" refused to land on ${actor.name} — check for a module vetoing effect creation.`);
+  if ( !landed ) log.error(`Status "${statusId}" refused to land on ${actor.name} — check for a module vetoing effect creation.`);
   return landed;
 }
 
@@ -211,7 +211,7 @@ export async function clearStatus(actor, statusId) {
     } catch(err) {
       // A concurrent delete is the expected loss here; anything else is worth a line.
       if ( !actor.effects.get(effect.id) ) continue;
-      console.warn(`${TITLE} | Could not clear status "${statusId}" from ${actor.name}.`, err);
+      log.warn(`Could not clear status "${statusId}" from ${actor.name}.`, err);
     }
   }
   return !actor.statuses.has(statusId);

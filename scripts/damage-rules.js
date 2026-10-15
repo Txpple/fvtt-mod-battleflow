@@ -4,7 +4,7 @@
  * listed style, live or disabled off the EQUIPPED boxes; an ungated pack effect is off while the face
  * carries the rule. THE ROLL: bonuses join the parts; a die floor is a `minN` on the built rolls.
  */
-import { MODULE_ID, readFlag, TITLE, publish, drivesMomentFor, canApplyTo, canAnswerFor, keepsMessage, statContext, queueFlagWrite, decisionWindow, ownersAndGmIds, resolveUuid, resolveUuidAsync } from "./core.js";
+import { MODULE_ID, readFlag, TITLE, publish, drivesMomentFor, canApplyTo, canAnswerFor, keepsMessage, statContext, queueFlagWrite, decisionWindow, ownersAndGmIds, resolveUuid, resolveUuidAsync, log } from "./core.js";
 import { lower, featureNamed, wieldsAs } from "./lookup.js";
 import { answers, damageRuleEntries, identifierOf, listedNames } from "./decide/registry.js";
 import { DAMAGE_RULES } from "./decide/registry.js";
@@ -140,7 +140,7 @@ async function syncFaces(actor) {
     if ( creates.length ) await actor.createEmbeddedDocuments("ActiveEffect", creates, quiet());
     await syncTakeovers(actor, rows);
   } catch(err) {
-    console.error(`${TITLE} | The fighting styles on ${actor?.name} could not be kept in step — toggle their effects by hand.`, err);
+    log.error(`The fighting styles on ${actor?.name} could not be kept in step — toggle their effects by hand.`, err);
   }
 }
 
@@ -170,7 +170,7 @@ function syncAll() {
   for ( const token of canvas?.tokens?.placeables ?? [] ) if ( token.actor && !token.document.actorLink ) scheduleSync(token.actor);
 }
 
-listenOnce("ready", "damage-rules", () => { try { syncAll(); } catch(err) { console.warn(`${TITLE} | fighting styles: the first pass failed.`, err); } });
+listenOnce("ready", "damage-rules", () => { try { syncAll(); } catch(err) { log.warn(`fighting styles: the first pass failed.`, err); } });
 listen("canvasReady", "damage-rules", () => {
   for ( const token of canvas?.tokens?.placeables ?? [] ) if ( token.actor && !token.document.actorLink ) scheduleSync(token.actor);
 });
@@ -245,7 +245,7 @@ listen("dnd5e.preRollDamage", "damage-rules", (config, _dialog, message) => {
     foundry.utils.setProperty(message, `data.flags.${MODULE_ID}.${STYLE_FLAG}`,
       { styles, gain: styles.reduce((s, e) => s + e.gain, 0), ...statContext(attacker.uuid) });
   } catch(err) {
-    console.error(`${TITLE} | A fighting style could not be applied to this damage roll — add it by hand.`, err);
+    log.error(`A fighting style could not be applied to this damage roll — add it by hand.`, err);
   }
 });
 
@@ -331,7 +331,7 @@ listen("dnd5e.postDamageRollConfiguration", "damage-rules", (rolls, config) => {
       if ( touched ) roll.resetFormula?.();
     }
   } catch(err) {
-    console.error(`${TITLE} | A damage floor (Great Weapon Fighting, Elemental Adept) could not be set — count the low dice by hand.`, err);
+    log.error(`A damage floor (Great Weapon Fighting, Elemental Adept) could not be set — count the low dice by hand.`, err);
   }
 });
 
@@ -355,7 +355,7 @@ listen("preCreateChatMessage", "damage-rules", doc => {
       : null;
     doc.updateSource({ [`flags.${MODULE_ID}.${next ? STYLE_FLAG : `-=${STYLE_FLAG}`}`]: next });
   } catch(err) {
-    console.error(`${TITLE} | Great Weapon Fighting's count failed — the dice stand as rolled.`, err);
+    log.error(`Great Weapon Fighting's count failed — the dice stand as rolled.`, err);
   }
 });
 
@@ -377,7 +377,7 @@ listen("updateActiveEffect", "damage-rules", (effect, changes) => {
         distance: 2 * token.h, fontSize: 28, stroke: 0x000000, strokeThickness: 4, jitter: 0.25
       });
     }
-  } catch(err) { console.warn(`${TITLE} | The fighting style's face float could not draw.`, err); }
+  } catch(err) { log.warn(`The fighting style's face float could not draw.`, err); }
 });
 
 /* --- THE BLOCK (Heavy Armor Master) ------------------------------------------------------------ *
@@ -413,7 +413,7 @@ listen("dnd5e.preCalculateDamage", "damage-rules", (actor, damages, options) => 
       return;
     }
   } catch(err) {
-    console.error(`${TITLE} | Heavy Armor Master's reduction could not be taken — reduce by hand.`, err);
+    log.error(`Heavy Armor Master's reduction could not be taken — reduce by hand.`, err);
   }
 });
 
@@ -459,7 +459,7 @@ listen("dnd5e.preCalculateDamage", "damage-rules", (actor, damages, options) => 
     }
     if ( said.length ) damages[IGNORED] = said;
   } catch(err) {
-    console.error(`${TITLE} | A feat's ignored Resistance (Elemental Adept, Poisoner) could not be set — apply it by hand.`, err);
+    log.error(`A feat's ignored Resistance (Elemental Adept, Poisoner) could not be set — apply it by hand.`, err);
   }
 });
 
@@ -482,7 +482,7 @@ listen("updateActor", "damage-rules", (actor, changes) => {
     popped.add(key);
     publish("armorBlock", { actorUuid: actor.uuid, ...block });
     for ( const token of tokensOf(actor) ) driftChip(token, token, `−${block.amount}`);
-  } catch(err) { console.warn(`${TITLE} | Heavy Armor Master's block could not draw.`, err); }
+  } catch(err) { log.warn(`Heavy Armor Master's block could not draw.`, err); }
 });
 
 /* --- THE NOTICE: the card's chips and the canvas dice, no clicks (decide/damage-rules.js chipsOf) --- */
@@ -549,7 +549,7 @@ listen("dnd5e.renderChatMessage", "damage-rules", (message, html) => {
       content.appendChild(div);
     }
   } catch(err) {
-    console.error(`${TITLE} | The fighting style's line failed to draw.`, err);
+    log.error(`The fighting style's line failed to draw.`, err);
   }
 });
 
@@ -580,7 +580,7 @@ listen("createChatMessage", "damage-rules", message => {
           origin: feature?.uuid ?? null, riderKey: `damage-rule:${entry.key}` });
       }
     }
-  } catch(err) { console.warn(`${TITLE} | The fighting style's dice could not draw.`, err); }
+  } catch(err) { log.warn(`The fighting style's dice could not draw.`, err); }
 });
 
 /* --- THE GRAPPLE'S TURN-START DAMAGE (Unarmed Fighting) ----------------------------------------- *
@@ -615,7 +615,7 @@ listen("updateCombat", "damage-rules", (combat, changed) => {
     if ( !candidates.length ) return;
     void stampGrapple(actor, feature, activity, candidates);
   } catch(err) {
-    console.error(`${TITLE} | Unarmed Fighting's grapple damage could not be offered — use "Grappled Damage" from the sheet.`, err);
+    log.error(`Unarmed Fighting's grapple damage could not be offered — use "Grappled Damage" from the sheet.`, err);
   }
 });
 
@@ -736,7 +736,7 @@ listen("dnd5e.renderChatMessage", "damage-rules", (message, html) => {
       });
     }
     content.appendChild(div);
-  } catch(err) { console.warn(`${TITLE} | Unarmed Fighting's line could not render.`, err); }
+  } catch(err) { log.warn(`Unarmed Fighting's line could not render.`, err); }
 });
 
 // An answer anywhere closes the popup everywhere (law 4); the clock stands down with it.
@@ -777,8 +777,8 @@ listen("createItem", "damage-rules", (item, _options, userId) => {
     const found = (actor instanceof Actor) ? typelessRowOf(item) : null;
     if ( !found ) return;
     void postTypePick(actor, item, found.name, found.row)
-      .catch(err => console.error(`${TITLE} | ${found.name}'s type could not be asked — rename it "${found.name} (Fire)".`, err));
-  } catch(err) { console.error(`${TITLE} | A typed feat's pick failed.`, err); }
+      .catch(err => log.error(`${found.name}'s type could not be asked — rename it "${found.name} (Fire)".`, err));
+  } catch(err) { log.error(`A typed feat's pick failed.`, err); }
 });
 
 /** The types this copy may still take — or null (and a warning) when the other copies hold them all. */
@@ -811,8 +811,8 @@ listen("dnd5e.displayCard", "damage-rules", (item, card) => {
     if ( !left ) return;
     void card.setFlag(MODULE_ID, PICK_FLAG, { ...statContext(actor.uuid), row: found.name, itemUuid: item.uuid, left, chosen: null })
       .then(() => askTypePick(card))
-      .catch(err => console.error(`${TITLE} | ${found.name}'s type could not be asked — rename it "${found.name} (Fire)".`, err));
-  } catch(err) { console.error(`${TITLE} | A typed feat's card pick failed.`, err); }
+      .catch(err => log.error(`${found.name}'s type could not be asked — rename it "${found.name} (Fire)".`, err));
+  } catch(err) { log.error(`A typed feat's card pick failed.`, err); }
 });
 
 /** The popup: a button per type still open, and Later. */
@@ -850,7 +850,7 @@ async function chooseType(message, type) {
     await item.update({ name: `${flag.row} (${titleCase(type)})` });
     if ( message.canUserModify?.(game.user, "update") ) await message.setFlag(MODULE_ID, PICK_FLAG, { ...flag, chosen: type });
   } catch(err) {
-    console.error(`${TITLE} | ${type} could not be chosen — rename the feat by hand.`, err);
+    log.error(`${type} could not be chosen — rename the feat by hand.`, err);
   }
 }
 
@@ -887,7 +887,7 @@ listen("updateItem", "damage-rules", (item, changes) => {
       if ( keepsMessage(message) ) void message.setFlag(MODULE_ID, PICK_FLAG, { ...f, chosen: type }).catch(() => {});
       void closePopup(message, PICK_FLAG);
     }
-  } catch(err) { console.warn(`${TITLE} | The type pick could not follow the rename.`, err); }
+  } catch(err) { log.warn(`The type pick could not follow the rename.`, err); }
 });
 
 // A made choice closes the popup everywhere (law 4).

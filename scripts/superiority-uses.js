@@ -3,7 +3,7 @@
  * *The rest of the maneuvers*) — each a USE whose consequence lands on a sheet, and for Lunging
  * and Feinting a die that rides the next hit. The pool is spent by the activity's own consumption.
  */
-import { MODULE_ID, readFlag, TITLE, canAnswerFor, drivesMomentFor, queueFlagWrite, statContext, decisionWindow, stampedSourceOf, resolveUuid, resolveUuidAsync } from "./core.js";
+import { MODULE_ID, readFlag, canAnswerFor, drivesMomentFor, queueFlagWrite, statContext, decisionWindow, stampedSourceOf, resolveUuid, resolveUuidAsync, log } from "./core.js";
 import { ruleHTML } from "./rule-text.js";
 import { cardItem, lower, featureNamed, activityNamed, resolveDie } from "./lookup.js";
 import { superiorityUseEntries, listedNames } from "./decide/registry.js";
@@ -47,7 +47,7 @@ listen("preCreateChatMessage", "superiority-uses", doc => {
     const item = cardItem(doc);
     if ( !item || (item.type !== "feat") || ![...MANEUVER_FEATURE_NAMES].some(n => answers(n, item)) ) return;
     doc.updateSource({ [`flags.${MODULE_ID}.-=castApply`]: null });
-  } catch(err) { console.warn(`${TITLE} | Could not keep the cast slice off a maneuver's card.`, err); }
+  } catch(err) { log.warn(`Could not keep the cast slice off a maneuver's card.`, err); }
 });
 
 // A damage-typed use (Feinting, Lunging): the die is the HIT's, so dnd5e's follow-up damage
@@ -55,7 +55,7 @@ listen("preCreateChatMessage", "superiority-uses", doc => {
 listen("dnd5e.preUseActivity", "superiority-uses", (activity, usageConfig) => {
   try {
     if ( useRowFor(activity) && (activity.type === "damage") ) usageConfig.subsequentActions = false;
-  } catch(err) { console.warn(`${TITLE} | Could not claim a maneuver's use.`, err); }
+  } catch(err) { log.warn(`Could not claim a maneuver's use.`, err); }
 });
 
 listen("dnd5e.postUseActivity", "superiority-uses", (activity, _usageConfig, results) => {
@@ -68,7 +68,7 @@ listen("dnd5e.postUseActivity", "superiority-uses", (activity, _usageConfig, res
     if ( !message || readFlag(message, "superiorityUse") ) return;
     void drive(row, activity, actor, message);
   } catch(err) {
-    console.error(`${TITLE} | A maneuver's use failed — apply it by hand.`, err);
+    log.error(`A maneuver's use failed — apply it by hand.`, err);
   }
 });
 
@@ -184,7 +184,7 @@ function armBaitTimer(card) {
         current.timedOut = true;
         current.answeredAt = Date.now();
       });
-    } catch(err) { console.error(`${TITLE} | The Bait and Switch buzzer failed.`, err); }
+    } catch(err) { log.error(`The Bait and Switch buzzer failed.`, err); }
   }, { owns: subjectOwns(bs => bs.sourceUuid), pending: bs => !bs.chosen });
 }
 
@@ -203,7 +203,7 @@ async function settleBait(card) {
     if ( effect && who ) await applyEffectsWithReceipt(card, [effect], [{ uuid: who.uuid, name: who.name }], { source: bs.sourceUuid ?? null, marker: "baitDone" });
     await queueFlagWrite(card, "baitSwitch", current => { current.resolving = false; current.resolved = { name: who?.name ?? null, applied: !!(effect && who), effectName: bs.effectName }; });
   } catch(err) {
-    console.error(`${TITLE} | Bait and Switch failed to apply — apply the AC bonus by hand.`, err);
+    log.error(`Bait and Switch failed to apply — apply the AC bonus by hand.`, err);
   }
 }
 
@@ -245,7 +245,7 @@ registerOfferPart({
       },
       async commit() {
         try { await attackMessage.setFlag(MODULE_ID, "lungePick", ticked); }
-        catch(err) { console.error(`${TITLE} | Could not record the Lunging Attack pick.`, err); }
+        catch(err) { log.error(`Could not record the Lunging Attack pick.`, err); }
       }
     };
   }
@@ -297,7 +297,7 @@ listen("dnd5e.preRollDamage", "superiority-uses", (config, _dialog, message) => 
     }
     if ( rode.length ) foundry.utils.setProperty(message, `data.flags.${MODULE_ID}.superiorityRide`, { ...statContext(attacker.uuid), attackId: attackMessage.id, rode });
   } catch(err) {
-    console.error(`${TITLE} | A maneuver's die failed to ride — add it by hand.`, err);
+    log.error(`A maneuver's die failed to ride — add it by hand.`, err);
   }
 });
 

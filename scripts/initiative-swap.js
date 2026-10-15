@@ -4,7 +4,7 @@
  * The GM posts one card per listed, non-Incapacitated owner per roll; the clock answers No. The
  * tracker is the GM's: a player's answer relays, and the swap reads both LIVE numbers.
  */
-import { MODULE_ID, readFlag, TITLE, isActiveGM, queueFlagWrite, canAnswerFor, statContext, decisionWindow, resolveUuid } from "./core.js";
+import { MODULE_ID, readFlag, isActiveGM, queueFlagWrite, canAnswerFor, statContext, decisionWindow, resolveUuid, log } from "./core.js";
 import { featureNamed, itemNamed, lower } from "./lookup.js";
 import { initiativeSwapEntries, listedNames } from "./decide/registry.js";
 import { INITIATIVE_SWAPS } from "./decide/registry.js";
@@ -63,7 +63,7 @@ function rearm(combat) {
   });
   if ( !cleared.length ) return;
   void combat.update(Object.fromEntries(cleared.map(id => [`flags.${MODULE_ID}.${ASKED_FLAG}.-=${id}`, null])))
-    .catch(err => console.error(`${TITLE} | The initiative swap could not re-arm — swap by hand.`, err));
+    .catch(err => log.error(`The initiative swap could not re-arm — swap by hand.`, err));
 }
 
 async function askFor(combat) {
@@ -110,7 +110,7 @@ async function askFor(combat) {
     }
     await combat.setFlag(MODULE_ID, ASKED_FLAG, asked);
   } catch(err) {
-    console.error(`${TITLE} | The initiative swap could not be asked — swap by hand.`, err);
+    log.error(`The initiative swap could not be asked — swap by hand.`, err);
   } finally {
     posting.delete(combat.id);
   }
@@ -171,7 +171,7 @@ async function landSwap(message) {
       record.allyName = ally.name;
     }
   } catch(err) {
-    console.error(`${TITLE} | ${flag.row}'s swap failed — swap it in the tracker by hand.`, err);
+    log.error(`${flag.row}'s swap failed — swap it in the tracker by hand.`, err);
   } finally {
     await queueFlagWrite(message, SWAP_FLAG, current => { Object.assign(current, record, { applied: true, applying: false }); });
   }
@@ -290,7 +290,7 @@ listen("dnd5e.renderChatMessage", "initiative-swap", (message, html) => {
       });
     }
     content.appendChild(div);
-  } catch(err) { console.warn(`${TITLE} | The initiative-swap line could not render.`, err); }
+  } catch(err) { log.warn(`The initiative-swap line could not render.`, err); }
 });
 
 // An answer anywhere closes the popup everywhere (law 4); the clock stands down with it.
@@ -321,7 +321,7 @@ function floatSwap(message, flag) {
     };
     float(flag.combatantId, flag.from, flag.to);
     float(flag.pick, flag.to, flag.from);
-  } catch(err) { console.warn(`${TITLE} | The initiative swap's floating text could not draw.`, err); }
+  } catch(err) { log.warn(`The initiative swap's floating text could not draw.`, err); }
 }
 
 listen("deleteChatMessage", "initiative-swap", message => { disarmAskTimer(timers, message.id); });

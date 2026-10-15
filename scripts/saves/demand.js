@@ -3,7 +3,7 @@
  * client stamps the `saves` flag on the usage card, with the dead-target gate, metamagic, a chosen
  * area and an emanation's reach applied at the cast.
  */
-import { MODULE_ID, readFlag, clearFlag, TITLE, S, setting, statContext, decisionWindow, resolveUuid } from "../core.js";
+import { MODULE_ID, readFlag, clearFlag, S, setting, statContext, decisionWindow, resolveUuid, log } from "../core.js";
 import { applicableProfiles, itemNamed, namesAnswering } from "../lookup.js";
 import { CARD, activityUuidOf, isCard, targetsOf } from "../decide/card.js";
 import { saveDemandData, saveTargetEntry, putsToSleep } from "../decide/demand.js";
@@ -144,7 +144,7 @@ listen("preCreateChatMessage", "saves/demand", doc => {
     if ( (activity?.type !== "save") || !activity.target?.template?.type || !chosenAreaListed(activity.item) ) return;
     const window = decisionWindow();
     raiseHold(uuid, { reason: "area-choice", bound: window ? (window * 1000) + CHOICE_HOLD_SLACK_MS : null });
-  } catch(err) { console.warn(`${TITLE} | The chosen area's hold could not be raised — the picture plays at once.`, err); }
+  } catch(err) { log.warn(`The chosen area's hold could not be raised — the picture plays at once.`, err); }
 });
 
 /** After the stamp: lift the chosen area's hold unless its ask now stands (the answer lifts it then). */
@@ -283,7 +283,7 @@ async function stampSaveDemand(activity, message, results) {
       else await rollSaveDamageNow(activity, message, { damageOnSave: onSave, targets, awaiting });
     }
   } catch(err) {
-    console.error(`${TITLE} | Could not stamp the save demand.`, err);
+    log.error(`Could not stamp the save demand.`, err);
   }
 }
 
@@ -307,7 +307,7 @@ listen("bythebooks.areaAskAnswered", "saves/demand", async message => {
     if ( !flag || (flag.status === "done") ) return;   // everyone spared — no dice owed
     await rollSaveDamageNow(activity, message, { damageOnSave: deferred.damageOnSave ?? "half", targets: flag.targets ?? [], awaiting: false });
   } catch(err) {
-    console.error(`${TITLE} | The deferred save damage could not roll — press the card's damage.`, err);
+    log.error(`The deferred save damage could not roll — press the card's damage.`, err);
   }
 });
 

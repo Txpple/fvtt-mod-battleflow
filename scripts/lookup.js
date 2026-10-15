@@ -7,7 +7,7 @@
 import { CARD, activityUuidOf, isCard } from "./decide/card.js";
 import { EVASIONS, INTERRUPT_REDUCTIONS, INTERRUPT_ROLLS, SUPERIORITY_STAND_INS, answers, identifierOf, interruptEntries, matchOf } from "./decide/registry.js";
 import { d20Faces, d20ModeOf } from "./decide/rescue-hit.js";
-import { MODULE_ID, TITLE, readFlag, resolveUuid } from "./core.js";
+import { MODULE_ID, readFlag, resolveUuid, log } from "./core.js";
 import { SUMMON_AS } from "./decide/registry.js";
 
 export const lower = s => String(s ?? "").toLowerCase();
@@ -35,7 +35,7 @@ export function itemsNamed(actor, key, { types = null } = {}) {
   }
   if ( byName.length && !warnedNameOnly.has(`${actor.uuid}|${key}`) ) {
     warnedNameOnly.add(`${actor.uuid}|${key}`);
-    console.warn(`${TITLE} | ${actor.name}: "${byName[0].name}" found by its name, not the identifier "${identifierOf(key)}".`);
+    log.warn(`${actor.name}: "${byName[0].name}" found by its name, not the identifier "${identifierOf(key)}".`);
   }
   const is2014 = item => (item.system?.source?.rules === "2014") ? 1 : 0;
   return [...byIdentifier, ...byName].sort((a, b) => is2014(a) - is2014(b));

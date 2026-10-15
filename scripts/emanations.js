@@ -4,7 +4,7 @@
  * Owns the lifecycle of the rings, the floor that keeps member effects true, and the triggers.
  * Only the active GM writes. Rulings: RULINGS *Emanations*.
  */
-import { MODULE_ID, readFlag, TITLE, isActiveGM, activeCombatFor, statContext, whisperNoGM, drivesMomentFor, decisionWindow, queueFlagWrite, selfIds, resolveUuid } from "./core.js";
+import { MODULE_ID, readFlag, TITLE, isActiveGM, activeCombatFor, statContext, whisperNoGM, drivesMomentFor, decisionWindow, queueFlagWrite, selfIds, resolveUuid, log } from "./core.js";
 import { saveDemandData, saveTargetEntry } from "./decide/demand.js";
 import { lower, itemNamed, activityNamed, activityOfType, namesAnswering, applicableProfiles, wearsEffectNamed } from "./lookup.js";
 import { ruleHTML } from "./rule-text.js";
@@ -54,7 +54,7 @@ const flagOf = region => readFlag(region, FLAG) ?? null;
 listenOnce("init", "emanations", () => {
   const Base = foundry.data?.regionBehaviors?.RegionBehaviorType;
   const F = foundry.data?.fields;
-  if ( !Base || !F ) { console.warn(`${TITLE} | Region behaviours are not available on this Foundry — emanations off.`); return; }
+  if ( !Base || !F ) { log.warn(`Region behaviours are not available on this Foundry — emanations off.`); return; }
   const EV = CONST.REGION_EVENTS;
 
   class EmanationBehaviorType extends Base {
@@ -234,7 +234,7 @@ async function reconcileAuraNow(group, gone) {
       if ( stale.length ) await actor.deleteEmbeddedDocuments("ActiveEffect", stale.map(e => e.id)).catch(() => {});
     }
   } catch(err) {
-    console.error(`${TITLE} | Emanation floor failed — check the aura's effects by hand.`, err);
+    log.error(`Emanation floor failed — check the aura's effects by hand.`, err);
   }
 }
 
@@ -328,7 +328,7 @@ async function maybeTrigger(behType, token, cause) {
     });
     if ( hasDamage && card ) await rollDamageForSave(activity, card);
   } catch(err) {
-    console.error(`${TITLE} | Emanation trigger failed — ask for the save by hand.`, err);
+    log.error(`Emanation trigger failed — ask for the save by hand.`, err);
   }
 }
 
@@ -340,7 +340,7 @@ async function triggerDamage({ region, row, sys, item, damage, token, actor, cas
   try {
     const rolls = await damage.rollDamage({ scaling: Number(sys.scaling ?? 0) }, { configure: false }, { create: false });
     const list = (rolls ?? []).filter(r => r && Number.isFinite(r.total));
-    if ( !list.length ) { console.warn(`${TITLE} | ${row.key}: its damage did not roll — apply it by hand.`); return; }
+    if ( !list.length ) { log.warn(`${row.key}: its damage did not roll — apply it by hand.`); return; }
     const total = list.reduce((n, r) => n + Number(r.total), 0);
     const type = list[0]?.options?.type ?? [...(damage.damage?.parts?.[0]?.types ?? [])][0] ?? null;
     // ⚠ Read the rolls BEFORE the card: ChatMessage.create serializes the array it is handed in place.
@@ -357,7 +357,7 @@ async function triggerDamage({ region, row, sys, item, damage, token, actor, cas
     });
     if ( card ) await applyDamagesWithReceipt(card, [{ uuid: actor.uuid, name: token.name }], damages, { note: row.key });
   } catch(err) {
-    console.error(`${TITLE} | ${row?.key ?? "An area"}'s damage failed — apply it by hand.`, err);
+    log.error(`${row?.key ?? "An area"}'s damage failed — apply it by hand.`, err);
   }
 }
 
@@ -414,7 +414,7 @@ async function maybeAlert(behType, token, movement, cause) {
       } } }
     });
   } catch(err) {
-    console.error(`${TITLE} | ${behType?.key ?? "An emanation"}'s reminder failed — the reaction is yours by hand.`, err);
+    log.error(`${behType?.key ?? "An emanation"}'s reminder failed — the reaction is yours by hand.`, err);
   }
 }
 
@@ -484,7 +484,7 @@ async function maybeMoveDamage(behType, token, movement) {
     });
     if ( card ) await applyDamagesWithReceipt(card, [{ uuid: actor.uuid, name: token.name }], [{ value: roll.total, type, properties: new Set(["mgc"]) }], { note: row.key });
   } catch(err) {
-    console.error(`${TITLE} | ${behType?.key ?? "An area"}'s move damage failed — apply it by hand.`, err);
+    log.error(`${behType?.key ?? "An area"}'s move damage failed — apply it by hand.`, err);
   }
 }
 
@@ -512,7 +512,7 @@ async function maybeHeal(behType, token, cause) {
     const activity = activityNamed(item, row.heal.activity);
     const part = activity?.healing;
     const raw = part ? riderPartFormula({ number: part.number, denomination: part.denomination, custom: part.custom, bonus: part.bonus }) : null;
-    if ( !raw ) { console.warn(`${TITLE} | ${row.key}: no healing part on "${row.heal.activity}" — heal by hand.`); return; }
+    if ( !raw ) { log.warn(`${row.key}: no healing part on "${row.heal.activity}" — heal by hand.`); return; }
     const casterActor = item?.actor ?? null;
     const roll = await new Roll(raw, casterActor?.getRollData?.() ?? {}).evaluate();
     const type = [...(part.types ?? [])][0] ?? "healing";
@@ -526,7 +526,7 @@ async function maybeHeal(behType, token, cause) {
     });
     if ( card ) await applyDamagesWithReceipt(card, [{ uuid: actor.uuid, name: token.name }], [{ value: roll.total, type, properties: new Set() }], { note: row.key });
   } catch(err) {
-    console.error(`${TITLE} | Emanation heal failed — heal by hand.`, err);
+    log.error(`Emanation heal failed — heal by hand.`, err);
   }
 }
 
@@ -556,7 +556,7 @@ listen("updateCombat", "emanations", (combat, changes) => {
       }
     }
   } catch(err) {
-    console.error(`${TITLE} | Emanation notice failed.`, err);
+    log.error(`Emanation notice failed.`, err);
   }
 });
 
@@ -591,7 +591,7 @@ async function pickCard(region, row, token, combat) {
         activityUuid: activity.uuid, activityName: activity.name, turn, candidates, picked: null, demanded: false } } }
     });
   } catch(err) {
-    console.error(`${TITLE} | ${row?.key ?? "An emanation"}'s pick card failed — choose and roll the save from the sheet.`, err);
+    log.error(`${row?.key ?? "An emanation"}'s pick card failed — choose and roll the save from the sheet.`, err);
   }
 }
 
@@ -656,7 +656,7 @@ listen("updateChatMessage", "emanations", (message, changes) => {
       current.demanded = true;
     }).then(() => demandPick(message, p));
   } catch(err) {
-    console.error(`${TITLE} | The emanation's pick failed — ask for the save by hand.`, err);
+    log.error(`The emanation's pick failed — ask for the save by hand.`, err);
   }
 });
 
@@ -710,7 +710,7 @@ async function demandPick(card, p) {
     });
     if ( hasDamage && demand ) await rollDamageForSave(activity, demand);
   } catch(err) {
-    console.error(`${TITLE} | ${p?.key ?? "An emanation"}'s pick failed — ask for the save by hand.`, err);
+    log.error(`${p?.key ?? "An emanation"}'s pick failed — ask for the save by hand.`, err);
   }
 }
 
@@ -776,7 +776,7 @@ listen("updateCombat", "emanations", (combat, changes, options) => {
       void pulse(region, row, token, beh.system);
     }
   } catch(err) {
-    console.error(`${TITLE} | Emanation pulse failed — apply its damage by hand.`, err);
+    log.error(`Emanation pulse failed — apply its damage by hand.`, err);
   }
 });
 
@@ -805,7 +805,7 @@ async function pulse(region, row, token, sys) {
       }
       return;
     }
-    if ( !raw ) { console.warn(`${TITLE} | ${row.key}: no damage part on "${row.pulse.activity}" — apply the pulse by hand.`); return; }
+    if ( !raw ) { log.warn(`${row.key}: no damage part on "${row.pulse.activity}" — apply the pulse by hand.`); return; }
     const inside = (tokensInRegions([region]) ?? [])
       .map(e => region.parent.tokens.get(e.tokenId))
       .filter(t => t?.actor && (t.id !== token.id) && reachAdmits(sys.reach, token.disposition, t.disposition));
@@ -825,7 +825,7 @@ async function pulse(region, row, token, sys) {
     if ( card ) await applyDamagesWithReceipt(card, inside.map(t => ({ uuid: t.actor.uuid, name: t.name })),
       [{ value: roll.total, type: type ?? "radiant", properties: new Set(["mgc"]) }], { note: row.key });
   } catch(err) {
-    console.error(`${TITLE} | ${row?.key ?? "An emanation"}'s pulse failed — apply its damage by hand.`, err);
+    log.error(`${row?.key ?? "An emanation"}'s pulse failed — apply its damage by hand.`, err);
   }
 }
 
@@ -872,7 +872,7 @@ listen("preCreateRegionBehavior", "emanations", (behavior, data) => {
     const row = item ? rowFor(item) : null;
     if ( row && ((row.kind === "spell") || (row.kind === "area")) && listed().has(lower(row.key)) ) return false;
   } catch(err) {
-    console.warn(`${TITLE} | Could not judge a region behaviour — the platform's stands.`, err);
+    log.warn(`Could not judge a region behaviour — the platform's stands.`, err);
   }
 });
 
@@ -942,7 +942,7 @@ function featureSpec(tok, row) {
   const effect = item.effects.find(e => lower(e.name) === lower(row.effect)) ?? null;
   if ( !effect ) return null;
   const { changes, unresolved } = resolveChanges(effect.changes.map(c => ({ key: c.key, mode: c.mode, value: c.value, priority: c.priority })), rollData);
-  if ( unresolved.length ) { console.warn(`${TITLE} | ${row.key} on ${actor.name}: could not resolve ${unresolved.join(", ")} — the aura does not stand.`); return null; }
+  if ( unresolved.length ) { log.warn(`${row.key} on ${actor.name}: could not resolve ${unresolved.join(", ")} — the aura does not stand.`); return null; }
   return { tok, actor, item, row, range, sourceTok, disabled,
     effect: { name: effect.name, img: effect.img ?? item.img ?? null, description: null, changes } };
 }
@@ -955,7 +955,7 @@ function scheduleScene(scene) {
   sweepTimers.set(scene.id, setTimeout(() => {
     sweepTimers.delete(scene.id);
     const prev = sweepChains.get(scene.id) ?? Promise.resolve();
-    const run = prev.then(() => reconcileScene(scene)).catch(err => console.error(`${TITLE} | Emanation sweep failed.`, err));
+    const run = prev.then(() => reconcileScene(scene)).catch(err => log.error(`Emanation sweep failed.`, err));
     sweepChains.set(scene.id, run);
     void run.finally(() => { if ( sweepChains.get(scene.id) === run ) sweepChains.delete(scene.id); });
   }, 200));
@@ -1017,13 +1017,13 @@ async function reconcileScene(scene) {
         flags: { [MODULE_ID]: { [FLAG]: { kind: "feature", key: w.row.key, tokenId: w.tok.id, itemUuid: w.item.uuid,
           ...(w.sourceTok ? { sourceTokenId: w.sourceTok.id } : {}) } } }
       }], { dnd5e: { createActivityBehaviors: false } });
-      if ( !region ) { console.error(`${TITLE} | ${w.row.key} around ${w.actor.name}: the region was not created.`); continue; }
+      if ( !region ) { log.error(`${w.row.key} around ${w.actor.name}: the region was not created.`); continue; }
       await adoptRegion(region, { kind: "feature", key: w.row.key, tok: w.tok, itemUuid: w.item.uuid, reach: w.row.reach, effect: w.effect, disabled: w.disabled,
         source: w.sourceTok ?? null });
       await announce(w.row, w.actor, w.item, w.range, w.effect, "stands");
       await reconcileMembers(scene.regions.get(region.id) ?? region);
     } catch(err) {
-      console.error(`${TITLE} | Could not raise ${w.row.key} around ${w.actor.name}.`, err);
+      log.error(`Could not raise ${w.row.key} around ${w.actor.name}.`, err);
     }
   }
   // Spell and area regions too: a scene going live or dead changes what they apply, and no event of theirs says so.
@@ -1062,7 +1062,7 @@ async function adoptSpellRegion(region) {
       { activity: activityOfType(item, "save"), regionId: region.id, sceneId: region.parent?.id ?? null, ...choices });
     await reconcileMembers(region);
   } catch(err) {
-    console.error(`${TITLE} | Could not adopt a spell's emanation — its effects apply by hand.`, err);
+    log.error(`Could not adopt a spell's emanation — its effects apply by hand.`, err);
   }
 }
 
@@ -1096,7 +1096,7 @@ async function adoptChoices(region, row, casterTok) {
       [`flags.${MODULE_ID}.${FLAG}`]: next,
       ...(next.band ? { shapes: [bandShape(next.band.base, next.band.side, row.band.feet * pxPerUnit(region.parent))] } : {})
     });
-  } catch(err) { console.warn(`${TITLE} | ${row?.key ?? "An area"}'s band or picks could not be set — edit the region by hand.`, err); }
+  } catch(err) { log.warn(`${row?.key ?? "An area"}'s band or picks could not be set — edit the region by hand.`, err); }
   return out;
 }
 
@@ -1124,7 +1124,7 @@ async function applyCardChoices(card) {
       changed = true;
     }
     if ( changed ) await region.setFlag(MODULE_ID, FLAG, next);
-  } catch(err) { console.warn(`${TITLE} | The card's choice could not reach the region — edit it by hand.`, err); }
+  } catch(err) { log.warn(`The card's choice could not reach the region — edit it by hand.`, err); }
 }
 
 listen("updateChatMessage", "emanations", message => { if ( readFlag(message, "emanationCard") ) void applyCardChoices(message); });
@@ -1237,7 +1237,7 @@ listen("dnd5e.preUseActivity", "emanations", (activity, usageConfig) => {
     if ( !selfAreaOf(activity) ) return;
     usageConfig.create ??= {};
     usageConfig.create.measuredTemplate = false;
-  } catch(err) { console.warn(`${TITLE} | Could not switch off the template prompt.`, err); }
+  } catch(err) { log.warn(`Could not switch off the template prompt.`, err); }
 });
 
 listen("dnd5e.postUseActivity", "emanations", (activity, _usageConfig, results) => {
@@ -1247,7 +1247,7 @@ listen("dnd5e.postUseActivity", "emanations", (activity, _usageConfig, results) 
     const actor = activity.actor;
     if ( !actor?.isOwner ) return;
     void placeSelfArea(activity, castEmanationRow(activity), results?.message instanceof ChatMessage ? results.message : null);
-  } catch(err) { console.error(`${TITLE} | Could not place the area — place the template by hand.`, err); }
+  } catch(err) { log.error(`Could not place the area — place the template by hand.`, err); }
 });
 
 async function placeSelfArea(activity, row, message) {
@@ -1301,7 +1301,7 @@ listen("renderActivityUsageDialog", "emanations", (app, element) => {
     for ( const r of pickInputs(fs, "bf-emanation-type") ) r.addEventListener("change", () => { if ( r.checked ) pendingTypes.set(activity.uuid, r.value); });
     const footer = element.querySelector(SURFACES.dialogFooter);
     if ( footer ) footer.before(fs); else (element.querySelector("form") ?? element).appendChild(fs);
-  } catch(err) { console.warn(`${TITLE} | Could not add the damage-type fieldset.`, err); }
+  } catch(err) { log.warn(`Could not add the damage-type fieldset.`, err); }
 });
 
 async function carryDamageTypeChoice(activity) {
@@ -1314,7 +1314,7 @@ async function carryDamageTypeChoice(activity) {
     if ( !card ) return;   // no GM adopted the area — no card to carry it
     if ( readFlag(card, "emanationCard")?.damageType !== type ) await chooseDamageType(card, type);
   } catch(err) {
-    console.warn(`${TITLE} | The damage-type pick could not be carried to the card — its buttons still can.`, err);
+    log.warn(`The damage-type pick could not be carried to the card — its buttons still can.`, err);
   }
 }
 
@@ -1348,7 +1348,7 @@ async function endConcentrationAreas(effect) {
       }
     }
   } catch(err) {
-    console.error(`${TITLE} | Could not end an area with its concentration — delete the area by hand.`, err);
+    log.error(`Could not end an area with its concentration — delete the area by hand.`, err);
   }
 }
 
@@ -1373,7 +1373,7 @@ listen("dnd5e.postUseActivity", "emanations", async (activity, _usageConfig, res
       areas.push(...added);
     }, { initial: [] });
   } catch(err) {
-    console.warn(`${TITLE} | Could not tie a cast's area to its concentration — the area may outlive the spell.`, err);
+    log.warn(`Could not tie a cast's area to its concentration — the area may outlive the spell.`, err);
   }
 });
 
@@ -1432,7 +1432,7 @@ async function announce(row, actor, item, range, effect, verb, { activity = null
         ...(band ? { band } : {}), ...(picks ? { picks } : {}) } } }
     });
   } catch(err) {
-    console.warn(`${TITLE} | Could not post the emanation card.`, err);
+    log.warn(`Could not post the emanation card.`, err);
   }
 }
 
@@ -1508,7 +1508,7 @@ listen("dnd5e.preRollDamage", "emanations", (config, _dialog, message) => {
     }
     foundry.utils.setProperty(message, `data.flags.${MODULE_ID}.emanationType`, { type, chosen: !!chosen });
   } catch(err) {
-    console.warn(`${TITLE} | Could not set the emanation's damage type — the roll wears the pack's first.`, err);
+    log.warn(`Could not set the emanation's damage type — the roll wears the pack's first.`, err);
   }
 });
 

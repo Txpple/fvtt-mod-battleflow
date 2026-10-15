@@ -5,7 +5,7 @@
  * hold is off. Damage already applied is moved by the difference.
  * ⚠ dnd5e dispatches the damage hook TWICE per roll: an in-flight set keeps it single.
  */
-import { MODULE_ID, readFlag, TITLE, statContext, queueFlagWrite, drivesMomentFor, decisionWindow, resolveUuid } from "./core.js";
+import { MODULE_ID, readFlag, statContext, queueFlagWrite, drivesMomentFor, decisionWindow, resolveUuid, log } from "./core.js";
 import { lower, featureNamed, itemNamed, dealtTypesOf } from "./lookup.js";
 import { damageEitherEntries, listedNames } from "./decide/registry.js";
 import { hitTargets, turnChitStands, writeTurnChit, rebuildRolls, spendPoolUses, attackHoldClaims } from "./shared.js";
@@ -87,7 +87,7 @@ listen("dnd5e.preRollDamage", "dice-changers", (config, _dialog, message) => {
       status, actorUuid: actor.uuid, attackId, rows: orderRows(rows), ...statContext(actor.uuid)
     });
   } catch(err) {
-    console.error(`${TITLE} | The dice changers could not be offered — change the dice by hand.`, err);
+    log.error(`The dice changers could not be offered — change the dice by hand.`, err);
   }
 });
 
@@ -397,12 +397,12 @@ async function resolve(message, { ticked, picks }) {
       void writeTurnChit(actor, "rider", { name: `${row.feature} — used this turn`, img: feature?.img ?? null,
         description: `${row.feature} changed an attack's damage dice this turn. Once per turn; this chit ends with the turn.`,
         origin: feature?.uuid ?? null, riderKey: row.key })
-        .catch(err => console.warn(`${TITLE} | Could not write the ${row.feature} chit.`, err));
+        .catch(err => log.warn(`Could not write the ${row.feature} chit.`, err));
     }
     if ( announce ) await dramaticVerdictPause(announce);
     await complete(message);
   } catch(err) {
-    console.error(`${TITLE} | The dice changers failed to roll — change the dice by hand.`, err);
+    log.error(`The dice changers failed to roll — change the dice by hand.`, err);
     // Never strand "answering": a written intent completes; a point spent without one ends "used"
     // with the spend recorded; otherwise the offer comes back.
     const current = readFlag(message, DICE_CHANGE_FLAG);
@@ -473,7 +473,7 @@ listen("dnd5e.renderChatMessage", "dice-changers", (message, html) => {
       });
     }
     content.appendChild(div);
-  } catch(err) { console.warn(`${TITLE} | The dice line could not render.`, err); }
+  } catch(err) { log.warn(`The dice line could not render.`, err); }
 });
 
 /** An older card's `either` / `empowered` record, read-only: nothing writes those keys now. */

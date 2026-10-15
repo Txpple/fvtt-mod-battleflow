@@ -588,6 +588,7 @@ export const RESCUE_SOURCES = [
 export function rescueSourceFor(flagKey) {
   const sources = RESCUE_SOURCES.filter(s => s.flag === flagKey);
   if ( !sources.length ) {
+    // biome-ignore lint/suspicious/noConsole: decide/ imports nothing, so core.js's log is out of reach; the line opens with the title by hand
     console.warn(`By the Books | No rescue source is declared for "${flagKey}" — its rows will `
       + "never render. Add it to RESCUE_SOURCES or fix the key.");
   }

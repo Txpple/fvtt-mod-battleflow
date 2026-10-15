@@ -2,8 +2,8 @@
  * By the Books — MACHINE (ARCHITECTURE.md §7): the Topple demand, the `topple` flag's lifecycle off
  * mastery.js's card (supersede, dialog, buzzer, fold, Prone press, GM button). Neither imports the other.
  */
-import { MODULE_ID, readFlag, TITLE, isActiveGM, drivesMomentFor, canApplyTo, whisperNoGM, queueFlagWrite,
-  canAnswerFor, resolveUuid, resolveUuidAsync } from "./core.js";
+import { MODULE_ID, readFlag, isActiveGM, drivesMomentFor, canApplyTo, whisperNoGM, queueFlagWrite,
+  canAnswerFor, resolveUuid, resolveUuidAsync, log } from "./core.js";
 import { forceStatus, rollConfigFor } from "./shared.js";
 import { popupKey, bfCard, momentBarHTML, ruleLine } from "./decide/present.js";
 import { SURFACES } from "./surfaces.js";
@@ -70,7 +70,7 @@ async function showTopplePopup(message, _topple, target) {
     // Fails pressed: no roll, recorded as a failure.
     if ( !rolls?.length && demand.failed ) await markToppleAutoFailed(message, target.uuid, demand.failed);
   } catch(err) {
-    console.error(`${TITLE} | Topple save dialog failed — roll it from the sheet.`, err);
+    log.error(`Topple save dialog failed — roll it from the sheet.`, err);
   } finally {
     toppleDialogsOpening.delete(key);
   }
@@ -151,7 +151,7 @@ async function fireToppleTimer(messageId) {
       await rollToppleSave(card, t, { timedOut: true });
     }
   } catch(err) {
-    console.error(`${TITLE} | Topple buzzer failed.`, err);
+    log.error(`Topple buzzer failed.`, err);
   }
 }
 
@@ -259,7 +259,7 @@ async function foldToppleSave(saveMessage) {
       return; // one save answers one card
     }
   } catch(err) {
-    console.error(`${TITLE} | Topple fold failed.`, err);
+    log.error(`Topple fold failed.`, err);
   }
 }
 
