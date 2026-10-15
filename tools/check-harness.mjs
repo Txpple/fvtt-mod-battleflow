@@ -75,7 +75,6 @@ const CEILING = {
   "smoke-saves": 94,
   "smoke-shields": 13,
   "smoke-spells": 41,
-  "smoke-summons": 3,
   "smoke-surfaces": 5,
   "smoke-twoclient": 30
 };
@@ -90,7 +89,7 @@ const STANDING = new Set([
   "smoke-damage-rules", "smoke-drop", "smoke-effects", "smoke-familiar", "smoke-gear-lights",
   "smoke-goliath", "smoke-guards", "smoke-heal", "smoke-hitmenu", "smoke-hold", "smoke-lucky",
   "smoke-maneuvers", "smoke-metamagic", "smoke-nogm", "smoke-reminders", "smoke-resources",
-  "smoke-riders", "smoke-saves", "smoke-shields", "smoke-spells", "smoke-summons", "smoke-surfaces",
+  "smoke-riders", "smoke-saves", "smoke-shields", "smoke-spells", "smoke-surfaces",
   "smoke-twoclient"
 ]);
 

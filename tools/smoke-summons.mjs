@@ -36,21 +36,8 @@ announcePlan('summons', plan, pulled);
 
 const out = await f.evaluate(async ({ sections, titles }) => {
   const MOD = 'fvtt-mod-bythebooks';
-  const results = [];
-  const log = [];
-  const skips = [];
-  const ok = (name, pass, detail = '') => results.push({ name, pass, detail });
-  const want = id => {
-    if (!sections || sections.includes(String(id))) return true;
-    skips.push(`§${id} ${titles?.[id] ?? ''}`);
-    return false;
-  };
-  const sleep = ms => new Promise(r => setTimeout(r, ms));
-  const waitFor = async (test, timeout = 8000) => {
-    const until = Date.now() + timeout;
-    while (Date.now() < until) { const v = await test(); if (v) return v; await sleep(200); }
-    return test();
-  };
+  const { until, viewScene } = window.__btb;
+  const { results, log, skips, ok, want, section } = window.__btb.begin({ sections, titles });
 
   const modDoc = game.modules.get(MOD);
   if (!modDoc?.active) return { fatal: `module active=${modDoc?.active}` };
@@ -64,8 +51,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   // "the Sorcerer has no token on the scene" in the overnight battery of 2026-10-11 while green alone.
   const range = game.scenes.getName('By the Books Test Range');
   if (!range) return { fatal: 'missing fixture: scene By the Books Test Range — run tools/fixture-suite.mjs' };
-  if (canvas.scene?.id !== range.id) await range.view();
-  for (let i = 0; i < 40 && !(canvas.ready && canvas.scene?.id === range.id); i++) await sleep(250);
+  await viewScene(range).catch(() => null);
   if (canvas.scene?.id !== range.id) return { fatal: 'the canvas never readied on the test range' };
   const casterToken = canvas.scene.tokens.find(t => t.actor?.id === caster.id) ?? null;
   if (!casterToken) return { fatal: 'the Sorcerer has no token on the scene — run tools/fixture-suite.mjs' };
@@ -120,7 +106,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     const result = await activity.use({ consume: { spellSlot: consume }, create: { measuredTemplate: false }, [MOD]: { toCard: true } }, { configure: false }, { create: true });
     const message = result?.message instanceof ChatMessage ? result.message : null;
     if (message) madeMessages.push(message);
-    const flag = await waitFor(() => message?.getFlag(MOD, 'summon')?.status === 'asked' ? message.getFlag(MOD, 'summon') : null, 6000);
+    // Every caller reads a missing record (`flag ? … : null`, `flag?.…`): absent, it is null.
+    const flag = await until(() => message?.getFlag(MOD, 'summon')?.status === 'asked' ? message.getFlag(MOD, 'summon') : null, { timeout: 6000 }).catch(() => null);
     return { activity, message, flag, before };
   };
   // The suite answers the record as the popup would, through the pure fold the module exports: one square to the right of the caster.
@@ -134,18 +121,18 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       placements: [{ x: casterToken.x + grid * 2, y: casterToken.y, elevation: casterToken.elevation ?? 0, rotation: 0 }] }, SUMMON_CHOICES);
     if (!patch) throw new Error('the suite\'s answer was refused by placedAnswer');
     await message.setFlag(MOD, 'summon', { ...flag, ...patch });
-    return waitFor(() => message.getFlag(MOD, 'summon')?.applied ? message.getFlag(MOD, 'summon') : null, 20000);
+    return until(() => message.getFlag(MOD, 'summon')?.applied ? message.getFlag(MOD, 'summon') : null, { timeout: 20000 });
   };
   const landedToken = flag => canvas.scene.tokens.get(flag?.landed?.[0]?.tokenId) ?? null;
 
   try {
     const beastItem = want(1) || want(2) || want(4) || want(5) ? await lend('Summon Beast') : null;
-    if (sections === null || sections.some(s => ['1', '2', '4', '5'].includes(s))) {
+    if (sections === null || sections.some(s => ['1', '2', '4', '5'].includes(s))) await section(1, async () => {
       const { message, flag, before } = await castSummon(beastItem);
       ok('§1 the system placed nothing', newTokens(before).length === 0, `${newTokens(before).length} new tokens`);
       ok('§1 the record is asked with three profiles', flag?.status === 'asked' && flag.profiles?.length === 3, JSON.stringify(flag?.profiles?.map(p => p.label)));
       ok('§1 a row carries art and a stat line', !!flag?.profiles?.[0]?.img && !!flag.profiles[0].summary?.attacks?.length, JSON.stringify(flag?.profiles?.[0]?.summary));
-      if (want(2) && flag) {
+      if (want(2) && flag) await section(2, async () => {
         const landed = await answer(message, { profileName: 'Bestial Land Spirit' });
         const tok = landedToken(landed);
         if (tok) madeTokens.push(tok.id);
@@ -155,9 +142,13 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         const base = game.actors.get(tok?.actorId ?? '');
         const source = base?._stats?.compendiumSource ?? '';
         ok('§2 it is the Land spirit at the spell\'s level', /BestialLan/.test(source) && (tok?.actor?.getFlag('dnd5e', 'summon')?.level === 2), `${base?.name} from ${source} level=${tok?.actor?.getFlag('dnd5e', 'summon')?.level}`);
-        const row = await waitFor(() => document.querySelector(`[data-message-id="${message.id}"] .bythebooks-summon`), 6000);
+        // The landed row replaces the asked one on the re-render after the flag lands: wait for its words;
+        // absent, the check reads the row as it stands.
+        const rowNow = () => document.querySelector(`[data-message-id="${message.id}"] .bythebooks-summon`);
+        const row = await until(() => (/— summoned/.test(rowNow()?.textContent ?? '') ? rowNow() : null),
+          { timeout: 6000, label: 'the card row says "— summoned"' }).catch(() => rowNow());
         ok('§2 the card says summoned', /— summoned/.test(row?.textContent ?? ''), (row?.textContent ?? '').trim().slice(0, 120));
-        if (want(5)) {
+        if (want(5)) await section(5, async () => {
           // The seat: a combat with the caster at 15; a second cast lands beside it.
           const combat = await Combat.create({ scene: canvas.scene.id, active: true, [`flags.${MOD}.suiteSummons`]: true });
           await combat.createEmbeddedDocuments('Combatant', [{ tokenId: casterToken.id, sceneId: canvas.scene.id, actorId: caster.id, initiative: 15 }]);
@@ -169,17 +160,20 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           const seat = combat.combatants.find(c => c.tokenId === tok2?.id);
           ok('§5 the creature sits right after the caster', seat?.initiative === 14.99, `initiative=${seat?.initiative}`);
           await combat.delete();
-        }
-        if (want(4)) {
+        });
+        if (want(4)) await section(4, async () => {
           await api.askDismiss(message);
-          const gone = await waitFor(() => message.getFlag(MOD, 'summon')?.dismissed ? true : null, 15000);
+          const gone = await until(() => message.getFlag(MOD, 'summon')?.dismissed ? true : null, { timeout: 15000 });
           ok('§4 Dismiss deleted the token', gone && !canvas.scene.tokens.get(tok?.id), `dismissed=${gone} tokenStands=${!!canvas.scene.tokens.get(tok?.id)}`);
-        }
-      }
-    }
-    if (want(3)) {
+        });
+      });
+    });
+    if (want(3)) await section(3, async () => {
       // no Concentration standing from §1: a cast past the dialog that would end it asks first (RULINGS *Summons*, call 18)
-      if (caster.concentration?.effects?.size) { await caster.endConcentration().catch(() => {}); await sleep(400); }
+      if (caster.concentration?.effects?.size) {
+        await caster.endConcentration().catch(() => {});
+        await until(() => !caster.concentration?.effects?.size, { label: 'the Sorcerer\'s Concentration ended' });
+      }
       const dragonItem = await lend('Summon Dragon');
       const { message, flag } = await castSummon(dragonItem);
       ok('§3 the dragon\'s record asks the choice', flag?.choice === 'Summon Dragon' && flag.profiles?.length === 1, JSON.stringify({ choice: flag?.choice, n: flag?.profiles?.length }));
@@ -195,25 +189,25 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       ok('§3 the resistance stands on the caster, dependent on concentration', !!effect && (effect.getFlag('dnd5e', 'dependentOn') === conc?.uuid) && effect.changes.some(c => c.key === 'system.traits.dr.value' && c.value === 'fire'), JSON.stringify({ effect: effect?.name, dep: effect?.getFlag('dnd5e', 'dependentOn'), conc: conc?.uuid }));
       if (conc) {
         await conc.delete();
-        const gone = await waitFor(() => (!canvas.scene.tokens.get(tok?.id) && !caster.effects.get(effect?.id)) ? true : null, 15000);
+        const gone = await until(() => (!canvas.scene.tokens.get(tok?.id) && !caster.effects.get(effect?.id)) ? true : null, { timeout: 15000 });
         ok('§3 ending concentration takes the token and the resistance with it', !!gone, `token=${!!canvas.scene.tokens.get(tok?.id)} resistance=${!!caster.effects.get(effect?.id)} dismissed=${!!message.getFlag(MOD, 'summon')?.dismissed}`);
       }
-    }
-    if (want(6)) {
+    });
+    if (want(6)) await section(6, async () => {
       const { poolFromPacks } = await import('/modules/fvtt-mod-bythebooks/scripts/gallery.js');
       const rows = await poolFromPacks({ crMax: 0, types: ['beast'] });
       const owls = rows.filter(r => r.name === 'Owl');
       ok('§6 the pool holds Owl once, the MM copy', owls.length === 1 && /dnd-monster-manual/.test(owls[0]?.pack ?? ''), JSON.stringify(owls.map(o => o.pack)));
       ok('§6 sorted by CR then name', rows.every((r, i) => !i || (rows[i - 1].cr < r.cr) || ((rows[i - 1].cr === r.cr) && (rows[i - 1].name.localeCompare(r.name) <= 0))), `${rows.length} rows`);
-    }
-    if (want(7)) {
+    });
+    if (want(7)) await section(7, async () => {
       // The window: opened from its settings button, its Owl row drawn.
       const menu = game.settings.menus.get(`${MOD}.summonArtMenu`);
       const win = menu ? new menu.type() : null;
       if (win) await win.render(true);
       // the window opens on the first spell alphabetically: Find Familiar is picked from its list
-      (await waitFor(() => win?.element?.querySelector('[data-bf-art-pick-spell="Find Familiar"]'), 20000))?.click();
-      const owlRow = await waitFor(() => win?.element?.querySelector('[data-bf-art-row="owl"]'), 20000);
+      (await until(() => win?.element?.querySelector('[data-bf-art-pick-spell="Find Familiar"]'), { timeout: 20000 }))?.click();
+      const owlRow = await until(() => win?.element?.querySelector('[data-bf-art-row="owl"]'), { timeout: 20000 });
       ok('§7 the window lists the Owl for Find Familiar', !!owlRow, `menu=${!!menu} rows=${win?.element?.querySelectorAll('[data-bf-art-row]').length ?? 0}`);
       if (win) await win.close();
       // The landing: the table's art for the Owl, then a familiar cast and answered as an Owl (Fey).
@@ -232,7 +226,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         creatureType: (flag.creatureTypes ?? []).includes('fey') ? 'fey' : (flag.creatureTypes?.[0] ?? null),
         placements: [{ x: casterToken.x, y: casterToken.y + grid * 2, elevation: casterToken.elevation ?? 0, rotation: 0 }] }, SUMMON_CHOICES) : null;
       if (patch) await message.setFlag(MOD, 'summon', { ...flag, ...patch });
-      const landed = patch ? await waitFor(() => message.getFlag(MOD, 'summon')?.applied ? message.getFlag(MOD, 'summon') : null, 20000) : null;
+      const landed = patch ? await until(() => message.getFlag(MOD, 'summon')?.applied ? message.getFlag(MOD, 'summon') : null, { timeout: 20000 }) : null;
       const tok = landedToken(landed);
       if (tok) madeTokens.push(tok.id);
       for (const a of game.actors.filter(a => a.getFlag('dnd5e', 'isAutoImported') && a.name === 'Owl')) if (!madeActors.includes(a)) madeActors.push(a);
@@ -243,10 +237,10 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       ok('§7 the companion effect wears the token', effect?.img === TOKEN, `effect=${effect?.name} img=${effect?.img}`);
       if (landed) {
         await api.askDismiss(message);
-        await waitFor(() => message.getFlag(MOD, 'summon')?.dismissed ? true : null, 15000);
+        await until(() => message.getFlag(MOD, 'summon')?.dismissed ? true : null, { timeout: 15000 });
       }
-    }
-    if (want(8)) {
+    });
+    if (want(8)) await section(8, async () => {
       // The folder is Foundry's browse, stubbed for the one call: the suite owns no files on the box.
       const FP = foundry.applications.apps.FilePicker.implementation;
       const browse = FP.browse;
@@ -257,25 +251,25 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const win = new menu.type();
       try {
         await win.render(true);
-        (await waitFor(() => win.element?.querySelector('[data-bf-art-pick-spell="Find Familiar"]'), 20000))?.click();
-        await waitFor(() => win.element?.querySelector('[data-bf-art-row="owl"]'), 20000);
+        (await until(() => win.element?.querySelector('[data-bf-art-pick-spell="Find Familiar"]'), { timeout: 20000 }))?.click();
+        await until(() => win.element?.querySelector('[data-bf-art-row="owl"]'), { timeout: 20000 });
         const folder = win.element.querySelector('[data-bf-art-folder]');
         folder.value = 'art/fam';
         folder.dispatchEvent(new Event('change'));
         win.element.querySelector('[data-bf-art-match]').click();
-        const owlToken = await waitFor(() => win.element?.querySelector('[data-bf-art-row="owl"] [data-bf-art-field="token"]')?.value || null, 8000);
+        const owlToken = await until(() => win.element?.querySelector('[data-bf-art-row="owl"] [data-bf-art-field="token"]')?.value || null, { timeout: 8000 });
         const field = (row, f) => win.element?.querySelector(`[data-bf-art-row="${row}"] [data-bf-art-field="${f}"]`)?.value ?? null;
         ok('§8 Match files fills the Owl', owlToken === 'art/fam/owl.webp' && field('owl', 'portrait') === 'art/fam/owl-portrait.webp', JSON.stringify({ token: owlToken, portrait: field('owl', 'portrait') }));
         ok('§8 a field set by hand is kept', field('bat', 'token') === 'mine/bat.webp', `bat token=${field('bat', 'token')}`);
         win.element.querySelector('[data-bf-art-save]').click();
-        const saved = await waitFor(() => { const t = game.settings.get(MOD, 'summonArt'); return t?.['find familiar']?.owl ? t : null; }, 8000);
+        const saved = await until(() => { const t = game.settings.get(MOD, 'summonArt'); return t?.['find familiar']?.owl ? t : null; }, { timeout: 8000 });
         ok('§8 Save stores the table by name', JSON.stringify(saved?.['find familiar']) === JSON.stringify({ bat: { token: 'mine/bat.webp' }, owl: { token: 'art/fam/owl.webp', portrait: 'art/fam/owl-portrait.webp' } }), JSON.stringify(saved));
       } finally {
         FP.browse = browse;
         if (win.rendered) await win.close();
       }
-    }
-    if (want(9)) {
+    });
+    if (want(9)) await section(9, async () => {
       // Battle Familiar on a caster with NO familiar: the plain summon road, the Brute, Fey
       const battle = await lend('Battle Familiar', 'dnd-arcana-unleashed.spells');
       const { placedAnswer } = await import('/modules/fvtt-mod-bythebooks/scripts/decide/summons.js');
@@ -296,7 +290,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         const patch = (flag && profile) ? placedAnswer(flag, { profileId: profile.id, count: 1, sceneId: canvas.scene.id, creatureType: 'fey',
           placements: [{ x: casterToken.x, y: casterToken.y + grid * dy, elevation: casterToken.elevation ?? 0, rotation: 0 }] }, SUMMON_CHOICES) : null;
         if (patch) await message.setFlag(MOD, 'summon', { ...flag, ...patch });
-        const landed = patch ? await waitFor(() => message.getFlag(MOD, 'summon')?.applied ? message.getFlag(MOD, 'summon') : null, 20000) : null;
+        const landed = patch ? await until(() => message.getFlag(MOD, 'summon')?.applied ? message.getFlag(MOD, 'summon') : null, { timeout: 20000 }) : null;
         const tok = landedToken(landed);
         if (tok) madeTokens.push(tok.id);
         for (const a of game.actors.filter(a => a.getFlag('dnd5e', 'isAutoImported') && /Battle Familiar/.test(a.name))) if (!madeActors.includes(a)) madeActors.push(a);
@@ -312,23 +306,23 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       ok('§9c it rolls its own Initiative, not the caster\'s less 0.01', !!seat && Number.isFinite(Number(seat.initiative)) && (seat.initiative !== 14.99), `initiative=${seat?.initiative}`);
       // one at a time: a second cast dismisses the first
       const second = await conjure(3, 'Flyer');
-      const firstGone = await waitFor(() => first.message?.getFlag(MOD, 'summon')?.dismissed ? true : null, 15000);
+      const firstGone = await until(() => first.message?.getFlag(MOD, 'summon')?.dismissed ? true : null, { timeout: 15000 });
       ok('§9d a second cast dismisses the first (one at a time): its token gone, the new card says so', !!firstGone && !canvas.scene.tokens.get(first.tok?.id) && (second.landed?.replaced >= 1),
         JSON.stringify({ firstDismissed: !!firstGone, firstToken: !!canvas.scene.tokens.get(first.tok?.id), replaced: second.landed?.replaced }));
       // at 0 HP it disappears, what it carried dropped (a dagger given to it)
       const dagger = (await game.packs.get('dnd-players-handbook.equipment')?.getIndex())?.find(e => e.name === 'Dagger') ?? null;
       if (dagger && second.tok?.actor) await second.tok.actor.createEmbeddedDocuments('Item', [(await game.packs.get('dnd-players-handbook.equipment').getDocument(dagger._id)).toObject()]);
       await second.tok?.actor?.update({ 'system.attributes.hp.value': 0 });
-      const fell = await waitFor(() => second.message?.getFlag(MOD, 'summon')?.dismissed ? second.message.getFlag(MOD, 'summon') : null, 15000);
+      const fell = await until(() => second.message?.getFlag(MOD, 'summon')?.dismissed ? second.message.getFlag(MOD, 'summon') : null, { timeout: 15000 });
       ok('§9e at 0 HP it disappears: the token gone, the record fell, the effect gone', !!fell?.fell && !canvas.scene.tokens.get(second.tok?.id) && !caster.effects.find(e => e.getFlag(MOD, 'summonEffect') === second.message?.id),
         JSON.stringify({ fell: fell?.fell, dismissed: fell?.dismissed, token: !!canvas.scene.tokens.get(second.tok?.id) }));
       // the caster's death takes a third one with it
       const third = await conjure(4, 'Stalker');
       await caster.toggleStatusEffect('dead', { active: true });
-      const died = await waitFor(() => third.message?.getFlag(MOD, 'summon')?.dismissed ? true : null, 15000);
+      const died = await until(() => third.message?.getFlag(MOD, 'summon')?.dismissed ? true : null, { timeout: 15000 });
       await caster.toggleStatusEffect('dead', { active: false });
       ok('§9f the caster marked dead: the familiar disappears', !!died && !canvas.scene.tokens.get(third.tok?.id), `dismissed=${!!died} token=${!!canvas.scene.tokens.get(third.tok?.id)}`);
-    }
+    });
   } catch (err) {
     results.push({ name: 'suite threw', pass: false, detail: `${err?.message}\n${err?.stack}` });
   } finally {
