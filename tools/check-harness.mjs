@@ -34,7 +34,6 @@ const ts = createRequire(join(ROOT, "package.json"))("typescript");
 /** Bare waits per suite. ⚠ Only goes down: lower a row in the commit that lowers its count. */
 const CEILING = {
   "smoke-class-cleric": 1,
-  "smoke-class-druid": 6,
   "smoke-class-rogue": 9,
   "smoke-class-warlock": 1,
   "smoke-damage-rules": 1,
@@ -45,7 +44,7 @@ const CEILING = {
 
 /** The suites still on their own helpers, not yet on the prelude. ⚠ Only shrinks. */
 const STANDING = new Set([
-  "smoke-class-druid", "smoke-class-rogue"
+  "smoke-class-rogue"
 ]);
 
 /** A name that is a poll by what it is called. */

@@ -33,7 +33,7 @@ const f = await connectSuite({ tag: 'class-druid', watchdogMs: 900_000 });
 announcePlan('class-druid', plan, pulled);
 
 const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ sections, titles }) => {
-  const { sleep, until, faces, unrig } = window.__btb;
+  const { until, watch, faces, unrig } = window.__btb;
   const { results, skips, ok, want, section } = window.__btb.begin({ sections, titles });
   const KIT = window.__btbClasses;
   const { MOD, a1Damage, a1Hit, a1Roll, a1Victim, activateRange, attackOf, attacker, attackerToken, backToRange, c1Cards, cardEl, cardText, clearTargets, cleric, clericToken, closeA1, closeDialogs, closeOffers, created, dropEffects, dropNamed, dropReactionChips, dropVictimFx, halfling, halflingToken, healFull, hgClose, hgKeep, hgLend, hgPickButton, holdOf, hp, log, markOn, modOf, pcAttacker, pcToken, pcWeapon, pickApply, popups, priorActor, regionKeyed, resolvedTarget, riderBox, riderChits, riderRow, rollStoredAsk, scene, set, sorcerer, spendLuck, swing, swingAt, textOf, unlend, victim } = KIT;
@@ -56,98 +56,105 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
       if (chaliceAct() && (foundry.utils.getProperty(cleric.getRollData(), 'scale.stars.die') === undefined)) {
         await sfItem().update({ [`system.activities.${chaliceAct()._id ?? chaliceAct().id}.healing.custom.formula`]: '1d6 + @abilities.wis.mod' });
       }
-      if (!ws || !sf || !cure || !consumeAct() || !chaliceAct()) {
-        log.push(`§22 skipped: wildShape=${!!ws} starryForm=${!!sf} cure=${!!cure} consume=${!!consumeAct()} chalice=${!!chaliceAct()}`);
-      } else {
-        const clearForm = async () => {
-          const ids = cleric.effects.filter(e => /^(Starry Form|Dragon Form)/.test(e.name) || e.getFlag(MOD, 'formChip')).map(e => e.id);
-          if (ids.length) await cleric.deleteEmbeddedDocuments('ActiveEffect', ids).catch(() => {});
-        };
-        const chip = () => cleric.effects.find(e => e.getFlag(MOD, 'formChip')?.choice === 'Starry Form') ?? null;
-        const forms = () => cleric.effects.filter(e => e.active && /^(Starry Form|Dragon Form)/.test(e.name)).map(e => e.name);
-        const wsSpent = () => Number(cleric.items.get(ws.id)?.system?.uses?.spent ?? 0);
-        const shape = async pick => {
-          await clearForm(); await hgClose(/^Starry Form —/);
-          clericToken.control({ releaseOthers: true });
+      const clearForm = async () => {
+        const ids = cleric.effects.filter(e => /^(Starry Form|Dragon Form)/.test(e.name) || e.getFlag(MOD, 'formChip')).map(e => e.id);
+        if (ids.length) await cleric.deleteEmbeddedDocuments('ActiveEffect', ids).catch(() => {});
+      };
+      // the forms, the popups and the lends go whatever happened (a wait that times out throws)
+      try {
+        if (!ws || !sf || !cure || !consumeAct() || !chaliceAct()) {
+          log.push(`§22 skipped: wildShape=${!!ws} starryForm=${!!sf} cure=${!!cure} consume=${!!consumeAct()} chalice=${!!chaliceAct()}`);
+        } else {
+          const chip = () => cleric.effects.find(e => e.getFlag(MOD, 'formChip')?.choice === 'Starry Form') ?? null;
+          const forms = () => cleric.effects.filter(e => e.active && /^(Starry Form|Dragon Form)/.test(e.name)).map(e => e.name);
+          const wsSpent = () => Number(cleric.items.get(ws.id)?.system?.uses?.spent ?? 0);
+          const dragonForm = () => forms().some(n => /^Dragon Form/.test(n));
+          const shape = async pick => {
+            await clearForm(); await hgClose(/^Starry Form —/);
+            clericToken.control({ releaseOthers: true });
+            game.user.targets.forEach(t => { t.setTarget(false, { releaseOthers: true }); });
+            let res = await consumeAct().use({ subsequentActions: false }, { configure: false }, {});
+            // UNSURE: the Wild Shape consumption resolves by the lent copy's compendiumSource; if dnd5e refuses it, the
+            // use is retried without consuming (the constellation is the row under test, not the Wild Shape spend).
+            let consumed = true;
+            if (!res?.message) { consumed = false; res = await consumeAct().use({ consume: false, subsequentActions: false }, { configure: false }, {}); }
+            const card = res?.message ?? null;
+            await until(() => card?.getFlag(MOD, 'castApply')?.choice, { timeout: 4000, label: 'the constellation asked on the use card' });
+            const choice = foundry.utils.deepClone(card?.getFlag(MOD, 'castApply')?.choice ?? null);
+            const btn = await until(() => hgPickButton(pick), { timeout: 5000, label: `the ${pick} pick in the popup` });
+            const buttons = ['Archer', 'Chalice', 'Dragon'].filter(n => !!hgPickButton(n));
+            const text = cardText(card?.id);
+            btn?.click();
+            // The pick lands the cast's effects and the form chip side by side (cast.js chooseEffect): Dragon adds Dragon Form.
+            await until(() => forms().includes('Starry Form') && chip() && ((pick !== 'Dragon') || dragonForm()),
+              { timeout: 8000, label: `the ${pick} constellation landed` });
+            // A window for Archer and Chalice: no Dragon Form beside the Starry Form.
+            const stray = (pick === 'Dragon') ? null : await watch(dragonForm, { ms: 600 });
+            return { card, choice, buttons, text, consumed, chosen: card?.getFlag(MOD, 'castApply')?.choice?.chosen ?? null, forms: forms(), chip: chip(), stray };
+          };
+
+          const d = await shape('Dragon');
+          ok('22a. "Consume Wild Shape" asks: the card pending "Which constellation glimmers on you?", the popup a button each — Archer, Chalice, Dragon',
+            (d.choice?.key === 'Starry Form') && !d.choice?.chosen && (JSON.stringify(d.choice?.options) === JSON.stringify(['Archer', 'Chalice', 'Dragon']))
+              && /Which constellation glimmers on you\?/.test(d.text) && (d.buttons.length === 3),
+            `choice=${JSON.stringify(d.choice)} buttons=${JSON.stringify(d.buttons)} consumed=${d.consumed} wsSpent=${wsSpent()} card=${d.text.slice(0, 200)}`);
+          ok('22b. Dragon: Starry Form AND Dragon Form land; the chip reads dragon',
+            (d.chosen === 'Dragon') && d.forms.includes('Starry Form') && d.forms.some(n => /^Dragon Form/.test(n)) && (d.chip?.getFlag(MOD, 'formChip')?.form === 'dragon'),
+            `chosen=${d.chosen} forms=${JSON.stringify(d.forms)} chip=${d.chip?.name ?? null}`);
+
+          const a = await shape('Archer');
+          ok('22c. Archer: Starry Form lands, no Dragon Form; the chip reads archer',
+            (a.chosen === 'Archer') && a.forms.includes('Starry Form') && !a.forms.some(n => /^Dragon Form/.test(n)) && !a.stray && (a.chip?.getFlag(MOD, 'formChip')?.form === 'archer'),
+            `chosen=${a.chosen} forms=${JSON.stringify(a.forms)} stray=${!!a.stray} chip=${a.chip?.name ?? null}`);
+
+          const c = await shape('Chalice');
+          ok('22d. Chalice: Starry Form lands, no Dragon Form; the form chip "Starry Form: Chalice" stands',
+            (c.chosen === 'Chalice') && c.forms.includes('Starry Form') && !c.forms.some(n => /^Dragon Form/.test(n)) && !c.stray
+              && (c.chip?.name === 'Starry Form: Chalice') && (c.chip?.getFlag(MOD, 'formChip')?.form === 'chalice'),
+            `chosen=${c.chosen} forms=${JSON.stringify(c.forms)} stray=${!!c.stray} chip=${c.chip?.name ?? null} wsSpent=${wsSpent()}`);
+
+          // The Chalice: Cure Wounds (level 1) at the PC Attacker; the Halfling (10 ft from the Cleric) is the second heal.
+          hgKeep(pcAttacker, { 'system.attributes.hp.value': pcAttacker.system._source.attributes.hp.value });
+          await halfling.update({ 'system.attributes.hp.value': 300, 'system.attributes.hp.temp': 0 });
+          const hName = halflingToken.document.name;
           game.user.targets.forEach(t => { t.setTarget(false, { releaseOthers: true }); });
-          await sleep(100);
-          let res = await consumeAct().use({ subsequentActions: false }, { configure: false }, {});
-          // UNSURE: the Wild Shape consumption resolves by the lent copy's compendiumSource; if dnd5e refuses it, the
-          // use is retried without consuming (the constellation is the row under test, not the Wild Shape spend).
-          let consumed = true;
-          if (!res?.message) { consumed = false; res = await consumeAct().use({ consume: false, subsequentActions: false }, { configure: false }, {}); }
-          const card = res?.message ?? null;
-          await until(() => card?.getFlag(MOD, 'castApply')?.choice, { timeout: 4000 }).catch(() => null);
-          const choice = foundry.utils.deepClone(card?.getFlag(MOD, 'castApply')?.choice ?? null);
-          const btn = await until(() => hgPickButton(pick), { timeout: 5000 }).catch(() => null);
-          const buttons = ['Archer', 'Chalice', 'Dragon'].filter(n => !!hgPickButton(n));
-          const text = cardText(card?.id);
-          btn?.click();
-          await until(() => forms().includes('Starry Form') && chip(), { timeout: 8000 }).catch(() => null);
-          await sleep(600);
-          return { card, choice, buttons, text, consumed, chosen: card?.getFlag(MOD, 'castApply')?.choice?.chosen ?? null, forms: forms(), chip: chip() };
-        };
+          pcToken.setTarget(true, { releaseOthers: true });
+          faces([[4, 8]]);
+          // UNSURE: rolled straight off the activity (smoke-heal's shape) — no slot is spent; the `also` row reads only the
+          // spell's level (> 0), never the slot.
+          const cureAct = cleric.items.get(cure.id)?.system.activities.find(x => x.type === 'heal');
+          const rolls = await cureAct?.rollDamage({}, { configure: false }, {});
+          const healCard = rolls?.[0]?.parent ?? null;
+          const offer = await until(() => [...(cardEl(healCard?.id)?.querySelectorAll('button') ?? [])].find(b => textOf(b) === hName) ?? null, { timeout: 6000, label: 'the Chalice\'s button for the Halfling on the heal card' });
+          const names = [...(cardEl(healCard?.id)?.querySelectorAll('button') ?? [])].map(b => textOf(b));
+          const pop = await until(() => popups().find(app => /^Chalice —/.test(app.title ?? '')) ?? null, { timeout: 3000, label: 'the Chalice popup' });
+          ok('22e. the Cure Wounds card offers "Chalice — heal one more within 30 ft" with a button per creature (the Cleric and the Halfling among them); the popup opens',
+            !!offer && /Chalice — heal one more within 30 ft/.test(cardText(healCard?.id)) && names.includes(clericToken.document.name) && !!pop,
+            `card=${!!healCard} buttons=${JSON.stringify(names)} pop=${pop?.title ?? null} text=${cardText(healCard?.id).slice(-200)}`);
+          faces([[6, 6]]);
+          const hp0 = hp();
+          offer?.click();
+          const flag = await until(() => game.messages.get(healCard?.id)?.getFlag(MOD, 'alsoHeal')?.picked ? game.messages.get(healCard.id).getFlag(MOD, 'alsoHeal') : null, { timeout: 6000, label: 'the Chalice pick kept on the heal card' });
+          // UNSURE: the Chalice heal is use() then rollDamage() on the heal activity (the handoff's unverified seam).
+          const rose = await until(() => hp() > hp0, { timeout: 10000, label: 'the Chalice heal on the Halfling' });
+          // the heal card's "healed too" line (heal-rerolls.js), drawn on the re-render after the pick
+          await until(() => /is healed too/.test(cardText(healCard?.id)), { label: 'the heal card\'s Chalice line' });
+          ok('22f. the Halfling\'s button: the Chalice heal is used on the Halfling — its HP rises; the card says "Chalice — BTB Test Halfling is healed too"',
+            (flag?.picked === halfling.uuid) && (flag?.also === 'Chalice') && rose && new RegExp(`Chalice — ${hName} is healed too`).test(cardText(healCard?.id)),
+            `flag=${JSON.stringify(flag)} hp ${hp0}→${hp()} text=${cardText(healCard?.id).slice(-160)}`);
 
-        const d = await shape('Dragon');
-        ok('22a. "Consume Wild Shape" asks: the card pending "Which constellation glimmers on you?", the popup a button each — Archer, Chalice, Dragon',
-          (d.choice?.key === 'Starry Form') && !d.choice?.chosen && (JSON.stringify(d.choice?.options) === JSON.stringify(['Archer', 'Chalice', 'Dragon']))
-            && /Which constellation glimmers on you\?/.test(d.text) && (d.buttons.length === 3),
-          `choice=${JSON.stringify(d.choice)} buttons=${JSON.stringify(d.buttons)} consumed=${d.consumed} wsSpent=${wsSpent()} card=${d.text.slice(0, 200)}`);
-        ok('22b. Dragon: Starry Form AND Dragon Form land; the chip reads dragon',
-          (d.chosen === 'Dragon') && d.forms.includes('Starry Form') && d.forms.some(n => /^Dragon Form/.test(n)) && (d.chip?.getFlag(MOD, 'formChip')?.form === 'dragon'),
-          `chosen=${d.chosen} forms=${JSON.stringify(d.forms)} chip=${d.chip?.name ?? null}`);
-
-        const a = await shape('Archer');
-        ok('22c. Archer: Starry Form lands, no Dragon Form; the chip reads archer',
-          (a.chosen === 'Archer') && a.forms.includes('Starry Form') && !a.forms.some(n => /^Dragon Form/.test(n)) && (a.chip?.getFlag(MOD, 'formChip')?.form === 'archer'),
-          `chosen=${a.chosen} forms=${JSON.stringify(a.forms)} chip=${a.chip?.name ?? null}`);
-
-        const c = await shape('Chalice');
-        ok('22d. Chalice: Starry Form lands, no Dragon Form; the form chip "Starry Form: Chalice" stands',
-          (c.chosen === 'Chalice') && c.forms.includes('Starry Form') && !c.forms.some(n => /^Dragon Form/.test(n))
-            && (c.chip?.name === 'Starry Form: Chalice') && (c.chip?.getFlag(MOD, 'formChip')?.form === 'chalice'),
-          `chosen=${c.chosen} forms=${JSON.stringify(c.forms)} chip=${c.chip?.name ?? null} wsSpent=${wsSpent()}`);
-
-        // The Chalice: Cure Wounds (level 1) at the PC Attacker; the Halfling (10 ft from the Cleric) is the second heal.
-        hgKeep(pcAttacker, { 'system.attributes.hp.value': pcAttacker.system._source.attributes.hp.value });
-        await halfling.update({ 'system.attributes.hp.value': 300, 'system.attributes.hp.temp': 0 });
-        const hName = halflingToken.document.name;
-        game.user.targets.forEach(t => { t.setTarget(false, { releaseOthers: true }); });
-        pcToken.setTarget(true, { releaseOthers: true });
-        await sleep(100);
-        faces([[4, 8]]);
-        // UNSURE: rolled straight off the activity (smoke-heal's shape) — no slot is spent; the `also` row reads only the
-        // spell's level (> 0), never the slot.
-        const cureAct = cleric.items.get(cure.id)?.system.activities.find(x => x.type === 'heal');
-        const rolls = await cureAct?.rollDamage({}, { configure: false }, {});
-        const healCard = rolls?.[0]?.parent ?? null;
-        const offer = await until(() => [...(cardEl(healCard?.id)?.querySelectorAll('button') ?? [])].find(b => textOf(b) === hName) ?? null, { timeout: 6000 }).catch(() => null);
-        const names = [...(cardEl(healCard?.id)?.querySelectorAll('button') ?? [])].map(b => textOf(b));
-        const pop = await until(() => popups().find(app => /^Chalice —/.test(app.title ?? '')) ?? null, { timeout: 3000 }).catch(() => null);
-        ok('22e. the Cure Wounds card offers "Chalice — heal one more within 30 ft" with a button per creature (the Cleric and the Halfling among them); the popup opens',
-          !!offer && /Chalice — heal one more within 30 ft/.test(cardText(healCard?.id)) && names.includes(clericToken.document.name) && !!pop,
-          `card=${!!healCard} buttons=${JSON.stringify(names)} pop=${pop?.title ?? null} text=${cardText(healCard?.id).slice(-200)}`);
-        faces([[6, 6]]);
-        const hp0 = hp();
-        offer?.click();
-        const flag = await until(() => game.messages.get(healCard?.id)?.getFlag(MOD, 'alsoHeal')?.picked ? game.messages.get(healCard.id).getFlag(MOD, 'alsoHeal') : null, { timeout: 6000 }).catch(() => null);
-        // UNSURE: the Chalice heal is use() then rollDamage() on the heal activity (the handoff's unverified seam).
-        const rose = await until(() => hp() > hp0, { timeout: 10000 }).catch(() => null);
-        await sleep(600);
-        ok('22f. the Halfling\'s button: the Chalice heal is used on the Halfling — its HP rises; the card says "Chalice — BTB Test Halfling is healed too"',
-          (flag?.picked === halfling.uuid) && (flag?.also === 'Chalice') && rose && new RegExp(`Chalice — ${hName} is healed too`).test(cardText(healCard?.id)),
-          `flag=${JSON.stringify(flag)} hp ${hp0}→${hp()} text=${cardText(healCard?.id).slice(-160)}`);
-
+          await healFull();
+          await pcAttacker.update({ 'system.attributes.hp.value': priorActor[pcAttacker.id]['system.attributes.hp.value'] });
+        }
+      } finally {
         await hgClose(/^(Chalice|Starry Form) —/);
         await clearForm();
-        await healFull();
-        await pcAttacker.update({ 'system.attributes.hp.value': priorActor[pcAttacker.id]['system.attributes.hp.value'] });
+        game.user.targets.forEach(t => { t.setTarget(false, { releaseOthers: true }); });
+        if (cure && cureLent) await unlend(cleric, cure);
+        if (sf) await unlend(cleric, sf);
+        if (ws) await unlend(cleric, ws);
+        unrig();
       }
-      game.user.targets.forEach(t => { t.setTarget(false, { releaseOthers: true }); });
-      if (cure && cureLent) await unlend(cleric, cure);
-      if (sf) await unlend(cleric, sf);
-      if (ws) await unlend(cleric, ws);
-      unrig();
     });
     KIT.markA2();
 
@@ -165,31 +172,33 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
           faces([[4, 6]]);
           await sorcerer.longRest({ dialog: false, chat: true, newDay: false });
           await rollStoredAsk();
-          await until(() => chip(), { timeout: 8000 }).catch(() => null);
+          await until(() => chip(), { timeout: 8000, label: 'the Cosmic Omen chip kept at the rest' });
           unrig();
           ok('52a. the Long Rest rolls the d6: an even face (4) is Weal — the chip "Cosmic Omen — Weal (4)"', chip()?.name === 'Cosmic Omen — Weal (4)', `chip=${chip()?.name ?? null}`);
           // b. Weal: a friend's miss within 30 ft — "+1d6"
           await a1Victim();
           await victim.update({ 'system.attributes.ac.override': (await modOf(pcAttacker, pcWeapon)) + 13 });
           const miss = await swingAt(pcAttacker, pcToken, pcWeapon, { d20: [10] });
-          const pop = await until(() => popups().find(app => app.element?.querySelector?.('[data-bf-ticks="bf-bystander"]') && /Cosmic Omen/.test(textOf(app.element))) ?? null, { timeout: 8000 }).catch(() => null);
+          const pop = await until(() => popups().find(app => app.element?.querySelector?.('[data-bf-ticks="bf-bystander"]') && /Cosmic Omen/.test(textOf(app.element))) ?? null, { timeout: 8000, label: 'the Weal popup on the friend\'s miss' });
           const guard = holdOf(miss)?.targets?.[0]?.guards?.find(g => g.row === 'Cosmic Omen') ?? null;
           ok('52b. the PC Attacker misses by 3: the druid\'s popup "Cosmic Omen — +1d6" (Weal), the guard\'s activity Weal (Even)',
             !!pop && /\+1d6/.test(textOf(pop?.element)) && (guard?.sign === 1) && (sorcerer.items.get(omen.id)?.system?.activities?.get(guard?.activityId)?.name === 'Weal (Even)'),
             `pop=${!!pop} guard=${JSON.stringify(guard && { sign: guard.sign, activity: sorcerer.items.get(omen.id)?.system?.activities?.get(guard.activityId)?.name })}`);
           faces([[5, 6]]);
           pickApply(pop);
-          const h = await until(() => (holdOf(miss)?.status === 'resolved') ? holdOf(miss) : null, { timeout: 12000 }).catch(() => null);
+          // the use and the Reaction are spent before the answer resolves the hold (hold/answer.js bystanderReaction)
+          const h = await until(() => (holdOf(miss)?.status === 'resolved') ? holdOf(miss) : null, { timeout: 12000, label: 'the Weal answer resolved the hold' });
           unrig();
-          await sleep(900);
+          // A window: Weal's die adds to the roll and leaves the kept face as it stands.
+          const stray = await watch(() => chip()?.name !== 'Cosmic Omen — Weal (4)', { ms: 900 });
           const t = h?.targets?.find(x => x.uuid === victim.uuid) ?? null;
-          ok('52c. Answer: +5 — a HIT, a use of Cosmic Omen spent (2 of 3), the chip still Weal (4)', (t?.verdict === 'hit') && (t?.bent?.add === 5) && (usesLeft() === 2) && (chip()?.name === 'Cosmic Omen — Weal (4)'),
-            `verdict=${t?.verdict} bent=${JSON.stringify(t?.bent)} uses=${usesLeft()} chip=${chip()?.name ?? null}`);
+          ok('52c. Answer: +5 — a HIT, a use of Cosmic Omen spent (2 of 3), the chip still Weal (4)', (t?.verdict === 'hit') && (t?.bent?.add === 5) && (usesLeft() === 2) && !stray && (chip()?.name === 'Cosmic Omen — Weal (4)'),
+            `verdict=${t?.verdict} bent=${JSON.stringify(t?.bent)} uses=${usesLeft()} stray=${!!stray} chip=${chip()?.name ?? null}`);
           await dropReactionChips(sorcerer);
           // d. Woe: the face set odd — a foe's hit on the Halfling by 2 asks "−1d6"
           await chip()?.update({ name: 'Cosmic Omen — Woe (3)', [`flags.${MOD}.storedDice`]: { key: 'Cosmic Omen', faces: [3], turn: null } });
           const msg = await swing({ d20: [12] });
-          const pop2 = await until(() => popups().find(app => app.element?.querySelector?.('[data-bf-ticks="bf-bystander"]') && /Cosmic Omen/.test(textOf(app.element))) ?? null, { timeout: 8000 }).catch(() => null);
+          const pop2 = await until(() => popups().find(app => app.element?.querySelector?.('[data-bf-ticks="bf-bystander"]') && /Cosmic Omen/.test(textOf(app.element))) ?? null, { timeout: 8000, label: 'the Woe popup on the foe\'s hit' });
           const guard2 = holdOf(msg)?.targets?.[0]?.guards?.find(g => g.row === 'Cosmic Omen') ?? null;
           ok('52d. Woe (3): the Attacker hits the Halfling by 2 — the popup "Cosmic Omen — −1d6", the activity Woe (Odd)',
             !!pop2 && /−1d6/.test(textOf(pop2?.element)) && (guard2?.sign === -1) && (sorcerer.items.get(omen.id)?.system?.activities?.get(guard2?.activityId)?.name === 'Woe (Odd)'),
@@ -247,10 +256,10 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
       try {
         if (!druid || !sea || !wrath || !gift) log.push(`§90 skipped: druid=${!!druid} sea=${!!sea} wrath=${!!wrath} gift=${!!gift}`);
         else {
-          await sleep(400);
+          // the Stormborn's own sweep (emanations.js, debounced) raises the ring from the sheet as it then stands
           storm = await markOn(halfling, 'Stormborn', gift.uuid);
           // The region lands before its behaviour and its "initial" record (adoptRegion): wait for the adopted ring, not the bare one.
-          const region = await until(() => { const r = regionKeyed('Oceanic Gift', halflingToken.document.id); return (r?.behaviors?.size && r.getFlag(MOD, 'emanation')?.initial) ? r : null; }, { timeout: 12000 }).catch(() => null);
+          const region = await until(() => { const r = regionKeyed('Oceanic Gift', halflingToken.document.id); return (r?.behaviors?.size && r.getFlag(MOD, 'emanation')?.initial) ? r : null; }, { timeout: 12000, label: 'the Oceanic Gift ring adopted around the Halfling' });
           const fl = region?.getFlag(MOD, 'emanation');
           const beh = region?.behaviors?.contents?.[0] ?? null;
           ok('90a. Stormborn (from the druid\'s Oceanic Gift) on the Halfling: the ring "Oceanic Gift" stands around the HALFLING, its source the druid\'s token, the range the druid\'s scale',
@@ -264,7 +273,7 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
             { tokenId: attackerToken.document.id, sceneId: scene.id, actorId: attacker.id, initiative: 10 }]);
           const t0 = Date.now();
           await combat90.startCombat();
-          const pick = await until(() => c1Cards(t0, 'emanationPick').find(m => m.getFlag(MOD, 'emanationPick')?.key === 'Oceanic Gift') ?? null, { timeout: 10000 }).catch(() => null);
+          const pick = await until(() => c1Cards(t0, 'emanationPick').find(m => m.getFlag(MOD, 'emanationPick')?.key === 'Oceanic Gift') ?? null, { timeout: 10000, label: 'the Oceanic Gift pick card at the druid\'s turn' });
           const cands = (pick?.getFlag(MOD, 'emanationPick')?.candidates ?? []).map(c => c.name);
           ok('90b. at the DRUID\'s turn start the pick card: "Oceanic Gift — BTB Test Cleric\'s turn: choose one creature inside", the creatures inside the Halfling\'s ring the candidates, the druid not',
             !!pick && (cands.length > 1) && !cands.includes(clericToken.document.name) && /BTB Test Cleric's turn: choose one creature inside/.test(cardText(pick?.id)),
@@ -275,9 +284,10 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
           const candList = pick?.getFlag(MOD, 'emanationPick')?.candidates ?? [];
           const chosen = candList.find(c => c.tokenId === attackerToken.document.id) ?? candList.find(c => c.tokenId !== halflingToken.document.id) ?? null;
           const chosenActor = chosen ? scene.tokens.get(chosen.tokenId)?.actor ?? null : null;
-          const button = await until(() => cardEl(pick?.id)?.querySelector(`[data-bf-emanation-pick="${chosen?.tokenId}"]`), { timeout: 6000 }).catch(() => null);
+          const button = await until(() => cardEl(pick?.id)?.querySelector(`[data-bf-emanation-pick="${chosen?.tokenId}"]`), { timeout: 6000, label: 'the pick card\'s button for the chosen creature' });
           button?.click();
-          const demand = await until(() => game.messages.contents.find(m => (m.timestamp >= t0) && (m.getFlag(MOD, 'emanationTrigger')?.cause === 'pick') && (m.getFlag(MOD, 'emanationTrigger')?.key === 'Oceanic Gift')) ?? null, { timeout: 10000 }).catch(() => null);
+          // soft: the ok's detail reads the pick flag's live state (picked, demanded) for the demand that never comes
+          const demand = await until(() => game.messages.contents.find(m => (m.timestamp >= t0) && (m.getFlag(MOD, 'emanationTrigger')?.cause === 'pick') && (m.getFlag(MOD, 'emanationTrigger')?.key === 'Oceanic Gift')) ?? null, { timeout: 10000, label: 'the picked creature\'s save demanded' }).catch(() => null);
           const dc = Number(demand?.getFlag(MOD, 'saves')?.dc);
           // The DC the activity resolves for the lent class (Wisdom, a level-14 druid's proficiency), not the sheet's primary spell DC.
           const druidDc = Number([...(cleric.items.get(wrath.id)?.system?.activities ?? [])].find(a => a.type === 'save')?.save?.dc?.value ?? 0);
@@ -289,11 +299,11 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
         if (combat90 && game.combats.get(combat90.id)) await combat90.delete();
         if (storm) await storm.delete().catch(() => {});
         for (const it of [gift, wrath, sea, druid]) if (it) await unlend(cleric, it);
-        const gone = await until(() => !regionKeyed('Oceanic Gift', halflingToken.document.id), { timeout: 8000 }).catch(() => null);
+        const gone = await until(() => !regionKeyed('Oceanic Gift', halflingToken.document.id), { timeout: 8000, label: 'the Oceanic Gift ring gone with the Stormborn' }).catch(() => null);
         if (!gone) { const r = regionKeyed('Oceanic Gift', halflingToken.document.id); if (r) await r.delete().catch(() => {}); }
         await dropNamed(attacker, ['Frightened']);
         unrig(); clearTargets();
-        await backToRange();
+        await backToRange().catch(() => null);   // a wait in a finally never throws
       }
     });
     return { log, results, skips };
