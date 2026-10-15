@@ -1,0 +1,595 @@
+{
+  "contract": "moment",
+  "module": "fvtt-mod-bythebooks",
+  "version": 2,
+  "title": "By the Books: the moment events",
+  "description": "What By the Books publishes when a moment resolves (its ARCHITECTURE §7 *The moment events*). `bythebooks.moment` fires with a plain frozen payload, then `bythebooks.<event>` with the same payload; a resolve under two words fires once per word with the same momentId, so a consumer that plays one picture per word keys on momentId plus event. `payload` is the envelope every moment carries; `moments` is each `<event>|<kind>` pair a recorded run published, its fields and its details' schema, with one sample (ids and clocks masked); `events` lists each word's kinds and fields; `kinds` is every record decide/moments.js publishes, recorded or not yet; `hooks` names every bythebooks.* hook and the companions' arguments. The schemas are derived by shape from a live run (tools/contracts.mjs); `version` moves when a field or word another repo reads is renamed or removed.",
+  "recorded": {
+    "suites": []
+  },
+  "payload": {
+    "type": "object"
+  },
+  "events": {
+    "maneuver": {
+      "kinds": [],
+      "recorded": false,
+      "fields": []
+    },
+    "sneak": {
+      "kinds": [],
+      "recorded": false,
+      "fields": []
+    },
+    "fold": {
+      "kinds": [],
+      "recorded": false,
+      "fields": []
+    },
+    "rider": {
+      "kinds": [],
+      "recorded": false,
+      "fields": []
+    },
+    "hold-answered": {
+      "kinds": [],
+      "recorded": false,
+      "fields": []
+    },
+    "mastery": {
+      "kinds": [],
+      "recorded": false,
+      "fields": []
+    },
+    "shield": {
+      "kinds": [],
+      "recorded": false,
+      "fields": []
+    },
+    "spend": {
+      "kinds": [],
+      "recorded": false,
+      "fields": []
+    },
+    "damage": {
+      "kinds": [],
+      "recorded": false,
+      "fields": []
+    },
+    "effect": {
+      "kinds": [],
+      "recorded": false,
+      "fields": []
+    },
+    "save": {
+      "kinds": [],
+      "recorded": false,
+      "fields": []
+    },
+    "break": {
+      "kinds": [],
+      "recorded": false,
+      "fields": []
+    },
+    "use": {
+      "kinds": [],
+      "recorded": false,
+      "fields": []
+    },
+    "cast": {
+      "kinds": [],
+      "recorded": false,
+      "fields": []
+    },
+    "volley": {
+      "kinds": [],
+      "recorded": false,
+      "fields": []
+    },
+    "choice": {
+      "kinds": [],
+      "recorded": false,
+      "fields": []
+    },
+    "metamagic": {
+      "kinds": [],
+      "recorded": false,
+      "fields": []
+    }
+  },
+  "kinds": {
+    "areaChoice": {
+      "events": [
+        "choice"
+      ],
+      "means": "a spell that chooses its targets (Slow, Sleep — the Chosen Areas list) was told who its area affects by its caster (saves/demand.js raises the ask, metamagic.js answers it); resolved when `asked` — the default written because there was nothing to choose is no one's decision and publishes nothing",
+      "recorded": false,
+      "pairs": []
+    },
+    "baitSwitch": {
+      "events": [
+        "maneuver",
+        "choice"
+      ],
+      "means": "Bait and Switch's AC bonus found its wearer — the fighter or the other creature (superiority-uses.js); resolved when `chosen` is set",
+      "recorded": false,
+      "pairs": []
+    },
+    "bashOffer": {
+      "events": [
+        "use"
+      ],
+      "means": "Shield Master's bash offer on a melee hit, or Tavern Brawler's push on an Unarmed Strike hit (kind shove), was answered — used or passed (bash-offer.js); resolved when `status` is resolved",
+      "recorded": false,
+      "pairs": []
+    },
+    "bystanderRoll": {
+      "events": [
+        "fold"
+      ],
+      "means": "a bystander bent another creature's save or check — Restore Balance, Cutting Words (bystanders.js, Q2 option A); resolved when the offer leaves pending: the bend, or everyone passed",
+      "recorded": false,
+      "pairs": []
+    },
+    "cardChip": {
+      "events": [
+        "spend"
+      ],
+      "means": "a card chip offered on a cast's card and, once built, the chip it wrote — Tinker's Tiny Clockwork Device (use-chips.js); the build is the resolve",
+      "recorded": false,
+      "pairs": []
+    },
+    "castApply": {
+      "events": [
+        "choice"
+      ],
+      "means": "a cast's alternative effect was chosen — Fire Shield's warm or chill (cast.js); resolved when `choice.chosen` is set. The application itself is the effect receipt's resolve",
+      "recorded": false,
+      "pairs": []
+    },
+    "chipSpend": {
+      "events": [
+        "spend"
+      ],
+      "means": "an attack roll used a chip up — Vex, Sap, a listed effect's marker (chip-spend.js); one resolve per chip",
+      "recorded": false,
+      "pairs": []
+    },
+    "clockRiders": {
+      "events": [
+        "rider"
+      ],
+      "means": "a clock rider's damage rode a hit — Dreadful Strike, Divine Strike, Primal Strike, Divine Fury, Assassinate (clock-riders.js); one resolve per rider",
+      "recorded": false,
+      "pairs": []
+    },
+    "coatHit": {
+      "events": [
+        "spend"
+      ],
+      "means": "a coating was spent by a weapon hit — the chip gone, the feature's own save used at the creatures struck (use-chips.js COATINGS, 2026-09-26); resolved once spent, a miss is moot",
+      "recorded": false,
+      "pairs": []
+    },
+    "coatUse": {
+      "events": [
+        "spend"
+      ],
+      "means": "a coating was written at its use — the Poisoner's Apply Poison vetoed into the Poison Coating chip on the actor, a dose spent (use-chips.js COATINGS, 2026-09-26); on the card the use posts",
+      "recorded": false,
+      "pairs": []
+    },
+    "commandRide": {
+      "events": [
+        "maneuver"
+      ],
+      "means": "Commander's Strike's die rode the ally's attack damage (command.js); the record arrives resolved on the damage message",
+      "recorded": false,
+      "pairs": []
+    },
+    "concentration": {
+      "events": [
+        "save",
+        "break"
+      ],
+      "means": "a concentration save's verdict landed (concentration.js) — and the concentration broke when it failed (publishes break beside save); resolved when `outcome` is set",
+      "recorded": false,
+      "pairs": []
+    },
+    "conditionEnd": {
+      "events": [
+        "choice"
+      ],
+      "means": "a feature's offer to END a condition its bearer wears — Guarded Mind (a Psionic die), Self-Restoration (free, the turn end), Physician's Touch (the healed creature) — answered with the condition or Keep (turn-grants.js, the PHB classes B4); resolved at Keep, or when the effects are gone",
+      "recorded": false,
+      "pairs": []
+    },
+    "d20fold": {
+      "events": [
+        "fold"
+      ],
+      "means": "a d20 fold — Bardic, Heroic, Tactical, Seeking — was spent into a test, or the offer was passed (d20-folds.js); one resolve per settled spend, one for a pass",
+      "recorded": false,
+      "pairs": []
+    },
+    "damageCast": {
+      "events": [
+        "cast"
+      ],
+      "means": "a bare damage spell's dice were rolled by the module at its targets — Heat Metal's class (damage-casts.js); on the cast's card",
+      "recorded": false,
+      "pairs": []
+    },
+    "damageHold": {
+      "events": [
+        "hold-answered"
+      ],
+      "means": "a reduction \"when you take damage\" was answered before the damage landed — cast or taken (damage-holds.js: Stone's Endurance on any damage, Interception's guards, Cutting Words' die off an attack's damage); the landing is the receipt's",
+      "recorded": false,
+      "pairs": []
+    },
+    "damageShield": {
+      "events": [
+        "shield"
+      ],
+      "means": "a damage shield struck back at a melee attacker — its dice rolled on the defender's own message (damage-shields.js); arrives resolved",
+      "recorded": false,
+      "pairs": []
+    },
+    "deathSaveOffer": {
+      "events": [
+        "use"
+      ],
+      "means": "the death save's side (Searing Vengeance, the PHB classes C1): a keeper offered its feature as a creature rolled a Death Saving Throw — answered use (half the maximum back, the burst landed) or pass (drop-to-one.js)",
+      "recorded": false,
+      "pairs": []
+    },
+    "diceChange": {
+      "events": [
+        "fold",
+        "metamagic"
+      ],
+      "means": "the dice changers' one popup on a damage roll resolved (dice-changers.js, 2026-09-27) — per row used: Savage Attacker's set and Piercer's one die publish fold, Empowered Spell's picked dice publish metamagic; resolved when `status` is used",
+      "recorded": false,
+      "pairs": []
+    },
+    "dropToOne": {
+      "events": [
+        "hold-answered"
+      ],
+      "means": "a drop to 0 Hit Points turned into a drop to 1 — Relentless Endurance answered (use or pass), Death Ward automatic (answer \"auto\"), or a `save` row's dice (Undead Fortitude: answer \"saved\" / \"failed\", `save` the roll; \"exempt\" when the damage's type or crit set the row aside) (drop-to-one.js)",
+      "recorded": false,
+      "pairs": []
+    },
+    "effectReceipt": {
+      "events": [
+        "effect"
+      ],
+      "means": "an effect landed on a target with a receipt (effect-riders.js, mastery chips, the hold's reaction effect, the cast slice), or was reverted; one resolve per effect, one more per revert",
+      "recorded": false,
+      "pairs": []
+    },
+    "emanationCard": {
+      "events": [
+        "choice"
+      ],
+      "means": "an emanation's damage type was chosen by its caster (emanations.js); resolved when `chosen` is set",
+      "recorded": false,
+      "pairs": []
+    },
+    "formSwap": {
+      "events": [
+        "choice"
+      ],
+      "means": "the Long Rest's known-form change was answered and landed — a Known Form replaced by another, open slots filled, or kept (transforms.js, issue #2); resolved when `applied`",
+      "recorded": false,
+      "pairs": []
+    },
+    "grappleDamage": {
+      "events": [
+        "choice"
+      ],
+      "means": "Unarmed Fighting's turn-start damage was answered — 1d4 to a creature the owner grapples, dealt through the feat's own damage activity, or skipped (damage-rules.js, the fighting styles 2026-09-26, ruled U1); the clock deals it to the one creature known to be held",
+      "recorded": false,
+      "pairs": []
+    },
+    "healReroll": {
+      "events": [
+        "fold"
+      ],
+      "means": "a healing die showing a 1 was rerolled and the new face stood — Healer, on a healing spell or its own Battle Medic (heal-rerolls.js, the origin feats 2026-09-25); resolved when `status` is used",
+      "recorded": false,
+      "pairs": []
+    },
+    "hitManeuver": {
+      "events": [
+        "maneuver",
+        "rider"
+      ],
+      "means": "a pick from the hit menu rode the damage roll (hit-menu.js); the record arrives resolved on the damage message, a resolve PER PICK (a list since 2026-09-27, a pick per group; a record from before it is its one pick). A Combat Superiority die publishes maneuver; a Giant Ancestry boon (maneuver false, 2026-09-24) publishes rider",
+      "recorded": false,
+      "pairs": []
+    },
+    "hold": {
+      "events": [
+        "hold-answered"
+      ],
+      "means": "a held roll's reaction was answered by its target — cast or pass (hold/answer.js, hold/clock.js); one resolve per target with an answer. Parry's die publishes under maneuver too; Stone's Endurance's use does not (reduce.maneuver false, 2026-09-24)",
+      "recorded": false,
+      "pairs": []
+    },
+    "initiativeGrant": {
+      "events": [
+        "choice"
+      ],
+      "means": "an Initiative grant — Persistent Rage's uses back (automatic), or Uncanny Metabolism's offer answered (the PHB classes, A6, initiative-grants.js); resolved at No, or when the sheet is written",
+      "recorded": false,
+      "pairs": []
+    },
+    "initiativeSwap": {
+      "events": [
+        "choice"
+      ],
+      "means": "an Initiative swap was answered — Alert's pick of an ally, swapped in the tracker by the elect, or no swap (initiative-swap.js, the origin feats 2026-09-25); resolved at No, or when the swap is applied",
+      "recorded": false,
+      "pairs": []
+    },
+    "kitTend": {
+      "events": [
+        "choice"
+      ],
+      "means": "a kit's tending was answered — Healer's Battle Medic: the tended creature's Hit Point Die spent and the feature's own heal of that size rolled at it by the elect, or not used (kit-tend.js, the origin-feat walk 2026-09-25); resolved at a Pass, or when the tending is applied",
+      "recorded": false,
+      "pairs": []
+    },
+    "mastery": {
+      "events": [
+        "mastery"
+      ],
+      "means": "a weapon mastery's ask was answered and executed — used or passed (mastery.js); resolved when `status` is done. On an ActiveEffect the same key is the chip's fingerprint, which no message carries",
+      "recorded": false,
+      "pairs": []
+    },
+    "masteryPick": {
+      "events": [
+        "mastery"
+      ],
+      "means": "Tactical Master's pick at the hit — which mastery the wielder chose (or passed) before the machine resolved it (mastery.js); resolved when `status` is done",
+      "recorded": false,
+      "pairs": []
+    },
+    "masterySwap": {
+      "events": [
+        "choice"
+      ],
+      "means": "the long-rest mastery swap was answered and landed — one chosen weapon kind replaced by another on the sheet's own list, or kept (mastery-record.js, issue #3); resolved when `applied`",
+      "recorded": false,
+      "pairs": []
+    },
+    "metamagic": {
+      "events": [
+        "metamagic"
+      ],
+      "means": "a Metamagic option was applied to the cast and its points spent (metamagic.js); resolved when `spent` is set on the spell's card",
+      "recorded": false,
+      "pairs": []
+    },
+    "poolSpend": {
+      "events": [
+        "spend"
+      ],
+      "means": "a pool was spent by hand — Sorcery Points, a rider's uses, a Seeking Spell (the uniform record shared.js poolSpendsOn reads); one resolve per record",
+      "recorded": false,
+      "pairs": []
+    },
+    "precision": {
+      "events": [
+        "maneuver",
+        "fold"
+      ],
+      "means": "Precision Attack's offer on a missed attack was answered — the die spent or passed (precision.js); resolved when `status` is resolved",
+      "recorded": false,
+      "pairs": []
+    },
+    "rebuke": {
+      "events": [
+        "hold-answered"
+      ],
+      "means": "a rebuke's offer — a Reaction to taking damage, aimed at its dealer — was answered, used or passed (rebukes.js); one resolve per offer",
+      "recorded": false,
+      "pairs": []
+    },
+    "receipt": {
+      "events": [
+        "damage"
+      ],
+      "means": "damage landed on a target with a receipt (auto-apply.js), or a receipt was reverted (receipts.js); one resolve per target, one more per revert",
+      "recorded": false,
+      "pairs": []
+    },
+    "restSong": {
+      "events": [
+        "choice"
+      ],
+      "means": "a rest grant GIVEN to allies was answered and landed — Musician's Encouraging Song, Heroic Inspiration to the picked allies (rest-grants.js); resolved when `applied`",
+      "recorded": false,
+      "pairs": []
+    },
+    "riposte": {
+      "events": [
+        "maneuver"
+      ],
+      "means": "Riposte's offer on an enemy's miss was answered by each reactor — strike back or decline (riposte.js); one resolve per reactor with an answer",
+      "recorded": false,
+      "pairs": []
+    },
+    "saves": {
+      "events": [
+        "save"
+      ],
+      "means": "a demanded save's verdict landed for a target (saves/verdict.js) — rolled, timed out or auto-failed; one resolve per target done, and one per save-side choice answered (publishes choice)",
+      "recorded": false,
+      "pairs": []
+    },
+    "shieldMark": {
+      "events": [
+        "shield"
+      ],
+      "means": "a damage shield was raised at the cast — the ward's effect on its bearer (damage-shields.js); on the cast's card",
+      "recorded": false,
+      "pairs": []
+    },
+    "sneakDamage": {
+      "events": [
+        "sneak"
+      ],
+      "means": "Sneak Attack's dice rode the damage roll with the Cunning Strike picks (sneak.js); the record arrives resolved on the damage message",
+      "recorded": false,
+      "pairs": []
+    },
+    "spellRiderCard": {
+      "events": [
+        "rider"
+      ],
+      "means": "a transformation's extra damage rode a SPELL's damage onto the one target its caster picked — Celestial Revelation (clock-riders.js, the Aasimar walk 2026-09-25); the receipt on the same card is the damage's own resolve",
+      "recorded": false,
+      "pairs": []
+    },
+    "spend": {
+      "events": [
+        "spend"
+      ],
+      "means": "a use's own resource movement was stamped for the flash — item uses, activity uses, spell slots (resources.js); on the usage card",
+      "recorded": false,
+      "pairs": []
+    },
+    "summon": {
+      "events": [
+        "cast"
+      ],
+      "means": "a summon the module drove was landed by the elect — the creature(s) created from the caster's placement, the spell's own choice applied, ownership granted (summons.js, issue #1); resolved when `applied`; a companion's later beats (into the pocket, called back, dismissed) each resolve on their own marker, `details.companion` leave or appear",
+      "recorded": false,
+      "pairs": []
+    },
+    "superiorityRide": {
+      "events": [
+        "maneuver"
+      ],
+      "means": "a Bonus Action maneuver's die (Lunging Attack, Feinting Attack) rode a later hit (superiority-uses.js); one resolve per die",
+      "recorded": false,
+      "pairs": []
+    },
+    "superiorityUse": {
+      "events": [
+        "maneuver"
+      ],
+      "means": "a Bonus Action maneuver's use landed its consequence — a rolled bonus, a chip, a marker (superiority-uses.js); on the use's own card",
+      "recorded": false,
+      "pairs": []
+    },
+    "sweepCard": {
+      "events": [
+        "maneuver"
+      ],
+      "means": "Sweeping Attack's second creature was picked and the die rolled at it (hit-menu.js); resolved when `resolved` is set",
+      "recorded": false,
+      "pairs": []
+    },
+    "tacticalRefund": {
+      "events": [
+        "fold"
+      ],
+      "means": "Tactical Mind's refund was asked and answered — kept or refunded (d20-folds.js); resolved when `status` leaves pending",
+      "recorded": false,
+      "pairs": []
+    },
+    "topple": {
+      "events": [
+        "save"
+      ],
+      "means": "a Topple save's verdict landed for a target — saved, prone, or failed before the dice (topple.js); one resolve per target done",
+      "recorded": false,
+      "pairs": []
+    },
+    "transform": {
+      "events": [
+        "use",
+        "cast"
+      ],
+      "means": "a transform the module drove was landed by the elect — the creature(s) turned into the picked form with dnd5e's own transformInto, a learned Known Form written, the form effect clocked (transforms.js, issue #2); a feature publishes use, a spell cast; resolved when `applied`",
+      "recorded": false,
+      "pairs": []
+    },
+    "typePick": {
+      "events": [
+        "choice"
+      ],
+      "means": "a typed feat's damage type was chosen as it landed — Elemental Adept's copy renamed \"Elemental Adept (Fire)\" (damage-rules.js, the PHB feats walk 2026-09-26); resolved when a type is chosen, at the popup or by a rename",
+      "recorded": false,
+      "pairs": []
+    },
+    "useChip": {
+      "events": [
+        "spend"
+      ],
+      "means": "a use-chip was written at a feature's use — Steady Aim and its class (use-chips.js); on the use's own card",
+      "recorded": false,
+      "pairs": []
+    },
+    "volley": {
+      "events": [
+        "volley"
+      ],
+      "means": "a volley's darts or rays were assigned and fired (volleys.js); resolved when `status` is resolved",
+      "recorded": false,
+      "pairs": []
+    }
+  },
+  "hooks": {
+    "bythebooks.<event>": {
+      "carries": "the same payload, once per word, after bythebooks.moment",
+      "seen": []
+    },
+    "bythebooks.areaAskAnswered": {
+      "recorded": false,
+      "fields": [],
+      "args": [],
+      "sample": null
+    },
+    "bythebooks.armorBlock": {
+      "recorded": false,
+      "fields": [],
+      "args": [],
+      "sample": null
+    },
+    "bythebooks.castReleased": {
+      "recorded": false,
+      "fields": [],
+      "args": [],
+      "sample": null
+    },
+    "bythebooks.deferredUsageCard": {
+      "recorded": false,
+      "fields": [],
+      "args": [],
+      "sample": null
+    },
+    "bythebooks.holdOpened": {
+      "recorded": false,
+      "fields": [],
+      "args": [],
+      "sample": null
+    },
+    "bythebooks.moment": {
+      "carries": "the payload",
+      "recorded": false
+    },
+    "bythebooks.styleDice": {
+      "recorded": false,
+      "fields": [],
+      "args": [],
+      "sample": null
+    }
+  },
+  "moments": {}
+}

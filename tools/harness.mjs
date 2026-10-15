@@ -1,6 +1,6 @@
 /**
  * The suite harness: env, watchdog, connect + preflight, section filtering, the hook and moment
- * ledgers, teardown and the one reporter (ARCHITECTURE §11 *Adding a TEST*).
+ * ledgers, the contract recorder, teardown and the one reporter (ARCHITECTURE §11 *Adding a TEST*).
  * ⚠ `f.evaluate()` serializes its function, so a helper a suite body needs is the prelude's
  * (tools/prelude.mjs, installed on the page at connect) or travels as DATA on the evaluate argument
  * (`sectionArg`).
@@ -18,6 +18,7 @@ import { basename, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Foundry, loadEnv } from "fvtt-mcp-dnd5e/client";
 import { strictArgs } from "./args.mjs";
+import { armContractRecorder, dumpContractRecording } from "./contract-recorder.mjs";
 import { installPrelude } from "./prelude.mjs";
 import { declaredGmClients, foundryConfig, preflightSoleGM } from "./target.mjs";
 
@@ -465,6 +466,8 @@ export async function connectSuite({ tag, watchdogMs, requireElect = true, allow
   if (install !== "installed") console.warn(`[${tag}] hook ledger not armed (${install})`);
   const moments = await f.evaluate(installMomentLedger, null).catch(e => `failed: ${e.message}`);
   if (moments !== "installed") console.warn(`[${tag}] moment ledger not armed (${moments})`);
+  // What the run published, by shape, for tools/contracts.mjs (tools/contract-recorder.mjs).
+  await armContractRecorder(f, tag);
 
   // One teardown under both names: suites call `disconnect`, `dispose` is the real one.
   // ⚠ Each step under a ceiling: a page that stopped answering must not hold the teardown
@@ -487,6 +490,8 @@ export async function connectSuite({ tag, watchdogMs, requireElect = true, allow
     }
     const { settled } = await withCeiling(dumpHookLedger(tag, f), TEARDOWN_STEP_CEILING_MS);
     if (!settled) console.warn(`[${tag}] the hook ledger dump did not finish in ${TEARDOWN_STEP_CEILING_MS / 1000}s — not written`);
+    const recorded = await withCeiling(dumpContractRecording(tag, f), TEARDOWN_STEP_CEILING_MS);
+    if (!recorded.settled) console.warn(`[${tag}] the contract recording dump did not finish in ${TEARDOWN_STEP_CEILING_MS / 1000}s — not written`);
     await disposeSafely(f, tag, closeBridge);
   };
   f.disconnect = teardown;
