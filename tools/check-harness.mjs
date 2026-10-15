@@ -12,8 +12,9 @@
 //      until the ceiling is lowered to the count, so a ceiling only goes down. A suite with no row
 //      has a ceiling of 0.
 //   2. Private helpers: a suite's own `sleep`, poll (`until`, `waitFor`, any function that loops
-//      on a sleep, a promise around a `setInterval`), `ok`, `want`, settings snapshot (`Object.fromEntries(… game.settings.get …)` or an
-//      object of two or more `game.settings.get` reads), dice rigging (a write to
+//      on a sleep, a promise around a `setInterval`), page-side `ok` or `want` (a Node-side ledger
+//      is the reporter's, not a copy), settings snapshot (`Object.fromEntries(… game.settings.get …)`
+//      or an object of two or more `game.settings.get` reads), dice rigging (a write to
 //      `CONFIG.Dice.randomUniform`) or inline wait loop (a loop that awaits a sleep: the token-render,
 //      `canvas.ready` and scene-view waits among them). A suite on the prelude has none; the suites
 //      not yet on it are listed in STANDING, a list that only shrinks.
@@ -157,12 +158,21 @@ export function readSuite(text, file = "suite.mjs") {
   const declare = (name, fn, node) => {
     if (!fn) return;
     if (name === "sleep") { helpers.push({ kind: "sleep", name, line: lineOf(node) }); sleepDefs.add(fn); return; }
-    if (name === "ok") { helpers.push({ kind: "ok", name, line: lineOf(node) }); return; }
-    if (name === "want") { helpers.push({ kind: "want", name, line: lineOf(node) }); return; }
+    // A Node-side ledger (assertions made from what the pages return) is the harness's to report, not a page copy.
+    if ((name === "ok") || (name === "want")) { if (inPage(node)) helpers.push({ kind: name, name, line: lineOf(node) }); return; }
     if (POLL_NAME.test(name) || loopsOnWait(fn.body)) {
       helpers.push({ kind: "poll", name, line: lineOf(node) });
       pollBodies.add(fn);
     }
+  };
+
+  /** Is `node` inside a function handed to `….evaluate(…)`: page code? */
+  const inPage = node => {
+    for (let p = node.parent; p; p = p.parent) {
+      if (ts.isFunctionLike(p) && p.parent && ts.isCallExpression(p.parent) && /.evaluate$/.test(p.parent.expression.getText())
+        && (p.parent.arguments[0] === p)) return true;
+    }
+    return false;
   };
 
   const insideAny = (node, set) => {

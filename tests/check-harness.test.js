@@ -31,15 +31,17 @@ describe("readSuite — the bare waits", () => {
 });
 
 describe("readSuite — the private helpers", () => {
-  it("finds the copied sleep, poll, ok, want, settings snapshot and dice rigging", () => {
+  it("finds the copied sleep, poll, ok, want, settings snapshot and dice rigging in page code", () => {
     expect(
       kinds(`
+      await f.evaluate(async () => {
       const ok = (name, pass, detail = '') => results.push({ name, pass, detail });
       const want = id => !sections || sections.includes(String(id));
       const sleep = ms => new Promise(r => setTimeout(r, ms));
       const waitFor = async (test, ms = 8000) => { const end = Date.now() + ms; while (Date.now() < end) { if (test()) return true; await sleep(200); } return false; };
       const prior = Object.fromEntries(KEYS.map(k => [k, game.settings.get(MOD, k)]));
       CONFIG.Dice.randomUniform = () => 0.5;
+      }, null);
     `)
     ).toEqual(["ok", "want", "sleep", "poll", "settings snapshot", "dice rigging"]);
   });
@@ -77,5 +79,17 @@ describe("readSuite — a deadline is not a wait", () => {
       await new Promise(resolve => setTimeout(() => resolve(), 300));
     `);
     expect(waits.map(w => w.ms)).toEqual([300]);
+  });
+});
+
+describe("readSuite — a Node-side ledger is not a page copy", () => {
+  it("ok and want declared outside an evaluate body are not helpers; inside one they are", () => {
+    expect(
+      kinds(`
+      const want = id => !plan || plan.includes(String(id));
+      const ok = (name, pass) => out.results.push({ name, pass });
+      await f.evaluate(async () => { const ok = (name, pass, detail = '') => results.push({ name, pass, detail }); }, null);
+    `)
+    ).toEqual(["ok"]);
   });
 });
