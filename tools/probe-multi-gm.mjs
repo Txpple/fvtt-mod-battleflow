@@ -20,6 +20,10 @@
  *   assistant-full   W an Assistant GM, X a Gamemaster: the elect moves to X as it connects
  *   same-stays       W and X of one role, X the higher id: the elect stays on W
  *   same-moves       W and X of one role, X the lower id: the elect moves to X as it connects
+ *   hangup-claim     same-moves, then X, the elect, claims the landing and its browser closes under the page
+ *                    before its first token (no beforeunload, no teardown): W lands the record once
+ *   hangup-landing   the same, X's browser closing after its token and before the companion effect: W removes
+ *                    the token X left (it carries the card) and lands the record once
  * Foundry's elect is the active GM with the highest role, then the lowest id (`Users#getDesignatedUser`), so
  * an ordering is "stays" or "moves" by role and id alone. The identities are the GM_CLIENTS below, named in
  * the family .env (tools/README.md); a Gamemaster pair is preferred for the same-role rows, an Assistant
@@ -33,6 +37,11 @@
  * and every cycle reports the offset it got. When the record has landed and the world is quiet, X hangs up
  * the way a closed window does (its leading-window flag cleared, unless --keep-lead), and W, alone again,
  * dismisses the familiar and removes the cycle's tokens, companion effects and cards.
+ * A HANG-UP CYCLE (the hangup-* orderings) proves the re-drive (core.js `claimLanding`, ui.js's `userConnected`):
+ * X joins with its landing stalled (an init script holds X's token or companion-effect create forever), W answers
+ * the record once X is ready, X claims it, and its browser is closed the moment W sees the claim; W, the elect again,
+ * finds the claim dead and lands the record — one claim of W's over X's, one familiar token standing, one companion
+ * effect, the record `applied` by W.
  *
  * Fixtures: run tools/fixture-suite.mjs first and tools/teardown-fixtures.mjs after. ⚠ Mutates the world:
  * Find Familiar lent to the Sorcerer, one card, one familiar and one companion effect per cycle, the Owl the
@@ -44,6 +53,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Foundry } from "fvtt-mcp-dnd5e/client";
 import { strictArgs, usageOf } from "./args.mjs";
+import { attachInit, closeLikeAWindow, dropDead, hangUp as hangUpGm, race } from "./gm-clients.mjs";
 import { connectSuite, loadEnv } from "./harness.mjs";
 import { gmConfig, gmIdentity } from "./target.mjs";
 
@@ -60,8 +70,13 @@ const ORDERINGS = {
   "full-assistant": "W a Gamemaster, X an Assistant GM: the elect stays on W",
   "assistant-full": "W an Assistant GM, X a Gamemaster: the elect moves to X as it connects",
   "same-stays": "W and X of one role, X the higher id: the elect stays on W",
-  "same-moves": "W and X of one role, X the lower id: the elect moves to X as it connects"
+  "same-moves": "W and X of one role, X the lower id: the elect moves to X as it connects",
+  "hangup-claim": "same-moves; X claims the landing and is hung up before its token: W re-drives it",
+  "hangup-landing": "same-moves; X claims, lands its token and is hung up before the companion effect: W removes it and re-drives"
 };
+
+/** Where a hang-up ordering's X stalls its landing: before its token, or after it. */
+const HANG = { "hangup-claim": "token", "hangup-landing": "effect" };
 
 /**
  * The fire's offset from the moment W hears X connect, in ms, one per cycle: the first calibrates the
@@ -107,15 +122,6 @@ const jsonPath = values.json ?? join(REPO, "dist", "probe-multi-gm", `${stamp}.j
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 /** The arriving client's bridge diagnostics: its warnings and errors, not its every connect line. */
 const X_LOG = { debug() {}, info() {}, warn: m => console.warn(`[${TAG}] X: ${m}`), error: m => console.error(`[${TAG}] X: ${m}`) };
-/** A promise raced against a ceiling: `{ settled, value }`. */
-async function race(promise, ms) {
-  let timer;
-  let settled = false;
-  let value;
-  await Promise.race([promise.then(v => { settled = true; value = v; }), new Promise(r => { timer = setTimeout(r, ms); })]);
-  clearTimeout(timer);
-  return { settled, value };
-}
 const median = xs => {
   const s = xs.filter(Number.isFinite).sort((a, b) => a - b);
   if (!s.length) return null;
@@ -174,8 +180,14 @@ async function installW({ mod, casterName, rangeName }) {
     if (!s) return;
     push({ kind: "update", by: userId, status: s.status, applying: s.applying, applied: s.applied, outcome: s.outcome,
       landed: Array.isArray(s.landed) ? s.landed.length : undefined, dismissed: s.dismissed });
+    const claim = (s.applying === true) || (!!s.applying && (typeof s.applying === "object") && ("at" in s.applying || "by" in s.applying));
+    if (claim && (userId === c.xUserId)) c.xClaimAt ??= Date.now();
   });
-  Hooks.on("createToken", (doc, _options, userId) => { if (doc.parent?.id === range.id) push({ kind: "token", by: userId, id: doc.id, name: doc.name }); });
+  Hooks.on("createToken", (doc, _options, userId) => {
+    if (doc.parent?.id !== range.id) return;
+    push({ kind: "token", by: userId, id: doc.id, name: doc.name, card: doc.getFlag(mod, "summonCard") ?? null });
+    if (P.cycle && (userId === P.cycle.xUserId)) P.cycle.xTokenAt ??= Date.now();
+  });
   Hooks.on("deleteToken", (doc, _options, userId) => { if (doc.parent?.id === range.id) push({ kind: "token-gone", by: userId, id: doc.id }); });
   Hooks.on("createActiveEffect", (e, _options, userId) => {
     if (e.parent?.id === caster.id) push({ kind: "effect", by: userId, id: e.id, name: e.name, companion: !!e.getFlag(mod, "companion") });
@@ -258,7 +270,8 @@ async function installW({ mod, casterName, rangeName }) {
   P.status = () => {
     const c = P.cycle;
     const f = game.messages.get(c.id)?.getFlag(mod, "summon");
-    return { now: Date.now(), fired: c.fired, act: c.act, applied: !!f?.applied, applying: !!f?.applying, status: f?.status ?? null, lastEventAt: c.lastEventAt };
+    return { now: Date.now(), fired: c.fired, act: c.act, applied: !!f?.applied, applying: !!f?.applying, status: f?.status ?? null, lastEventAt: c.lastEventAt,
+      xClaimAt: c.xClaimAt ?? null, xTokenAt: c.xTokenAt ?? null, deact: c.events.find(e => e.kind === "deact")?.t ?? null };
   };
 
   /** The cycle as this page saw it; the ledger closes. */
@@ -274,6 +287,7 @@ async function installW({ mod, casterName, rangeName }) {
       id: c.id, armedAt: c.armedAt, act: c.act, fired: c.fired, firedAck: c.firedAck ?? null, fireHow: c.fireHow ?? null,
       fireError: c.fireError ?? null, plan: c.plan, leadCleared: c.leadCleared, replaces: c.replaces, collectedAt: c.collectedAt,
       events: c.events, wSamples: c.wSamples,
+      xClaimAt: c.xClaimAt ?? null, xTokenAt: c.xTokenAt ?? null,
       final: f ? { status: f.status ?? null, applied: !!f.applied, applying: !!f.applying, outcome: f.outcome ?? null,
         landed: (f.landed ?? []).length, companion: f.companion?.state ?? null, failure: f.failure ?? null } : null,
       standing: { tokens: tokens.filter(id => range.tokens.get(id)).length,
@@ -369,7 +383,27 @@ function xInit(cfg) {
         const H = globalThis.Hooks;
         H.once("init", () => note("init"));
         H.once("setup", () => note("setup", { state: stateOf(), record: recordOf() }));
-        H.once("ready", () => note("ready", { state: stateOf(), record: recordOf() }));
+        H.once("ready", () => {
+          note("ready", { state: stateOf(), record: recordOf() });
+          // THE STALL (a hang-up cycle): X's landing held forever at its token's create, or at the companion effect's
+          if (cfg.stall === "token") {
+            const proto = globalThis.CONFIG.Scene.documentClass.prototype;
+            const create = proto.createEmbeddedDocuments;
+            proto.createEmbeddedDocuments = function (name, ...args) {
+              if (name !== "Token") return create.call(this, name, ...args);
+              note("stalled", { at: "token" });
+              return new Promise(() => {});
+            };
+          } else if (cfg.stall === "effect") {
+            const proto = globalThis.CONFIG.Actor.documentClass.prototype;
+            const create = proto.createEmbeddedDocuments;
+            proto.createEmbeddedDocuments = function (name, data, ...args) {
+              if ((name !== "ActiveEffect") || !(data ?? []).some(d => d?.flags?.[mod]?.companion)) return create.call(this, name, data, ...args);
+              note("stalled", { at: "companion effect" });
+              return new Promise(() => {});
+            };
+          }
+        });
         H.on("dnd5e.renderChatMessage", m => { if (m?.id === watch) note("render", { state: stateOf(), record: recordOf() }); });
         H.on("updateChatMessage", (m, _changes, _options, userId) => { if (m?.id === watch) note("update", { by: userId, record: recordOf() }); });
         H.on("userConnected", (u, active) => note("userConnected", { user: u?.name ?? null, active }));
@@ -403,37 +437,11 @@ async function collectX({ mod }) {
   return { rec: rec ? { nav: rec.nav, events: rec.events, samples: rec.samples } : null, windowId, isActive, self: game.user?.name ?? null };
 }
 
-/** What a closed window does before it goes (ui.js's `beforeunload`): its leading-window flag cleared. */
-async function closeLikeAWindow({ mod }) {
-  const core = await import(`/modules/${mod}/scripts/core.js`);
-  if (game.user?.isGM && (game.user.flags?.[core.MODULE_ID]?.[core.LEAD_FLAG] === core.WINDOW_ID)) {
-    await game.user.unsetFlag(core.MODULE_ID, core.LEAD_FLAG);
-  }
-  return true;
-}
 
 /* ─── node side ─── */
 
-/** The private seam the bridge launches into: its browser context, which takes an init script before the game page loads. */
-async function attachInit(xf, arg) {
-  const until = Date.now() + 20_000;
-  while (Date.now() < until) {
-    const target = xf.context ?? xf.page;
-    if (target?.addInitScript) {
-      try { await target.addInitScript(xInit, arg); return true; } catch { return false; }
-    }
-    await sleep(2);
-  }
-  return false;
-}
-
-/** Hang X up; a dispose that does not settle closes the browser, and a browser that will not close stops the run. */
-async function hangUp(xf) {
-  const r = await race(xf.dispose().catch(() => {}), 15_000);
-  if (r.settled) return;
-  const b = await race(Promise.resolve(xf.browser?.close?.()).catch(() => {}), 5_000);
-  if (!b.settled) throw new Error("the arriving client would not hang up — its browser may still hold a GM seat");
-}
+/** Hang X up the way a closed window goes (its lead flag already cleared, unless --keep-lead). */
+const hangUp = xf => hangUpGm(xf, { asWindow: false });
 
 /** Step intervals `[a, b]` where the sampled value is true, between `from` and `to`. */
 function trueIntervals(points, from, to) {
@@ -467,6 +475,9 @@ function neither(A, B, from, to) {
   return (to - from) - covered;
 }
 
+/** A record write that claims its landing: the stamp `{ by, window, at }` (core.js `claimStamp`), or a claim written before it. */
+const isClaim = a => (a === true) || (!!a && (typeof a === "object") && (("at" in a) || ("by" in a) || ("window" in a)));
+
 /** One cycle's numbers, from both pages' logs. */
 function analyse({ row, i, offset, tStart, connect, attached, ws, xs, clean }) {
   const name = id => ws.users?.[id] ?? id;
@@ -476,7 +487,7 @@ function analyse({ row, i, offset, tStart, connect, attached, ws, xs, clean }) {
   const xFirst = kind => xEv.find(e => e.kind === kind) ?? null;
   const xSetup = xFirst("setup");
   const xReady = xFirst("ready");
-  const claims = ws.events.filter(e => (e.kind === "update") && (e.applying === true))
+  const claims = ws.events.filter(e => (e.kind === "update") && isClaim(e.applying))
     .map(e => ({ by: name(e.by), x: e.by === row.x.id, at: rel(e.t), sinceFire: Number.isFinite(ws.fired) ? (e.t - ws.fired) : null }));
   const tokens = ws.events.filter(e => e.kind === "token");
   const companions = ws.events.filter(e => (e.kind === "effect") && e.companion);
@@ -503,6 +514,20 @@ function analyse({ row, i, offset, tStart, connect, attached, ws, xs, clean }) {
   const writers = [...new Set(ws.events.filter(e => (e.kind === "update") && (e !== fireWrite) && (e.t >= (ws.fired ?? 0))).map(e => name(e.by)))];
   const landings = Math.max(claims.length, tokens.length, companions.length);
   const doubled = (landings > 1) || (writers.length > 1);
+  // A hang-up: X's claim, then W's over it once X is gone; what stands is what counts, X's leavings removed.
+  const gone = tokens.filter(e => e.by === row.x.id).map(e => e.id);
+  const removed = ws.events.filter(e => (e.kind === "token-gone") && gone.includes(e.id) && (e.by !== row.x.id)).length;
+  const xi = claims.findIndex(k => k.x);
+  const reclaim = (xi >= 0) ? (claims.slice(xi + 1).find(k => !k.x) ?? null) : null;
+  const deactAt = ws.events.find(e => e.kind === "deact")?.t ?? null;
+  const hang = row.hang ? {
+    stall: row.hang, xClaimed: xi >= 0, wReclaimed: !!reclaim,
+    xGoneRel: rel(deactAt), reclaimAfterGone: (reclaim && Number.isFinite(deactAt)) ? (reclaim.at - rel(deactAt)) : null,
+    xTokens: gone.length, removedByW: removed, standingTokens: ws.standing?.tokens ?? null, standingEffects: ws.standing?.companionEffects ?? null,
+    lastWriter: name([...ws.events].reverse().find(e => e.kind === "update")?.by ?? null)
+  } : null;
+  if (hang) hang.landedOnce = !!ws.final?.applied && (ws.final.outcome === "landed") && (ws.final.landed === 1) && hang.xClaimed && hang.wReclaimed
+    && (hang.standingTokens === 1) && (hang.standingEffects === 1) && (hang.removedByW === hang.xTokens) && (hang.lastWriter === row.w.user);
   return {
     ordering: row.name, cycle: i + 1, offset, w: row.w.user, x: row.x.user,
     connectMs: Number.isFinite(act) ? act - tStart : null, xConnected: connect.ok, xError: connect.ok ? null : connect.err, xTimeline: attached && !!xs?.rec,
@@ -513,7 +538,7 @@ function analyse({ row, i, offset, tStart, connect, attached, ws, xs, clean }) {
     overlapMs, gapMs, wElect: ws.wSamples.map(s => ({ at: rel(s.t), active: s.active, elect: s.elect })),
     xElect: xPoints.map(([t, v]) => ({ at: rel(t), active: v })),
     recordWrites: ws.events.filter(e => e.kind === "update").map(e => ({ at: rel(e.t), by: name(e.by), status: e.status, applying: e.applying, applied: e.applied })),
-    leadCleared: ws.leadCleared, replaces: ws.replaces, clean
+    leadCleared: ws.leadCleared, replaces: ws.replaces, clean, hang
   };
 }
 
@@ -533,7 +558,9 @@ function planOrderings(ids) {
     "full-assistant": (gm && asst) ? { w: gm, x: asst } : { skip: !gm ? why.gm : why.asst },
     "assistant-full": (gm && asst) ? { w: asst, x: gm } : { skip: !gm ? why.gm : why.asst },
     "same-stays": byId ? { w: byId[0], x: byId[1] } : { skip: why.pair },
-    "same-moves": byId ? { w: byId[1], x: byId[0] } : { skip: why.pair }
+    "same-moves": byId ? { w: byId[1], x: byId[0] } : { skip: why.pair },
+    "hangup-claim": byId ? { w: byId[1], x: byId[0], hang: HANG["hangup-claim"] } : { skip: why.pair },
+    "hangup-landing": byId ? { w: byId[1], x: byId[0], hang: HANG["hangup-landing"] } : { skip: why.pair }
   };
 }
 
@@ -602,7 +629,7 @@ async function runCycle(row, i, offset, connectTimes) {
   xf = new Foundry(gmConfig(env, row.x.key), X_LOG);
   const tStart = Date.now();
   const connecting = xf.connect().then(() => ({ ok: true }), err => ({ ok: false, err: String(err?.message ?? err) }));
-  const attaching = attachInit(xf, { mod: MOD, messageId: armed.messageId });
+  const attaching = attachInit(xf, xInit, { mod: MOD, messageId: armed.messageId });
   const aimed = median(connectTimes) ?? 3000;
   await w.evaluate(p => globalThis.__mgp.plan(p), (offset >= 0) ? { offset } : { offset, absoluteAt: tStart + aimed + offset });
   const attached = await attaching;
@@ -628,8 +655,64 @@ async function runCycle(row, i, offset, connectTimes) {
   return out;
 }
 
+/** Poll W until `test(status)` holds, at most `ms`; the last status either way. */
+async function statusUntil(test, ms) {
+  const until = Date.now() + ms;
+  let s = null;
+  while (Date.now() < until) {
+    s = await w.evaluate(() => globalThis.__mgp.status(), null);
+    if (test(s)) return { ok: true, ...s };
+    await sleep(50);
+  }
+  return { ok: false, ...(s ?? {}) };
+}
+
+/**
+ * ONE HANG-UP CYCLE: X joins with its landing stalled, W answers once X is ready, X claims, and X's browser is
+ * closed under its page the moment W sees the claim (and, for hangup-landing, X's token); then W, alone and the
+ * elect again, re-drives the record.
+ */
+async function runHangCycle(row, i) {
+  await waitAlone(row);
+  const armed = await w.evaluate(p => globalThis.__mgp.arm(p), { cycle: i, xUserId: row.x.id, clearLead: true });
+  if (armed?.error) return { ordering: row.name, cycle: i + 1, offset: null, error: `arm: ${armed.error}` };
+  xf = new Foundry(gmConfig(env, row.x.key), X_LOG);
+  const tStart = Date.now();
+  const connecting = xf.connect().then(() => ({ ok: true }), err => ({ ok: false, err: String(err?.message ?? err) }));
+  const attached = await attachInit(xf, xInit, { mod: MOD, messageId: armed.messageId, stall: row.hang });
+  await w.evaluate(p => globalThis.__mgp.plan(p), { manual: true });
+  const c = await race(connecting, 120_000);
+  const connect = c.settled ? c.value : { ok: false, err: "the connect did not finish in 120 s" };
+  let xs = null;
+  let stalled = null;
+  if (connect.ok) {
+    await w.evaluate(() => globalThis.__mgp.fire("after-ready"), null);
+    stalled = await statusUntil(s => s.xClaimAt && ((row.hang !== "effect") || s.xTokenAt), 30_000);
+    xs = await xf.evaluate(collectX, { mod: MOD }).catch(err => ({ error: String(err?.message ?? err) }));
+  }
+  await dropDead(xf);
+  xf = null;
+  const settled = await settle(45_000);
+  const ws = await w.evaluate(() => globalThis.__mgp.collect(), null);
+  for (const e of ws.events) if (e.kind === "token") allTokens.add(e.id);
+  await waitAlone(row);
+  const clean = await w.evaluate(() => globalThis.__mgp.cleanup(), null);
+  if (!clean.clean) notes.push(`${row.name} cycle ${i + 1}: the cleanup left ${JSON.stringify(clean.left)}`);
+  const out = analyse({ row, i, offset: null, tStart, connect, attached, ws, xs, clean });
+  out.settled = settled.settled;
+  out.stalledInTime = !!stalled?.ok;
+  return out;
+}
+
 function lineOf(r) {
   if (r.error) return `  ${String(r.cycle).padStart(2)} ${String(r.offset).padStart(5)} ms  ERROR ${r.error}`;
+  if (r.hang) {
+    const h = r.hang;
+    return `  ${String(r.cycle).padStart(2)}  stall ${h.stall.padEnd(6)}  claims ${r.claims.map(c => c.x ? "X" : "W").join(" ") || "none"}`
+      + `  X gone at ${h.xGoneRel ?? "—"} ms, W re-claimed ${h.reclaimAfterGone ?? "—"} ms after  X's tokens ${h.xTokens} removed ${h.removedByW}`
+      + `  standing tokens ${h.standingTokens} effects ${h.standingEffects}  last writer ${h.lastWriter ?? "—"}`
+      + `${h.landedOnce ? "  landed once" : "  ⚠ NOT LANDED ONCE"}${r.stalledInTime ? "" : "  ⚠ X never claimed in 30 s"}`;
+  }
   const claims = r.claims.map(c => `${c.x ? "X" : "W"}${Number.isFinite(c.sinceFire) ? `+${c.sinceFire}` : ""}`).join(" ") || "none";
   return `  ${String(r.cycle).padStart(2)} ${String(r.offset).padStart(5)} ms  fired ${String(r.fireRel ?? "—").padStart(6)} (${r.phase.padEnd(5)})`
     + `  claims ${claims.padEnd(14)} writers ${r.writers.join("+") || "none"}  tokens ${r.tokens} effects ${r.companionEffects} moments ${r.moments.w}+${r.moments.x}`
@@ -644,6 +727,7 @@ function summary(rows, plan) {
   out.push("| Ordering | W → X | Cycles | Fired pre / boot / setup / ready | Landed once | Doubled | Not landed | Claims by W / X | Overlap > 0 (max ms) | Gap median / max ms | Fire → claim median ms (pre / boot / setup / ready) | X connect → setup / ready median ms |");
   out.push("| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |");
   for (const [name, p] of Object.entries(plan)) {
+    if (HANG[name]) continue;
     if (p.skip) { out.push(`| ${name} | — | skipped: ${p.skip} | | | | | | | | | |`); continue; }
     const rs = rows.filter(r => (r.ordering === name) && !r.error);
     if (!rs.length) { out.push(`| ${name} | ${p.w.user} → ${p.x.user} | 0 measured | | | | | | | | | |`); continue; }
@@ -657,6 +741,22 @@ function summary(rows, plan) {
       + ` | ${median(rs.map(r => r.gapMs)) ?? "—"} / ${Math.max(0, ...rs.map(r => r.gapMs ?? 0))}`
       + ` | ${["pre", "boot", "setup", "ready"].map(ph => latency(ph) ?? "—").join(" / ")}`
       + ` | ${median(rs.map(r => r.xSetupRel)) ?? "—"} / ${median(rs.map(r => r.xReadyRel)) ?? "—"} |`);
+  }
+  if (Object.keys(plan).some(k => HANG[k])) {
+    out.push("");
+    out.push("| Ordering | W → X | Cycles | Landed once by W | Not landed once | X's claim, then W's | W re-claim after X gone, median / max ms | X's tokens / removed by W | Standing tokens / effects |");
+    out.push("| --- | --- | --- | --- | --- | --- | --- | --- | --- |");
+    for (const [name, p] of Object.entries(plan)) {
+      if (!HANG[name]) continue;
+      if (p.skip) { out.push(`| ${name} | — | skipped: ${p.skip} | | | | | | |`); continue; }
+      const rs = rows.filter(r => (r.ordering === name) && !r.error && r.hang);
+      const after = rs.map(r => r.hang.reclaimAfterGone).filter(Number.isFinite);
+      out.push(`| ${name} | ${p.w.user} (${p.w.role}) → ${p.x.user} (${p.x.role}) | ${rs.length} | ${rs.filter(r => r.hang.landedOnce).length}`
+        + ` | ${rs.filter(r => !r.hang.landedOnce).length} | ${rs.filter(r => r.hang.xClaimed && r.hang.wReclaimed).length}`
+        + ` | ${median(after) ?? "—"} / ${after.length ? Math.max(...after) : "—"}`
+        + ` | ${rs.reduce((n, r) => n + r.hang.xTokens, 0)} / ${rs.reduce((n, r) => n + r.hang.removedByW, 0)}`
+        + ` | ${rs.map(r => `${r.hang.standingTokens}/${r.hang.standingEffects}`).join(", ")} |`);
+    }
   }
   return out.join("\n");
 }
@@ -678,14 +778,14 @@ try {
   }
   for (const [name, p] of Object.entries(plan)) {
     if (p.skip) continue;
-    const row = { name, w: p.w, x: p.x };
+    const row = { name, w: p.w, x: p.x, hang: p.hang ?? null };
     await connectW(p.w.key);
     console.log(`\n[${TAG}] ${name} — ${ORDERINGS[name]}; ${cycles} cycle(s)`);
     const connectTimes = [];
     for (let i = 0; i < cycles; i++) {
       const offset = offsetOf(i);
       let r;
-      try { r = await runCycle(row, i, offset, connectTimes); }
+      try { r = row.hang ? await runHangCycle(row, i) : await runCycle(row, i, offset, connectTimes); }
       catch (err) {
         r = { ordering: name, cycle: i + 1, offset, error: String(err?.message ?? err) };
         if (/another GM-capable client|would not hang up/.test(r.error)) { results.push(r); console.log(lineOf(r)); throw err; }
