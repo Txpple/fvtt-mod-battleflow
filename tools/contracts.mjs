@@ -25,7 +25,7 @@
 // a renamed or removed field, a word or a key gone. A new field or key is additive and does not move
 // it. The recording is a live run's (the battery records every suite, tools/contract-recorder.mjs).
 import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
-import { dirname, join, relative } from "node:path";
+import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { strictArgs, usageOf } from "./args.mjs";
 import { diffSchemas, fieldsOf, mergeSchemas, schemaOf } from "./contract-shapes.mjs";
@@ -390,7 +390,7 @@ async function main() {
     options: { check: { type: "boolean" }, write: { type: "boolean" }, run: { type: "boolean" }, fresh: { type: "boolean" } },
     allowPositionals: true
   });
-  const dir = positionals[0] ? join(process.cwd(), positionals[0]) : RECORDING_DIR;
+  const dir = positionals[0] ? resolve(process.cwd(), positionals[0]) : RECORDING_DIR;
   const shown = relative(REPO, dir) || dir;
   if (values.write === values.check) {
     console.error("say --check or --write");
