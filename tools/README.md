@@ -205,7 +205,7 @@ that stalls its landing forever (at its token's create, or after the token at th
 record once it is ready, and close its browser under its page (no `beforeunload`, no teardown) the moment the
 first client sees its claim; the first client, the elect again, must find the claim dead and land the record once —
 the newcomer's claim then its own, the newcomer's token removed, one token and one companion effect standing. Their
-own table; about 20 s a cycle. A probe, not a battery suite: no `COVERS`, not in ORDER.
+own table; about 13 s a cycle. A probe, not a battery suite: no `COVERS`, not in ORDER.
 
 **The two-GM suite sections: `smoke-companions` §9 and `smoke-summons` §10.** Each declares `GM_CLIENTS =
 ["suite", "assistant"]` and, after its single-client body, joins the `assistant` identity

@@ -281,6 +281,40 @@ untouched.
 4. **The two-GM sections**: `smoke-companions` §9, `smoke-summons` §10 (`tools/gm-clients.mjs`, the arrival landing);
    the probe's `hangup-claim` and `hangup-landing` orderings.
 
-**Live** (the sandbox, Foundry 14.369, dnd5e 6.0.6): waits for the 4j sandbox seat — the re-run of §2.5's aimed
-series (`same-moves --aim=-8 --cycles 12`), the two hang-up orderings, the two sections alone, and the full battery.
+**Live** (the sandbox, 2026-10-15: Foundry 14.369, dnd5e 6.0.6, the branch's bytes deployed `--local`, byte-identical;
+`suite` and `assistant` both Assistant GMs, the assistant the lower id; `gm2` absent). The runs are in
+`dist/probe-multi-gm/run-4j-aim.json` and `run-4j-hangup.json`.
+
+- **The aimed series again** (`same-moves --aim=-8 --cycles 12`, §2.5's command): 12 cycles, every record landed once
+  (one claim, one familiar token, one companion effect, one moment, no extra card), 0 ms of overlap, the gap
+  1178–1252 ms (median 1196). 7 answers fell before the arrival (W claimed 7–11 ms after its answer) and 5 in the
+  newcomer's boot (+4 to +671 ms). **The newcomer claimed before its own `ready` in 0 cycles** (the 4e series: 2 of
+  24, cycles 19 and 21, at 1.45–1.49 s). Every boot claim came 0.44–0.46 s after the newcomer's `ready`, 2.81–2.90 s
+  after the arrival (landed 4.95–5.17 s): the buffered path. In this run no snapshot held an answered, unclaimed record
+  (the boot answers all fell after the cut, the pre-arrival ones carried W's claim), so the case the guard closes
+  did not recur; the unit test holds the deferral, and the count says nothing drove from a snapshot.
+- **The hang-up orderings** (`hangup-claim,hangup-landing --cycles 4`): 8 of 8 landed once, by W. In every cycle X
+  claimed, its browser was closed under its page 29–208 ms after (no `beforeunload`, no teardown), and W claimed
+  over the dead stamp 11–34 ms after it heard X go (median 13), the record landed 68–151 ms after X went. In
+  `hangup-landing` the token X had made carried the card and W removed it before landing (4 made, 4 removed); one
+  token and one companion effect stood after every cycle, one moment, no card.
+- **The two-GM sections alone**: `smoke-companions --section 9` 8/8; `smoke-summons --section 10` 7/8 on its first
+  run, red on "no extra card" — the three cards were the BTB Test Paladin's emanation cards, raised by the arriving
+  client as the new elect on the live range, not the landing's; the judge now counts the landing's own cards and
+  logs the rest; the re-run alone 8/8. In both, the assistant client (the new elect) claimed and landed, the answer
+  written 3–4 ms after the arrival.
+- **The battery** (`battery.mjs --changed main`, the full battery: ui.js and core.js are spine):
+  `Battery: 2026-10-15T20-40-45 — 67/67 suites, 2264/2264 checks, GREEN`, 42 min 54 s, the settings CLEAN against the
+  world's own, the fixtures torn down (18 actors, 1 scene, 0 combats); §9 and §10 green inside it. Hook coverage 72/73
+  names (466/467 registrations), the one never fired `dnd5e.advancementManagerComplete` as before.
+
+**Found on the way, not built** (the emanations machine, for its own pass): on an elect hand-off the new elect posts
+the live scene's feature-aura cards again — the BTB Test Paladin's three (Aura of Protection, Courage, Warding),
+about 2.4 s after its arrival, in both solo `smoke-summons` §10 runs (the re-run: after the suite's own three, posted
+7.5 s earlier) and in §9 and §10 inside the battery, not in §9's solo run. Only `reconcileScene`'s creation path posts
+that card, so the newcomer raised the auras anew; three regions stood after the re-run. Not a doubled landing and not
+two writers at once, but if the newcomer first took the old regions down, the aura's members lost and regained their
+effects, and the cards repeat. The likely reading: the newcomer's first liveness read (`liveNow`, the users' viewed
+scenes) does not yet see the other GM viewing the range.
+
 The Gamemaster-beside-Assistant runs wait for the `gm2` user (HANDOFF §7 item 1).
