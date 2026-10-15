@@ -34,7 +34,6 @@ const ts = createRequire(join(ROOT, "package.json"))("typescript");
 /** Bare waits per suite. ⚠ Only goes down: lower a row in the commit that lowers its count. */
 const CEILING = {
   "class-kit": 29,
-  "probe-effect-view": 12,
   "smoke-class-barbarian": 32,
   "smoke-class-bard": 32,
   "smoke-class-cleric": 17,
@@ -61,11 +60,11 @@ const CEILING = {
 
 /** The suites still on their own helpers, not yet on the prelude. ⚠ Only shrinks. */
 const STANDING = new Set([
-  "class-kit", "probe-effect-view", "smoke-class-barbarian", "smoke-class-bard",
-  "smoke-class-cleric", "smoke-class-druid", "smoke-class-fighter", "smoke-class-items",
-  "smoke-class-monk", "smoke-class-paladin", "smoke-class-ranger", "smoke-class-rogue",
-  "smoke-class-sorcerer", "smoke-class-warlock", "smoke-class-wizard", "smoke-goliath",
-  "smoke-maneuvers", "smoke-metamagic", "smoke-reminders", "smoke-saves", "smoke-spells"
+  "class-kit", "smoke-class-barbarian", "smoke-class-bard", "smoke-class-cleric",
+  "smoke-class-druid", "smoke-class-fighter", "smoke-class-items", "smoke-class-monk",
+  "smoke-class-paladin", "smoke-class-ranger", "smoke-class-rogue", "smoke-class-sorcerer",
+  "smoke-class-warlock", "smoke-class-wizard", "smoke-goliath", "smoke-maneuvers",
+  "smoke-metamagic", "smoke-reminders", "smoke-saves", "smoke-spells"
 ]);
 
 /** A name that is a poll by what it is called. */

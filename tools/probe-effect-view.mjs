@@ -30,17 +30,8 @@ announcePlan(TAG, plan, pulled);
 
 const out = await f.evaluate(async ({ sections, titles }) => {
   const MOD = "fvtt-mod-bythebooks";
-  const results = [];
-  const log = [];
-  const skips = [];
-  const ok = (name, pass, detail = "") => results.push({ name, pass: !!pass, detail });
-  const want = id => {
-    if ( !sections || sections.includes(String(id)) ) return true;
-    skips.push(`§${id} ${titles?.[id] ?? ""}`);
-    return false;
-  };
-  const sleep = ms => new Promise(r => setTimeout(r, ms));
-  const until = async (fn, ms = 8000) => { const end = Date.now() + ms; while ( Date.now() < end ) { const v = fn(); if ( v ) return v; await sleep(120); } return fn(); };
+  const { until, watch, tokenOn, viewScene } = window.__btb;
+  const { results, log, skips, ok, want, section } = window.__btb.begin({ sections, titles });
 
   // ---- preflight
   const mod = game.modules.get(MOD);
@@ -64,16 +55,15 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   try {
     // ---- setup (always runs)
     await game.settings.set(MOD, "effectBar", true); await game.settings.set(MOD, "effectHover", true);
-    if ( game.scenes.active?.id !== scene.id ) { await scene.activate(); await sleep(1500); }
-    if ( canvas.scene?.id !== scene.id ) { await scene.view(); await sleep(1500); }
-    await until(() => canvas.ready);
+    // An activation redraws the canvas on its own: let that draw begin before viewing.
+    if ( game.scenes.active?.id !== scene.id ) { await scene.activate(); await until(() => canvas.scene?.id === scene.id, { timeout: 8000 }).catch(() => null); }
+    await viewScene(scene, { timeout: 8000 });
     let doc = scene.tokens.find(t => t.actorId === vanguard.id);
     if ( !doc ) {
       [doc] = await scene.createEmbeddedDocuments("Token", [foundry.utils.mergeObject(vanguard.prototypeToken.toObject(), { x: 500, y: 1400, actorId: vanguard.id, actorLink: true }, { inplace: false })]);
       placed.push(doc.id);
     }
-    await sleep(300);
-    const token = canvas.tokens.get(doc.id);
+    const token = await tokenOn(doc.id).catch(() => null);
     if ( !token ) return { fatal: `the Vanguard's token ${doc.id} is not on the canvas`, results, log, skips };
 
     // two effects the sheet lists: a status (Prone, paints an icon) and a timed buff (Bless, no icon)
@@ -93,7 +83,6 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       { name: CLOCKLESS, img: "icons/svg/skull.svg", changes: [] }
     ]);
     log.push(`seeded an applied, clockless "${CLOCKLESS}" for the run`);
-    await sleep(300);
     const facts = [...vanguard.allApplicableEffects()].filter(e => e.isTemporary || e.statuses.size).map(e => ({ name: e.name, active: e.active, temporary: e.isTemporary, statuses: [...e.statuses], label: e.duration?.label ?? null }));
     log.push(`facts: ${JSON.stringify(facts)}`);
 
@@ -103,11 +92,12 @@ const out = await f.evaluate(async ({ sections, titles }) => {
 
     // Control the token so the bar draws; read in setup because §2's card is held to the same list.
     token.control({ releaseOthers: true });
-    const bar = await until(() => { const b = document.getElementById("bf-effect-view-bar"); return (b && !b.classList.contains("empty") && b.querySelector(".bf-ev-chip")) ? b : null; });
+    // The Vanguard's own bar, drawn after the control (the sheet writes above it coalesce into that draw); §1 reports a missing one.
+    const bar = await until(() => { const b = document.getElementById("bf-effect-view-bar"); return (b && !b.classList.contains("empty") && b.querySelector(".bf-ev-chip") && (b.dataset.actor === vanguard.uuid)) ? b : null; }, { timeout: 8000 }).catch(() => null);
     const barNames = bar ? [...bar.querySelectorAll(".bf-ev-chip .nm")].map(n => n.textContent) : [];
 
     // ---- 1. the bar
-    if ( want(1) ) {
+    if ( want(1) ) await section(1, async () => {
       ok("1. the bar draws above the hotbar for the controlled token: Prone (debuff) first, Bless and the applied Death Armor listed, the worn Cloak not",
         !!bar && (barNames[0] === "Prone") && barNames.includes("Bless") && barNames.includes(CLOCKLESS) && !barNames.some(n => n.startsWith("Bonus AC")), `chips=${JSON.stringify(barNames)}`);
       const tempChip = bar ? [...bar.querySelectorAll(".bf-ev-chip")].find(c => c.querySelector(".nm")?.textContent === "Temporary HP") : null;
@@ -121,39 +111,39 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         tagged.includes(CLOCKLESS) && !tagged.includes("Bless") && !tagged.includes("Prone"), `tagged=${JSON.stringify(tagged)}`);
       ok("1d. a clockless row shows no clock at all — never the platform's \"None\"",
         !!bar && ![...bar.querySelectorAll(".bf-ev-chip .clk")].some(c => /none/i.test(c.textContent)), "");
-    }
+    });
 
     // ---- 2. the hover card
     // The platform's hook, as a mouse-over fires it. Never for a CONTROLLED token (the bar is its
     // list), so the card is proved on the token released.
-    if ( want(2) ) {
+    if ( want(2) ) await section(2, async () => {
       Hooks.callAll("hoverToken", token, true);
-      await sleep(150);
-      ok("2c. a controlled token gets no hover card — the bar is its list (2026-09-18)", !document.querySelector(`.bf-ev-card[data-token="${token.id}"]`), "");
+      const stray = await watch(() => document.querySelector(`.bf-ev-card[data-token="${token.id}"]`), { ms: 150 });
+      ok("2c. a controlled token gets no hover card — the bar is its list (2026-09-18)", !stray && !document.querySelector(`.bf-ev-card[data-token="${token.id}"]`), "");
       token.release();
-      await sleep(150);
+      await until(() => !token.controlled, { label: "the Vanguard released" });
       Hooks.callAll("hoverToken", token, true);
-      const card = await until(() => document.querySelector(`.bf-ev-card[data-token="${token.id}"]`), 3000);
+      const card = await until(() => document.querySelector(`.bf-ev-card[data-token="${token.id}"]`), { timeout: 3000 });
       ok("2. the hover card appears for the token with the same list",
         !!card && (card.querySelectorAll(".bf-ev-chip").length === barNames.length), `chips=${card?.querySelectorAll(".bf-ev-chip").length}`);
       Hooks.callAll("hoverToken", token, false);
-      await sleep(100);
+      await until(() => !document.querySelector(`.bf-ev-card[data-token="${token.id}"]`), { timeout: 3000, label: "the hover card gone" });
       ok("2b. and leaves when the hover ends", !document.querySelector(`.bf-ev-card[data-token="${token.id}"]`), "");
       token.control({ releaseOthers: true });
-      await sleep(150);
-    }
+      await until(() => token.controlled, { label: "the Vanguard controlled again" });
+    });
 
     // ---- 3. the held key
     // Foundry fires highlightObjects on Alt.
-    if ( want(3) ) {
+    if ( want(3) ) await section(3, async () => {
       Hooks.callAll("highlightObjects", true);
-      const overlay = await until(() => document.querySelectorAll(".bf-ev-card").length ? document.querySelectorAll(".bf-ev-card") : null, 3000);
+      const overlay = await until(() => document.querySelectorAll(".bf-ev-card").length ? document.querySelectorAll(".bf-ev-card") : null, { timeout: 3000 });
       ok("3. the held key shows a card for every creature with effects (the Vanguard at least)",
         !!overlay && [...overlay].some(c => c.querySelector("h4")?.textContent.includes("BTB Test Vanguard")), `cards=${overlay?.length}`);
       Hooks.callAll("highlightObjects", false);
-      await sleep(100);
+      await until(() => document.querySelectorAll(".bf-ev-card").length === 0, { timeout: 3000, label: "the held-key cards cleared" });
       ok("3b. and clears on release", document.querySelectorAll(".bf-ev-card").length === 0, "");
-    }
+    });
 
     // ⚠ Re-take the token before each bar section: a scene redraw can drop control and stale the
     // cached token object.
@@ -161,7 +151,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const live = canvas.tokens.get(doc.id);
       if ( live && !live.controlled ) live.control({ releaseOthers: true });
       const held = await until(() => (canvas.tokens.controlled[0]?.actor === vanguard)
-        && (document.getElementById("bf-effect-view-bar")?.dataset.actor === vanguard.uuid), 3000);
+        && (document.getElementById("bf-effect-view-bar")?.dataset.actor === vanguard.uuid), { timeout: 3000 }).catch(() => null);
       if ( !held ) log.push(`§${section}: could not hold the Vanguard — controlled=${canvas.tokens.controlled.map(t => t.name).join(",") || "none"} `
         + `bar.actor=${document.getElementById("bf-effect-view-bar")?.dataset.actor ?? null} token=${!!live}`);
       return !!held;
@@ -169,38 +159,38 @@ const out = await f.evaluate(async ({ sections, titles }) => {
 
     // ---- 4. the bar follows the sheet
     // Delete Bless, the chip leaves.
-    if ( want(4) ) {
+    if ( want(4) ) await section(4, async () => {
       await hold(4);
       await vanguard.deleteEmbeddedDocuments("ActiveEffect", [madeBless.id]);
-      const gone = await until(() => { const b = document.getElementById("bf-effect-view-bar"); const names = b ? [...b.querySelectorAll(".bf-ev-chip .nm")].map(n => n.textContent) : []; return names.includes("Bless") ? null : names; }, 3000);
+      const gone = await until(() => { const b = document.getElementById("bf-effect-view-bar"); const names = b ? [...b.querySelectorAll(".bf-ev-chip .nm")].map(n => n.textContent) : []; return names.includes("Bless") ? null : names; }, { timeout: 3000 });
       ok("4. the bar redraws when an effect is deleted", Array.isArray(gone) && !gone.includes("Bless") && gone.includes("Prone"), `chips=${JSON.stringify(gone)}`);
-    }
+    });
 
     // ---- 6. the bar's actions
     // A chip opens a fold with Remove, for an owner. Runs before §5, whose switch takes the bar away.
-    if ( want(6) ) {
+    if ( want(6) ) await section(6, async () => {
       await hold(6);
       const barEl = () => document.getElementById("bf-effect-view-bar");
       const chipNamed = name => [...(barEl()?.querySelectorAll("button.bf-ev-chip") ?? [])].find(c => c.querySelector(".nm")?.textContent === name) ?? null;
       const proneChip = chipNamed("Prone");
       proneChip?.click();
-      const fold = await until(() => barEl()?.querySelector(".bf-ev-fold"), 2000);
+      const fold = await until(() => barEl()?.querySelector(".bf-ev-fold"), { timeout: 2000 });
       const foldActions = fold ? [...fold.querySelectorAll("button")].map(b => b.dataset.action) : [];
       ok("6. a chip click opens a fold upward with Remove and nothing else (the GM owns every creature)",
         !!fold && foldActions.length === 1 && foldActions[0] === "remove",
         `actions=${JSON.stringify(foldActions)} proneChip=${!!proneChip} chips=${JSON.stringify([...(barEl()?.querySelectorAll(".bf-ev-chip .nm") ?? [])].map(n => n.textContent))}`);
       fold?.querySelector('button[data-action="remove"]')?.click();
-      const proneGone = await until(() => vanguard.effects.get(madeProne.id) ? null : true, 4000);
+      const proneGone = await until(() => vanguard.effects.get(madeProne.id) ? null : true, { timeout: 4000 });
       ok("6c. Remove deletes the effect, and the bar redraws without it",
-        proneGone === true && !!(await until(() => chipNamed("Prone") ? null : true, 3000)), "");
+        proneGone === true && !!(await until(() => chipNamed("Prone") ? null : true, { timeout: 3000 }).catch(() => null)), "");
       chipNamed("Temporary HP")?.click();
-      const fold3 = await until(() => barEl()?.querySelector(".bf-ev-fold"), 2000);
+      const fold3 = await until(() => barEl()?.querySelector(".bf-ev-fold"), { timeout: 2000 });
       const clearLabel = fold3?.querySelector('button[data-action="clear"]')?.textContent ?? null;
       fold3?.querySelector('button[data-action="clear"]')?.click();
-      const cleared = await until(() => (vanguard.system.attributes.hp.temp ?? 0) === 0 ? true : null, 4000);
+      const cleared = await until(() => (vanguard.system.attributes.hp.temp ?? 0) === 0 ? true : null, { timeout: 4000 });
       ok("6d. a sheet row's fold says Clear, and Clear zeroes the temp HP", clearLabel === "Clear" && cleared === true, `label=${clearLabel} temp=${vanguard.system.attributes.hp.temp}`);
       barEl()?.querySelector("button.who")?.click();
-      const panel = await until(() => barEl()?.querySelector(".bf-ev-panel"), 2000);
+      const panel = await until(() => barEl()?.querySelector(".bf-ev-panel"), { timeout: 2000 });
       const panelNames = panel ? [...panel.querySelectorAll(".bf-ev-chip .nm")].map(n => n.textContent) : [];
       const panelLabels = panel ? [...panel.querySelectorAll(".bf-ev-lbl")].map(l => l.textContent) : [];
       ok("6e. the name opens the full list upward — ALL of it, grouped as the sheet groups it: the passives (the worn Cloak) join the temporaries, each row clickable",
@@ -208,17 +198,17 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           && panelLabels.includes("Temporary") && panelLabels.includes("Passive") && !!panel.querySelector("button.bf-ev-chip"),
         `groups=${JSON.stringify(panelLabels)} rows=${JSON.stringify(panelNames)}`);
       document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
-      await sleep(100);
+      await until(() => !barEl()?.querySelector(".bf-ev-panel"), { timeout: 3000, label: "the full panel closed" });
       ok("6f. Escape closes it", !barEl()?.querySelector(".bf-ev-panel"), "");
-    }
+    });
 
     // ---- 5. the switch
     // Off, the bar leaves — the setting's onChange publishes effectViewChanged, the bar's redraw hears it.
-    if ( want(5) ) {
+    if ( want(5) ) await section(5, async () => {
       await game.settings.set(MOD, "effectBar", false);
-      const off = await until(() => document.getElementById("bf-effect-view-bar") ? null : true, 3000);
+      const off = await until(() => document.getElementById("bf-effect-view-bar") ? null : true, { timeout: 3000 });
       ok("5. the client switch off removes the bar", off === true, "");
-    }
+    });
 
     return { results, log, skips };
   } catch(err) {
@@ -230,7 +220,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     try { canvas.tokens?.releaseAll?.(); } catch { /* fine */ }
     try { if ( placed.length ) await scene.deleteEmbeddedDocuments("Token", placed); } catch(err) { log.push(`cleanup tokens: ${err?.message}`); }
     try { await game.settings.set(MOD, "effectBar", priorBar); await game.settings.set(MOD, "effectHover", priorHover); } catch { /* fine */ }
-    try { const back = priorActiveScene ? game.scenes.get(priorActiveScene) : null; if ( back && (game.scenes.active?.id !== back.id) ) { await back.activate(); await sleep(800); } } catch { /* fine */ }
+    try { const back = priorActiveScene ? game.scenes.get(priorActiveScene) : null; if ( back && (game.scenes.active?.id !== back.id) ) { await back.activate(); await until(() => canvas.ready && (canvas.scene?.id === back.id), { timeout: 4000 }).catch(() => null); } } catch { /* fine */ }
   }
 }, sectionArg(plan, SECTIONS));
 
