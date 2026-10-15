@@ -30,16 +30,8 @@ announcePlan('aasimar', plan, pulled);
 
 const out = await f.evaluate(async ({ sections, titles }) => {
   const MOD = 'fvtt-mod-bythebooks';
-  const results = [];
-  const log = [];
-  const skips = [];
-  const ok = (name, pass, detail = '') => results.push({ name, pass, detail });
-  const want = id => {
-    if (!sections || sections.includes(String(id))) return true;
-    skips.push(`§${id} ${titles?.[id] ?? ''}`);
-    return false;
-  };
-  const sleep = ms => new Promise(r => setTimeout(r, ms));
+  const { until, watch, canvasReady, tokenOn, snapshotSettings, faces, unrig } = window.__btb;
+  const { results, log, skips, ok, want, section } = window.__btb.begin({ sections, titles });
   const suiteStart = Date.now();
 
   const mod = game.modules.get(MOD);
@@ -49,8 +41,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   const SETTING_KEYS = ['autoDamage', 'autoApply', 'playerRollDamage', 'damageTimer', 'dramaticBeat', 'requireTarget',
     'reactionHold', 'holdTimer', 'riders', 'effectRiders', 'masteryRiders', 'masteryAsk', 'saves', 'saveTimer', 'castApply',
     'concMode', 'reminderList', 'clockRiderList', 'damageEitherList', 'emanations', 'emanationList', 'tokenLightList', 'metamagicList'];
-  const prior = Object.fromEntries(SETTING_KEYS.map(k => [k, game.settings.get(MOD, k)]));
-  const set = (k, v) => game.settings.set(MOD, k, v);
+  const settings = snapshotSettings(SETTING_KEYS);
+  const { set } = settings;
   const def = k => game.settings.settings.get(`${MOD}.${k}`)?.default;
 
   const scene = game.scenes.getName('By the Books Test Range');
@@ -63,13 +55,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   const priorActor = {};
   let combat = null;
   let restored = false;
-  const realPRNG = CONFIG.Dice.randomUniform;
-  const faces = spec => {
-    const queue = spec.map(([n, of]) => 1 - ((n - 0.5) / of));
-    let i = 0;
-    CONFIG.Dice.randomUniform = () => queue[Math.min(i++, queue.length - 1)];
-  };
-  const realDice = () => { CONFIG.Dice.randomUniform = realPRNG; };
+  const realDice = () => { unrig(); };
   const ours = e => e.getFlag(MOD, 'tokenLight') || e.getFlag(MOD, 'formChip') || e.getFlag(MOD, 'mastery')
     || /^(Searing Radiance|Heavenly Wings|Necrotic Shroud|Light)$/.test(e.name) || /Celestial Revelation|used this turn/.test(e.name);
   const clearEffects = async () => {
@@ -86,8 +72,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     if (restored) return;
     restored = true;
     realDice();
-    try { for (const [k, v] of Object.entries(prior)) await set(k, v); }
-    catch (err) { log.push(`TEARDOWN settings ERROR: ${err?.message}`); }
+    for (const failed of await settings.restore()) log.push(`TEARDOWN settings ERROR: ${failed}`);
     try {
       await clearEffects();
       try { if (combat && game.combats.get(combat.id)) await combat.delete(); } catch { /* gone */ }
@@ -136,7 +121,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
 
     // ---- fixtures
     if (canvas.scene?.id !== scene.id) await scene.view();
-    for (let i = 0; i < 40 && !canvas.ready; i++) await sleep(250);
+    await canvasReady();
     const strays = scene.tokens.filter(t => [victim.id, aas.id].includes(t.actorId)).map(t => t.id);
     if (strays.length) await scene.deleteEmbeddedDocuments('Token', strays);
     const px = scene.grid.size / scene.grid.distance;
@@ -144,7 +129,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const [doc] = await scene.createEmbeddedDocuments('Token', [
         foundry.utils.mergeObject(actor.prototypeToken.toObject(), { x, y, actorId: actor.id, actorLink: true }, { inplace: false })]);
       created.tokens.push(doc.id);
-      for (let i = 0; i < 40 && !(canvas.ready && canvas.tokens.get(doc.id)); i++) await sleep(250);
+      await tokenOn(doc.id);
       const token = canvas.tokens.get(doc.id);
       if (!token) throw new Error(`${actor.name}'s token never reached the canvas`);
       return { doc, token };
@@ -183,20 +168,17 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     const freshUse = async () => rev.update({ 'system.uses.spent': 0 });
 
     // ---- helpers
-    const waitFor = async (test, timeout = 8000) => {
-      const until = Date.now() + timeout;
-      while (Date.now() < until) { const v = test(); if (v) return v; await sleep(200); }
-      return test();
-    };
     const textOf = el => (el?.textContent ?? '').replace(/\s+/g, ' ').trim();
     const cardEl = id => document.querySelector(`.message[data-message-id="${id}"]`);
     const use = async (activity, config = {}) => {
       aasToken.control({ releaseOthers: true });
       let settled = false;
-      const res = await Promise.race([
-        activity.use({ consume: { spellSlot: false }, ...config }, { configure: false }, { create: true }).then(r => { settled = true; return r; }),
-        sleep(8000).then(() => null)
-      ]).catch(err => { log.push(`use(${activity.name}): ${err?.message}`); return null; });
+      let failed = false;
+      let res = null;
+      activity.use({ consume: { spellSlot: false }, ...config }, { configure: false }, { create: true })
+        .then(r => { settled = true; res = r; }, err => { failed = true; log.push(`use(${activity.name}): ${err?.message}`); });
+      // A use that waits on a placement click never settles: 8 s is its window, and `settled` says which it was.
+      await until(() => settled || failed, { timeout: 8000, label: `the use of ${activity.name} settled` }).catch(() => null);
       return { res, settled };
     };
     const target = (...tokens) => {
@@ -209,13 +191,13 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     const swing = async () => {
       aasToken.control({ releaseOthers: true });
       target(victimToken);
-      await sleep(80);
       faces([[15, 20], [3, 6]]);
       const results = await swordAct.use({ subsequentActions: false }, { configure: false }, {});
       const rolls = await swordAct.rollAttack({}, { configure: false }, results?.message?.id ? { data: { 'system.origin': results.message.id } } : {});
       const attackMsg = rolls?.[0]?.parent ?? null;
       const originId = attackMsg?._source.system?.origin ?? attackMsg?.id;
-      const dmg = await waitFor(() => damageFor(originId), 15000);
+      // A swing with no damage message is logged and handed back as null (the callers read `!!dmg`).
+      const dmg = await until(() => damageFor(originId), { timeout: 15000 }).catch(() => null);
       realDice();
       if (!dmg) log.push(`swing: no damage message for ${originId}`);
       return dmg;
@@ -225,49 +207,53 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     const lightOf = doc => ({ bright: scene.tokens.get(doc.id)?.light?.bright ?? null, dim: scene.tokens.get(doc.id)?.light?.dim ?? null });
 
     // ---- 1. Necrotic Shroud
-    if (want(1)) {
+    if (want(1)) await section(1, async () => {
       await freshUse();
       target();
       faces([[1, 20]]);   // the victim's save, when the buzzer rolls it
-      const { settled } = await use(shroudAct);
-      ok('1a. the use settles with no placement click (the prompt is off for a self-centered area)', settled, '');
-      const area = await waitFor(() => scene.regions.find(r => r.getFlag('dnd5e', 'activity') === shroudAct.uuid) ?? null, 8000);
-      const shape = area?.shapes?.[0];
-      ok('1b. the area is on the Aasimar\'s token — an attached emanation, 10 ft from the edge, never drawn (the ring ruling reaches every area placed on a token)',
-        !!area && (area.attachment?.token?.id === aasDoc.id) && (shape?.type === 'emanation') && (shape?.radius === 10 * px) && (area.visibility === CONST.REGION_VISIBILITY.LAYER_UNLOCKED) && area.locked,
-        `area=${area?.id} attached=${area?.attachment?.token?.id} shape=${JSON.stringify(shape)} visibility=${area?.visibility}`);
-      const demand = await waitFor(() => game.messages.contents.filter(m => (m.timestamp >= suiteStart) && (m.getFlag(MOD, 'saves')?.activityUuid === shroudAct.uuid)).at(-1)?.getFlag(MOD, 'saves')?.targets?.length
-        ? game.messages.contents.filter(m => (m.timestamp >= suiteStart) && (m.getFlag(MOD, 'saves')?.activityUuid === shroudAct.uuid)).at(-1) : null, 10000);
-      const names = demand?.getFlag(MOD, 'saves')?.targets?.map(t => t.name) ?? [];
-      ok('1c. the save asks the hostile beside the Aasimar and NOT the ally or the Aasimar ("creatures other than your allies")',
-        names.includes(victimDoc.name) && !names.includes(allyDoc.name) && !names.includes(aasDoc.name), `targets=[${names.join(', ')}]`);
-      const chip = await waitFor(() => aas.effects.find(e => e.getFlag(MOD, 'formChip')?.form === 'necrotic shroud') ?? null, 6000);
-      ok('1d. the form chip marks the Aasimar: "Celestial Revelation: Necrotic Shroud", the transformation\'s minute',
-        !!chip && (chip.name === 'Celestial Revelation: Necrotic Shroud') && (chip.duration?.seconds === 60 || chip.duration?.value === 1 || chip._source.duration?.value === 1),
-        `chip=${chip?.name} duration=${JSON.stringify(chip?._source?.duration)}`);
-      const frightened = await waitFor(() => victim.effects.find(e => (e.name === 'Necrotic Shroud') && e.statuses.has('frightened')) ?? null, 15000);
-      realDice();
-      // Errata 5e has no settings: the module enabled means every fix is on, E-002 among them.
-      const errataOn = !!game.modules.get('fvtt-mod-errata5e')?.active;
-      if (errataOn) {
-        ok('1e. the failed save frightens — and (Errata 5e E-002) until the end of the Aasimar\'s next turn: expiry sourceEnd',
-          !!frightened && (frightened._source.duration?.expiry === 'sourceEnd'), `effect=${frightened?.name} duration=${JSON.stringify(frightened?._source?.duration)}`);
-      } else {
-        ok('1e. the failed save frightens (Errata 5e is off or absent here — the clock is the pack\'s)', !!frightened,
-          `errata5e active=${errataOn} duration=${JSON.stringify(frightened?._source?.duration)}`);
+      try {
+        const { settled } = await use(shroudAct);
+        ok('1a. the use settles with no placement click (the prompt is off for a self-centered area)', settled, '');
+        const area = await until(() => scene.regions.find(r => r.getFlag('dnd5e', 'activity') === shroudAct.uuid) ?? null, { timeout: 8000 });
+        const shape = area?.shapes?.[0];
+        ok('1b. the area is on the Aasimar\'s token — an attached emanation, 10 ft from the edge, never drawn (the ring ruling reaches every area placed on a token)',
+          !!area && (area.attachment?.token?.id === aasDoc.id) && (shape?.type === 'emanation') && (shape?.radius === 10 * px) && (area.visibility === CONST.REGION_VISIBILITY.LAYER_UNLOCKED) && area.locked,
+          `area=${area?.id} attached=${area?.attachment?.token?.id} shape=${JSON.stringify(shape)} visibility=${area?.visibility}`);
+        const demand = await until(() => game.messages.contents.filter(m => (m.timestamp >= suiteStart) && (m.getFlag(MOD, 'saves')?.activityUuid === shroudAct.uuid)).at(-1)?.getFlag(MOD, 'saves')?.targets?.length
+          ? game.messages.contents.filter(m => (m.timestamp >= suiteStart) && (m.getFlag(MOD, 'saves')?.activityUuid === shroudAct.uuid)).at(-1) : null, { timeout: 10000 });
+        const names = demand?.getFlag(MOD, 'saves')?.targets?.map(t => t.name) ?? [];
+        ok('1c. the save asks the hostile beside the Aasimar and NOT the ally or the Aasimar ("creatures other than your allies")',
+          names.includes(victimDoc.name) && !names.includes(allyDoc.name) && !names.includes(aasDoc.name), `targets=[${names.join(', ')}]`);
+        const chip = await until(() => aas.effects.find(e => e.getFlag(MOD, 'formChip')?.form === 'necrotic shroud') ?? null, { timeout: 6000 });
+        ok('1d. the form chip marks the Aasimar: "Celestial Revelation: Necrotic Shroud", the transformation\'s minute',
+          !!chip && (chip.name === 'Celestial Revelation: Necrotic Shroud') && (chip.duration?.seconds === 60 || chip.duration?.value === 1 || chip._source.duration?.value === 1),
+          `chip=${chip?.name} duration=${JSON.stringify(chip?._source?.duration)}`);
+        const frightened = await until(() => victim.effects.find(e => (e.name === 'Necrotic Shroud') && e.statuses.has('frightened')) ?? null, { timeout: 15000 });
+        realDice();
+        // Errata 5e has no settings: the module enabled means every fix is on, E-002 among them.
+        const errataOn = !!game.modules.get('fvtt-mod-errata5e')?.active;
+        if (errataOn) {
+          ok('1e. the failed save frightens — and (Errata 5e E-002) until the end of the Aasimar\'s next turn: expiry sourceEnd',
+            !!frightened && (frightened._source.duration?.expiry === 'sourceEnd'), `effect=${frightened?.name} duration=${JSON.stringify(frightened?._source?.duration)}`);
+        } else {
+          ok('1e. the failed save frightens (Errata 5e is off or absent here — the clock is the pack\'s)', !!frightened,
+            `errata5e active=${errataOn} duration=${JSON.stringify(frightened?._source?.duration)}`);
+        }
+        const dmg = await swing();
+        const r = revRider(dmg);
+        ok(`1f. a weapon hit while the Shroud stands carries +${pb} NECROTIC (the form's type)`, !!r && (r.type === 'necrotic') && (String(r.formula) === String(pb)),
+          `rider=${JSON.stringify(r)}`);
+      } finally {
+        realDice();
+        for (const x of scene.regions.filter(r2 => r2.getFlag('dnd5e', 'activity') === shroudAct.uuid)) await x.delete().catch(() => {});
+        await clearEffects();
+        await healAll();
       }
-      const dmg = await swing();
-      const r = revRider(dmg);
-      ok(`1f. a weapon hit while the Shroud stands carries +${pb} NECROTIC (the form's type)`, !!r && (r.type === 'necrotic') && (String(r.formula) === String(pb)),
-        `rider=${JSON.stringify(r)}`);
-      for (const x of scene.regions.filter(r2 => r2.getFlag('dnd5e', 'activity') === shroudAct.uuid)) await x.delete().catch(() => {});
-      await clearEffects();
-      await healAll();
-    }
+    });
 
     // ---- 2. Inner Radiance
     let searing = null;
-    if (want(2)) {
+    if (want(2)) await section(2, async () => {
       await freshUse();
       target(victimToken);
       const before = new Set(game.messages.map(m => m.id));
@@ -276,55 +262,61 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const { settled } = await use(irAct);
       setTimeout(() => Hooks.off('dnd5e.preRollDamage', trace), 4000);
       ok('2a. the transform settles with no placement click', settled, '');
-      searing = await waitFor(() => aas.effects.find(e => (e.name === 'Searing Radiance') && e.getFlag(MOD, 'tokenLight')) ?? null, 8000);
+      searing = await until(() => aas.effects.find(e => (e.name === 'Searing Radiance') && e.getFlag(MOD, 'tokenLight')) ?? null, { timeout: 8000 });
       const keys = (searing?.system?.changes ?? []).map(c => `${c.key}=${c.value}`);
       ok('2b. Searing Radiance lands on the Aasimar carrying the light (token.light.bright 10, token.light.dim 20)',
         !!searing && keys.includes('token.light.bright=10') && keys.includes('token.light.dim=20'), `effect=${searing?.name} changes=[${keys.join(', ')}]`);
-      const lit = await waitFor(() => (lightOf(aasDoc).bright === 10) ? lightOf(aasDoc) : null, 5000);
+      const lit = await until(() => (lightOf(aasDoc).bright === 10) ? lightOf(aasDoc) : null, { timeout: 5000 });
       ok('2c. the token itself sheds it: 10 ft Bright, 20 ft Dim', !!lit && (lit.dim === 20), `light=${JSON.stringify(lightOf(aasDoc))} before=${JSON.stringify(baseLight)}`);
-      const rg = await waitFor(() => ring()?.behaviors?.find(b => b.type === `${MOD}.emanation`) ? ring() : null, 8000);
+      const rg = await until(() => ring()?.behaviors?.find(b => b.type === `${MOD}.emanation`) ? ring() : null, { timeout: 8000 });
       ok('2d. the 10-ft ring stands on the Aasimar (reach every creature) while Searing Radiance does',
         !!rg && (rg.shapes?.[0]?.radius === 10 * px) && (rg.behaviors.find(b => b.type === `${MOD}.emanation`)?.system?.reach === 'all'),
         `ring=${rg?.id} radius=${rg?.shapes?.[0]?.radius} reach=${rg?.behaviors.find(b => b.type === `${MOD}.emanation`)?.system?.reach}`);
-      await sleep(1500);
+      // The window a damage roll, an area for the use or Searing Radiance on the victim must NOT arrive in.
+      const stray = await watch(() => game.messages.find(m => !before.has(m.id) && (m.type === 'damage'))
+        ?? scene.regions.find(r => r.getFlag('dnd5e', 'activity') === irAct.uuid)
+        ?? victim.effects.find(e => e.name === 'Searing Radiance'), { ms: 1500 });
       const fresh = game.messages.filter(m => !before.has(m.id));
       const damageRolls = fresh.filter(m => m.type === 'damage');
       const placed = scene.regions.filter(r => r.getFlag('dnd5e', 'activity') === irAct.uuid);
       ok('2e. no damage at the transform and no area placed for it (the pulse is the damage; the ring is the area)',
-        !damageRolls.length && !placed.length && !victim.effects.some(e => e.name === 'Searing Radiance'),
-        `damage=${damageRolls.length} placed=${placed.length} ${damageRolls.map(m => `[${m.getAssociatedActivity?.()?.item?.name}/${m.getAssociatedActivity?.()?.name} flags=${Object.keys(m.flags?.[MOD] ?? {}).join(',')} origin=${m._source.system?.origin}]`).join(' ')}`);
-      const card = fresh.find(m => m.getFlag(MOD, 'emanationCard')?.key === 'Inner Radiance');
+        !stray && !damageRolls.length && !placed.length && !victim.effects.some(e => e.name === 'Searing Radiance'),
+        `stray=${stray?.name ?? stray?.id ?? null} damage=${damageRolls.length} placed=${placed.length} ${damageRolls.map(m => `[${m.getAssociatedActivity?.()?.item?.name}/${m.getAssociatedActivity?.()?.name} flags=${Object.keys(m.flags?.[MOD] ?? {}).join(',')} origin=${m._source.system?.origin}]`).join(' ')}`);
+      const card = await until(() => game.messages.find(m => !before.has(m.id) && (m.getFlag(MOD, 'emanationCard')?.key === 'Inner Radiance')),
+        { timeout: 5000, label: 'the ring\'s announcement card' });
       ok('2f. the ring is announced, naming the pulse', !!card && /end of your turns/.test(textOf(cardEl(card.id)) || card.content), (card?.content ?? '').replace(/<[^>]+>/g, ' ').slice(0, 200));
-      const useCard = fresh.find(m => m.getFlag(MOD, 'tokenLight'));
+      // The effect receipt joins the use's card after its token-light record.
+      const useCard = await until(() => game.messages.find(m => !before.has(m.id) && m.getFlag(MOD, 'tokenLight')?.landed?.length && m.getFlag(MOD, 'effectReceipt')),
+        { timeout: 5000, label: 'the use\'s card with its light landed and its effect receipt' });
       ok('2g. the use\'s card says the light landed (Token light) and carries the effect receipt', !!useCard?.getFlag(MOD, 'tokenLight')?.landed?.length && !!useCard?.getFlag(MOD, 'effectReceipt'),
         JSON.stringify(useCard?.getFlag(MOD, 'tokenLight')));
-    }
+    });
 
     // ---- 3. a spell's damage, the ONE target
-    if (want(3) && searing) {
+    if (want(3) && searing) await section(3, async () => {
       await healAll();
       target(victimToken);
       faces([[1, 20]]);   // every die its lowest: the victim's save fails, the flame deals 1
       await use(flame.system.activities.find(a => a.type === 'save'));
-      const spellDmg = await waitFor(() => game.messages.contents.filter(m => (m.timestamp >= suiteStart) && (m.type === 'damage') && (m.getFlag(MOD, 'receipt')?.targets?.length)
-        && (m.getAssociatedActivity?.()?.item?.name === 'Sacred Flame')).at(-1) ?? null, 15000);
+      const spellDmg = await until(() => game.messages.contents.filter(m => (m.timestamp >= suiteStart) && (m.type === 'damage') && (m.getFlag(MOD, 'receipt')?.targets?.length)
+        && (m.getAssociatedActivity?.()?.item?.name === 'Sacred Flame')).at(-1) ?? null, { timeout: 15000 });
       realDice();
       ok('3a. Sacred Flame\'s damage landed on the victim (a receipt on its damage card)', !!spellDmg, '');
-      const offer = await waitFor(() => [...(cardEl(spellDmg?.id)?.querySelectorAll('button') ?? [])].find(b => textOf(b) === victimDoc.name) ?? null, 5000);
+      const offer = await until(() => [...(cardEl(spellDmg?.id)?.querySelectorAll('button') ?? [])].find(b => textOf(b) === victimDoc.name) ?? null, { timeout: 5000 });
       ok(`3b. the card offers +${pb} radiant to one damaged target — a button per creature`, !!offer && /Celestial Revelation — \+\d+ radiant to one target/.test(textOf(cardEl(spellDmg?.id))),
         textOf(cardEl(spellDmg?.id)).slice(-240));
       const hp0 = victim.system.attributes.hp.value;
       offer?.click();
-      const riderCard = await waitFor(() => game.messages.contents.find(m => (m.timestamp >= suiteStart) && m.getFlag(MOD, 'spellRiderCard') && m.getFlag(MOD, 'receipt')) ?? null, 8000);
+      const riderCard = await until(() => game.messages.contents.find(m => (m.timestamp >= suiteStart) && m.getFlag(MOD, 'spellRiderCard') && m.getFlag(MOD, 'receipt')) ?? null, { timeout: 8000 });
       const taken = riderCard?.getFlag(MOD, 'receipt')?.targets?.[0]?.taken;
       ok(`3c. the pick lands ${pb} radiant on the victim on its own card, with a receipt`, (taken === pb) && (victim.system.attributes.hp.value === hp0 - pb), `taken=${taken} hp ${hp0}→${victim.system.attributes.hp.value}`);
-      const named = await waitFor(() => { const t = textOf(cardEl(spellDmg?.id)); return (!/to one target \(/.test(t) && /Celestial Revelation — \+\d+ radiant to/.test(t)) ? t : null; }, 6000);
+      const named = await until(() => { const t = textOf(cardEl(spellDmg?.id)); return (!/to one target \(/.test(t) && /Celestial Revelation — \+\d+ radiant to/.test(t)) ? t : null; }, { timeout: 6000 });
       ok('3d. the offer is gone and the spell\'s card names where the extra went', !!named,
         `flag=${JSON.stringify(game.messages.get(spellDmg?.id)?.getFlag(MOD, 'spellRider'))} text=${textOf(cardEl(spellDmg?.id)).slice(0, 400)}`);
-    }
+    });
 
     // ---- 4. the pulse
-    if (want(4) && searing) {
+    if (want(4) && searing) await section(4, async () => {
       await healAll();
       if (game.combat) await game.combat.delete();
       combat = await Combat.create({ scene: scene.id });
@@ -333,24 +325,28 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         { actorId: victim.id, tokenId: victimDoc.id, sceneId: scene.id, initiative: 10 },
         { actorId: ally.id, tokenId: allyDoc.id, sceneId: scene.id, initiative: 5 }]);
       await combat.startCombat();
-      await sleep(600);
+      await until(() => combat.started, { label: 'the combat started' });
       ok('4-. the Aasimar has the turn', combat.combatant?.actorId === aas.id, `current=${combat.combatant?.name}`);
       await combat.nextTurn();
-      const pulseCard = await waitFor(() => game.messages.contents.find(m => (m.timestamp >= suiteStart) && m.getFlag(MOD, 'emanationPulse') && m.getFlag(MOD, 'receipt')?.targets?.length >= 2) ?? null, 10000);
+      const pulseCard = await until(() => game.messages.contents.find(m => (m.timestamp >= suiteStart) && m.getFlag(MOD, 'emanationPulse') && m.getFlag(MOD, 'receipt')?.targets?.length >= 2) ?? null, { timeout: 10000 });
       const rec = pulseCard?.getFlag(MOD, 'receipt')?.targets ?? [];
       const byName = Object.fromEntries(rec.map(t => [t.name, t.taken]));
       ok(`4a. the turn ended: ONE card, every creature within 10 ft takes ${pb} radiant — the hostile AND the ally`,
         (byName[victimDoc.name] === pb) && (byName[allyDoc.name] === pb), JSON.stringify(byName));
       ok('4b. the Aasimar takes none of its own light', !(aasDoc.name in byName), JSON.stringify(Object.keys(byName)));
-      await sleep(1200);
-      const again = game.messages.contents.filter(m => (m.timestamp >= suiteStart) && m.getFlag(MOD, 'emanationPulse'));
-      ok('4c. once per ended turn — one pulse card, however the update echoes', again.length === 1, `cards=${again.length}`);
-      await combat.nextTurn(); await sleep(1000);   // the victim's turn ends — no pulse
-      ok('4d. another creature\'s turn ending pays nothing', game.messages.contents.filter(m => (m.timestamp >= suiteStart) && m.getFlag(MOD, 'emanationPulse')).length === 1, '');
-    }
+      const pulseCards = () => game.messages.contents.filter(m => (m.timestamp >= suiteStart) && m.getFlag(MOD, 'emanationPulse'));
+      // The window an echoed update's second pulse card would arrive in.
+      const echo = await watch(() => pulseCards().length > 1, { ms: 1200 });
+      const again = pulseCards();
+      ok('4c. once per ended turn — one pulse card, however the update echoes', !echo && (again.length === 1), `cards=${again.length}`);
+      await combat.nextTurn();   // the victim's turn ends — no pulse
+      // The window a pulse on another creature's turn end would arrive in.
+      const wrong = await watch(() => pulseCards().length > 1, { ms: 1000 });
+      ok('4d. another creature\'s turn ending pays nothing', !wrong && (pulseCards().length === 1), `cards=${pulseCards().length}`);
+    });
 
     // ---- 5. the rider on a hit, once per turn
-    if (want(5) && searing) {
+    if (want(5) && searing) await section(5, async () => {
       await healAll();
       const first = await swing();
       const r1 = revRider(first);
@@ -359,47 +355,48 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         const second = await swing();
         ok('5b. in combat, the second hit the same turn carries none (the rider chit)', !!second && !revRider(second), `dmg=${!!second} rider=${JSON.stringify(revRider(second))}`);
       }
-    }
+    });
 
     // ---- 6. the transformation ends
-    if (want(6) && searing) {
+    if (want(6) && searing) await section(6, async () => {
       if (combat && game.combats.get(combat.id)) { await combat.delete(); combat = null; }
       const live = aas.effects.find(e => e.name === 'Searing Radiance');
       if (live) await live.delete();
-      const gone = await waitFor(() => !ring(), 8000);
+      const gone = await until(() => !ring(), { timeout: 8000 });
       ok('6a. the ring comes down with the transformation', gone, `ring=${ring()?.id}`);
-      const dark = await waitFor(() => lightOf(aasDoc).bright !== 10, 5000);
+      const dark = await until(() => lightOf(aasDoc).bright !== 10, { timeout: 5000 });
       ok('6b. the token\'s light goes with the effect', dark, JSON.stringify(lightOf(aasDoc)));
-    }
+    });
 
     // ---- 7. the Light spell on a token
-    if (want(7)) {
+    if (want(7)) await section(7, async () => {
       const act = light.system.activities.contents[0];
       const lightActorsBefore = scene.tokens.filter(t => /^Light/.test(t.name)).length;
       // every summon spell answers in By the Books' window (RULINGS *Summons*, calls 32-34): a token targeted, its pill
       // is picked and the button reads "Light" — press it, as the player does
       const pressLight = async () => {
-        const btn = await waitFor(() => [...document.querySelectorAll('button[data-action="place"]')].find(b => /^\s*Light\s*$/.test(b.textContent ?? '')) ?? null, 6000);
+        const btn = await until(() => [...document.querySelectorAll('button[data-action="place"]')].find(b => /^\s*Light\s*$/.test(b.textContent ?? '')) ?? null, { timeout: 6000 });
         btn?.click();
         return !!btn;
       };
       target(victimToken);
       await use(act);
       await pressLight();
-      const onVictim = await waitFor(() => victim.effects.find(e => e.getFlag(MOD, 'tokenLight')?.key === 'Light') ?? null, 8000);
-      const vl = await waitFor(() => (lightOf(victimDoc).bright === 20) ? lightOf(victimDoc) : null, 5000);
+      const onVictim = await until(() => victim.effects.find(e => e.getFlag(MOD, 'tokenLight')?.key === 'Light') ?? null, { timeout: 8000 });
+      const vl = await until(() => (lightOf(victimDoc).bright === 20) ? lightOf(victimDoc) : null, { timeout: 5000 });
       ok('7a. the targeted token wears "Light" and sheds 20 ft Bright, 40 ft Dim', !!onVictim && !!vl && (vl.dim === 40),
         `effect=${onVictim?.name} light=${JSON.stringify(lightOf(victimDoc))} duration=${JSON.stringify(onVictim?._source?.duration)}`);
-      await sleep(800);
-      ok('7b. cast at a token, nothing is summoned', scene.tokens.filter(t => /^Light/.test(t.name)).length === lightActorsBefore, '');
+      // The window a summoned Light token must NOT arrive in.
+      const summoned = await watch(() => scene.tokens.filter(t => /^Light/.test(t.name)).length !== lightActorsBefore, { ms: 800 });
+      ok('7b. cast at a token, nothing is summoned', !summoned && (scene.tokens.filter(t => /^Light/.test(t.name)).length === lightActorsBefore), '');
       target(allyToken);
       await use(act);
       await pressLight();
-      const onAlly = await waitFor(() => ally.effects.find(e => e.getFlag(MOD, 'tokenLight')?.key === 'Light') ?? null, 8000);
-      const out = await waitFor(() => !victim.effects.some(e => e.getFlag(MOD, 'tokenLight')?.key === 'Light'), 5000);
+      const onAlly = await until(() => ally.effects.find(e => e.getFlag(MOD, 'tokenLight')?.key === 'Light') ?? null, { timeout: 8000 });
+      const out = await until(() => !victim.effects.some(e => e.getFlag(MOD, 'tokenLight')?.key === 'Light'), { timeout: 5000 });
       ok('7c. cast again at the ally: the ally is lit and the victim\'s light is out ("the spell ends if you cast it again")', !!onAlly && out,
         `ally=${onAlly?.name} victimStill=${!out} victimLight=${JSON.stringify(lightOf(victimDoc))}`);
-    }
+    });
 
     return { log, results, skips };
   } catch (err) {

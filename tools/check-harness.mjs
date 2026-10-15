@@ -36,7 +36,6 @@ const CEILING = {
   "check-popup-routing": 3,
   "class-kit": 29,
   "probe-effect-view": 12,
-  "smoke-aasimar": 10,
   "smoke-alert": 6,
   "smoke-bythebooks": 38,
   "smoke-cast": 16,
@@ -91,18 +90,17 @@ const CEILING = {
 
 /** The suites still on their own helpers, not yet on the prelude. ⚠ Only shrinks. */
 const STANDING = new Set([
-  "check-popup-routing", "class-kit", "probe-effect-view", "smoke-aasimar", "smoke-alert",
-  "smoke-bythebooks", "smoke-cast", "smoke-class-barbarian", "smoke-class-bard",
-  "smoke-class-cleric", "smoke-class-druid", "smoke-class-fighter", "smoke-class-items",
-  "smoke-class-monk", "smoke-class-paladin", "smoke-class-ranger", "smoke-class-rogue",
-  "smoke-class-sorcerer", "smoke-class-warlock", "smoke-class-wizard", "smoke-clock",
-  "smoke-companions", "smoke-d20-folds", "smoke-damage-rules", "smoke-drop", "smoke-effects",
-  "smoke-expiry", "smoke-familiar", "smoke-gear-lights", "smoke-goliath", "smoke-guards",
-  "smoke-heal", "smoke-heatmetal", "smoke-hitmenu", "smoke-hold", "smoke-lucky", "smoke-maneuvers",
-  "smoke-mastery-record", "smoke-metamagic", "smoke-nogm", "smoke-reminders", "smoke-rescue",
-  "smoke-resources", "smoke-rest", "smoke-riders", "smoke-saves", "smoke-shields", "smoke-spells",
-  "smoke-summons", "smoke-surfaces", "smoke-transforms", "smoke-twoclient", "smoke-volleys",
-  "smoke-wards"
+  "check-popup-routing", "class-kit", "probe-effect-view", "smoke-alert", "smoke-bythebooks",
+  "smoke-cast", "smoke-class-barbarian", "smoke-class-bard", "smoke-class-cleric",
+  "smoke-class-druid", "smoke-class-fighter", "smoke-class-items", "smoke-class-monk",
+  "smoke-class-paladin", "smoke-class-ranger", "smoke-class-rogue", "smoke-class-sorcerer",
+  "smoke-class-warlock", "smoke-class-wizard", "smoke-clock", "smoke-companions", "smoke-d20-folds",
+  "smoke-damage-rules", "smoke-drop", "smoke-effects", "smoke-expiry", "smoke-familiar",
+  "smoke-gear-lights", "smoke-goliath", "smoke-guards", "smoke-heal", "smoke-heatmetal",
+  "smoke-hitmenu", "smoke-hold", "smoke-lucky", "smoke-maneuvers", "smoke-mastery-record",
+  "smoke-metamagic", "smoke-nogm", "smoke-reminders", "smoke-rescue", "smoke-resources",
+  "smoke-rest", "smoke-riders", "smoke-saves", "smoke-shields", "smoke-spells", "smoke-summons",
+  "smoke-surfaces", "smoke-transforms", "smoke-twoclient", "smoke-volleys", "smoke-wards"
 ]);
 
 /** A name that is a poll by what it is called. */
