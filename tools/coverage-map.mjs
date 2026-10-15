@@ -314,8 +314,8 @@ function walkUp(start, ctx) {
   return { machines, spine };
 }
 
-/** The tools whose change moves EVERY suite: the harness, its flag parser, the target, the battery and this map. */
-const SELECTOR_TOOLS = new Set(["harness.mjs", "args.mjs", "target.mjs", "battery.mjs", "coverage-map.mjs"]);
+/** The tools whose change moves EVERY suite: the harness, its prelude, its flag parser, the target, the battery and this map. */
+const SELECTOR_TOOLS = new Set(["harness.mjs", "prelude.mjs", "args.mjs", "target.mjs", "battery.mjs", "coverage-map.mjs"]);
 
 /**
  * Pull every selected row's needs, recursively: a need is the NEAREST row of that name above the
@@ -374,8 +374,8 @@ export function rowsFrom(at, order = ORDER) {
  *   (b) a decide/ or registry file selects the claimants of each machine importing it, walked
  *       upward — and the FULL battery if a spine file imports it on the way;
  *   (c) a core / spine / services / entry file, or one the tier map does not know: full battery;
- *   (d) a battery suite selects itself; a seed selects the suites needing it; the harness, target,
- *       battery and this map are the full battery; any other tool is inert;
+ *   (d) a battery suite selects itself; a seed selects the suites needing it; the harness, its
+ *       prelude, target, battery and this map are the full battery; any other tool is inert;
  *   (e) everything else is inert, except module.json.
  */
 export function planFor(changed, ctx = defaultContext()) {
