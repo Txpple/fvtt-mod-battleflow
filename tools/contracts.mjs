@@ -94,6 +94,8 @@ export function readRecordings(dir) {
   const run = { suites: [], hooks: {}, moments: {}, flags: {}, errors: 0 };
   for (const name of files) {
     const r = JSON.parse(readFileSync(join(dir, name), "utf8"));
+    // Only a recorder's file (tools/contract-recorder.mjs): a hook ledger beside it has another shape.
+    if ((typeof r?.hooks !== "object") || (typeof r?.flags !== "object")) continue;
     run.suites.push(r.tag ?? name.replace(/\.json$/, ""));
     run.errors += r.errors ?? 0;
     for (const [hook, h] of Object.entries(r.hooks ?? {})) {
