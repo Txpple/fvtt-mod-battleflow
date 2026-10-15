@@ -23,9 +23,8 @@ import { dropToOneEntries, listedNames } from "./decide/registry.js";
 import { DROP_TO_ONE } from "./decide/registry.js";
 import { dropSaveDc, dropSaveExempt, dropSaveTitle, diedTitle, downedOutcome } from "./decide/drop-to-one.js";
 import { saveDemandData, saveTargetEntry } from "./decide/demand.js";
-import { bfCard, esc, holdBarHTML, popupKey, ruleLine } from "./decide/present.js";
-import { livePopups, openMomentPopup, momentButton, scheduleBarSync, shownMoments,
-  armAskTimer, disarmAskTimer, keeperOwns, registerRelay, registerResumable } from "./ui.js";
+import { bfCard, esc, holdBarHTML, ruleLine } from "./decide/present.js";
+import { openMomentPopup, armAskTimer, disarmAskTimer, keeperOwns, registerRelay, registerResumable, pendingRow, closePopup } from "./ui.js";
 import { resolveAttackMessage } from "./shared.js";
 import { creaturesWithin, feetOf, tokenOfActor } from "./geometry.js";
 import { rollDamageForSave } from "./auto-damage.js";
@@ -594,15 +593,13 @@ listen("dnd5e.renderChatMessage", "drop-to-one", (message, html) => {
     div.style.cssText = "margin:0.25rem 0;font-size:var(--font-size-11,11px);opacity:0.85;";
     div.innerHTML = `<i class="fa-solid fa-heart-pulse" data-tooltip="${esc(flag.row)}"></i> ${esc(askLine(flag))}`;
     if ( flag.status === "pending" ) {
-      div.insertAdjacentHTML("beforeend", ` ${holdBarHTML(flag, "to answer")}`);
-      const actor = askerOf(flag);
-      if ( canAnswerFor(actor) ) {
-        const shown = popupKey(message.id, DROP_FLAG);
-        if ( !shownMoments.has(shown) ) { shownMoments.add(shown); void showPopup(message); }
-        div.appendChild(momentButton("Answer", () => { void showPopup(message); }));
-      }
-      scheduleBarSync(div);
-      armTimer(message);
+      const may = canAnswerFor(askerOf(flag));
+      pendingRow(message, div, {
+        bar: holdBarHTML(flag, "to answer"),
+        latch: may && { sub: DROP_FLAG, show: () => showPopup(message) },
+        answer: may && "Answer",
+        arm: armTimer
+      });
     }
     content.appendChild(div);
   } catch(err) { console.warn(`${TITLE} | The drop-to-1 line could not render.`, err); }
@@ -614,8 +611,7 @@ listen("updateChatMessage", "drop-to-one", message => {
   if ( !flag ) return;
   if ( flag.status === "pending" ) { armTimer(message); return; }
   disarmAskTimer(timers, message.id);
-  const open = livePopups.get(popupKey(message.id, DROP_FLAG));
-  if ( open ) { try { void open.close(); } catch { /* gone */ } }
+  void closePopup(message, DROP_FLAG);
 });
 
 listen("deleteChatMessage", "drop-to-one", message => { disarmAskTimer(timers, message.id); });
@@ -822,15 +818,13 @@ listen("dnd5e.renderChatMessage", "drop-to-one", (message, html) => {
     div.style.cssText = "margin:0.25rem 0;font-size:var(--font-size-11,11px);opacity:0.85;";
     div.innerHTML = `<i class="fa-solid fa-sun" data-tooltip="${esc(flag.row)}"></i> ${esc(offerLine(flag))}`;
     if ( flag.status === "pending" ) {
-      div.insertAdjacentHTML("beforeend", ` ${holdBarHTML(flag, "to answer")}`);
-      const keeper = resolveUuid(flag.keeperUuid);
-      if ( canAnswerFor(keeper) ) {
-        const shown = popupKey(message.id, DEATH_OFFER_FLAG);
-        if ( !shownMoments.has(shown) ) { shownMoments.add(shown); void showOfferPopup(message); }
-        div.appendChild(momentButton("Answer", () => { void showOfferPopup(message); }));
-      }
-      scheduleBarSync(div);
-      armOfferTimer(message);
+      const may = canAnswerFor(resolveUuid(flag.keeperUuid));
+      pendingRow(message, div, {
+        bar: holdBarHTML(flag, "to answer"),
+        latch: may && { sub: DEATH_OFFER_FLAG, show: () => showOfferPopup(message) },
+        answer: may && "Answer",
+        arm: armOfferTimer
+      });
     }
     content.appendChild(div);
   } catch(err) { console.warn(`${TITLE} | The death save offer's line could not render.`, err); }
@@ -841,6 +835,5 @@ listen("updateChatMessage", "drop-to-one", message => {
   if ( !flag ) return;
   if ( flag.status === "pending" ) { armOfferTimer(message); return; }
   disarmAskTimer(timers, message.id);
-  const open = livePopups.get(popupKey(message.id, DEATH_OFFER_FLAG));
-  if ( open ) { try { void open.close(); } catch { /* gone */ } }
+  void closePopup(message, DEATH_OFFER_FLAG);
 });

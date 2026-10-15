@@ -5,11 +5,11 @@
 import { MODULE_ID, readFlag, TITLE, canAnswerFor, canApplyTo, drivesMomentFor, queueFlagWrite, whisperNoGM } from "./core.js";
 import { activityNamed, cardActivity, cardItem, featureNamed, lower, resolveUuid } from "./lookup.js";
 import { chipData, damagePartsOf, statSourceOf } from "./shared.js";
-import { bfCard, esc, popupKey, ruleLine } from "./decide/present.js";
+import { bfCard, esc, ruleLine } from "./decide/present.js";
 import { effectsAfterChoice, effectsAfterPick, slotHours } from "./decide/choices.js";
 import { EFFECT_CHOICES, HEAL_REROLLS, MARK_USES, SLOT_DURATIONS, healRerollEntries, listedNames } from "./decide/registry.js";
 import { rollMaximum } from "./decide/damage-dice.js";
-import { momentButton, registerResumable, shownMoments } from "./ui.js";
+import { registerResumable, pendingRow } from "./ui.js";
 import { openPicker } from "./gallery.js";
 import { applyDamagesWithReceipt } from "./auto-apply.js";
 import { applyEffectsWithReceipt } from "./effect-riders.js";
@@ -307,8 +307,6 @@ listen("dnd5e.renderChatMessage", "cast", (message, html) => {
   html.querySelector(SURFACES.messageContent)?.appendChild(line);
   if ( choice.chosen ) return;
   if ( !canAnswerFor(chooserOf(message, payload)) ) return;
-  const shownKey = popupKey(message.id, "effectChoice");
-  if ( !shownMoments.has(shownKey) ) { shownMoments.add(shownKey); void showChoicePopup(message); }
-  line.appendChild(momentButton(`Choose — ${choice.key}`, () => void showChoicePopup(message)));
+  pendingRow(message, line, { latch: { sub: "effectChoice", show: () => showChoicePopup(message) }, answer: `Choose — ${choice.key}` });
 });
 

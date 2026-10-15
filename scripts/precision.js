@@ -11,8 +11,7 @@ import { maneuverFoldEntries } from "./decide/registry.js";
 import { hitTargets } from "./shared.js";
 import { bfCard, holdBarHTML, spendPhrase, rescueView, rescueSourceFor, esc } from "./decide/present.js";
 import { ATTACK_FOLDS, foldsFrom, foldedRoll, foldedVerdict } from "./decide/verdict.js";
-import { momentButton, scheduleBarSync, armAskTimer, disarmAskTimer, electOwns, registerRescue,
-  syncRescuePopup } from "./ui.js";
+import { armAskTimer, disarmAskTimer, electOwns, registerRescue, syncRescuePopup, pendingRow } from "./ui.js";
 import { offerDamageRoll, registerMissWait, rollDamageForAttack, settleMiss } from "./auto-damage.js";
 import { SURFACES } from "./surfaces.js";
 import { activityUuidOf, masteryOf, originData, targetsOf } from "./decide/card.js";
@@ -280,19 +279,17 @@ listen("dnd5e.renderChatMessage", "precision", (message, html) => {
             ? `${p.itemName} — no longer needed; nothing spent`
             : `${p.itemName} — passed${p.timedOut ? " (timer)" : ""}`),
       subtitle: (p.targets ?? []).map(t => t.name).join(", ")
-    }) + (pending ? holdBarHTML(p, "to answer") : "");
+    });
     html.querySelector(SURFACES.messageContent)?.appendChild(row);
     if ( pending ) {
-      scheduleBarSync(row);
-      armPrecisionTimer(message);
-      const attacker = resolveUuid(p.attackerUuid);
-      if ( canAnswerFor(attacker) && !p.answer ) {
-        // `recall` lets a human reopen a window they closed.
-        syncRescuePopup(message);
-        row.appendChild(momentButton("Answer", () => {
-          syncRescuePopup(message, { recall: true });
-        }, { margin: "0.25rem 0 0" }));
-      }
+      const may = canAnswerFor(resolveUuid(p.attackerUuid)) && !p.answer;
+      // The rescue window shows itself once; `recall` lets a human reopen a window they closed.
+      if ( may ) syncRescuePopup(message);
+      pendingRow(message, row, {
+        bar: holdBarHTML(p, "to answer"),
+        answer: may && { show: () => syncRescuePopup(message, { recall: true }), style: { margin: "0.25rem 0 0" } },
+        arm: armPrecisionTimer
+      });
       // Crash-resume, elect-owned, 20s horizon: an accepted answer whose client died. Only
       // stale wrecks, so use() never runs twice.
       if ( (p.answer === "use") && isActiveGM() && p.answeredAt

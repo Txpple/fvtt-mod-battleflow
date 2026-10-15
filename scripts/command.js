@@ -8,9 +8,9 @@ import { resolveDie, foldEntryFor, maneuverDieFormula } from "./lookup.js";
 import { maneuverFoldEntries } from "./decide/registry.js";
 import { RULE_TEXT } from "./decide/registry.js";
 import { chipData, placeOf, poolSpendsOn, spendReaction } from "./shared.js";
-import { popupKey, bfCard, momentBarHTML, ruleLine, spendPhrase, esc } from "./decide/present.js";
+import { bfCard, momentBarHTML, ruleLine, spendPhrase, esc } from "./decide/present.js";
 import { CHIP_FLAG, chipClock } from "./decide/chips.js";
-import { openMomentPopup, momentButton, shownMoments, acknowledgeMoment, momentAcknowledged } from "./ui.js";
+import { openMomentPopup, acknowledgeMoment, momentAcknowledged, pendingRow } from "./ui.js";
 import { SURFACES } from "./surfaces.js";
 import { targetsOf } from "./decide/card.js";
 import { listen } from "./dispatch.js";
@@ -160,13 +160,14 @@ listen("dnd5e.renderChatMessage", "command", (message, html) => {
       : `${flag.itemName} — ${flag.ally?.name} may use a Reaction to make one attack; ${flag.dieFormula ?? "the die"} rides the hit`,
     subtitle: spendPhrase(poolSpendsOn(message)),
     lines: [ruleLine(RULE_TEXT.command)]
-  }) + (live ? momentBarHTML(flag, "reminder") : "");
+  });
   html.querySelector(SURFACES.messageContent)?.appendChild(line);
   if ( isActiveGM() ) void ensureCommandChip(message);   // the resume floor
   const ally = flag.ally?.uuid ? fromUuidSync(flag.ally.uuid) : null;
-  if ( live && canAnswerFor(ally) ) {
-    const shownKey = popupKey(message.id, "command");
-    if ( !shownMoments.has(shownKey) ) { shownMoments.add(shownKey); void showCommandNotice(message); }
-    line.appendChild(momentButton(`Show — ${flag.itemName}`, () => void showCommandNotice(message)));
-  }
+  const may = live && canAnswerFor(ally);
+  pendingRow(message, line, {
+    bar: live && momentBarHTML(flag, "reminder"),
+    latch: may && { sub: "command", show: () => showCommandNotice(message) },
+    answer: may && `Show — ${flag.itemName}`
+  });
 });

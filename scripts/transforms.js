@@ -18,11 +18,11 @@ import { poolRuleOf, capOfTarget, knownSlotsOf, knownHolderOf, knownState, learn
   pickedAnswer, formEffectData, endOfForm, formTitle, articleOf, empowerSetting, empowerTempHp, empowerUpdates, repointedLanded } from "./decide/transforms.js";
 import { summonEffectName } from "./decide/summons.js";
 import { galleryRows, crLabel } from "./decide/gallery.js";
-import { bfCard, esc, popupKey } from "./decide/present.js";
+import { bfCard, esc } from "./decide/present.js";
 import { targetsOf } from "./decide/card.js";
 import { describeCreature, formArt, openPicker, poolFromPacks } from "./gallery.js";
 import { isPartyMember } from "./shared.js";
-import { momentButton, registerRelay, registerResumable, shownMoments, acknowledgeMoment, momentAcknowledged } from "./ui.js";
+import { momentButton, registerRelay, registerResumable, acknowledgeMoment, momentAcknowledged, pendingRow } from "./ui.js";
 import { SURFACES } from "./surfaces.js";
 import { listen } from "./dispatch.js";
 
@@ -675,9 +675,7 @@ function drawTransform(message, html, flag) {
   const form = flag.pick?.name ?? "the form";
   if ( flag.status === "asked" ) {
     if ( !mine ) return;
-    const shownKey = popupKey(message.id, TRANSFORM_FLAG);
-    if ( !shownMoments.has(shownKey) ) { shownMoments.add(shownKey); void showFormPopup(message); }
-    row.appendChild(momentButton("Pick the form", () => { void showFormPopup(message); }, { margin: "0.25rem 0 0" }));
+    pendingRow(message, row, { latch: { sub: TRANSFORM_FLAG, show: () => showFormPopup(message) }, answer: { label: "Pick the form", style: { margin: "0.25rem 0 0" } } });
     html.querySelector(SURFACES.messageContent)?.appendChild(row);
     return;
   }
@@ -890,9 +888,7 @@ function drawSwap(message, html, flag) {
   const actor = resolveUuid(flag.actorUuid);
   if ( flag.status === "pending" ) {
     if ( !canAnswerFor(actor) ) return;
-    const shownKey = popupKey(message.id, FORM_SWAP_FLAG);
-    if ( !shownMoments.has(shownKey) ) { shownMoments.add(shownKey); void showSwapPopup(message); }
-    row.appendChild(momentButton("Answer", () => { void showSwapPopup(message); }, { margin: "0.25rem 0 0" }));
+    pendingRow(message, row, { latch: { sub: FORM_SWAP_FLAG, show: () => showSwapPopup(message) }, answer: { style: { margin: "0.25rem 0 0" } } });
     html.querySelector(SURFACES.messageContent)?.appendChild(row);
     return;
   }
@@ -902,9 +898,7 @@ function drawSwap(message, html, flag) {
     title: swapLine(flag), subtitle: flag.actorName, lines: [`Known forms: ${names}`] });
   html.querySelector(SURFACES.messageContent)?.appendChild(row);
   if ( canAnswerFor(actor) && !momentAcknowledged(message, FORM_SWAP_FLAG) ) {
-    const shownKey = popupKey(message.id, "formSwapDone");
-    if ( !shownMoments.has(shownKey) ) { shownMoments.add(shownKey); void showSwapDone(message, flag); }
-    row.appendChild(momentButton("OK", () => { void showSwapDone(message, flag); }, { margin: "0.25rem 0 0" }));
+    pendingRow(message, row, { latch: { sub: "formSwapDone", show: () => showSwapDone(message, flag) }, answer: { label: "OK", style: { margin: "0.25rem 0 0" } } });
   }
 }
 

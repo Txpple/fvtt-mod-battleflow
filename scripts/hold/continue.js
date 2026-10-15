@@ -13,8 +13,8 @@ import { INTERRUPT_MULTIPLIERS, INTERRUPT_ROLLS } from "../decide/registry.js";
 import { rescueSpendText } from "../decide/rescue-hit.js";
 import { damageAfterHold } from "../auto-damage.js";
 import { joinEffectReceipt } from "../decide/receipt.js";
-import { bfCard, popupKey, spendPhrase, esc } from "../decide/present.js";
-import { flashBend, livePopups, waitForWrite } from "../ui.js";
+import { bfCard, spendPhrase, esc } from "../decide/present.js";
+import { flashBend, waitForWrite, closePopup } from "../ui.js";
 import { reactionItem, hasReactionEffect, applyReactionEffect, reactionACArrived, reactionImg, duplicatesOf, attackFactsOf, recoilKey } from "./lookup.js";
 import { duplicateOutcome, duplicateWords } from "../decide/duplicates.js";
 import { disarmHoldTimer } from "./clock.js";
@@ -377,12 +377,10 @@ function closeAnsweredHoldPopups(message) {
   const hold = readFlag(message, "hold");
   if ( !hold?.targets?.length ) return;
   for ( const target of hold.targets ) {
-    const dialog = livePopups.get(popupKey(message.id, target.uuid));
-    if ( dialog && ((hold.status !== "pending") || target.answer || target.selfPassed) ) void dialog.close();
+    if ( (hold.status !== "pending") || target.answer || target.selfPassed ) void closePopup(message, target.uuid);
     // A guard's own popup (Protection) also closes on its own pass.
     for ( const guard of (target.guards ?? []) ) {
-      const own = livePopups.get(popupKey(message.id, `${target.uuid}|${guard.uuid}`));
-      if ( own && ((hold.status !== "pending") || target.answer || guard.passed) ) void own.close();
+      if ( (hold.status !== "pending") || target.answer || guard.passed ) void closePopup(message, `${target.uuid}|${guard.uuid}`);
     }
   }
 }

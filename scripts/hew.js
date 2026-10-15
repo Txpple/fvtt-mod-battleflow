@@ -9,11 +9,10 @@ import { creaturesWithin, tokenForUuid } from "./geometry.js";
 import { maneuverFoldEntries } from "./decide/registry.js";
 import { BONUS_SWINGS, RULE_TEXT } from "./decide/registry.js";
 import { hitTargets, withTargets } from "./shared.js";
-import { popupKey, bfCard, momentBarHTML, ruleLine, esc } from "./decide/present.js";
+import { bfCard, momentBarHTML, ruleLine, esc } from "./decide/present.js";
 import { SURFACES } from "./surfaces.js";
 import { CARD, activityUuidOf, isCard, originIdOf, originData, targetsOf } from "./decide/card.js";
-import { livePopups, openMomentPopup, scheduleBarSync, shownMoments, acknowledgeMoment,
-  momentAcknowledged } from "./ui.js";
+import { openMomentPopup, acknowledgeMoment, momentAcknowledged, pendingRow, closePopup } from "./ui.js";
 import { listen } from "./dispatch.js";
 
 // HEW — a reminder only; the player swings from the sheet. A crit that kills reminds once. ⚠ A
@@ -78,15 +77,11 @@ listen("dnd5e.renderChatMessage", "hew", (message, html) => {
   if ( !notice.deadline || (notice.deadline <= Date.now()) ) return;
   if ( momentAcknowledged(message, "hewNotice") ) return;   // the ACK ends the presentation
   const row = document.createElement("div");
-  row.innerHTML = momentBarHTML(notice, "reminder");
   html.querySelector(SURFACES.messageContent)?.appendChild(row);
-  scheduleBarSync(row);
-  const attacker = resolveUuid(notice.attackerUuid);
-  const shownKey = popupKey(message.id, "hew");
-  if ( canAnswerFor(attacker) && !shownMoments.has(shownKey) ) {
-    shownMoments.add(shownKey);
-    void showHewPopup(message, notice);
-  }
+  pendingRow(message, row, {
+    bar: momentBarHTML(notice, "reminder"),
+    latch: canAnswerFor(resolveUuid(notice.attackerUuid)) && { sub: "hew", show: () => showHewPopup(message, notice) }
+  });
 });
 
 // The Hew triggers key off the damage MESSAGE (one dedupe flag on it), on the elect, serialized
@@ -173,8 +168,7 @@ listen("updateChatMessage", "hew", message => {
   }
   // A durably-acknowledged notice closes its popup wherever it lives.
   if ( readFlag(message, "hewNotice")?.acknowledged ) {
-    const dialog = livePopups.get(popupKey(message.id, "hew"));
-    if ( dialog ) void dialog.close();
+    void closePopup(message, "hew");
   }
 });
 

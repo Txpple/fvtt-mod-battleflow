@@ -8,11 +8,11 @@ import { ruleHTML } from "./rule-text.js";
 import { cardItem, lower, featureNamed, activityNamed, resolveUuid, resolveDie } from "./lookup.js";
 import { superiorityUseEntries, listedNames } from "./decide/registry.js";
 import { chipData, hitTargets, placeOf, poolSpendsOn } from "./shared.js";
-import { bfCard, holdBarHTML, popupKey, riderMenuHTML, ruleLine, spendPhrase, esc } from "./decide/present.js";
+import { bfCard, holdBarHTML, riderMenuHTML, ruleLine, spendPhrase, esc } from "./decide/present.js";
 import { MANEUVER_FEATURE_NAMES, SUPERIORITY_USES, answers, tableIndex } from "./decide/registry.js";
 import { CHIP_FLAG, chipClock } from "./decide/chips.js";
 import { riderPartFormula } from "./decide/clock.js";
-import { armAskTimer, subjectOwns, momentButton, openMomentPopup, registerResumable, shownMoments, registerOfferPart } from "./ui.js";
+import { armAskTimer, subjectOwns, openMomentPopup, registerResumable, registerOfferPart, pendingRow } from "./ui.js";
 import { attackMessageForDamage } from "./auto-damage.js";
 import { applyEffectsWithReceipt } from "./effect-riders.js";
 import { SURFACES } from "./surfaces.js";
@@ -323,15 +323,15 @@ listen("dnd5e.renderChatMessage", "superiority-uses", (message, html) => {
       title: bs.resolved ? `${bs.key} — ${bs.resolved.name ?? chosenName} gains AC +${bs.total}${bs.timedOut ? " (timer — the fighter)" : ""}${bs.resolved.applied ? "" : "; the pack's effect was not found — apply it by hand"}`
         : chosenName ? `${bs.key} — ${chosenName} gains AC +${bs.total}` : `${bs.key} — who gains AC +${bs.total}?`,
       subtitle: `${spendPhrase(poolSpendsOn(message))}${bs.resolved ? ` · until the start of ${fighterName}'s next turn` : ""}`,
-      lines: [ruleLine(bs.rule)] }) + ((!bs.chosen && bs.deadline) ? holdBarHTML(bs, "to answer") : "");
+      lines: [ruleLine(bs.rule)] });
     html.querySelector(SURFACES.messageContent)?.appendChild(line);
-    const actor = resolveUuid(bs.sourceUuid);
-    if ( !bs.chosen && canAnswerFor(actor) ) {
-      const shownKey = popupKey(message.id, "bait");
-      if ( !shownMoments.has(shownKey) ) { shownMoments.add(shownKey); void showBaitPopup(message); }
-      line.appendChild(momentButton(`Answer — ${bs.key}`, () => void showBaitPopup(message)));
-    }
-    armBaitTimer(message);
+    const may = !bs.chosen && canAnswerFor(resolveUuid(bs.sourceUuid));
+    pendingRow(message, line, {
+      bar: !bs.chosen && !!bs.deadline && holdBarHTML(bs, "to answer"),
+      latch: may && { sub: "bait", show: () => showBaitPopup(message) },
+      answer: may && `Answer — ${bs.key}`,
+      arm: armBaitTimer
+    });
   }
   const sr = readFlag(message, "superiorityRide");
   if ( sr?.rode?.length ) {

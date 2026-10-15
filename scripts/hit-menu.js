@@ -12,7 +12,7 @@ import { hitMenuEntries } from "./decide/registry.js";
 import { forceStatus, hitTargets, noteSuperiorityStandIn, poolOf, spendSuperiorityDie, statSourceOf, turnChitStands, withTargets, writeTurnChit } from "./shared.js";
 import { pactWeaponFits } from "./lookup.js";
 import { activeCombatFor } from "./core.js";
-import { bfCard, hitMenuHTML, momentBarHTML, popupKey, ruleLine, spendPhrase } from "./decide/present.js";
+import { bfCard, hitMenuHTML, momentBarHTML, ruleLine, spendPhrase } from "./decide/present.js";
 import { HIT_GROUPS, HIT_OPTIONS, answers } from "./decide/registry.js";
 import { hitMenu, hitPick, optionReaches, picksOf, pluralOf, sweepVerdict } from "./decide/hit-menu.js";
 import { riderPartFormula } from "./decide/clock.js";
@@ -21,7 +21,7 @@ import { nearestFeet, tokenForUuid, tokenOfActor } from "./geometry.js";
 import { attackMessageForDamage } from "./auto-damage.js";
 import { applyDamagesWithReceipt } from "./auto-apply.js";
 import { applyActivityEffectsOnHit, applyEffectsWithReceipt, messageActivity } from "./effect-riders.js";
-import { armAskTimer, subjectOwns, momentButton, openMomentPopup, registerRelay, registerResumable, shownMoments, registerOfferPart } from "./ui.js";
+import { armAskTimer, subjectOwns, openMomentPopup, registerRelay, registerResumable, registerOfferPart, pendingRow } from "./ui.js";
 import { SURFACES } from "./surfaces.js";
 import { listen, listenOnce } from "./dispatch.js";
 
@@ -802,15 +802,16 @@ listen("dnd5e.renderChatMessage", "hit-menu", (message, html) => {
         : chosenName ? `${sc.feature} — ${chosenName}: rolling the die` : sc.candidates?.length ? `${sc.feature} — pick the second creature` : `${sc.feature} — no creature within 5 feet of ${sc.targetName} and within your reach${sc.outOfReach?.length ? ` (out of reach: ${sc.outOfReach.join(", ")})` : ""}; the die was spent`,
       subtitle: (!r && sc.candidates?.length && !chosenName) ? `within 5 feet of ${sc.targetName} and within your reach` : "",
       lines: [ruleLine(sc.rule)]
-    }) + ((!sc.chosen && sc.candidates?.length) ? momentBarHTML(sc, "to pick") : "");
+    });
     html.querySelector(SURFACES.messageContent)?.appendChild(line);
-    const attacker = resolveUuid(sc.sourceUuid);
-    if ( !sc.chosen && sc.candidates?.length && canAnswerFor(attacker) ) {
-      // The popup is the ask (the moment spine); the card keeps a button to reopen it.
-      const shownKey = popupKey(message.id, "sweep");
-      if ( !shownMoments.has(shownKey) ) { shownMoments.add(shownKey); void showSweepPopup(message); }
-      line.appendChild(momentButton(`Pick — ${sc.feature}`, () => void showSweepPopup(message)));
-    }
-    armSweepTimer(message);
+    const asking = !sc.chosen && !!sc.candidates?.length;
+    const may = asking && canAnswerFor(resolveUuid(sc.sourceUuid));
+    // The popup is the ask (the moment spine); the card keeps a button to reopen it.
+    pendingRow(message, line, {
+      bar: asking && momentBarHTML(sc, "to pick"),
+      latch: may && { sub: "sweep", show: () => showSweepPopup(message) },
+      answer: may && `Pick — ${sc.feature}`,
+      arm: armSweepTimer
+    });
   }
 });

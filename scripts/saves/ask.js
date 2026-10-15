@@ -7,7 +7,7 @@ import { MODULE_ID, readFlag, TITLE, queueFlagWrite } from "../core.js";
 import { namesAnswering, resolveUuid } from "../lookup.js";
 import { rollConfigFor } from "../shared.js";
 import { popupKey, bfCard, holdBarHTML } from "../decide/present.js";
-import { livePopups, adoptManagedPopup, DialogCarried, scheduleBarSync, armAskTimer, disarmAskTimer, electOwns } from "../ui.js";
+import { adoptManagedPopup, DialogCarried, scheduleBarSync, armAskTimer, disarmAskTimer, electOwns, closePopup, frontPopup } from "../ui.js";
 import { SAVE_BENDS, EFFECT_BENDS } from "../decide/registry.js";
 import { saveGate, saveSources, effectSaveSources, immunitySleepSource } from "../decide/reminders.js";
 import { conditionEntries, effectEntries, reminderEntries } from "../decide/registry.js";
@@ -70,9 +70,8 @@ const saveDialogsOpening = new Set();
 
 /** Open the save dialog for one target, the demand riding as the DialogCarried the Fails button writes. */
 export async function openSaveDialog(card, uuid) {
+  if ( frontPopup(card, `save:${uuid}`) ) return;
   const key = popupKey(card.id, `save:${uuid}`);
-  const open = livePopups.get(key);
-  if ( open ) { open.bringToFront?.(); return; }
   if ( saveDialogsOpening.has(key) ) return;
   saveDialogsOpening.add(key);
   try {
@@ -222,8 +221,7 @@ async function fireSaveTimer(card) {
       continue;
     }
     // Close a dialog open on THIS client first, so the straight roll is the only answer.
-    const open = livePopups.get(popupKey(card.id, `save:${entry.uuid}`));
-    if ( open ) { try { await open.close(); } catch { /* already gone */ } }
+    await closePopup(card, `save:${entry.uuid}`);
     await rollWithoutAsking(card, flag, actor, entry.uuid, { timedOut: true });
   }
   // biome-ignore lint/suspicious/noConsole: a debug trace of the creatures gone before the save was asked

@@ -10,14 +10,14 @@
 import { MODULE_ID, readFlag, TITLE, queueFlagWrite, canAnswerFor, keepsMessage, statContext, decisionWindow } from "./core.js";
 import { INTERRUPT_ROLLS, STORED_DICE } from "./decide/registry.js";
 import { bystanderMatters, dieMaxOf, dieOutcome, guardSign, neededOnDieLine, neutraliseOutcome, rerollOutcome, signFor } from "./decide/rescue-hit.js";
-import { bfCard, esc, holdBarHTML, popupKey, tickRowsHTML } from "./decide/present.js";
+import { bfCard, esc, holdBarHTML, tickRowsHTML } from "./decide/present.js";
 import { activityNamed, featureNamed, resolveUuid, bystanderRows, bystanderDie, d20FactsOf, rerollD20 } from "./lookup.js";
 import { nearestFeet, tokenForUuid } from "./geometry.js";
 import { poolOf, poolUsesOf, reactionSpent, spendReaction, spendPoolUses, bystanderMuted, muteBystander, muteScopesFor, STORED_FLAG, spendStoredFace, storedChipOf, storedFacesUsable, withTargets } from "./shared.js";
 import { facesThatTurn, setOutcome } from "./decide/stored-dice.js";
 import { bendRise, foldRise } from "./decide/dice-chips.js";
 import { riseDice } from "./dice-rise.js";
-import { armAskTimer, cardRow, electOwns, flashBend, livePopups, openMomentPopup, registerRelay, registerWithhold, resumeWithheld, shownMoments } from "./ui.js";
+import { armAskTimer, cardRow, electOwns, flashBend, openMomentPopup, registerRelay, registerWithhold, resumeWithheld, pendingRow, closePopup } from "./ui.js";
 import { listen } from "./dispatch.js";
 
 const KEY = "bystanderRoll";
@@ -398,8 +398,7 @@ listen("updateChatMessage", "bystanders", message => {
 /** A decision made anywhere closes its popups (ARCHITECTURE §5 law 4). */
 function closeAnswered(message, flag) {
   for ( const g of (flag.guards ?? []) ) {
-    const open = livePopups.get(popupKey(message.id, `${KEY}|${g.uuid}`));
-    if ( open && ((flag.status !== "pending") || g.passed) ) void open.close();
+    if ( (flag.status !== "pending") || g.passed ) void closePopup(message, `${KEY}|${g.uuid}`);
   }
 }
 
@@ -506,15 +505,13 @@ listen("dnd5e.renderChatMessage", "bystanders", cardRow((message, host) => {
   line.style.margin = "0.3rem 0 0";
   if ( flag.status === "pending" ) {
     const waiting = (flag.guards ?? []).filter(g => !g.passed).map(g => `${g.row} (${g.name})`).join(", ");
-    line.innerHTML = bfCard({ eyebrow: "Reaction — held", tone: "pending", title: `Waiting on ${waiting}`, subtitle: flag.rollerName ?? "", lines: [] }) + holdBarHTML(flag);
-    armTimer(message);
-    for ( const guard of (flag.guards ?? []) ) {
-      if ( guard.passed || !canAnswerFor(resolveUuid(guard.uuid)) ) continue;
-      const shown = popupKey(message.id, `${KEY}|${guard.uuid}`);
-      if ( shownMoments.has(shown) ) continue;
-      shownMoments.add(shown);
-      void showPopup(message, flag, guard);
-    }
+    line.innerHTML = bfCard({ eyebrow: "Reaction — held", tone: "pending", title: `Waiting on ${waiting}`, subtitle: flag.rollerName ?? "", lines: [] });
+    pendingRow(message, line, {
+      bar: holdBarHTML(flag),
+      latch: (flag.guards ?? []).filter(g => !g.passed && canAnswerFor(resolveUuid(g.uuid)))
+        .map(guard => ({ sub: `${KEY}|${guard.uuid}`, show: () => showPopup(message, flag, guard) })),
+      arm: armTimer
+    });
   } else if ( flag.answer === "roll" ) {
     line.innerHTML = bfCard({ eyebrow: `Reaction — ${esc(flag.rescue)}`, tone: "good", title: esc(flag.rescue), subtitle: flag.rollerName ?? "", lines: [bentLine(flag)] });
   } else return;

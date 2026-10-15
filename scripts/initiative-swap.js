@@ -8,10 +8,9 @@ import { MODULE_ID, readFlag, TITLE, isActiveGM, queueFlagWrite, canAnswerFor, s
 import { featureNamed, itemNamed, lower, resolveUuid } from "./lookup.js";
 import { initiativeSwapEntries, listedNames } from "./decide/registry.js";
 import { INITIATIVE_SWAPS } from "./decide/registry.js";
-import { bfCard, esc, holdBarHTML, popupKey, foldedRuleHTML } from "./decide/present.js";
+import { bfCard, esc, holdBarHTML, foldedRuleHTML } from "./decide/present.js";
 import { dispositionStyle } from "./shared.js";
-import { livePopups, openMomentPopup, momentButton, shownMoments, scheduleBarSync, armAskTimer, disarmAskTimer, subjectOwns,
-  registerRelay, registerResumable } from "./ui.js";
+import { openMomentPopup, armAskTimer, disarmAskTimer, subjectOwns, registerRelay, registerResumable, pendingRow, closePopup } from "./ui.js";
 import { SURFACES } from "./surfaces.js";
 import { listen, listenOnce } from "./dispatch.js";
 
@@ -282,17 +281,15 @@ listen("dnd5e.renderChatMessage", "initiative-swap", (message, html) => {
     const div = document.createElement("div");
     div.className = "bf-initiative-swap-line";
     div.style.cssText = "margin:0.25rem 0;font-size:var(--font-size-11,11px);opacity:0.85;";
-    div.innerHTML = `<i class="fa-solid fa-right-left" data-tooltip="${esc(flag.row)}"></i> ${esc(swapLine(flag))}`
-      + ((flag.status === "pending") ? ` ${holdBarHTML(flag, "to answer")}` : "");
+    div.innerHTML = `<i class="fa-solid fa-right-left" data-tooltip="${esc(flag.row)}"></i> ${esc(swapLine(flag))}`;
     if ( flag.status === "pending" ) {
-      const actor = resolveUuid(flag.actorUuid);
-      if ( canAnswerFor(actor) ) {
-        const shown = popupKey(message.id, SWAP_FLAG);
-        if ( !shownMoments.has(shown) ) { shownMoments.add(shown); void showSwapPopup(message); }
-        div.appendChild(momentButton("Answer", () => { void showSwapPopup(message); }));
-      }
-      scheduleBarSync(div);
-      armTimer(message);
+      const may = canAnswerFor(resolveUuid(flag.actorUuid));
+      pendingRow(message, div, {
+        bar: holdBarHTML(flag, "to answer"),
+        latch: may && { sub: SWAP_FLAG, show: () => showSwapPopup(message) },
+        answer: may && "Answer",
+        arm: armTimer
+      });
     }
     content.appendChild(div);
   } catch(err) { console.warn(`${TITLE} | The initiative-swap line could not render.`, err); }
@@ -304,8 +301,7 @@ listen("updateChatMessage", "initiative-swap", message => {
   if ( !flag ) return;
   if ( flag.status === "pending" ) { armTimer(message); return; }
   disarmAskTimer(timers, message.id);
-  const open = livePopups.get(popupKey(message.id, SWAP_FLAG));
-  if ( open ) { try { void open.close(); } catch { /* gone */ } }
+  void closePopup(message, SWAP_FLAG);
   floatSwap(message, flag);
 });
 

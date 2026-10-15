@@ -9,8 +9,8 @@ import { effectRecord, joinEffectReceipt, takenOf } from "./decide/receipt.js";
 import { MASTERY_KINDS, MASTERY_NATIVE, MASTERY_RULES } from "./decide/registry.js";
 import { CHIP_FLAG, chipClock, chipIsDead } from "./decide/chips.js";
 import { chipData, chitStampOf, hitTargets, masteryLabel, placeOf, turnPlace } from "./shared.js";
-import { popupKey, bfCard, holdBarHTML, momentBarHTML, ruleLine, foldedRuleHTML, esc } from "./decide/present.js";
-import { livePopups, openMomentPopup, momentButton, scheduleBarSync, shownMoments, acknowledgeMoment, momentAcknowledged, armAskTimer, disarmAskTimer, electOwns, registerOfferPart } from "./ui.js";
+import { bfCard, holdBarHTML, momentBarHTML, ruleLine, foldedRuleHTML, esc } from "./decide/present.js";
+import { openMomentPopup, acknowledgeMoment, momentAcknowledged, armAskTimer, disarmAskTimer, electOwns, registerOfferPart, pendingRow, closePopup } from "./ui.js";
 import { applyDamagesWithReceipt } from "./auto-apply.js";
 import { messageActivity } from "./effect-riders.js";
 import { SURFACES } from "./surfaces.js";
@@ -618,20 +618,17 @@ async function executeMasteryAnswer(message) {
 listen("updateChatMessage", "mastery", message => {
   const p = readFlag(message, MASTERY_PICK_FLAG);
   if ( p ) {
-    const dialog = livePopups.get(popupKey(message.id, MASTERY_PICK_FLAG));
-    if ( dialog && ((p.status !== "pending") || p.answer) ) void dialog.close();
+    if ( (p.status !== "pending") || p.answer ) void closePopup(message, MASTERY_PICK_FLAG);
     if ( drivesMomentFor(p?.attackerUuid) && (p.status === "pending") && p.answer ) void executeMasteryPick(message);
   }
   const m = readFlag(message, "mastery");
   if ( m ) {
-    const dialog = livePopups.get(popupKey(message.id, "mastery"));
-    if ( dialog && ((m.status !== "pending") || m.answer) ) void dialog.close();
+    if ( (m.status !== "pending") || m.answer ) void closePopup(message, "mastery");
     if ( drivesMomentFor(m?.attackerUuid) && (m.status === "pending") && m.answer ) void executeMasteryAnswer(message);
   }
 
   if ( readFlag(message, "masteryNotice")?.acknowledged ) {
-    const dialog = livePopups.get(popupKey(message.id, "notice"));
-    if ( dialog ) void dialog.close();
+    void closePopup(message, "notice");
   }
 });
 
@@ -679,18 +676,17 @@ listen("dnd5e.renderChatMessage", "mastery", (message, html) => {
       tone: pending ? "pending" : "neutral",
       title: pending ? "Which mastery?" : (p.answer === "pass") ? "No mastery" : `${masteryLabel(p.answer)} chosen`,
       subtitle: `${p.weapon?.name ?? ""} — ${(p.hits ?? []).map(t => t.name).join(", ")}${p.timedOut ? " · the timer took the weapon's own" : ""}`
-    }) + (pending ? holdBarHTML(p) : "");
+    });
     html.querySelector(SURFACES.messageContent)?.appendChild(row);
     if ( pending ) {
-      scheduleBarSync(row);
-      armPickTimer(message);
       if ( p.answer && drivesMomentFor(p?.attackerUuid) ) void executeMasteryPick(message);
-      const attacker = resolveUuid(p.attackerUuid);
-      if ( canAnswerFor(attacker) && !p.answer ) {
-        const shownKey = popupKey(message.id, MASTERY_PICK_FLAG);
-        if ( !shownMoments.has(shownKey) ) { shownMoments.add(shownKey); void showMasteryPickPopup(message, p); }
-        row.appendChild(momentButton("Answer", () => { void showMasteryPickPopup(message, readFlag(message, MASTERY_PICK_FLAG)); }, { margin: "0.25rem 0 0" }));
-      }
+      const may = canAnswerFor(resolveUuid(p.attackerUuid)) && !p.answer;
+      pendingRow(message, row, {
+        bar: holdBarHTML(p),
+        latch: may && { sub: MASTERY_PICK_FLAG, show: () => showMasteryPickPopup(message, p) },
+        answer: may && { show: () => showMasteryPickPopup(message, readFlag(message, MASTERY_PICK_FLAG)), style: { margin: "0.25rem 0 0" } },
+        arm: armPickTimer
+      });
     }
   }
   const m = readFlag(message, "mastery");
@@ -707,27 +703,20 @@ listen("dnd5e.renderChatMessage", "mastery", (message, html) => {
       title: pending ? `${label} — ${(m.targets ?? []).map(t => t.name).join(", ")}` : outcome,
       subtitle: `${label} — ${m.weapon?.name ?? ""}`,
       lines: pending ? [ruleLine(MASTERY_RULES[m.key])] : []
-    }) + (pending ? holdBarHTML(m) : "");
+    });
     html.querySelector(SURFACES.messageContent)?.appendChild(row);
-    // ⚠ The bar only drains once synced.
-    if ( pending ) scheduleBarSync(row);
 
     if ( pending ) {
-      armMasteryTimer(message);
       // Resume an ask answered while nobody could execute; executeMasteryAnswer is claim-first.
       if ( m.answer && drivesMomentFor(m?.attackerUuid) ) void executeMasteryAnswer(message);
-      const attacker = resolveUuid(m.attackerUuid);
-      if ( canAnswerFor(attacker) && !m.answer ) {
-        // ONE input surface: the popup decides, the card recalls a dismissed popup.
-        const shownKey = popupKey(message.id, "mastery");
-        if ( !shownMoments.has(shownKey) ) {
-          shownMoments.add(shownKey);
-          void showMasteryPopup(message, m);
-        }
-        row.appendChild(momentButton("Answer", () => {
-          void showMasteryPopup(message, readFlag(message, "mastery"));
-        }, { margin: "0.25rem 0 0" }));
-      }
+      // ONE input surface: the popup decides, the card recalls a dismissed popup.
+      const may = canAnswerFor(resolveUuid(m.attackerUuid)) && !m.answer;
+      pendingRow(message, row, {
+        bar: holdBarHTML(m),
+        latch: may && { sub: "mastery", show: () => showMasteryPopup(message, m) },
+        answer: may && { show: () => showMasteryPopup(message, readFlag(message, "mastery")), style: { margin: "0.25rem 0 0" } },
+        arm: armMasteryTimer
+      });
     }
   }
 
@@ -737,20 +726,13 @@ listen("dnd5e.renderChatMessage", "mastery", (message, html) => {
     // ⚠ A WINDOWLESS notice (noticeTimer 0) is live until acknowledged — never test the deadline alone.
     const live = (!notice.deadline || (notice.deadline > Date.now()))
       && !momentAcknowledged(message, "masteryNotice");
-    if ( live ) {
-      const bar = document.createElement("div");
-      bar.innerHTML = momentBarHTML(notice, "reminder");
-      if ( bar.innerHTML.trim() ) {
-        html.querySelector(SURFACES.messageContent)?.appendChild(bar);
-        scheduleBarSync(bar);
-      }
-    }
     const attacker = resolveUuid(notice.attackerUuid);
-    const shownKey = popupKey(message.id, "notice");
-    if ( canAnswerFor(attacker) && live && !shownMoments.has(shownKey) ) {
-      shownMoments.add(shownKey);
-      void showMasteryNotice(message, notice);
-    }
+    const bar = document.createElement("div");
+    pendingRow(message, bar, {
+      bar: live && momentBarHTML(notice, "reminder"),
+      latch: canAnswerFor(attacker) && live && { sub: "notice", show: () => showMasteryNotice(message, notice) }
+    });
+    if ( bar.innerHTML.trim() ) html.querySelector(SURFACES.messageContent)?.appendChild(bar);
     // Read-only: display must never consume a stale arm; the strip owns that.
     if ( notice.key === "cleave" ) {
       const arm = (attacker instanceof Actor) ? readFlag(attacker, "cleaveArm") : null;
@@ -763,9 +745,8 @@ listen("dnd5e.renderChatMessage", "mastery", (message, html) => {
         });
         html.querySelector(SURFACES.messageContent)?.appendChild(armed);
       } else if ( canAnswerFor(attacker) && live ) {
-        html.querySelector(SURFACES.messageContent)?.appendChild(momentButton("Answer", () => {
-          void showMasteryNotice(message, readFlag(message, "masteryNotice"));
-        }, { margin: "0.25rem 0 0" }));
+        const content = html.querySelector(SURFACES.messageContent);
+        if ( content ) pendingRow(message, content, { answer: { show: () => showMasteryNotice(message, readFlag(message, "masteryNotice")), style: { margin: "0.25rem 0 0" } } });
       }
     }
   }

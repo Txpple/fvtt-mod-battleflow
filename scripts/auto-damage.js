@@ -7,7 +7,7 @@ import { MODULE_ID, readFlag, TITLE, S, setting, decisionWindow, drivesMomentFor
 import { missShareFor, resolveUuid } from "./lookup.js";
 import { hitTargets } from "./shared.js";
 import { TONE, esc, popupKey, bfCard, momentBarHTML } from "./decide/present.js";
-import { armDeadline, disarmDeadline, livePopups, offerParts, openManagedPopup } from "./ui.js";
+import { armDeadline, disarmDeadline, livePopups, offerParts, openManagedPopup, frontPopup } from "./ui.js";
 import { CONDITION_BENDS } from "./decide/registry.js";
 import { autoCritSources } from "./decide/reminders.js";
 import { foldedRoll, foldsFrom } from "./decide/verdict.js";
@@ -310,9 +310,8 @@ const offerTimers = new Map();
  *   subtitle?: string, lines?: (string|null|undefined|false)[]}} opts
  */
 async function offerRoll(message, { roll, windowTitle, windowIcon, buttonLabel, buttonIcon, extraHTML = "", wire = null, ...card }) {
+  if ( frontPopup(message, "damage") ) return;
   const key = popupKey(message.id, "damage");
-  const open = livePopups.get(key);
-  if ( open ) { open.bringToFront?.(); return; }
 
   const window = playerRollWindow();
   const deadline = window ? Date.now() + (window * 1000) : null;

@@ -8,12 +8,11 @@ import { MODULE_ID, readFlag, TITLE, isActiveGM, queueFlagWrite, canAnswerFor, c
 import { featureNamed, lower, resolveUuid } from "./lookup.js";
 import { answers, kitTendEntries, listedNames } from "./decide/registry.js";
 import { KIT_TENDS } from "./decide/registry.js";
-import { bfCard, esc, holdBarHTML, popupKey, foldedRuleHTML, tickRowsHTML } from "./decide/present.js";
+import { bfCard, esc, holdBarHTML, foldedRuleHTML, tickRowsHTML } from "./decide/present.js";
 import { targetsOf } from "./decide/card.js";
 import { nearestFeet, tokenForUuid, tokenOfActor } from "./geometry.js";
 import { withTargets } from "./shared.js";
-import { livePopups, openMomentPopup, momentButton, shownMoments, scheduleBarSync, armAskTimer, disarmAskTimer, subjectOwns,
-  registerRelay, registerResumable } from "./ui.js";
+import { openMomentPopup, armAskTimer, disarmAskTimer, subjectOwns, registerRelay, registerResumable, pendingRow, closePopup } from "./ui.js";
 import { SURFACES } from "./surfaces.js";
 import { listen } from "./dispatch.js";
 
@@ -237,17 +236,15 @@ listen("dnd5e.renderChatMessage", "kit-tend", (message, html) => {
     const div = document.createElement("div");
     div.className = "bf-kit-tend-line";
     div.style.cssText = "margin:0.25rem 0;font-size:var(--font-size-11,11px);opacity:0.85;";
-    div.innerHTML = `<i class="fa-solid fa-kit-medical"></i> ${esc(tendLine(flag))}`
-      + ((flag.status === "pending") ? ` ${holdBarHTML(flag, "to answer")}` : "");
+    div.innerHTML = `<i class="fa-solid fa-kit-medical"></i> ${esc(tendLine(flag))}`;
     if ( flag.status === "pending" ) {
-      const actor = resolveUuid(flag.actorUuid);
-      if ( canAnswerFor(actor) ) {
-        const shown = popupKey(message.id, TEND_FLAG);
-        if ( !shownMoments.has(shown) ) { shownMoments.add(shown); void showTendPopup(message); }
-        div.appendChild(momentButton("Answer", () => { void showTendPopup(message); }));
-      }
-      scheduleBarSync(div);
-      armTimer(message);
+      const may = canAnswerFor(resolveUuid(flag.actorUuid));
+      pendingRow(message, div, {
+        bar: holdBarHTML(flag, "to answer"),
+        latch: may && { sub: TEND_FLAG, show: () => showTendPopup(message) },
+        answer: may && "Answer",
+        arm: armTimer
+      });
     }
     content.appendChild(div);
   } catch(err) { console.warn(`${TITLE} | The kit-tend line could not render.`, err); }
@@ -259,8 +256,7 @@ listen("updateChatMessage", "kit-tend", message => {
   if ( !flag ) return;
   if ( flag.status === "pending" ) { armTimer(message); return; }
   disarmAskTimer(timers, message.id);
-  const open = livePopups.get(popupKey(message.id, TEND_FLAG));
-  if ( open ) { try { void open.close(); } catch { /* gone */ } }
+  void closePopup(message, TEND_FLAG);
 });
 
 listen("deleteChatMessage", "kit-tend", message => { disarmAskTimer(timers, message.id); });
