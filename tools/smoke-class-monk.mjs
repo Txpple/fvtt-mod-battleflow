@@ -35,7 +35,7 @@ const f = await connectSuite({ tag: 'class-monk', watchdogMs: 900_000 });
 announcePlan('class-monk', plan, pulled);
 
 const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ sections, titles }) => {
-  const { sleep, until, faces, unrig } = window.__btb;
+  const { until, watch, faces, unrig } = window.__btb;
   const { results, skips, ok, want, section } = window.__btb.begin({ sections, titles });
   const KIT = window.__btbClasses;
   const { MOD, a1Damage, a1Hit, a1Roll, a1Victim, a2Combat, act, answerDeflect, attackOf, attacker, b4Cards, cardEl, cardText, clearTargets, closeA1, closeDialogs, closeOffers, created, damageFor, deflectPopup, dropEffects, dropReactionChips, dropVictimFx, grantCards, grantLine, groupText, halfling, halflingToken, hasStatus, healFull, hgClose, hgLend, hitBox, hitRow, hitRows, holdOf, hp, lend, lendUnarmed, lentBy, log, outcomeOn, pcAttacker, pcToken, pcWeapon, pickApply, pinHeal, pinPart, popups, riderBox, riderChits, riderRow, ridersOf, scene, set, settledSave, spendLuck, spendLuckC, statusOn, swing, textOf, tick, titled, typesOf, unlend, victim, victimFx, weapon } = KIT;
@@ -71,7 +71,7 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
         const dealt = [...new Set([...(act().damage?.parts ?? []).flatMap(p => [...(p.types ?? [])]),
           ...((act().damage?.includeBase !== false) ? [...(w.system.damage?.base?.types ?? [])] : [])])];
         const msg = await swing({ d20: [12], dmg: 1 });
-        const pop = await until(deflectPopup, { timeout: 6000 }).catch(() => null);
+        const pop = await until(deflectPopup, { timeout: 6000, label: "the Halfling's Deflect Attacks popup" });
         const t0 = holdOf(msg)?.targets?.find(x => x.uuid === halfling.uuid);
         ok('16a. a B/P/S hit is held for Deflect Attacks as a DAMAGE reduction with the pack\'s formula; the Halfling\'s popup lists it ("reduces the damage")',
           dealt.some(x => BPS.includes(x)) && !!pop && (t0?.reaction === 'Deflect Attacks') && (t0?.kind === 'damage') && !!t0?.reduce?.formula
@@ -79,11 +79,11 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
           `dealt=${dealt} formula="${t0?.reduce?.formula}" pack="${packFormula}" pop="${textOf(pop?.element).slice(0, 200)}"`);
         // ⚠ The hit's damage is rolled while the hold waits: let it land on swing's pinned 1 before the d10 is pinned
         // (a cold server rolled it AFTER this pin — the d8 took the 10, the d10 the 1).
-        await until(() => damageFor(msg?.id), { timeout: 8000 }).catch(() => null);
+        await until(() => damageFor(msg?.id), { timeout: 8000, label: "the hit's damage rolled while the hold waits" });
         const since = Date.now();
         faces([[10, 10], [1, 6]]);   // the d10 at 10; the damage die after it at 1 — the damage lands at 0
         await answerDeflect(pop);
-        const resolved = await until(() => (holdOf(msg)?.status === 'resolved') ? holdOf(msg) : null, { timeout: 12000 }).catch(() => null);
+        const resolved = await until(() => (holdOf(msg)?.status === 'resolved') ? holdOf(msg) : null, { timeout: 12000, label: 'the Deflect Attacks hold resolved' });
         const rt = resolved?.targets?.find(x => x.uuid === halfling.uuid);
         const dieMsg = game.messages.contents.filter(m => (m.timestamp >= since) && /Deflect Attacks — the die/.test(m.flavor ?? '')).at(-1);
         const rd = halfling.getRollData();
@@ -94,14 +94,14 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
         ok(`16b. the answer rolls the reduction IN THE OPEN: 1d10 (10) + Dex (${dexMod}) + Monk level (${monkLevel}) = ${expected}, riding the hold`,
           (rt?.answer === 'cast') && (Number(rt?.reduceBy) === expected) && !!dieMsg && (dieMsg.rolls?.[0]?.total === rt?.reduceBy),
           `reduceBy=${rt?.reduceBy} die=${dieMsg?.rolls?.[0]?.formula}=${dieMsg?.rolls?.[0]?.total} formula="${rt?.reduce?.formula}"`);
-        const dmg = await until(() => { const m = damageFor(msg?.id); return m?.getFlag(MOD, 'receipt') ? m : null; }, { timeout: 12000 }).catch(() => null);
+        const dmg = await until(() => { const m = damageFor(msg?.id); return m?.getFlag(MOD, 'receipt') ? m : null; }, { timeout: 12000, label: 'the deflected damage landed through the receipt' });
         const receipt = dmg?.getFlag(MOD, 'receipt')?.targets?.find(x => x.uuid === halfling.uuid);
         const full = (dmg?.rolls ?? []).reduce((n, r) => n + Number(r.total ?? 0), 0);
         ok('16c. the damage lands at 0 through the receipt ("Deflect Attacks — reduced by"); the Halfling untouched',
           !!receipt && (Number(receipt.taken) === 0) && /Deflect Attacks — reduced by/.test(receipt.note ?? '') && (hp() === 400),
           `full=${full} taken=${receipt?.taken} note="${receipt?.note}" hp=${hp()}`);
         // The Redirect at 0 (views.js `atZero`): on the DAMAGE card, the defender's client.
-        const redirectBtn = await until(() => [...(cardEl(dmg?.id)?.querySelectorAll?.('button') ?? [])].find(b => b.textContent.trim() === 'Redirect'), { timeout: 6000 }).catch(() => null);
+        const redirectBtn = await until(() => [...(cardEl(dmg?.id)?.querySelectorAll?.('button') ?? [])].find(b => b.textContent.trim() === 'Redirect'), { timeout: 6000, label: 'the Redirect button on the damage card' });
         ok('16d. the damage card offers "Redirect — at the attacker?" with a Redirect button',
           !!redirectBtn && /Redirect — at the attacker\?/.test(cardText(dmg?.id)) && /Deflect Attacks — the damage is 0/.test(cardText(dmg?.id)),
           `button=${!!redirectBtn} redirectActivity=${!!redirectAct} card="${cardText(dmg?.id).slice(-240)}"`);
@@ -109,7 +109,7 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
         const since2 = Date.now();
         redirectBtn?.click();
         const card = await until(() => game.messages.contents.find(m => (m.timestamp >= since2)
-          && (m.getAssociatedActivity?.()?.id === redirectAct?.id)), { timeout: 10000 }).catch(() => null);
+          && (m.getAssociatedActivity?.()?.id === redirectAct?.id)), { timeout: 10000, label: "the Redirect's own card" });
         const atZero = game.messages.get(dmg?.id)?.getFlag(MOD, 'atZero')?.[halfling.id] ?? null;
         const cardTargets = card?.system?.targets ?? [];
         const demanded = card?.getFlag(MOD, 'saves')?.targets ?? [];
@@ -123,7 +123,9 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
           (!focus || (Number(halfling.items.get(focus.id)?.system?.uses?.spent ?? 0) === focusBefore + 1))
             && ![...(cardEl(dmg?.id)?.querySelectorAll?.('button') ?? [])].some(b => b.textContent.trim() === 'Redirect'),
           `focus ${focusBefore}→${focus ? halfling.items.get(focus.id)?.system?.uses?.spent : 'none'}`);
-        await sleep(800);
+        // The Redirect's save demand stands on its card before the closes below. Soft: 16e reads dnd5e's own targets
+        // when the module demands nothing.
+        await until(() => card.getFlag(MOD, 'saves'), { timeout: 5000 }).catch(() => null);
         await closeDialogs();
         for (const app of popups()) if (/Redirect/.test(textOf(app.element))) { try { await app.close(); } catch { /* gone */ } }
 
@@ -134,18 +136,20 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
           await w.update({ 'system.damage.base.types': ['fire'] });
           await spendLuck();
           const msg2 = await swing({ d20: [12] });
-          await sleep(1200);
+          const stray = await watch(() => holdOf(msg2) || deflectPopup(), { ms: 1200 });   // a window: a fire hit asks nothing
+          // Soft: a hold that came holds the damage, and the ok reports it.
           await until(() => hp() < 400, { timeout: 6000 }).catch(() => null);
-          ok('16g. a fire hit asks nothing: no hold, no popup, the damage lands', !holdOf(msg2) && !deflectPopup() && (hp() < 400),
-            `hold=${JSON.stringify(holdOf(msg2)?.targets?.map?.(x => x.reaction) ?? null)} hp=${hp()} dealt=${JSON.stringify(attacker.items.get(weapon.id)?.system?.damage?.base?.types ?? null)}`);
+          ok('16g. a fire hit asks nothing: no hold, no popup, the damage lands', !stray && !holdOf(msg2) && !deflectPopup() && (hp() < 400),
+            `stray=${!!stray} hold=${JSON.stringify(holdOf(msg2)?.targets?.map?.(x => x.reaction) ?? null)} hp=${hp()} dealt=${JSON.stringify(attacker.items.get(weapon.id)?.system?.damage?.base?.types ?? null)}`);
           // (c) Deflect Energy lifts the judge
           const energy = await lend(halfling, 'Deflect Energy');
           try {
             const msg3 = await swing({ d20: [12] });
-            const pop3 = await until(deflectPopup, { timeout: 6000 }).catch(() => null);
+            const pop3 = await until(deflectPopup, { timeout: 6000, label: 'the Deflect Attacks popup on the fire hit' });
             ok('16h. with Deflect Energy the fire hit is held for Deflect Attacks', !!pop3 && (holdOf(msg3)?.targets?.[0]?.reaction === 'Deflect Attacks'),
               `pop=${!!pop3} reaction=${holdOf(msg3)?.targets?.[0]?.reaction}`);
             pickApply(pop3, 'pass');
+            // The pass settled before the closes; nothing reads it.
             await until(() => (holdOf(msg3)?.status === 'resolved'), { timeout: 10000 }).catch(() => null);
           } finally { await closeDialogs(); await unlend(halfling, energy); }
         }
@@ -170,6 +174,9 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
       const hoh = await hgLend(pcAttacker, 'Hand of Harm', 'feat');
       const us = await lendUnarmed();
       let combat28 = null;
+      // A save card's consequences landed on the Victim (its effects written, the target marked applied).
+      const landed = c => !!c?.getFlag(MOD, 'saves')?.targets?.find(t => t.uuid === victim.uuid)?.applied;
+      let lastSave = null;
       try {
         if (!focus || !stun || !hoh || !us || !pcWeapon) log.push(`§28 skipped: focus=${!!focus} stun=${!!stun} hoh=${!!hoh} unarmed=${!!us} weapon=${!!pcWeapon}`);
         else {
@@ -193,7 +200,8 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
           faces([[1, 20]]);   // every die a 1: the save fails
           await a1Roll(r1.msg, r1.offer);
           const c1 = await settledSave('stunning-strike', t1);
-          await until(() => fx().includes('Stunned'), { timeout: 6000 }).catch(() => null); await sleep(600);
+          lastSave = c1;
+          await until(() => landed(c1) && fx().includes('Stunned'), { timeout: 6000, label: "the failed save's consequences on the Victim, Stunned among them" });
           ok('28c. Stunning Strike, the save failed: Stunned lands, Slowed does not; ONE Focus Point spent (the save\'s own use is the cost)',
             (outcomeOn(c1) === 'failed') && fx().includes('Stunned') && !fx().includes('Slowed') && (spent() === 1),
             `outcome=${outcomeOn(c1)} fx=${JSON.stringify(fx())} spent=${spent()}`);
@@ -205,10 +213,11 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
             const e1 = c1.getFlag(MOD, 'saves')?.targets?.find(t => t.uuid === victim.uuid);
             const rollMsg = game.messages.get(e1?.rollMessageId);
             if (rollMsg) await victim.system.resistSave(rollMsg);
-            await until(() => (outcomeOn(c1) === 'saved') && fx().includes('Slowed') && !fx().includes('Stunned'), { timeout: 8000 }).catch(() => null); await sleep(400);
+            await until(() => (outcomeOn(c1) === 'saved') && fx().includes('Slowed') && !fx().includes('Stunned'), { timeout: 8000, label: 'the flip: Stunned unwound, Slowed landed' });
+            const stray = await watch(() => fx().includes('Stunned') || !fx().includes('Slowed'), { ms: 400 });   // a window: the flip stays flipped
             ok('28c-lr. Legendary Resistance flips the failure: Stunned unwinds, Slowed (the success half) lands',
-              (outcomeOn(c1) === 'saved') && fx().includes('Slowed') && !fx().includes('Stunned'),
-              `outcome=${outcomeOn(c1)} fx=${JSON.stringify(fx())} roll=${!!rollMsg}`);
+              !stray && (outcomeOn(c1) === 'saved') && fx().includes('Slowed') && !fx().includes('Stunned'),
+              `stray=${!!stray} outcome=${outcomeOn(c1)} fx=${JSON.stringify(fx())} roll=${!!rollMsg}`);
             await victim.update({ 'system.resources.legres.max': priorLR.max, 'system.resources.legres.spent': priorLR.spent });
           }
           await dropVictimFx();
@@ -219,7 +228,8 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
           faces([[20, 20]]);   // every die a 20: the save succeeds
           await a1Roll(r2.msg, r2.offer);
           const c2 = await settledSave('stunning-strike', t2);
-          await until(() => fx().includes('Slowed'), { timeout: 6000 }).catch(() => null); await sleep(600);
+          lastSave = c2;
+          await until(() => landed(c2) && fx().includes('Slowed'), { timeout: 6000, label: "the saved Stunning Strike's consequences on the Victim, Slowed among them" });
           ok('28d. the save succeeded: Slowed lands (the success half — the pack marks it failure-only), Stunned does not; a second point spent',
             (outcomeOn(c2) === 'saved') && fx().includes('Slowed') && !fx().includes('Stunned') && (spent() === 2),
             `outcome=${outcomeOn(c2)} fx=${JSON.stringify(fx())} spent=${spent()} names=${JSON.stringify(c2?.getFlag(MOD, 'saves')?.effectNames ?? null)}`);
@@ -231,7 +241,12 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
           const both = !!hitBox(r3.offer, 'stunning-strike')?.checked && !!hitBox(r3.offer, 'hand-of-harm')?.checked;
           faces([[1, 20]]);
           const d3 = await a1Roll(r3.msg, r3.offer);
-          await settledSave('stunning-strike', t3); await sleep(800);
+          const c3 = await settledSave('stunning-strike', t3);
+          lastSave = c3;
+          // Hand of Harm's point is spent beside the damage roll, unawaited.
+          await until(() => spent() >= 4, { timeout: 5000, label: 'the two picks\' Focus Points spent' });
+          // Soft: the save's effect lands before the drop below; this ok does not read it.
+          await until(() => landed(c3), { timeout: 6000 }).catch(() => null);
           ok('28e. both ride one hit (the group\'s two picks): the necrotic die on the roll, two more Focus Points',
             both && typesOf(d3).includes('necrotic') && (spent() === 4),
             `both=${both} types=${JSON.stringify(typesOf(d3))} spent=${spent()} picks=${JSON.stringify((d3?.getFlag(MOD, 'hitManeuver')?.picks ?? []).map(p => p.key))}`);
@@ -244,8 +259,9 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
           await tick(r4.offer, 'stunning-strike');
           faces([[1, 20]]);
           await a1Roll(r4.msg, r4.offer);
-          await settledSave('stunning-strike', t4); await sleep(800);
-          const chit = pcAttacker.effects.find(e => e.getFlag(MOD, 'riderKey') === 'stunning-strike') ?? null;
+          lastSave = await settledSave('stunning-strike', t4);
+          // The turn's chit is written beside the damage roll, unawaited.
+          const chit = await until(() => pcAttacker.effects.find(e => e.getFlag(MOD, 'riderKey') === 'stunning-strike') ?? null, { timeout: 6000, label: "Stunning Strike's turn chit" });
           const r5 = await a1Hit(pcAttacker, pcToken, usAct());
           ok('28f. in a combat, the second hit this turn: Stunning Strike greyed "used this turn" (its chit), Hand of Harm still offered',
             !!chit && /used this turn/.test(hitRow(r5.offer, 'stunning-strike')) && (hitBox(r5.offer, 'stunning-strike')?.disabled === true) && (hitBox(r5.offer, 'hand-of-harm')?.disabled === false),
@@ -255,7 +271,7 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
       } finally {
         await closeOffers(); await closeDialogs();
         if (combat28 && game.combats.get(combat28.id)) await combat28.delete();
-        await sleep(800);   // the last save's effect lands after its card
+        if (lastSave) await until(() => landed(lastSave), { timeout: 3000 }).catch(() => null);   // the last save's effect lands after its card
         await dropVictimFx();
         await dropEffects(pcAttacker, riderChits(pcAttacker));
         for (const it of [us, hoh, stun, focus]) if (it) await unlend(pcAttacker, it);
@@ -288,7 +304,7 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
 
           const flurry = pcAttacker.items.get(focus.id).system.activities.find(a => a.name === 'Flurry of Blows');
           await flurry?.use({ consume: { resources: false, action: false, spellSlot: false }, subsequentActions: false }, { configure: false }, {});
-          const chit = await until(() => pcAttacker.effects.find(e => e.getFlag(MOD, 'riderKey') === 'flurry-of-blows') ?? null, { timeout: 6000 }).catch(() => null);
+          const chit = await until(() => pcAttacker.effects.find(e => e.getFlag(MOD, 'riderKey') === 'flurry-of-blows') ?? null, { timeout: 6000, label: "Flurry of Blows' turn chit" });
           const t2 = Date.now();
           const r2 = await a1Hit(pcAttacker, pcToken, usAct());
           ok('29c. Flurry of Blows used: its turn chit; the next Unarmed Strike offers the three, one pick',
@@ -298,7 +314,7 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
           faces([[1, 20]]);
           await a1Roll(r2.msg, r2.offer);
           const c2 = await settledSave('open-hand-topple', t2);
-          await until(() => victim.statuses?.has?.('prone'), { timeout: 6000 }).catch(() => null); await sleep(400);
+          await until(() => victim.statuses?.has?.('prone'), { timeout: 6000, label: 'Toppled: Prone on the Victim' });
           ok('29d. one pick (Topple gave Push way); the Dexterity save failed: Toppled — the target Prone',
             one && (outcomeOn(c2) === 'failed') && !!victim.statuses?.has?.('prone'),
             `one=${one} outcome=${outcomeOn(c2)} fx=${JSON.stringify(victimFx().map(e => e.name))}`);
@@ -330,6 +346,7 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
         const attuned = attune ? await attune.use({ subsequentActions: false }, { configure: false }, {}) : null;
         try { await attune?.applyEnchantment(attune.effects?.[0]?._id ?? null, pcAttacker.items.get(ea.id), { chatMessage: attuned?.message ?? null, strict: false }); }
         catch (err) { log.push(`§31 applyEnchantment threw: ${err?.message}`); }
+        // Soft: without the strike the section is skipped and logged.
         const strike = await until(() => pcAttacker.items.get(ea?.id)?.system?.activities?.find(a => (a.name === 'Elemental Strike') && a.canUse) ?? null, { timeout: 6000 }).catch(() => null);
         if (!ea || !strike || !pcWeapon) log.push(`§31 skipped: ea=${!!ea} strike=${!!strike} (usable after the attunement) enchantments=${JSON.stringify(pcAttacker.items.get(ea?.id)?.effects?.map(e => [e.name, e.type, e.isAppliedEnchantment ?? null]) ?? null)}`);
         else {
@@ -345,7 +362,8 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
           faces([[1, 20]]);
           await a1Roll(r1.msg, r1.offer);
           const c1 = await settledSave('elemental-attunement', t1);
-          await sleep(600);
+          // The maneuver's line is set on the save card after it posts and draws on the next render.
+          await until(() => /pushed or pulled up to 10 feet/.test(cardText(c1?.id)), { timeout: 5000, label: "the save card's push-or-pull line" });
           ok('31c. the Strength save, failed; the card says the table moves the token (pushed or pulled up to 10 feet)',
             (outcomeOn(c1) === 'failed') && /pushed or pulled up to 10 feet/.test(cardText(c1?.id)),
             `outcome=${outcomeOn(c1)} card="${cardText(c1?.id).slice(0, 220)}" acts=${JSON.stringify([...pcAttacker.items.get(ea.id).system.activities].map(a => [a.name, a.canUse, a.isRider, a.isHidden]))} riders=${JSON.stringify(pcAttacker.items.get(ea.id).flags?.dnd5e?.riders ?? null)}`);
@@ -374,7 +392,7 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
           const r1 = await a1Hit(pcAttacker, pcToken, usAct());
           await tick(r1.offer, 'hand-of-harm');
           const d1 = await a1Roll(r1.msg, r1.offer);
-          const poisoned = await until(() => victimFx().find(e => /Poisoned/.test(e.name)) ?? null, { timeout: 8000 }).catch(() => null);
+          const poisoned = await until(() => victimFx().find(e => /Poisoned/.test(e.name)) ?? null, { timeout: 8000, label: '"Poisoned (Hand of Harm)" on the Victim' });
           ok('56a. Hand of Harm with Physician\'s Touch on the sheet: the necrotic die rides AND "Poisoned (Hand of Harm)" lands on the Victim',
             typesOf(d1).includes('necrotic') && !!poisoned && (d1?.getFlag(MOD, 'hitManeuver')?.picks?.[0]?.also?.feature === "Physician's Touch"),
             `types=${JSON.stringify(typesOf(d1))} fx=${JSON.stringify(victimFx().map(e => e.name))} pick=${JSON.stringify(d1?.getFlag(MOD, 'hitManeuver')?.picks?.[0]?.also ?? null)}`);
@@ -384,19 +402,18 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
           const healAct = pcAttacker.items.get(healing.id).system.activities.find(a => a.type === 'heal');
           await pinHeal(healing, healAct.name, '1d8 + 3');
           pcToken.control({ releaseOthers: true }); clearTargets(); halflingToken.setTarget(true, { releaseOthers: true });
-          await sleep(100);
           const t0 = Date.now();
           faces([[4, 8]]);
           await healAct.use({ subsequentActions: false }, { configure: false }, {});
           unrig();
-          const endCard = await until(() => b4Cards(t0, 'conditionEnd').find(m => m.getFlag(MOD, 'conditionEnd')?.row === "Physician's Touch") ?? null, { timeout: 8000 }).catch(() => null);
-          const pop = await until(() => titled(/^Physician's Touch — /), { timeout: 6000 }).catch(() => null);
+          const endCard = await until(() => b4Cards(t0, 'conditionEnd').find(m => m.getFlag(MOD, 'conditionEnd')?.row === "Physician's Touch") ?? null, { timeout: 8000, label: "Physician's Touch's condition-end card" });
+          const pop = await until(() => titled(/^Physician's Touch — /), { timeout: 6000, label: "the Physician's Touch popup" });
           ok('56b. Hand of Healing at the Halfling: the popup "End a condition on BTB Test Halfling?" listing Blinded',
             !!endCard && !!pop && /Blinded/.test(textOf(pop?.element)) && (endCard?.getFlag(MOD, 'conditionEnd')?.bearerUuid === halfling.uuid),
             `card=${!!endCard} pop=${!!pop} text="${textOf(pop?.element).slice(0, 200)}"`);
           pop?.element?.querySelector('button[data-action="blinded"]')?.click();
-          const done = await until(() => endCard?.getFlag(MOD, 'conditionEnd')?.applied ? endCard.getFlag(MOD, 'conditionEnd') : null, { timeout: 12000 }).catch(() => null);
-          await sleep(600);
+          // Blinded is deleted before the card is marked applied.
+          const done = await until(() => endCard?.getFlag(MOD, 'conditionEnd')?.applied ? endCard.getFlag(MOD, 'conditionEnd') : null, { timeout: 12000, label: 'End Blinded landed' });
           ok('56c. End Blinded: gone from the Halfling', (done?.ended === 'blinded') && !hasStatus(halfling, 'blinded'), `flag=${JSON.stringify(done && { ended: done.ended, gone: done.gone })} blinded=${hasStatus(halfling, 'blinded')}`);
         }
       } finally {
@@ -421,14 +438,14 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
           const rolls = await halfling.rollSavingThrow({ ability: 'wis' }, { configure: false }, {});
           const m = rolls?.[0]?.parent ?? null;
           const base = Number(rolls?.[0]?.total);
-          const flag = await until(() => m?.getFlag(MOD, 'd20fold') ?? null, { timeout: 5000 }).catch(() => null);
+          const flag = await until(() => m?.getFlag(MOD, 'd20fold') ?? null, { timeout: 5000, label: 'the d20 fold on the failed save' });
           const offer = (flag?.offers ?? []).find(o => o.kind === 'reroll') ?? null;
           ok('80a. a failed save from the sheet offers Disciplined Survivor: the `reroll` kind, no bonus, a Focus Point', !!offer && (offer.label === 'Disciplined Survivor') && (Number(offer.bonus) === 0),
             `offers=${JSON.stringify(flag?.offers ?? null)}`);
-          const popup = await until(() => [...document.querySelectorAll('.application')].find(el => (el.tagName === 'DIALOG') && !priorDialogs.has(el.id) && !!el.querySelector('[data-bf-rescue-action="reroll"]')) ?? null, { timeout: 8000 }).catch(() => null);
+          const popup = await until(() => [...document.querySelectorAll('.application')].find(el => (el.tagName === 'DIALOG') && !priorDialogs.has(el.id) && !!el.querySelector('[data-bf-rescue-action="reroll"]')) ?? null, { timeout: 8000, label: 'the rescue window with the reroll row' });
           faces([[14, 20]]);
           popup?.querySelector('[data-bf-rescue-action="reroll"]')?.click();
-          const done = await until(() => { const cur = m?.getFlag(MOD, 'd20fold'); return (cur?.spends?.length && !cur.spends.some(sp => sp.pendingVerdict)) ? cur : null; }, { timeout: 20000 }).catch(() => null);
+          const done = await until(() => { const cur = m?.getFlag(MOD, 'd20fold'); return (cur?.spends?.length && !cur.spends.some(sp => sp.pendingVerdict)) ? cur : null; }, { timeout: 20000, label: 'the reroll spent and settled' });
           unrig();
           const spent = Number(halfling.items.get(focus.id)?.system?.uses?.spent ?? NaN);
           ok('80b. pressed: the d20 rerolled (14), the total 14 + mod, a Focus Point spent', (done?.spends?.[0]?.kind === 'reroll') && (Number(done?.spends?.[0]?.reroll?.total) === 14 + (base - 3)) && (spent === 1),
@@ -460,21 +477,24 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
           // This section's cards only: in a full run §37 posted the Halfling's Uncanny Metabolism cards first.
           const t81 = Date.now();
           await combat.setInitiative(hC.id, 12);
-          const um = await until(() => grantCards(halfling, 'Uncanny Metabolism').find(m => m.timestamp >= t81) ?? null, { timeout: 8000 }).catch(() => null);
-          const pop = await until(() => titled(/^Uncanny Metabolism — /), { timeout: 6000 }).catch(() => null);
+          const um = await until(() => grantCards(halfling, 'Uncanny Metabolism').find(m => m.timestamp >= t81) ?? null, { timeout: 8000, label: "Uncanny Metabolism's card at Initiative" });
+          const pop = await until(() => titled(/^Uncanny Metabolism — /), { timeout: 6000, label: 'the Uncanny Metabolism popup' });
           ok('81a. at Initiative Uncanny Metabolism asks; Perfect Focus rides its card as the fallback, no card of its own', !!um && !!pop && (um.getFlag(MOD, 'initiativeGrant')?.fallback?.row === 'Perfect Focus') && (grantCards(halfling, 'Perfect Focus').filter(m => m.timestamp >= t81).length === 0),
             `um=${!!um} fallback=${JSON.stringify(um?.getFlag(MOD, 'initiativeGrant')?.fallback ?? null)} own=${grantCards(halfling, 'Perfect Focus').filter(m => m.timestamp >= t81).length}`);
           pop?.element?.querySelector('button[data-action="no"]')?.click();
-          const done = await until(() => um?.getFlag(MOD, 'initiativeGrant')?.fallbackApplied ? um : null, { timeout: 10000 }).catch(() => null);
-          await sleep(400);
-          ok('81b. No: the Focus Points come back up to 4 (2 → 4), Uncanny kept, the line says both', (focusValue() === 4) && (Number(halfling.items.get(uncanny.id)?.system?.uses?.spent) === 0) && /Perfect Focus — Focus Points back up to 4/.test(await grantLine(done)),
-            `focus=${focusValue()} uncanny=${halfling.items.get(uncanny.id)?.system?.uses?.spent} line="${await grantLine(done)}"`);
+          // The Focus Points are written before the card is marked fallbackApplied; grantLine waits for the drawn line.
+          const done = await until(() => um?.getFlag(MOD, 'initiativeGrant')?.fallbackApplied ? um : null, { timeout: 10000, label: 'Perfect Focus landed under the No' });
+          const stray = await watch(() => Number(halfling.items.get(uncanny.id)?.system?.uses?.spent) !== 0, { ms: 400 });   // a window: the No keeps Uncanny Metabolism
+          ok('81b. No: the Focus Points come back up to 4 (2 → 4), Uncanny kept, the line says both', !stray && (focusValue() === 4) && (Number(halfling.items.get(uncanny.id)?.system?.uses?.spent) === 0) && /Perfect Focus — Focus Points back up to 4/.test(await grantLine(done)),
+            `stray=${!!stray} focus=${focusValue()} uncanny=${halfling.items.get(uncanny.id)?.system?.uses?.spent} line="${await grantLine(done)}"`);
           // its own card: Uncanny spent
           await uncanny.update({ 'system.uses.spent': 1 });
           await focus.update({ 'system.uses.spent': 3 });
-          await combat.resetAll(); await sleep(600);
+          await combat.resetAll();
+          // The reset re-arms the Initiative grants (the combatant's read latch cleared, unawaited).
+          await until(() => !combat.getFlag(MOD, 'initiativeGrantRead')?.[hC.id], { timeout: 5000, label: 'the Initiative grants re-armed by the reset' });
           await combat.setInitiative(hC.id, 11);
-          const pf = await until(() => grantCards(halfling, 'Perfect Focus').find(m => (m.timestamp >= t81) && m.getFlag(MOD, 'initiativeGrant')?.applied) ?? null, { timeout: 8000 }).catch(() => null);
+          const pf = await until(() => grantCards(halfling, 'Perfect Focus').find(m => (m.timestamp >= t81) && m.getFlag(MOD, 'initiativeGrant')?.applied) ?? null, { timeout: 8000, label: 'Perfect Focus on its own card, applied' });
           ok('81c. Uncanny Metabolism spent: Perfect Focus on its own card, automatic — 4 of 5', !!pf && (focusValue() === 4) && /Perfect Focus — Focus Points back up to 4/.test(await grantLine(pf)),
             `card=${!!pf} focus=${focusValue()} line="${await grantLine(pf)}"`);
         }
@@ -503,7 +523,6 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
           if (r0.offer) await a1Roll(r0.msg, r0.offer); else await a1Damage(r0.msg);
           await closeOffers();
           [active] = await att.createEmbeddedDocuments('ActiveEffect', [{ name: 'Active Attunement', type: 'enchantment', img: 'icons/svg/aura.svg', transfer: true, disabled: false }]);   // the APPLIED enchantment (the templates are transfer false)
-          await sleep(200);
           const r = await a1Hit(pcAttacker, pcToken, attackOf(pcAttacker, att) ?? strike);
           const row = riderRow(r.offer, 'elemental-epitome');
           ok('97b. attuned: the offer\'s rider "Empowered Strikes" with the Martial Arts die, ticked', !!r.offer && /Empowered Strikes/.test(row) && !!riderBox(r.offer, 'elemental-epitome')?.checked,
