@@ -34,16 +34,8 @@ announcePlan('heatmetal', plan, pulled);
 
 const out = await f.evaluate(async ({ sections, titles }) => {
   const MOD = 'fvtt-mod-bythebooks';
-  const results = [];
-  const log = [];
-  const skips = [];
-  const ok = (name, pass, detail = '') => results.push({ name, pass, detail });
-  const want = id => {
-    if (!sections || sections.includes(String(id))) return true;
-    skips.push(`§${id} ${titles?.[id] ?? ''}`);
-    return false;
-  };
-  const sleep = ms => new Promise(r => setTimeout(r, ms));
+  const { until, watch, canvasReady, tokenOn, snapshotSettings, faces, unrig } = window.__btb;
+  const { results, log, skips, ok, want, section } = window.__btb.begin({ sections, titles });
   const suiteStart = Date.now();
   const ledger = globalThis.__bfHookLedger ?? null;
   const count = name => ledger?.[name] ?? 0;
@@ -58,8 +50,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   const SETTING_KEYS = ['autoDamage', 'autoApply', 'playerRollDamage', 'damageTimer', 'dramaticBeat', 'requireTarget',
     'reactionHold', 'riders', 'effectRiders', 'masteryRiders', 'masteryAsk', 'saves', 'saveTimer', 'castApply', 'concMode',
     'reminderList', 'conditionList', 'effectList', 'maneuverFolds', 'clockRiderList', 'hitMenuList', 'emanations', 'damageShieldList', 'damageSaveList', 'hideCardButtons'];
-  const prior = Object.fromEntries(SETTING_KEYS.map(k => [k, game.settings.get(MOD, k)]));
-  const set = (k, v) => game.settings.set(MOD, k, v);
+  const settings = snapshotSettings(SETTING_KEYS);
+  const { prior, set } = settings;
 
   const scene = game.scenes.getName('By the Books Test Range');
   const cleric = game.actors.getName('BTB Test Cleric');
@@ -71,7 +63,6 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   const created = { items: [], tokens: [] };
   const priorActor = {};
   let restored = false;
-  const realPRNG = CONFIG.Dice.randomUniform;
   const clearFx = async () => {
     for (const a of [cleric, goblin]) {
       const fx = a.effects.filter(e => /^Heated Metal/.test(e.name) || e.getFlag(MOD, 'applied'));
@@ -89,9 +80,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     restored = true;
     console.error = origError;
     for (const e of errors) log.push('console: ' + e);
-    CONFIG.Dice.randomUniform = realPRNG;
-    try { for (const [k, v] of Object.entries(prior)) await set(k, v); }
-    catch (err) { log.push(`TEARDOWN settings ERROR: ${err?.message}`); }
+    unrig();
+    for (const failed of await settings.restore()) log.push(`TEARDOWN settings ERROR: ${failed}`);
     try {
       await closeDialogs();
       try { if (cleric.concentration?.effects?.size) await cleric.endConcentration(); } catch { /* none */ }
@@ -162,14 +152,14 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     if (!castAct || !reheatAct || !saveAct) return { fatal: `Heat Metal's activities differ from the measurement: ${heat.system.activities.map(a => a.name).join(', ')}` };
 
     if (canvas.scene?.id !== scene.id) await scene.view();
-    for (let i = 0; i < 40 && !canvas.ready; i++) await sleep(250);
+    await canvasReady();
     const strays = scene.tokens.filter(t => [cleric.id, goblin.id].includes(t.actorId)).map(t => t.id);
     if (strays.length) await scene.deleteEmbeddedDocuments('Token', strays);
     const placeToken = async (actor, x, y) => {
       const [doc] = await scene.createEmbeddedDocuments('Token', [
         foundry.utils.mergeObject(actor.prototypeToken.toObject(), { x, y, actorId: actor.id, actorLink: true, hidden: false }, { inplace: false })]);
       created.tokens.push(doc.id);
-      for (let i = 0; i < 40 && !(canvas.ready && canvas.tokens.get(doc.id)); i++) await sleep(250);
+      await tokenOn(doc.id);
       const token = canvas.tokens.get(doc.id);
       if (!token) throw new Error(`${actor.name}'s token never reached the canvas`);
       return { doc, token };
@@ -191,12 +181,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     const healFull = async () => goblin.update({ 'system.attributes.hp.value': 400 });
 
     // -------------------------------------------------- helpers
-    const waitFor = async (test, timeout = 8000) => {
-      const until = Date.now() + timeout;
-      while (Date.now() < until) { const v = test(); if (v) return v; await sleep(200); }
-      return test();
-    };
-    const face = (n, faces = 20) => { CONFIG.Dice.randomUniform = () => 1 - ((n - 0.5) / faces); };
+    const face = (n, of = 20) => faces([[n, of]]);
     const target = token => token.setTarget(true, { releaseOthers: true });
     const textOf = el => (el?.textContent ?? '').replace(/\s+/g, ' ').trim();
     const cardText = id => textOf(document.querySelector(`.message[data-message-id="${id}"]`));
@@ -216,7 +201,6 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const since = Date.now();
       clericToken.control({ releaseOthers: true });
       target(goblinToken);
-      await sleep(80);
       const results = await activity.use({ consume: { spellSlot: false, resources: false, action: false } }, { configure: false }, {});
       const card = results?.message ?? null;
       return { since, card };
@@ -227,13 +211,13 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     let demandOne = null;
 
     // ================================================== 1. the dice roll at the use and land
-    if (want(1)) {
+    if (want(1)) await section(1, async () => {
       await clearFx();
       await healFull();
       const hpBefore = goblinHP();
       const { card } = await heatUse(castAct);
       cardOne = card;
-      const dmg = await waitFor(() => { const d = card ? damageFor(card.id) : null; return d?.getFlag(MOD, 'receipt') ? d : null; }, 12000);
+      const dmg = await until(() => { const d = card ? damageFor(card.id) : null; return d?.getFlag(MOD, 'receipt') ? d : null; }, { timeout: 12000 });
       const receipt = dmg?.getFlag(MOD, 'receipt')?.targets?.find(t => t.uuid === goblin.uuid);
       const part = dmg?.rolls?.[0];
       ok('1a. Cast and Heat used with the goblin targeted: the 2d8 fire rolled by the module (no button), chained to the usage card, the card stamped damageCast',
@@ -242,15 +226,16 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       ok('1b. …and it LANDS on the goblin through the no-attack applier: a receipt, the HP down by the roll',
         !!receipt && (receipt.taken === part?.total) && (goblinHP() === hpBefore - (part?.total ?? 0)),
         `receipt=${JSON.stringify(receipt)} hp ${hpBefore}→${goblinHP()}`);
-      await sleep(2500);   // the window in which the system's own follow-up roll would have landed — the assertion is that it does not
+      // the window in which the system's own follow-up roll would have landed — the assertion is that it does not
+      const followUp = await watch(() => (card && (damageRollsFor(card.id).length > 1)) || rollDialog(), { ms: 2500 });
       ok('1c. ONE roll, never two: the system\'s own follow-up (a damage dialog) was switched off at the use, so exactly one damage message chains to the card',
-        card && (damageRollsFor(card.id).length === 1) && !rollDialog(),
-        `rolls=${card ? damageRollsFor(card.id).length : 'no card'} damageDialogs=${rollDialog() ? 1 : 0}`);
-    }
+        card && !followUp && (damageRollsFor(card.id).length === 1) && !rollDialog(),
+        `rolls=${card ? damageRollsFor(card.id).length : 'no card'} damageDialogs=${rollDialog() ? 1 : 0}${followUp ? ' (a follow-up rose in the window)' : ''}`);
+    });
 
     // ================================================== 2. the save follows
-    if (want(2)) {
-      demandOne = await waitFor(() => demandsSince(suiteStart).find(m => m.getFlag(MOD, 'saves')) ?? null, 8000);
+    if (want(2)) await section(2, async () => {
+      demandOne = await until(() => demandsSince(suiteStart).find(m => m.getFlag(MOD, 'saves')) ?? null, { timeout: 8000 });
       const saves = demandOne?.getFlag(MOD, 'saves');
       const dc = saveAct.save?.dc?.value;
       ok('2a. a save demand card follows the damage: the goblin its one target, Constitution, the Cleric\'s own DC, the card tied to the damage card',
@@ -258,21 +243,21 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           && (demandOne.getFlag(MOD, 'damageSaveCard')?.damageCardId === cardOne?.id),
         `saves=${JSON.stringify(saves ? { abilities: saves.abilities, dc: saves.dc, targets: saves.targets?.map(t => t.name) } : null)} dc=${dc} tie=${demandOne?.getFlag(MOD, 'damageSaveCard')?.damageCardId === cardOne?.id}`);
       // The GM's dialog for the NPC: press Normal (the -30 forces the failure).
-      const el = await waitFor(saveDialogEl, 8000);
+      const el = await until(saveDialogEl, { timeout: 8000 });
       el?.querySelector('button[data-action="normal"]')?.click();
-      const done = await waitFor(() => { const t = demandOne?.getFlag(MOD, 'saves')?.targets?.[0]; return (t?.done && t.applied) ? t : null; }, 12000);
-      const heated = await waitFor(() => goblin.effects.find(e => e.name === 'Heated Metal'), 6000);
+      const done = await until(() => { const t = demandOne?.getFlag(MOD, 'saves')?.targets?.[0]; return (t?.done && t.applied) ? t : null; }, { timeout: 12000 });
+      const heated = await until(() => goblin.effects.find(e => e.name === 'Heated Metal'), { timeout: 6000 });
       const er = demandOne?.getFlag(MOD, 'effectReceipt')?.targets?.find(t => t.uuid === goblin.uuid);
       ok('2b. the forced failure lands Heated Metal on the goblin through the saves machine, receipted on the demand card',
         (done?.outcome === 'failed') && !!heated && !!er?.effects?.some(e => e.name === 'Heated Metal'),
         `outcome=${done?.outcome} total=${done?.total} heated=${!!heated} receipt=${JSON.stringify(er?.effects?.map(e => e.name))}`);
-      const text = await waitFor(() => { const t = cardText(demandOne?.id); return /the save after the damage/i.test(t) ? t : null; }, 4000);
+      const text = await until(() => { const t = cardText(demandOne?.id); return /the save after the damage/i.test(t) ? t : null; }, { timeout: 4000 });
       ok('2c. the card says what the table plays: drop it, or keep it and take the Disadvantage (R5)',
         /Drop it, or keep it/.test(text ?? '') && /remove Heated Metal if it did/.test(text ?? ''), (text ?? '').slice(0, 220));
-    }
+    });
 
     // ================================================== 3. both gates read it
-    if (want(3)) {
+    if (want(3)) await section(3, async () => {
       if (!goblin.effects.some(e => e.name === 'Heated Metal')) {
         const src = heat.effects.find(e => e.name === 'Heated Metal');
         if (src) { const d = src.toObject(); delete d._id; await goblin.createEmbeddedDocuments('ActiveEffect', [{ ...d, origin: src.uuid, transfer: false }]); }
@@ -280,70 +265,78 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       // The ATTACK gate: the goblin swings with the dialog.
       goblinToken.control({ releaseOthers: true });
       target(clericToken);
-      await sleep(80);
       const attack = melee.system.activities.find(a => a.type === 'attack');
       const results = await attack.use({ subsequentActions: false }, { configure: false }, {});
       face(19);
+      const tSwing = Date.now();
       void attack.rollAttack({}, {}, results?.message?.id ? { data: { 'system.origin': results.message.id } } : {});
-      const dialog = await waitFor(rollDialog, 6000);
-      await waitFor(() => dialog?.element?.querySelector('[data-bf-reminder]'), 2500);
+      const dialog = await until(rollDialog, { timeout: 6000 });
+      // The gate is set on the dialog at preRoll; its fieldset is drawn at render only when it has a source.
+      await until(() => { const g = dialog?.options?.bfReminder; return !dialog || !g || !((g.sources?.length > 0) || g.sneak) || dialog.element?.querySelector('[data-bf-reminder]'); }, { label: 'the gate drawn in the roll dialog' });
       const section = textOf(dialog?.element?.querySelector('[data-bf-reminder]'));
       ok('3a. the attack gate lists Heated Metal on the goblin\'s swing — Net Disadvantage', /Heated Metal/.test(section) && /Net Disadvantage/.test(section), `section="${section.slice(0, 200)}"`);
       dialog?.element?.querySelector('button[data-action="disadvantage"]')?.click();
-      await sleep(1500);
+      // The swing posts and its dialog closes before the check opens the next one (rollDialog takes the first rendered).
+      await until(() => !dialog?.rendered && game.messages.contents.some(m => (m.timestamp >= tSwing) && (m.type === 'attack') && (m.speaker?.actor === goblin.id)),
+        { label: 'the goblin\'s swing posted and its dialog closed' });
       await closeDialogs();
       // The CHECK gate: a Strength check with the dialog.
+      const tCheck = Date.now();
       void goblin.rollAbilityCheck({ ability: 'str' }, {}, {});
-      const check = await waitFor(rollDialog, 6000);
-      await waitFor(() => check?.element?.querySelector('[data-bf-reminder]'), 2500);
+      const check = await until(rollDialog, { timeout: 6000 });
+      await until(() => { const g = check?.options?.bfReminder; return !check || !g || !((g.sources?.length > 0) || g.sneak) || check.element?.querySelector('[data-bf-reminder]'); }, { label: 'the gate drawn in the roll dialog' });
       const cs = textOf(check?.element?.querySelector('[data-bf-reminder]'));
       ok('3b. the CHECK gate lists Heated Metal on the goblin\'s ability check — Net Disadvantage (the row\'s checks facet)', /Heated Metal/.test(cs) && /Net Disadvantage/.test(cs), `section="${cs.slice(0, 200)}"`);
       check?.element?.querySelector('button[data-action="disadvantage"]')?.click();
-      await sleep(800);
+      await until(() => !check?.rendered && game.messages.contents.some(m => (m.timestamp >= tCheck) && (m.speaker?.actor === goblin.id) && !['attack', 'damage'].includes(m.type) && m.rolls?.length),
+        { label: 'the goblin\'s check posted and its dialog closed' });
       await closeDialogs();
       await clearFx();
-    }
+    });
 
     // ================================================== 4. Reheat
-    if (want(4)) {
+    if (want(4)) await section(4, async () => {
       await clearFx();
       await healFull();
       const hpBefore = goblinHP();
       const { since, card } = await heatUse(reheatAct);
-      const dmg = await waitFor(() => { const d = card ? damageFor(card.id) : null; return d?.getFlag(MOD, 'receipt') ? d : null; }, 12000);
-      const demand = await waitFor(() => demandsSince(since).find(m => m.getFlag(MOD, 'saves')) ?? null, 8000);
+      const dmg = await until(() => { const d = card ? damageFor(card.id) : null; return d?.getFlag(MOD, 'receipt') ? d : null; }, { timeout: 12000 });
+      const demand = await until(() => demandsSince(since).find(m => m.getFlag(MOD, 'saves')) ?? null, { timeout: 8000 });
       ok('4a. Reheat (the Bonus Action): the dice roll and land again, and the save is demanded again',
         !!dmg && (goblinHP() < hpBefore) && !!demand && (demand.getFlag(MOD, 'damageSaveCard')?.damageCardId === card?.id),
         `dmg=${!!dmg} hp ${hpBefore}→${goblinHP()} demand=${!!demand}`);
-      const el = await waitFor(saveDialogEl, 8000);
+      // The save is only answered so its effect lands before the cleanup: nothing here reads it.
+      const el = await until(saveDialogEl, { timeout: 8000 }).catch(() => null);
       el?.querySelector('button[data-action="normal"]')?.click();
-      await waitFor(() => demand?.getFlag(MOD, 'saves')?.targets?.[0]?.applied, 12000);
+      await until(() => demand?.getFlag(MOD, 'saves')?.targets?.[0]?.applied, { timeout: 12000 }).catch(() => null);
       await clearFx();
-    }
+    });
 
     // ================================================== 5. the caster's own dice
-    if (want(5)) {
+    if (want(5)) await section(5, async () => {
       await clearFx();
       await healFull();
       await set('playerRollDamage', true);
-      const { card } = await heatUse(castAct);
-      const offer = await waitFor(offerEl, 6000);
+      const { since, card } = await heatUse(castAct);
+      const offer = await until(offerEl, { timeout: 6000 });
       const text = textOf(offer);
       ok('5a. with Roll Your Own Damage on, the offer opens for the cast — the caster\'s dice, the goblin named (by its token)', !!offer && /Heat Metal/.test(text) && text.includes(goblinToken.document.name), text.slice(0, 160));
       offer?.querySelector('button[data-action="roll"]')?.click();
-      const dmg = await waitFor(() => { const d = card ? damageFor(card.id) : null; return d?.getFlag(MOD, 'receipt') ? d : null; }, 12000);
+      const dmg = await until(() => { const d = card ? damageFor(card.id) : null; return d?.getFlag(MOD, 'receipt') ? d : null; }, { timeout: 12000 });
       ok('5b. …the press rolls it, chained and landed as before', !!dmg && !!dmg.getFlag(MOD, 'receipt'), `dmg=${!!dmg}`);
-      const el = await waitFor(saveDialogEl, 8000);
+      // The save is only answered so its effect lands before the cleanup: nothing here reads it.
+      const el = await until(saveDialogEl, { timeout: 8000 }).catch(() => null);
       el?.querySelector('button[data-action="normal"]')?.click();
-      await sleep(1500);
+      await until(() => demandsSince(since).find(m => m.getFlag(MOD, 'saves'))?.getFlag(MOD, 'saves')?.targets?.[0]?.applied,
+        { timeout: 12000, label: 'the save after the press applied' }).catch(() => null);
       await set('playerRollDamage', false);
       await clearFx();
-    }
+    });
 
     // ================================================== 7. FIRED
-    if (want(7)) {
+    if (want(7)) await section(7, async () => {
       ok('7a. dnd5e.postUseActivity fired (the machine\'s hook)', count('dnd5e.postUseActivity') > 0, `count=${count('dnd5e.postUseActivity')}`);
-    }
+    });
 
     return { log, results, skips };
   } catch (err) {
