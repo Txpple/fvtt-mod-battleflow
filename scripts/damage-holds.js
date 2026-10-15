@@ -19,8 +19,8 @@ import { reductionRise } from "./decide/dice-chips.js";
 import { poolOf, poolUsesOf, reactionSpent, spendReaction, spendSuperiorityDie, spendPoolUses, resolveAttackMessage,
   bystanderMuted, muteBystander, muteScopesFor } from "./shared.js";
 import { applyDamagesWithReceipt, registerDamageClaim } from "./auto-apply.js";
-import { bfCard, esc, holdBarHTML, popupKey, ruleLine, tickRowsHTML } from "./decide/present.js";
-import { livePopups, openMomentPopup, armAskTimer, disarmAskTimer, keeperOwns, registerRelay, registerResumable, pendingRow } from "./ui.js";
+import { bfCard, esc, holdBarHTML, ruleLine, tickRowsHTML } from "./decide/present.js";
+import { openMomentPopup, armAskTimer, disarmAskTimer, keeperOwns, registerRelay, registerResumable, pendingRow, closePopup } from "./ui.js";
 import { SURFACES } from "./surfaces.js";
 import { listen } from "./dispatch.js";
 
@@ -554,8 +554,7 @@ listen("updateChatMessage", "damage-holds", message => {
   if ( !flag ) return;
   if ( flag.status === "pending" ) { armTimer(message); closeGuardPopups(message, flag, false); return; }
   disarmAskTimer(timers, message.id);
-  const open = livePopups.get(popupKey(message.id, HOLD_FLAG));
-  if ( open ) { try { void open.close(); } catch { /* gone */ } }
+  void closePopup(message, HOLD_FLAG);
   closeGuardPopups(message, flag, true);
 });
 
@@ -563,8 +562,7 @@ listen("updateChatMessage", "damage-holds", message => {
 function closeGuardPopups(message, flag, all) {
   for ( const guard of (flag?.guards ?? []) ) {
     if ( !all && !guard.passed ) continue;
-    const open = livePopups.get(popupKey(message.id, `${HOLD_FLAG}|${guard.actorUuid}`));
-    if ( open ) { try { void open.close(); } catch { /* gone */ } }
+    void closePopup(message, `${HOLD_FLAG}|${guard.actorUuid}`);
   }
 }
 

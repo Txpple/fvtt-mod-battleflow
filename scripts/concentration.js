@@ -11,8 +11,8 @@ import { concentrationExemptEntries, damageRuleEntries, listedNames } from "./de
 import { CONCENTRATION_EXEMPTS, DAMAGE_RULES } from "./decide/registry.js";
 import { ruleLine } from "./decide/present.js";
 import { popupKey, bfCard, esc, holdBarHTML } from "./decide/present.js";
-import { livePopups, DialogCarried, armAskTimer, disarmAskTimer, electOwns, dramaticVerdictPause, registerDemand, demandAnsweredBy, registerWithheld,
-  withholds, pendingRow, forgetShown } from "./ui.js";
+import { DialogCarried, armAskTimer, disarmAskTimer, electOwns, dramaticVerdictPause, registerDemand, demandAnsweredBy, registerWithheld, withholds,
+  pendingRow, forgetShown, closePopup, frontPopup } from "./ui.js";
 import { SAVE_FOLDS, foldedSave, foldsFrom } from "./decide/verdict.js";
 import { SURFACES } from "./surfaces.js";
 import { isConcentrationPrompt } from "./decide/card.js";
@@ -482,8 +482,7 @@ async function autoRollConcentration(askMessage) {
 listen("updateChatMessage", "concentration", message => {
   const ask = readFlag(message, "concentration");
   if ( !ask ) return;
-  const dialog = livePopups.get(popupKey(message.id, "concentration"));
-  if ( dialog && (ask.status !== "pending") ) void dialog.close();
+  if ( ask.status !== "pending" ) void closePopup(message, "concentration");
   if ( ask.status !== "pending" ) {
     disarmAskTimer(concTimers, message.id);
     const next = pendingConcAsks(ask.actorUuid)[0];
@@ -553,9 +552,8 @@ const concDialogsOpening = new Set();
  */
 async function showConcPopup(message, ask) {
   if ( !ask || (ask.status !== "pending") ) return;
+  if ( frontPopup(message, "concentration") ) return;
   const key = popupKey(message.id, "concentration");
-  const open = livePopups.get(key);
-  if ( open ) { open.bringToFront?.(); return; }
   if ( concDialogsOpening.has(key) || concRollsInFlight.has(message.id) ) return;
   concDialogsOpening.add(key);
   try {

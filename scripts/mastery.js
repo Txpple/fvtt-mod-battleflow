@@ -9,8 +9,8 @@ import { effectRecord, joinEffectReceipt, takenOf } from "./decide/receipt.js";
 import { MASTERY_KINDS, MASTERY_NATIVE, MASTERY_RULES } from "./decide/registry.js";
 import { CHIP_FLAG, chipClock, chipIsDead } from "./decide/chips.js";
 import { chipData, chitStampOf, hitTargets, masteryLabel, placeOf, turnPlace } from "./shared.js";
-import { popupKey, bfCard, holdBarHTML, momentBarHTML, ruleLine, foldedRuleHTML, esc } from "./decide/present.js";
-import { livePopups, openMomentPopup, acknowledgeMoment, momentAcknowledged, armAskTimer, disarmAskTimer, electOwns, registerOfferPart, pendingRow } from "./ui.js";
+import { bfCard, holdBarHTML, momentBarHTML, ruleLine, foldedRuleHTML, esc } from "./decide/present.js";
+import { openMomentPopup, acknowledgeMoment, momentAcknowledged, armAskTimer, disarmAskTimer, electOwns, registerOfferPart, pendingRow, closePopup } from "./ui.js";
 import { applyDamagesWithReceipt } from "./auto-apply.js";
 import { messageActivity } from "./effect-riders.js";
 import { SURFACES } from "./surfaces.js";
@@ -618,20 +618,17 @@ async function executeMasteryAnswer(message) {
 listen("updateChatMessage", "mastery", message => {
   const p = readFlag(message, MASTERY_PICK_FLAG);
   if ( p ) {
-    const dialog = livePopups.get(popupKey(message.id, MASTERY_PICK_FLAG));
-    if ( dialog && ((p.status !== "pending") || p.answer) ) void dialog.close();
+    if ( (p.status !== "pending") || p.answer ) void closePopup(message, MASTERY_PICK_FLAG);
     if ( drivesMomentFor(p?.attackerUuid) && (p.status === "pending") && p.answer ) void executeMasteryPick(message);
   }
   const m = readFlag(message, "mastery");
   if ( m ) {
-    const dialog = livePopups.get(popupKey(message.id, "mastery"));
-    if ( dialog && ((m.status !== "pending") || m.answer) ) void dialog.close();
+    if ( (m.status !== "pending") || m.answer ) void closePopup(message, "mastery");
     if ( drivesMomentFor(m?.attackerUuid) && (m.status === "pending") && m.answer ) void executeMasteryAnswer(message);
   }
 
   if ( readFlag(message, "masteryNotice")?.acknowledged ) {
-    const dialog = livePopups.get(popupKey(message.id, "notice"));
-    if ( dialog ) void dialog.close();
+    void closePopup(message, "notice");
   }
 });
 

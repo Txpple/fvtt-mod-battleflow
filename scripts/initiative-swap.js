@@ -8,9 +8,9 @@ import { MODULE_ID, readFlag, TITLE, isActiveGM, queueFlagWrite, canAnswerFor, s
 import { featureNamed, itemNamed, lower, resolveUuid } from "./lookup.js";
 import { initiativeSwapEntries, listedNames } from "./decide/registry.js";
 import { INITIATIVE_SWAPS } from "./decide/registry.js";
-import { bfCard, esc, holdBarHTML, popupKey, foldedRuleHTML } from "./decide/present.js";
+import { bfCard, esc, holdBarHTML, foldedRuleHTML } from "./decide/present.js";
 import { dispositionStyle } from "./shared.js";
-import { livePopups, openMomentPopup, armAskTimer, disarmAskTimer, subjectOwns, registerRelay, registerResumable, pendingRow } from "./ui.js";
+import { openMomentPopup, armAskTimer, disarmAskTimer, subjectOwns, registerRelay, registerResumable, pendingRow, closePopup } from "./ui.js";
 import { SURFACES } from "./surfaces.js";
 import { listen, listenOnce } from "./dispatch.js";
 
@@ -301,8 +301,7 @@ listen("updateChatMessage", "initiative-swap", message => {
   if ( !flag ) return;
   if ( flag.status === "pending" ) { armTimer(message); return; }
   disarmAskTimer(timers, message.id);
-  const open = livePopups.get(popupKey(message.id, SWAP_FLAG));
-  if ( open ) { try { void open.close(); } catch { /* gone */ } }
+  void closePopup(message, SWAP_FLAG);
   floatSwap(message, flag);
 });
 

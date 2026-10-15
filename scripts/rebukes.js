@@ -13,8 +13,8 @@ import { poolOf, reactionSpent, resolveAttackMessage, spendReaction, withTargets
 import { CARD, isCard, targetsOf } from "./decide/card.js";
 import { isActiveGM } from "./core.js";
 import { feetOf, nearestFeet, tokenForUuid } from "./geometry.js";
-import { bfCard, esc, holdBarHTML, popupKey, ruleLine } from "./decide/present.js";
-import { livePopups, openMomentPopup, momentButton, armAskTimer, disarmAskTimer, keeperOwns, registerRelay, pendingRow } from "./ui.js";
+import { bfCard, esc, holdBarHTML, ruleLine } from "./decide/present.js";
+import { openMomentPopup, momentButton, armAskTimer, disarmAskTimer, keeperOwns, registerRelay, pendingRow, closePopup } from "./ui.js";
 import { SURFACES } from "./surfaces.js";
 import { listen } from "./dispatch.js";
 
@@ -446,8 +446,7 @@ listen("updateChatMessage", "rebukes", message => {
   if ( !flag ) return;
   if ( flag.status === "pending" ) { armTimer(message); return; }
   disarmAskTimer(timers, message.id);
-  const open = livePopups.get(popupKey(message.id, REBUKE_FLAG));
-  if ( open ) { try { void open.close(); } catch { /* gone */ } }
+  void closePopup(message, REBUKE_FLAG);
 });
 
 listen("deleteChatMessage", "rebukes", message => { disarmAskTimer(timers, message.id); });

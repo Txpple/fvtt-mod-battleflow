@@ -23,8 +23,8 @@ import { dropToOneEntries, listedNames } from "./decide/registry.js";
 import { DROP_TO_ONE } from "./decide/registry.js";
 import { dropSaveDc, dropSaveExempt, dropSaveTitle, diedTitle, downedOutcome } from "./decide/drop-to-one.js";
 import { saveDemandData, saveTargetEntry } from "./decide/demand.js";
-import { bfCard, esc, holdBarHTML, popupKey, ruleLine } from "./decide/present.js";
-import { livePopups, openMomentPopup, armAskTimer, disarmAskTimer, keeperOwns, registerRelay, registerResumable, pendingRow } from "./ui.js";
+import { bfCard, esc, holdBarHTML, ruleLine } from "./decide/present.js";
+import { openMomentPopup, armAskTimer, disarmAskTimer, keeperOwns, registerRelay, registerResumable, pendingRow, closePopup } from "./ui.js";
 import { resolveAttackMessage } from "./shared.js";
 import { creaturesWithin, feetOf, tokenOfActor } from "./geometry.js";
 import { rollDamageForSave } from "./auto-damage.js";
@@ -611,8 +611,7 @@ listen("updateChatMessage", "drop-to-one", message => {
   if ( !flag ) return;
   if ( flag.status === "pending" ) { armTimer(message); return; }
   disarmAskTimer(timers, message.id);
-  const open = livePopups.get(popupKey(message.id, DROP_FLAG));
-  if ( open ) { try { void open.close(); } catch { /* gone */ } }
+  void closePopup(message, DROP_FLAG);
 });
 
 listen("deleteChatMessage", "drop-to-one", message => { disarmAskTimer(timers, message.id); });
@@ -836,6 +835,5 @@ listen("updateChatMessage", "drop-to-one", message => {
   if ( !flag ) return;
   if ( flag.status === "pending" ) { armOfferTimer(message); return; }
   disarmAskTimer(timers, message.id);
-  const open = livePopups.get(popupKey(message.id, DEATH_OFFER_FLAG));
-  if ( open ) { try { void open.close(); } catch { /* gone */ } }
+  void closePopup(message, DEATH_OFFER_FLAG);
 });

@@ -1,17 +1,23 @@
 // Static popup check (no Foundry, milliseconds): a moment's pending row, the latch that shows its
-// popup once and the button that calls it back are the spine's (ARCHITECTURE §5 *The pending row*).
-// A machine describes its row to ui.js `pendingRow`; the latch set is read in ui.js alone.
+// popup once, the button that calls it back and the popup's close are the spine's (ARCHITECTURE §5
+// *The pending row*). A machine describes its row to ui.js `pendingRow` and closes a popup through
+// `closePopup`; the latch set and the popup registry are read in ui.js alone.
 //
 //   node tools/check-popups.mjs            # the check (gate: npm run popups)
-//   node tools/check-popups.mjs --list     # every pending row and its parts
+//   node tools/check-popups.mjs --list     # every pending row and its parts, every pinned site
 //
 // What it reads (the repo's TypeScript parser, per file), outside ui.js:
 //   1. No `shownMoments`: the show-once latch is pendingRow's `latch`, and `forgetShown` releases one.
 //   2. No `momentButton` labelled "Answer…": the call-back button is pendingRow's `answer`.
 //   3. Every pendingRow `arm` is a function that arms through `armAskTimer` (check-clocks holds that
 //      the call names its owner), so a row never starts a clock of its own.
-// It prints what it counts — the latches, the Answer buttons, the rows — so a commit can carry the
-// numbers before and after.
+//   4. No `livePopups`: a popup closes through `closePopup` and an opener fronts an open one through
+//      `frontPopup`; a read that does more is pinned in READS by file and function, with its reason.
+//   5. No `.close()` on a popup: a machine closes only what it was handed — `this`, or a parameter of
+//      a function around the call (a render hook's app, a button's dialog); a dialog it built itself
+//      and closes is pinned in CLOSES by file and function, with its reason.
+// It prints what it counts — the latches, the Answer buttons, the reads, the closes, the broken
+// `try { void x.close() } catch` idiom, the rows — so a commit can carry the numbers before and after.
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { dirname, join, normalize, relative } from "node:path";
@@ -21,10 +27,27 @@ import { jsFiles, SCRIPTS, toPosix } from "./check-layers.mjs";
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const ts = createRequire(join(ROOT, "package.json"))("typescript");
 
+/**
+ * Reads of the popup registry that stand, `"<file> <function> <shape>"` → the reason. `identity` is a
+ * `livePopups.get(key) === dialog` test (or `!==`); any other read is `read`. Both are a raw DialogV2's
+ * own lifecycle, which moves with the raw-DialogV2 rule (openMomentPopup gaining a dismiss and a buzzer).
+ */
+const READS = new Map([
+  ["auto-damage.js offerRoll identity", "tests that the dialog it just rendered is the one registered (a failed render or an early close leaves none, and the offer rolls): the raw DialogV2's own lifecycle"],
+  ["volleys.js openVolleyPopup identity", "tests that the dialog it just rendered is the one registered (a failed render fires the volley at once): the raw DialogV2's own lifecycle"]
+]);
+
+/** Closes of a dialog the file built itself, `"<file> <function>"` → the reason. */
+const CLOSES = new Map([
+  ["auto-damage.js offerRoll", "the damage offer's buzzer closes the raw DialogV2 it opened, and the close rolls: the raw dialog's own clock"]
+]);
+
 const list = process.argv.includes("--list");
 const failures = [];
 const report = [];
-const count = { latches: 0, latchWrites: 0, answers: 0, rows: 0 };
+const seenReads = new Set();
+const seenCloses = new Set();
+const count = { latches: 0, latchWrites: 0, answers: 0, rows: 0, reads: 0, gets: 0, closes: 0, broken: 0, closePopup: 0, frontPopup: 0 };
 
 const isFn = n => ts.isFunctionDeclaration(n) || ts.isFunctionExpression(n) || ts.isArrowFunction(n) || ts.isMethodDeclaration(n);
 const skip = n => (n && (ts.isParenthesizedExpression(n) || ts.isAsExpression(n)) ? skip(n.expression) : n);
@@ -59,6 +82,25 @@ for (const path of jsFiles(SCRIPTS)) {
 }
 
 const at = (file, node) => `${file.rel}:${file.sf.getLineAndCharacterOfPosition(node.getStart()).line + 1}`;
+
+/** The named function `node` sits in, innermost; `<anonymous>` for a bare callback. */
+function functionName(node) {
+  for (let n = node.parent; n; n = n.parent) {
+    if (!isFn(n)) continue;
+    if (ts.isFunctionDeclaration(n) && n.name) return n.name.text;
+    if (n.parent && ts.isVariableDeclaration(n.parent) && ts.isIdentifier(n.parent.name)) return n.parent.name.text;
+    if (ts.isMethodDeclaration(n) && ts.isIdentifier(n.name)) return n.name.text;
+  }
+  return "<anonymous>";
+}
+
+/** Is `name` a parameter of a function around `node`? */
+function isParameter(name, node) {
+  const named = b => (ts.isIdentifier(b) ? b.text === name
+    : (ts.isObjectBindingPattern(b) || ts.isArrayBindingPattern(b)) ? b.elements.some(e => !ts.isOmittedExpression(e) && named(e.name)) : false);
+  for (let n = node.parent; n; n = n.parent) if (isFn(n) && n.parameters.some(p => named(p.name))) return true;
+  return false;
+}
 
 /** Does this function's body call `armAskTimer`, directly or through a function it names (two hops)? */
 function armsThroughAskTimer(file, fn, depth = 0) {
@@ -108,6 +150,14 @@ const labelText = node => {
   return null;
 };
 
+/** Inside the block of a `try` that has a catch, in the same function: the broken idiom's place. */
+const inTryWithCatch = node => {
+  for (let n = node.parent; n && !isFn(n); n = n.parent) {
+    if (ts.isTryStatement(n) && n.catchClause && (n.tryBlock.pos <= node.pos) && (node.end <= n.tryBlock.end)) return true;
+  }
+  return false;
+};
+
 /* --- the sites ------------------------------------------------------------------------------ */
 
 for (const [rel, file] of files) {
@@ -123,6 +173,22 @@ for (const [rel, file] of files) {
       else count.latchWrites++;
       failures.push(`${at(file, node)} touches the latch set (shownMoments${method ? `.${method}` : ""}) — `
         + "a popup shown once per client is pendingRow's `latch`, and forgetShown releases one");
+    }
+
+    // 4. the popup registry
+    if (ts.isIdentifier(node) && (node.text === "livePopups")) {
+      count.reads++;
+      const parent = node.parent;
+      const get = parent && ts.isPropertyAccessExpression(parent) && (parent.expression === node) && (parent.name.text === "get");
+      if (get) count.gets++;
+      const call = get ? parent.parent : null;
+      const test = call && ts.isCallExpression(call) ? call.parent : null;
+      const identity = !!test && ts.isBinaryExpression(test)
+        && [ts.SyntaxKind.EqualsEqualsEqualsToken, ts.SyntaxKind.ExclamationEqualsEqualsToken].includes(test.operatorToken.kind);
+      const pin = `${rel} ${functionName(node)} ${identity ? "identity" : "read"}`;
+      if (READS.has(pin)) { seenReads.add(pin); if (list) report.push(`READ    ${at(file, node).padEnd(28)} ${READS.get(pin)}`); }
+      else failures.push(`${at(file, node)} (${pin}) reads the popup registry (livePopups) — close a popup through closePopup, `
+        + "front an open one through frontPopup, or pin the site in READS with the reason neither fits");
     }
 
     if (ts.isCallExpression(node)) {
@@ -155,21 +221,46 @@ for (const [rel, file] of files) {
         }
         if (list) report.push(`ROW     ${at(file, node).padEnd(28)} ${keys.map(p => p.name.text).join(" ") || "(no parts)"}`);
       }
+
+      // 5. a popup's close
+      if ((name === "close") && ts.isPropertyAccessExpression(node.expression)) {
+        const target = skip(node.expression.expression);
+        const handed = (target.kind === ts.SyntaxKind.ThisKeyword) || (ts.isIdentifier(target) && isParameter(target.text, node));
+        if (!handed) {
+          const pin = `${rel} ${functionName(node)}`;
+          count.closes++;
+          if (inTryWithCatch(node) && ts.isVoidExpression(node.parent)) count.broken++;
+          if (CLOSES.has(pin)) { seenCloses.add(pin); if (list) report.push(`CLOSE   ${at(file, node).padEnd(28)} ${CLOSES.get(pin)}`); }
+          else {
+            failures.push(`${at(file, node)} (${pin}) closes a popup of its own (${node.expression.getText().slice(0, 40)}) — `
+              + "a moment's popup closes through closePopup (awaited, a dialog already gone swallowed)");
+          }
+        }
+      }
+
+      if (name === "closePopup") count.closePopup++;
+      if (name === "frontPopup") count.frontPopup++;
     }
     ts.forEachChild(node, visit);
   };
   visit(file.sf);
 }
 
-const counts = `latches ${count.latches} (latch-set writes ${count.latchWrites}), Answer buttons ${count.answers} outside ui.js; `
-  + `pendingRow ${count.rows}`;
+for (const pin of READS.keys()) if (!seenReads.has(pin)) failures.push(`stale pin: ${pin} is in READS and reads no popup there — remove the row`);
+for (const pin of CLOSES.keys()) if (!seenCloses.has(pin)) failures.push(`stale pin: ${pin} is in CLOSES and closes no dialog there — remove the row`);
+
+const counts = `outside ui.js: latches ${count.latches} (latch-set writes ${count.latchWrites}), Answer buttons ${count.answers}, `
+  + `registry reads ${count.reads} (livePopups.get ${count.gets}; ${seenReads.size} pinned), popup closes ${count.closes} `
+  + `(${seenCloses.size} pinned; the try { void x.close() } catch idiom ${count.broken}); `
+  + `pendingRow ${count.rows}, closePopup ${count.closePopup}, frontPopup ${count.frontPopup}`;
 
 for (const line of report.sort()) console.log(line);
 if (failures.length) {
   console.error("");
   for (const f of failures) console.error(`FAIL ${f}`);
   console.error(`\n${failures.length} popup failure(s). ${counts}.`);
-  console.error("A moment's pending row is described to ui.js pendingRow — bar, latch, answer, arm (ARCHITECTURE §5 *The pending row*).");
+  console.error("A moment's pending row is described to ui.js pendingRow — bar, latch, answer, arm — and its popup closes "
+    + "through closePopup (ARCHITECTURE §5 *The pending row*).");
   process.exit(1);
 }
-console.log(`PASS every pending row's latch and call-back button goes through the spine (${counts} — ARCHITECTURE §5 *The pending row*).`);
+console.log(`PASS every pending row, latch, call-back button and popup close goes through the spine (${counts} — ARCHITECTURE §5 *The pending row*).`);

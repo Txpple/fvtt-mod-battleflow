@@ -17,8 +17,8 @@ import { MODULE_ID, readFlag, TITLE, drivesMomentFor, statContext, isActiveGM, q
 import { activityNamed, activityOfType, cardActivity, featureNamed, lower, resolveUuid } from "./lookup.js";
 import { chitStampOf, effectSourceOf, poolOf } from "./shared.js";
 import { endOptionsOf } from "./decide/turn-grants.js";
-import { holdBarHTML, popupKey, esc } from "./decide/present.js";
-import { livePopups, openMomentPopup, armAskTimer, disarmAskTimer, subjectOwns, registerRelay, registerResumable, pendingRow } from "./ui.js";
+import { holdBarHTML, esc } from "./decide/present.js";
+import { openMomentPopup, armAskTimer, disarmAskTimer, subjectOwns, registerRelay, registerResumable, pendingRow, closePopup } from "./ui.js";
 import { SURFACES } from "./surfaces.js";
 import { CARD, isCard, targetsOf } from "./decide/card.js";
 import { extendedThisTurn } from "./decide/turn-grants.js";
@@ -400,8 +400,7 @@ listen("updateChatMessage", "turn-grants", message => {
   if ( !flag ) return;
   if ( flag.status === "pending" ) { armEndTimer(message); return; }
   disarmAskTimer(endTimers, message.id);
-  const open = livePopups.get(popupKey(message.id, END_FLAG));
-  if ( open ) { try { void open.close(); } catch { /* gone */ } }
+  void closePopup(message, END_FLAG);
 });
 
 listen("deleteChatMessage", "turn-grants", message => { disarmAskTimer(endTimers, message.id); });

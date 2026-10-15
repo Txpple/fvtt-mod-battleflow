@@ -6,9 +6,9 @@ import { readFlag, rollerUserFor,
   drivesMomentFor, canAnswerFor, savesRollThemselves, leadsWindow } from "../core.js";
 import { resolveUuid } from "../lookup.js";
 import { verdictTail, verdictText } from "../decide/verdict.js";
-import { popupKey, holdBarHTML, momentBarHTML, esc } from "../decide/present.js";
+import { holdBarHTML, momentBarHTML, esc } from "../decide/present.js";
 import { AREA_CHOICE_FLAG, AREA_ASK_FLAG, areaChoiceLine } from "../decide/area-ask.js";
-import { livePopups, scheduleBarSync, pendingRow, forgetShown } from "../ui.js";
+import { scheduleBarSync, pendingRow, forgetShown, closePopup } from "../ui.js";
 import { saveAnsweredBy, foldSaveAnswer, flipForcedSave } from "./verdict.js";
 import { applySaveConsequences, reconcileSaveDamage } from "./consequences.js";
 import { refreshDemandFromTemplates, cleanupSpentTemplates } from "./areas.js";
@@ -45,23 +45,16 @@ listen("updateChatMessage", "saves/views", message => {
   if ( !flag ) return;
   // Every client closes popups whose decision is made; the timer disarms when nothing is left.
   for ( const t of flag.targets ?? [] ) {
-    const dialog = livePopups.get(popupKey(message.id, `save:${t.uuid}`));
-    if ( dialog && (t.done || (flag.status !== "pending")) ) void dialog.close();
+    if ( t.done || (flag.status !== "pending") ) void closePopup(message, `save:${t.uuid}`);
     // The fold choices' popups close the same way.
-    const choiceDialog = livePopups.get(popupKey(message.id, `choice:${t.uuid}`));
-    if ( choiceDialog && (!t.choice || t.choice.answer) ) void choiceDialog.close();
+    if ( !t.choice || t.choice.answer ) void closePopup(message, `choice:${t.uuid}`);
   }
   armSaveChoiceTimer(message);
   // A DROPPED entry's popup asks a withdrawn question no buzzer will come for: close it and clear its
-  // shown-latch so a re-arrival gets a fresh ask. Every client.
-  const savePrefix = `${message.id}|save:`;
-  for ( const [key, dialog] of [...livePopups] ) {
-    if ( !key.startsWith(savePrefix) ) continue;
-    const uuid = key.slice(savePrefix.length);
-    if ( !(flag.targets ?? []).some(t => t.uuid === uuid) ) void dialog.close();
-  }
-  // The latch key IS the popup key, so the same sub un-latches.
-  forgetShown(message, sub => sub.startsWith("save:") && !(flag.targets ?? []).some(t => `save:${t.uuid}` === sub));
+  // shown-latch so a re-arrival gets a fresh ask. Every client. The latch key IS the popup key.
+  const dropped = sub => sub.startsWith("save:") && !(flag.targets ?? []).some(t => `save:${t.uuid}` === sub);
+  void closePopup(message, dropped);
+  forgetShown(message, dropped);
   if ( flag.status !== "pending" ) disarmSaveTimer(message.id);
   else {
     // The demand lands as an UPDATE (stamped a beat after creation), so arrival work rides here too.

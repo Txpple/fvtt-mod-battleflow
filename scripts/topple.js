@@ -9,8 +9,8 @@ import { forceStatus, rollConfigFor } from "./shared.js";
 import { popupKey, bfCard, momentBarHTML, ruleLine } from "./decide/present.js";
 import { SURFACES } from "./surfaces.js";
 import { CARD, abilityOf, isCard, originData, originIdOf } from "./decide/card.js";
-import { livePopups, DialogCarried, momentButton, armAskTimer, disarmAskTimer, subjectOwns, dramaticVerdictPause, registerDemand, demandAnsweredBy,
-  pendingRow } from "./ui.js";
+import { DialogCarried, momentButton, armAskTimer, disarmAskTimer, subjectOwns, dramaticVerdictPause, registerDemand, demandAnsweredBy, pendingRow,
+  closePopup, frontPopup } from "./ui.js";
 import { listen } from "./dispatch.js";
 
 /* ⚠ The twin-ask supersede: `isActiveGM()` is per-USER, so two sessions on one account both stamp
@@ -39,9 +39,8 @@ const toppleDialogsOpening = new Set();
  * drawDemandFieldset). Dismissing is not an answer: the card's Roll button recalls it.
  */
 async function showTopplePopup(message, _topple, target) {
+  if ( frontPopup(message, `topple:${target.uuid}`) ) return;
   const key = popupKey(message.id, `topple:${target.uuid}`);
-  const open = livePopups.get(key);
-  if ( open ) { open.bringToFront?.(); return; }
   if ( toppleDialogsOpening.has(key) ) return;
   toppleDialogsOpening.add(key);
   try {
@@ -271,8 +270,7 @@ listen("updateChatMessage", "topple", message => {
   if ( topple ) {
     for ( const t of (topple.targets ?? []) ) {
       if ( !t.done ) continue;
-      const dialog = livePopups.get(popupKey(message.id, `topple:${t.uuid}`));
-      if ( dialog ) void dialog.close();
+      void closePopup(message, `topple:${t.uuid}`);
     }
     if ( !(topple.targets ?? []).some(t => !t.done) ) disarmToppleTimer(message.id);
     else armToppleTimer(message);

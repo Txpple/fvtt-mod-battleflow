@@ -194,9 +194,8 @@ export async function openMomentPopup(message, sub, subject, {
   title, icon, width = 440, content, buttons, autoCloseAt = null, gate = true
 } = {}) {
   if ( gate && !canAnswerFor(subject) ) return null;
+  if ( frontPopup(message, sub) ) return null;
   const key = popupKey(message.id, sub);
-  const open = livePopups.get(key);
-  if ( open ) { open.bringToFront?.(); return null; }
   const dialog = new foundry.applications.api.DialogV2({
     window: { title, icon },
     position: { width },
@@ -204,10 +203,59 @@ export async function openMomentPopup(message, sub, subject, {
     rejectClose: false
   });
   if ( autoCloseAt ) setTimeout(() => {
-    if ( livePopups.get(key) === dialog ) void dialog.close();
+    if ( livePopups.get(key) === dialog ) void closeDialog(dialog);
   }, Math.max(0, autoCloseAt - Date.now()));
   await openManagedPopup(key, message, dialog);
   return dialog;
+}
+
+// THE CLOSE (ARCHITECTURE §5 law 4, *The pending row*): a popup whose question is withdrawn closes on every
+// client, through here. A machine never holds the registry: it names the popup by its message and sub.
+
+/** A message or the id its popup keys are built on (the gear light's toggle is keyed by its item's uuid). */
+const idOf = message => ((typeof message === "string") ? message : message.id);
+
+/** Close a dialog and wait for it; a dialog already gone is the state wanted. */
+async function closeDialog(dialog, options) {
+  try { await ((options === undefined) ? dialog.close() : dialog.close(options)); }
+  catch { /* a closed dialog is the state we wanted */ }
+}
+
+/**
+ * Close a moment's popup on this client when it is open: the close awaited, a dialog already gone
+ * swallowed. `which` is the popup key's sub, or a test over the subs of this message's open popups (every
+ * one it passes closes). True when one was open.
+ * @param {{id: string}|string} message   the message, or the id its popup keys are built on
+ * @param {string|((sub: string) => boolean)} which
+ * @param {object} [options]   handed to the dialog's close
+ * @returns {Promise<boolean>}
+ */
+export async function closePopup(message, which, options) {
+  const id = idOf(message);
+  if ( typeof which === "string" ) {
+    const dialog = livePopups.get(popupKey(id, which));
+    if ( !dialog ) return false;
+    await closeDialog(dialog, options);
+    return true;
+  }
+  const prefix = `${id}|`;
+  const open = [...livePopups].filter(([key]) => key.startsWith(prefix) && which(key.slice(prefix.length)));
+  await Promise.all(open.map(([, dialog]) => closeDialog(dialog, options)));
+  return open.length > 0;
+}
+
+/**
+ * Bring a moment's popup to the front when it is open, so an opener never builds a second one. True when
+ * one was open.
+ * @param {{id: string}|string} message   the message, or the id its popup keys are built on
+ * @param {string} sub
+ * @returns {boolean}
+ */
+export function frontPopup(message, sub) {
+  const dialog = livePopups.get(popupKey(idOf(message), sub));
+  if ( !dialog ) return false;
+  dialog.bringToFront?.();
+  return true;
 }
 
 // THE ACK (ARCHITECTURE.md §5 law 3): the card's owner writes it; anyone else latches and relays.
@@ -737,7 +785,7 @@ async function drawRescueWindow(message, { recall = false } = {}) {
     if ( open ) {
       livePopups.delete(key);
       shownMoments.delete(key);
-      try { await open.close(); } catch { /* a closed dialog is the state we wanted */ }
+      await closeDialog(open);
     }
     return;
   }
@@ -760,7 +808,7 @@ async function drawRescueWindow(message, { recall = false } = {}) {
   if ( open ) {
     livePopups.delete(key);
     shownMoments.delete(key);
-    try { await open.close(); } catch { /* a closed dialog is the state we wanted */ }
+    await closeDialog(open);
   }
   rescueContent.set(key, content);
   shownMoments.add(key);
@@ -814,7 +862,7 @@ listen("deleteChatMessage", "ui", message => {
   for ( const [key, dialog] of [...livePopups] ) {
     if ( !key.startsWith(`${message.id}|`) ) continue;
     livePopups.delete(key);
-    void dialog.close();
+    void closeDialog(dialog);
   }
   const prefix = `${message.id}|`;
   for ( const key of [...shownMoments] ) if ( key.startsWith(prefix) ) shownMoments.delete(key);

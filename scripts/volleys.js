@@ -9,7 +9,7 @@ import { volleyEntryFor, resolveVolleyCount } from "./volley-registry.js";
 import { castLevelOf, clampVolleyCount } from "./decide/eligible.js";
 import { popupKey, bfCard, esc, momentBarHTML, reminderDetailsHTML } from "./decide/present.js";
 import { REMINDER_FLAG, reminderRecord } from "./decide/reminders.js";
-import { livePopups, openManagedPopup, armDeadline, disarmDeadline } from "./ui.js";
+import { livePopups, openManagedPopup, armDeadline, disarmDeadline, closePopup, frontPopup } from "./ui.js";
 import { tokenForUuid } from "./geometry.js";
 import { judgeRoll } from "./reminders.js";
 import { SURFACES } from "./surfaces.js";
@@ -134,9 +134,8 @@ function drawRayJudgements(element, caster, activity) {
 async function openVolleyPopup(message) {
   const v = readFlag(message, "volley");
   if ( v?.status !== "pending" ) return;
+  if ( frontPopup(message, "volley") ) return;
   const key = popupKey(message.id, "volley");
-  const open = livePopups.get(key);
-  if ( open ) { open.bringToFront?.(); return; }
   // An activity that no longer resolves aims without a judgement.
   const activity = (v.kind === "attack") ? cardActivity(message, v.activityUuid) : null;
   const caster = activity?.item?.actor ?? null;
@@ -285,7 +284,7 @@ async function fireVolley(message, assignment) {
   });
   if ( !claimed ) return;
   disarmDeadline(volleyTimers, message.id);
-  livePopups.get(popupKey(message.id, "volley"))?.close?.({ force: true });
+  void closePopup(message, "volley", { force: true });
 
   try {
     const v = readFlag(message, "volley");

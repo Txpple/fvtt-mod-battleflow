@@ -9,10 +9,10 @@ import { creaturesWithin, tokenForUuid } from "./geometry.js";
 import { maneuverFoldEntries } from "./decide/registry.js";
 import { BONUS_SWINGS, RULE_TEXT } from "./decide/registry.js";
 import { hitTargets, withTargets } from "./shared.js";
-import { popupKey, bfCard, momentBarHTML, ruleLine, esc } from "./decide/present.js";
+import { bfCard, momentBarHTML, ruleLine, esc } from "./decide/present.js";
 import { SURFACES } from "./surfaces.js";
 import { CARD, activityUuidOf, isCard, originIdOf, originData, targetsOf } from "./decide/card.js";
-import { livePopups, openMomentPopup, acknowledgeMoment, momentAcknowledged, pendingRow } from "./ui.js";
+import { openMomentPopup, acknowledgeMoment, momentAcknowledged, pendingRow, closePopup } from "./ui.js";
 import { listen } from "./dispatch.js";
 
 // HEW — a reminder only; the player swings from the sheet. A crit that kills reminds once. ⚠ A
@@ -168,8 +168,7 @@ listen("updateChatMessage", "hew", message => {
   }
   // A durably-acknowledged notice closes its popup wherever it lives.
   if ( readFlag(message, "hewNotice")?.acknowledged ) {
-    const dialog = livePopups.get(popupKey(message.id, "hew"));
-    if ( dialog ) void dialog.close();
+    void closePopup(message, "hew");
   }
 });
 

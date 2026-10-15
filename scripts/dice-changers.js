@@ -15,9 +15,9 @@ import { weaponDiceOf, setFormula, setTotal, eitherOutcome, eitherPatch, eitherD
 import { DICE_CHANGE_FLAG, orderRows, birthStatus, diceChipsOf, answerPlan, buttonState, applyLabel,
   rowOffer, popupTitle, stepLine, diceChangeLines, mergeRises } from "./decide/dice-changers.js";
 import { empoweredReaches, empoweredOutcome } from "./decide/metamagic.js";
-import { bfCard, esc, holdBarHTML, popupKey, tickRowsHTML, dieMeterHTML, spendPhrase } from "./decide/present.js";
+import { bfCard, esc, holdBarHTML, tickRowsHTML, dieMeterHTML, spendPhrase } from "./decide/present.js";
 import { eitherRise, rerollRise } from "./decide/dice-chips.js";
-import { openMomentPopup, armAskTimer, disarmAskTimer, subjectOwns, livePopups, dramaticVerdictPause, registerResumable, paintDieChip, pendingRow } from "./ui.js";
+import { openMomentPopup, armAskTimer, disarmAskTimer, subjectOwns, dramaticVerdictPause, registerResumable, paintDieChip, pendingRow, closePopup } from "./ui.js";
 import { attackMessageForDamage } from "./auto-damage.js";
 import { moveAppliedDamage } from "./auto-apply.js";
 import { empoweredOffer, SORCERY_POINTS } from "./metamagic.js";
@@ -113,8 +113,7 @@ listen("updateChatMessage", "dice-changers", message => {
   if ( (flag.status === "due") && message.isAuthor ) void promote(message);
   if ( flag.status === "pending" ) { armTimer(message); return; }
   disarmAskTimer(timers, message.id);
-  const open = livePopups.get(popupKey(message.id, DICE_CHANGE_FLAG));
-  if ( open ) { try { void open.close(); } catch { /* gone */ } }
+  void closePopup(message, DICE_CHANGE_FLAG);
 });
 
 async function promote(message) {

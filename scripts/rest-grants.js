@@ -7,7 +7,7 @@
 import { MODULE_ID, readFlag, TITLE, isActiveGM, queueFlagWrite, canAnswerFor, statContext } from "./core.js";
 import { lower, activityNamed, asiAssigned, featureNamed, resolveUuid } from "./lookup.js";
 import { answers, listedNames, restGrantEntries } from "./decide/registry.js";
-import { bfCard, esc, holdBarHTML, popupKey, foldedRuleHTML } from "./decide/present.js";
+import { bfCard, esc, holdBarHTML, foldedRuleHTML } from "./decide/present.js";
 import { CAST_RIDERS, REST_GRANTS, TURN_GRANTS } from "./decide/registry.js";
 import { distribution } from "./decide/cast-riders.js";
 import { coatSaveAbility } from "./decide/chips.js";
@@ -16,7 +16,7 @@ import { holdsTemp, mealStanding, restEnds } from "./decide/rest-grants.js";
 import { SURFACES } from "./surfaces.js";
 import { nearestFeet, tokenOfActor } from "./geometry.js";
 import { effectSourceOf, isPartyMember } from "./shared.js";
-import { livePopups, openMomentPopup, registerRelay, registerResumable, armAskTimer, disarmAskTimer, subjectOwns, pendingRow } from "./ui.js";
+import { openMomentPopup, registerRelay, registerResumable, armAskTimer, disarmAskTimer, subjectOwns, pendingRow, closePopup } from "./ui.js";
 import { listen, listenOnce } from "./dispatch.js";
 
 /** What a grant writes, by its `grant` word — the sheet facts the table knows how to set. */
@@ -730,6 +730,5 @@ listen("updateChatMessage", "rest-grants", message => {
   if ( !flag ) return;
   if ( flag.status === "pending" ) { armSongTimer(message); return; }
   disarmAskTimer(songTimers, message.id);
-  const open = livePopups.get(popupKey(message.id, SONG_FLAG));
-  if ( open ) { try { void open.close(); } catch { /* gone */ } }
+  void closePopup(message, SONG_FLAG);
 });

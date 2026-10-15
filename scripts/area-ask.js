@@ -9,11 +9,11 @@ import { MODULE_ID, readFlag, TITLE, publish, statContext, queueFlagWrite, canAn
 import { itemNamed, resolveUuid } from "./lookup.js";
 import { isPartyMember } from "./shared.js";
 import { tokenForUuid } from "./geometry.js";
-import { bfCard, esc, holdBarHTML, popupKey, ruleLine } from "./decide/present.js";
+import { bfCard, esc, holdBarHTML, ruleLine } from "./decide/present.js";
 import { AREA_ASK_FLAG, AREA_CHOICE_FLAG, askDefaults, askMark, askOutcome, askTicks, askWords } from "./decide/area-ask.js";
 import { saveTargetEntry } from "./decide/demand.js";
 import { activityUuidOf } from "./decide/card.js";
-import { openMomentPopup, armAskTimer, disarmAskTimer, electOwns, livePopups, pendingRow } from "./ui.js";
+import { openMomentPopup, armAskTimer, disarmAskTimer, electOwns, pendingRow, closePopup } from "./ui.js";
 import { releaseHold } from "./holds.js";
 import { SURFACES } from "./surfaces.js";
 import { listen, listenOnce } from "./dispatch.js";
@@ -197,8 +197,7 @@ listen("updateChatMessage", "area-ask", message => {
   const ask = readFlag(message, AREA_ASK_FLAG);
   if ( !ask || (ask.status === "pending") ) return;
   disarmAskTimer(askTimers, message.id);
-  const open = livePopups.get(popupKey(message.id, AREA_ASK_FLAG));
-  if ( open ) { try { void open.close(); } catch { /* gone */ } }
+  void closePopup(message, AREA_ASK_FLAG);
   // A chosen area's picture waited on its question: lift the hold on every client (the answer may
   // be the elect's clock). A carrier's ask names no activity; its real card's birth lifts that hold.
   if ( ask.kind === "choose" ) { const uuid = activityUuidOf(message); if ( uuid ) releaseHold(uuid, message); }

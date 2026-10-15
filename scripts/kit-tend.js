@@ -8,11 +8,11 @@ import { MODULE_ID, readFlag, TITLE, isActiveGM, queueFlagWrite, canAnswerFor, c
 import { featureNamed, lower, resolveUuid } from "./lookup.js";
 import { answers, kitTendEntries, listedNames } from "./decide/registry.js";
 import { KIT_TENDS } from "./decide/registry.js";
-import { bfCard, esc, holdBarHTML, popupKey, foldedRuleHTML, tickRowsHTML } from "./decide/present.js";
+import { bfCard, esc, holdBarHTML, foldedRuleHTML, tickRowsHTML } from "./decide/present.js";
 import { targetsOf } from "./decide/card.js";
 import { nearestFeet, tokenForUuid, tokenOfActor } from "./geometry.js";
 import { withTargets } from "./shared.js";
-import { livePopups, openMomentPopup, armAskTimer, disarmAskTimer, subjectOwns, registerRelay, registerResumable, pendingRow } from "./ui.js";
+import { openMomentPopup, armAskTimer, disarmAskTimer, subjectOwns, registerRelay, registerResumable, pendingRow, closePopup } from "./ui.js";
 import { SURFACES } from "./surfaces.js";
 import { listen } from "./dispatch.js";
 
@@ -256,8 +256,7 @@ listen("updateChatMessage", "kit-tend", message => {
   if ( !flag ) return;
   if ( flag.status === "pending" ) { armTimer(message); return; }
   disarmAskTimer(timers, message.id);
-  const open = livePopups.get(popupKey(message.id, TEND_FLAG));
-  if ( open ) { try { void open.close(); } catch { /* gone */ } }
+  void closePopup(message, TEND_FLAG);
 });
 
 listen("deleteChatMessage", "kit-tend", message => { disarmAskTimer(timers, message.id); });

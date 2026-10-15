@@ -7,10 +7,10 @@ import { cardActivity, resolveUuid, usableManeuver, maneuverDieFormula, meleeOpt
 import { maneuverFoldEntries } from "./decide/registry.js";
 import { RULE_TEXT } from "./decide/registry.js";
 import { hitTargets, reactionSpent, spendReaction } from "./shared.js";
-import { popupKey, bfCard, holdBarHTML, ruleLine, esc } from "./decide/present.js";
+import { bfCard, holdBarHTML, ruleLine, esc } from "./decide/present.js";
 import { SURFACES } from "./surfaces.js";
 import { CARD, activityUuidOf, isCard, originData, originIdInData, targetsOf } from "./decide/card.js";
-import { livePopups, openMomentPopup, scheduleBarSync, armAskTimer, disarmAskTimer, electOwns, registerRelay, pendingRow } from "./ui.js";
+import { openMomentPopup, scheduleBarSync, armAskTimer, disarmAskTimer, electOwns, registerRelay, pendingRow, closePopup } from "./ui.js";
 import { listen } from "./dispatch.js";
 
 
@@ -383,8 +383,7 @@ listen("updateChatMessage", "riposte", message => {
   if ( r ) {
     for ( const reactor of r.reactors ?? [] ) {
       if ( !reactor.answer ) continue;
-      const dialog = livePopups.get(popupKey(message.id, `riposte:${reactor.uuid}`));
-      if ( dialog ) void dialog.close();
+      void closePopup(message, `riposte:${reactor.uuid}`);
     }
     if ( !(r.reactors ?? []).some(x => !x.answer) ) disarmRiposteTimer(message.id);
     else armRiposteTimer(message);

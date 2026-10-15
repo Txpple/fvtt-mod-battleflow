@@ -12,8 +12,8 @@ import { nearestFeet, tokenForUuid } from "./geometry.js";
 import { INITIATIVE_GRANTS, initiativeGrantEntries, listedNames } from "./decide/registry.js";
 import { initiativeGrantDue, initiativeGrantLine } from "./decide/initiative-grants.js";
 import { riderPartFormula } from "./decide/clock.js";
-import { bfCard, esc, holdBarHTML, popupKey, foldedRuleHTML } from "./decide/present.js";
-import { livePopups, openMomentPopup, armAskTimer, disarmAskTimer, subjectOwns, registerRelay, registerResumable, pendingRow } from "./ui.js";
+import { bfCard, esc, holdBarHTML, foldedRuleHTML } from "./decide/present.js";
+import { openMomentPopup, armAskTimer, disarmAskTimer, subjectOwns, registerRelay, registerResumable, pendingRow, closePopup } from "./ui.js";
 import { applyDamagesWithReceipt } from "./auto-apply.js";
 import { SURFACES } from "./surfaces.js";
 import { listen } from "./dispatch.js";
@@ -397,8 +397,7 @@ listen("updateChatMessage", "initiative-grants", message => {
   if ( !flag ) return;
   if ( flag.status === "pending" ) { armTimer(message); return; }
   disarmAskTimer(timers, message.id);
-  const open = livePopups.get(popupKey(message.id, INITIATIVE_GRANT_FLAG));
-  if ( open ) { try { void open.close(); } catch { /* gone */ } }
+  void closePopup(message, INITIATIVE_GRANT_FLAG);
 });
 
 listen("deleteChatMessage", "initiative-grants", message => { disarmAskTimer(timers, message.id); });
