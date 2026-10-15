@@ -41,10 +41,8 @@ const CEILING = {
   "smoke-metamagic": 3
 };
 
-/** The suites still on their own helpers, not yet on the prelude. ⚠ Only shrinks. */
-const STANDING = new Set([
-
-]);
+/** The suites still on their own helpers, not yet on the prelude: none. ⚠ Only shrinks; a new suite starts on the prelude. */
+const STANDING = new Set([]);
 
 /** A name that is a poll by what it is called. */
 const POLL_NAME = /^(until|waitFor|waitUntil|poll)/i;
