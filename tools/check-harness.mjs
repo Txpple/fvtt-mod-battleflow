@@ -44,7 +44,6 @@ const CEILING = {
   "smoke-class-rogue": 9,
   "smoke-class-sorcerer": 18,
   "smoke-class-warlock": 1,
-  "smoke-class-wizard": 23,
   "smoke-damage-rules": 1,
   "smoke-effects": 3,
   "smoke-expiry": 1,
@@ -55,7 +54,7 @@ const CEILING = {
 const STANDING = new Set([
   "smoke-class-barbarian", "smoke-class-bard", "smoke-class-cleric", "smoke-class-druid",
   "smoke-class-fighter", "smoke-class-items", "smoke-class-monk", "smoke-class-paladin",
-  "smoke-class-rogue", "smoke-class-sorcerer", "smoke-class-wizard"
+  "smoke-class-rogue", "smoke-class-sorcerer"
 ]);
 
 /** A name that is a poll by what it is called. */
