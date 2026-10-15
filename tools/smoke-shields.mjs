@@ -36,16 +36,8 @@ announcePlan('shields', plan, pulled);
 
 const out = await f.evaluate(async ({ sections, titles }) => {
   const MOD = 'fvtt-mod-bythebooks';
-  const results = [];
-  const log = [];
-  const skips = [];
-  const ok = (name, pass, detail = '') => results.push({ name, pass, detail });
-  const want = id => {
-    if (!sections || sections.includes(String(id))) return true;
-    skips.push(`§${id} ${titles?.[id] ?? ''}`);
-    return false;
-  };
-  const sleep = ms => new Promise(r => setTimeout(r, ms));
+  const { until, watch, canvasReady, tokenOn, snapshotSettings, faces, unrig } = window.__btb;
+  const { results, log, skips, ok, want, section } = window.__btb.begin({ sections, titles });
   // Every moment-event payload published during this run, so a section can assert its resolve was heard.
   const moments = [];
   const momentHookId = Hooks.on('bythebooks.moment', p => moments.push(p));
@@ -92,8 +84,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
 
   const SETTING_KEYS = ['autoDamage', 'autoApply', 'playerRollDamage', 'damageTimer', 'dramaticBeat', 'requireTarget',
     'reactionHold', 'riders', 'effectRiders', 'masteryRiders', 'masteryAsk', 'saves', 'castApply', 'concMode', 'emanations'];
-  const prior = Object.fromEntries(SETTING_KEYS.map(k => [k, game.settings.get(MOD, k)]));
-  const set = (k, v) => game.settings.set(MOD, k, v);
+  const settings = snapshotSettings(SETTING_KEYS);
+  const { set } = settings;
 
   const scene = game.scenes.getName('By the Books Test Range');
   const cleric = game.actors.getName('BTB Test Cleric');
@@ -109,7 +101,6 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   const priorActor = {};
   let combat = null;
   let restored = false;
-  const realPRNG = CONFIG.Dice.randomUniform;
   const SHIELD_NAMES = ['Warm Shield', 'Chill Shield', 'Death Armor', 'Armor of Agathys'];
   const clearWards = async () => {
     for (const a of [cleric, ranger, goblin]) {
@@ -134,9 +125,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     ActiveEffect.prototype.delete = origDelete;
     explainErrors();
     for (const e of errors) log.push('console: ' + e);
-    CONFIG.Dice.randomUniform = realPRNG;
-    try { for (const [k, v] of Object.entries(prior)) await set(k, v); }
-    catch (err) { log.push(`TEARDOWN settings ERROR: ${err?.message}`); }
+    unrig();
+    for (const failed of await settings.restore()) log.push(`TEARDOWN settings ERROR: ${failed}`);
     try {
       await closeDialogs();
       try { if (combat && game.combats.get(combat.id)) await combat.delete(); } catch { /* gone */ }
@@ -201,14 +191,14 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     if (!fireShield || !agathys || !deathArmor) return { fatal: 'the spells did not land on the Cleric' };
 
     if (canvas.scene?.id !== scene.id) await scene.view();
-    for (let i = 0; i < 40 && !canvas.ready; i++) await sleep(250);
+    await canvasReady();
     const strays = scene.tokens.filter(t => [cleric.id, ranger.id, goblin.id].includes(t.actorId)).map(t => t.id);
     if (strays.length) await scene.deleteEmbeddedDocuments('Token', strays);
     const placeToken = async (actor, x, y) => {
       const [doc] = await scene.createEmbeddedDocuments('Token', [
         foundry.utils.mergeObject(actor.prototypeToken.toObject(), { x, y, actorId: actor.id, actorLink: true, hidden: false }, { inplace: false })]);
       created.tokens.push(doc.id);
-      for (let i = 0; i < 40 && !(canvas.ready && canvas.tokens.get(doc.id)); i++) await sleep(250);
+      await tokenOn(doc.id);
       const token = canvas.tokens.get(doc.id);
       if (!token) throw new Error(`${actor.name}'s token never reached the canvas`);
       return { doc, token };
@@ -234,12 +224,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     };
 
     // -------------------------------------------------- helpers
-    const waitFor = async (test, timeout = 8000) => {
-      const until = Date.now() + timeout;
-      while (Date.now() < until) { const v = test(); if (v) return v; await sleep(200); }
-      return test();
-    };
-    const face = (n, faces = 20) => { CONFIG.Dice.randomUniform = () => 1 - ((n - 0.5) / faces); };
+    const face = (n, of = 20) => faces([[n, of]]);
     const target = token => token.setTarget(true, { releaseOthers: true });
     const attackOf = item => item.system.activities.find(a => a.type === 'attack');
     const damageFor = originId => game.messages.contents.find(m => (m.type === 'damage')
@@ -254,16 +239,19 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const since = Date.now();
       goblinToken.control({ releaseOthers: true });
       target(victimToken);
-      await sleep(80);
+      await until(() => goblinToken.controlled && (game.user.targets.size === 1) && game.user.targets.has(victimToken), { label: 'the goblin controlled, the victim targeted' });
       face(19);
       const act = attackOf(weapon);
       const results = await act.use({ subsequentActions: false }, { configure: false }, {});
       const rolls = await act.rollAttack({}, { configure: false }, results?.message?.id ? { data: { 'system.origin': results.message.id } } : {});
       const attackMsg = rolls?.[0]?.parent ?? null;
       const originId = attackMsg?._source.system?.origin ?? attackMsg?.id;
-      const dmg = await waitFor(() => { const d = damageFor(originId); return d?.getFlag(MOD, 'receipt') ? d : null; }, 12000);
-      const shield = await waitFor(() => shieldCards(since)[0] ?? null, 5000);
-      await sleep(400);
+      const dmg = await until(() => { const d = damageFor(originId); return d?.getFlag(MOD, 'receipt') ? d : null; }, { timeout: 12000 });
+      // The ward's card, or null once five seconds pass with none: §3, §4c and §5d read that window.
+      const shield = await watch(() => shieldCards(since)[0] ?? null, { ms: 5000 });
+      // A rolled ward lands on the attacker through the receipt, which arrives after its card.
+      if (shield?.getFlag(MOD, 'damageShield')?.rolled) await until(() => shield.getFlag(MOD, 'receipt'), { timeout: 4000, label: 'the ward\'s receipt on its card' });
+      await watch(() => shieldCards(since).length > 1, { ms: 400 });   // a second card for the one hit shows in `cards`
       return { attackMsg, dmg, shield, cards: shieldCards(since), since };
     };
     /** Put the pack's effect (by name, off the Cleric's spell) on `actor`, origin the item's own effect — the tray's shape. */
@@ -282,11 +270,11 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       await combat.createEmbeddedDocuments('Combatant', entries.map(([actor, doc, initiative]) =>
         ({ actorId: actor.id, tokenId: doc.id, sceneId: scene.id, initiative })));
       await combat.startCombat();
-      await sleep(500);
+      await until(() => combat.started && (game.combat?.id === combat.id), { label: 'the combat started and viewed' });
     };
 
     // ================================================== 1. Fire Shield, warm
-    if (want(1)) {
+    if (want(1)) await section(1, async () => {
       await clearWards();
       await healFull();
       await ward(fireShield, 'Warm Shield', cleric);
@@ -312,14 +300,14 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       ok('1c. one ward, one payout: the damage message carries the claim, and exactly one shield card was posted',
         (dmg?.getFlag(MOD, 'damageShields')?.paid?.length === 1) && (cards.length === 1),
         `paid=${JSON.stringify(dmg?.getFlag(MOD, 'damageShields'))} cards=${cards.length}`);
-      const text = await waitFor(() => { const t = cardText(shield?.id); return /Damage shield/i.test(t) ? t : null; }, 4000);
+      const text = await until(() => { const t = cardText(shield?.id); return /Damage shield/i.test(t) ? t : null; }, { timeout: 4000 });
       ok('1d. the card says it (R5): the ward, the defender, the dice and the type, at the attacker, the rule folded',
         /Fire Shield on BTB Test Cleric — 2d8 fire to BTB Test Attacker/.test(text ?? '') && /every melee hit/.test(text ?? ''),
         (text ?? '').slice(0, 220));
-    }
+    });
 
     // ================================================== 2. Fire Shield, chill
-    if (want(2)) {
+    if (want(2)) await section(2, async () => {
       await clearWards();
       await healFull();
       await ward(fireShield, 'Chill Shield', cleric);
@@ -327,30 +315,30 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const ds = shield?.getFlag(MOD, 'damageShield');
       ok('2a. the Chill Shield standing instead: the same activity rolls, typed COLD — the type follows the effect', !!ds?.rolled && (ds.type === 'cold') && (shield.rolls?.[0]?.options?.type === 'cold'),
         `flag type=${ds?.type} roll type=${shield?.rolls?.[0]?.options?.type}`);
-    }
+    });
 
     // ================================================== 3. the reach, and a ranged hit
-    if (want(3)) {
+    if (want(3)) await section(3, async () => {
       await clearWards();
       await healFull();
       await ward(fireShield, 'Warm Shield', cleric);
       await goblinDoc.update({ x: 1300, y: 1200 }, mv());   // two squares away — 10 feet
-      await sleep(300);
+      await until(() => goblinToken.document.x === 1300, { label: 'the goblin 10 feet away' });
       const far = await swing(clericToken);
       ok('3a. a melee hit from 10 feet strikes nothing — the ward\'s reach is Flame Eruption\'s own 5 feet',
         !!far.dmg && !far.shield && !far.dmg.getFlag(MOD, 'damageShields'),
         `cards=${far.cards.length} claim=${JSON.stringify(far.dmg?.getFlag(MOD, 'damageShields'))} ${claims(far.cards, far.dmg)}`);
       await goblinDoc.update({ x: 1400, y: 1200 }, mv());
-      await sleep(300);
+      await until(() => goblinToken.document.x === 1400, { label: 'the goblin back at 5 feet' });
       if (ranged) {
         await healFull();
         const bow = await swing(clericToken, ranged);
         ok('3b. a RANGED hit from 5 feet strikes nothing — every row is a melee attack roll', !!bow.dmg && !bow.shield, `cards=${bow.cards.length} weapon=${ranged.name} ${claims(bow.cards, bow.dmg)}`);
       }
-    }
+    });
 
     // ================================================== 4. Death Armor, on another creature
-    if (want(4)) {
+    if (want(4)) await section(4, async () => {
       await clearWards();
       await healFull();
       // The Cleric's Death Armor wards the RANGER, origin the Cleric's item effect (the tray's touch-cast shape).
@@ -370,35 +358,40 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         `cards=${c1.cards.length} chit=${chit?.name} ${claims(c1.cards, c1.dmg)}`);
       const c2 = await swing(rangerToken);
       ok('4c. the second hit this turn strikes nothing — the chit stands', !!c2.dmg && !c2.shield, `cards=${c2.cards.length} ${claims(c2.cards, c2.dmg)}`);
-      await combat.nextTurn(); await sleep(500);
-      await combat.nextTurn(); await sleep(500);
+      await combat.nextTurn(); await until(() => (combat.round === 1) && (combat.turn === 1), { label: 'the Ranger\'s turn' });
+      // The once-per-turn chit dies with its turn: the platform's expiry and the module's tidy delete land after the change.
+      await combat.nextTurn();
+      await until(() => (combat.round === 2) && (combat.turn === 0)
+        && !ranger.effects.some(e => (e.getFlag(MOD, 'mastery') === 'rider') && (e.getFlag(MOD, 'riderKey') === 'shield:Death Armor')),
+      { label: 'round 2, the goblin\'s turn, the Death Armor chit gone' });
       const c3 = await swing(rangerToken);
       ok('4d. the next turn strikes again — the chit died with the turn it was written in', !!c3.shield && (combat.round === 2), `cards=${c3.cards.length} round=${combat.round} ${claims(c3.cards, c3.dmg)}`);
       await combat.delete(); combat = null;
-      await waitFor(() => !ranger.effects.some(e => e.getFlag(MOD, 'mastery') === 'rider'), 4000);   // the module's deleteCombat sweep, not raced by clearWards
-    }
+      // The module's deleteCombat sweep, not raced by clearWards; a chit it leaves is the next clearWards' to take.
+      await until(() => !ranger.effects.some(e => e.getFlag(MOD, 'mastery') === 'rider'), { timeout: 4000 }).catch(() => null);
+    });
 
     // ================================================== 5. Armor of Agathys
-    if (want(5)) {
+    if (want(5)) await section(5, async () => {
       await clearWards();
       await healFull();
       const cast = agathys.system.activities.find(a => a.name === 'Cast');
       clericToken.control({ releaseOthers: true });
       const results = await cast.use({ consume: { spellSlot: false, resources: false, action: false }, subsequentActions: false }, { configure: false }, {});
-      const mark = await waitFor(() => cleric.effects.find(e => e.getFlag(MOD, 'shield')?.key === 'Armor of Agathys'), 5000);
-      await waitFor(() => results?.message?.getFlag(MOD, 'shieldMark'), 4000);   // the card's line lands a beat after the chip
+      const mark = await until(() => cleric.effects.find(e => e.getFlag(MOD, 'shield')?.key === 'Armor of Agathys'), { timeout: 5000 });
+      await until(() => results?.message?.getFlag(MOD, 'shieldMark'), { timeout: 4000 });   // the card's line lands a beat after the chip
       ok('5a. the cast is MARKED: a chip named as the spell, the item\'s hour on its clock, the cast\'s level carried; the usage card says the ward stands',
         !!mark && (mark.name === 'Armor of Agathys') && (mark.duration?.seconds === 3600) && !!results?.message?.getFlag(MOD, 'shieldMark'),
         `mark=${mark?.name} seconds=${mark?.duration?.seconds} flag=${JSON.stringify(mark?.getFlag(MOD, 'shield'))} card=${!!results?.message?.getFlag(MOD, 'shieldMark')}`);
       await cleric.update({ 'system.attributes.hp.temp': 5 });
-      await sleep(200);
+      await until(() => Number(cleric.system.attributes.hp.temp) === 5, { label: 'the Cleric\'s 5 temp HP' });
       const hpBefore = goblinHP();
       const a1 = await swing(clericToken);
       const ds = a1.shield?.getFlag(MOD, 'damageShield');
       ok('5b. a melee hit while the temp HP stand strikes Frost Damage — 5 cold at the goblin, the mark found without any pack effect',
         !!ds?.rolled && (ds.key === 'Armor of Agathys') && (ds.type === 'cold') && (ds.total === 5) && (goblinHP() === hpBefore - 5),
         `flag=${JSON.stringify(ds)} hp ${hpBefore}→${goblinHP()} cards: ${claims(a1.cards, a1.dmg)}`);
-      const ended = await waitFor(() => game.messages.contents.find(m => (m.timestamp >= a1.since) && m.getFlag(MOD, 'shieldEnded')), 5000);
+      const ended = await until(() => game.messages.contents.find(m => (m.timestamp >= a1.since) && m.getFlag(MOD, 'shieldEnded')), { timeout: 5000 });
       const markGone = !cleric.effects.some(e => e.getFlag(MOD, 'shield')?.key === 'Armor of Agathys');
       ok('5c. the goblin\'s hit emptied the pool: the mark ends with it and a card says so (the strike that emptied it already paid)',
         (cleric.system.attributes.hp.temp === 0) && markGone && !!ended,
@@ -406,17 +399,17 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       await healFull();
       const a2 = await swing(clericToken);
       ok('5d. with the mark gone a hit strikes nothing', !!a2.dmg && !a2.shield, `cards=${a2.cards.length} ${claims(a2.cards, a2.dmg)}`);
-    }
+    });
 
     // ================================================== 7. FIRED
-    if (want(7)) {
+    if (want(7)) await section(7, async () => {
       ok('7a. createChatMessage and dnd5e.renderChatMessage fired (the shield\'s triggers)', (count('createChatMessage') > 0) && (count('dnd5e.renderChatMessage') > 0),
         `create=${count('createChatMessage')} render=${count('dnd5e.renderChatMessage')}`);
       ok('7b. dnd5e.postUseActivity fired (the mark\'s hook)', count('dnd5e.postUseActivity') > 0, `count=${count('dnd5e.postUseActivity')}`);
-    }
+    });
 
     // ================================================== 8. the cast ASKS — warm or chill
-    if (want(8)) {
+    if (want(8)) await section(8, async () => {
       // Casting ON for this section: the choice is stamped at the card's birth (polish.js), the popup opens
       // on this page (the sole GM answering for the unowned Cleric), and the elect applies the pick.
       await set('castApply', true);
@@ -428,35 +421,36 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         clericToken.control({ releaseOthers: true });
         const results = await use.use({ consume: { spellSlot: false, resources: false, action: false }, subsequentActions: false }, { configure: false }, {});
         const card = results?.message ?? null;
-        await sleep(600);
-        return card;
+        const early = await watch(() => shieldsOn().length > 0, { ms: 600 });
+        return { card, early };
       };
       // an effect choice is radios and Apply (DESIGN *Cards*): the option ticked, then Apply
       const popupButton = (label => { const input = [...document.querySelectorAll('.application.dialog input[name="bf-effect-pick"]')].find(i => textOf(i.closest('label')) === label); if (!input) return null; return { click: () => { input.checked = true; input.dispatchEvent(new Event('change', { bubbles: true })); input.closest('.application')?.querySelector('button[data-action="apply"]')?.click(); } }; });
 
-      const card = await castShield();
+      const { card, early } = await castShield();
       const choice = card?.getFlag(MOD, 'castApply')?.choice ?? null;
       ok('8a. the usage card carries the choice PENDING — Fire Shield, warm or chill — and nothing has landed',
-        !!choice && (choice.key === 'Fire Shield') && !choice.chosen && (JSON.stringify(choice.options) === JSON.stringify(['Warm Shield', 'Chill Shield'])) && (shieldsOn().length === 0),
-        `choice=${JSON.stringify(choice)} shields=${shieldsOn()}`);
-      const button = await waitFor(() => popupButton('Chill Shield'), 4000);
+        !!choice && (choice.key === 'Fire Shield') && !choice.chosen && (JSON.stringify(choice.options) === JSON.stringify(['Warm Shield', 'Chill Shield'])) && !early && (shieldsOn().length === 0),
+        `choice=${JSON.stringify(choice)} shields=${shieldsOn()} early=${!!early}`);
+      const button = await until(() => popupButton('Chill Shield'), { timeout: 4000 }).catch(() => null);   // 8b reports a missing popup
       ok('8b. the popup opened on the caster\'s client with a button per shield, and the card says the cast waits',
         !!button && !!popupButton('Warm Shield') && /warm shield or a chill shield/i.test(cardText(card?.id ?? '')),
         `chill=${!!button} warm=${!!popupButton('Warm Shield')} card=${cardText(card?.id ?? '').slice(0, 160)}`);
       if (button) button.click();
-      const landed = await waitFor(() => (shieldsOn().length ? shieldsOn() : null), 8000);
-      await sleep(300);
+      const landed = await until(() => (shieldsOn().length ? shieldsOn() : null), { timeout: 8000 });
+      await until(() => card?.getFlag(MOD, 'effectReceipt'), { timeout: 4000, label: 'the effect receipt on the cast card' });
+      const second = await watch(() => shieldsOn().length > 1, { ms: 300 });
       const chosen = card?.getFlag(MOD, 'castApply')?.choice?.chosen ?? null;
       ok('8c. the pick lands ALONE — Chill Shield, and its resistance (fire) with it; the warm shield does not',
-        (chosen === 'Chill Shield') && (JSON.stringify(landed) === JSON.stringify(['Chill Shield'])) && resistances().includes('fire') && !resistances().includes('cold'),
-        `chosen=${chosen} shields=${JSON.stringify(landed)} dr=${JSON.stringify(resistances())}`);
+        (chosen === 'Chill Shield') && (JSON.stringify(landed) === JSON.stringify(['Chill Shield'])) && !second && resistances().includes('fire') && !resistances().includes('cold'),
+        `chosen=${chosen} shields=${JSON.stringify(landed)} now=${JSON.stringify(shieldsOn())} dr=${JSON.stringify(resistances())}`);
       ok('8d. the receipt names the one effect on the Cleric', (card?.getFlag(MOD, 'effectReceipt')?.targets ?? []).some(t => (t.effects ?? []).length === 1 && t.effects[0].name === 'Chill Shield'),
         `receipt=${JSON.stringify(card?.getFlag(MOD, 'effectReceipt') ?? null)?.slice(0, 200)}`);
 
       await set('castApply', false);
       await closeDialogs();
       await clearWards();
-    }
+    });
 
     return { log, results, skips };
   } catch (err) {

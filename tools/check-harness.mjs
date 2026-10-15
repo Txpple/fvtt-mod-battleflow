@@ -62,7 +62,6 @@ const CEILING = {
   "smoke-resources": 2,
   "smoke-riders": 4,
   "smoke-saves": 94,
-  "smoke-shields": 13,
   "smoke-spells": 41,
   "smoke-surfaces": 5
 };
@@ -75,7 +74,7 @@ const STANDING = new Set([
   "smoke-class-rogue", "smoke-class-sorcerer", "smoke-class-warlock", "smoke-class-wizard",
   "smoke-companions", "smoke-goliath", "smoke-guards", "smoke-lucky", "smoke-maneuvers",
   "smoke-metamagic", "smoke-reminders", "smoke-resources", "smoke-riders", "smoke-saves",
-  "smoke-shields", "smoke-spells", "smoke-surfaces"
+  "smoke-spells", "smoke-surfaces"
 ]);
 
 /** A name that is a poll by what it is called. */
