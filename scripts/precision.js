@@ -16,6 +16,7 @@ import { offerDamageRoll, registerMissWait, rollDamageForAttack, settleMiss } fr
 import { SURFACES } from "./surfaces.js";
 import { activityUuidOf, masteryOf, originData, targetsOf } from "./decide/card.js";
 import { listen } from "./dispatch.js";
+import { receiptEntries } from "./auto-apply.js";
 
 const precisionTimers = new Map();
 const precisionInFlight = new Set();
@@ -195,7 +196,7 @@ async function resolvePrecision(message) {
     });
     // Graze already paid on this miss: announce it, never unwind it.
     if ( (masteryOf(message) === "graze")
-      && readFlag(message, "receipt")?.targets?.length ) {
+      && receiptEntries(message).length ) {
       lines.push("⚠ Graze already paid on the miss — revert its receipt if you rule it void.");
     }
     await ChatMessage.create({

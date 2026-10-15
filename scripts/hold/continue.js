@@ -6,7 +6,7 @@
  */
 import { MODULE_ID, readFlag, TITLE, queueFlagWrite, isContinuingClient, drivesMomentFor, canApplyTo, HOLD_SETTLE_SECONDS } from "../core.js";
 import { chipClock } from "../decide/chips.js";
-import { placeOf, chipData } from "../shared.js";
+import { placeOf, chipData, attackIdOf } from "../shared.js";
 import { applyEffectsTo } from "../effect-riders.js";
 import { foldedRoll, interruptMultiplier } from "../decide/verdict.js";
 import { INTERRUPT_MULTIPLIERS, INTERRUPT_ROLLS } from "../decide/registry.js";
@@ -198,7 +198,7 @@ async function driveHoldContinuation(attackMessage, hold) {
 
   // Release the dice rolled at attack time; the applier's hitTargets drops every flipped target.
   for ( const dmg of game.messages.contents.filter(m =>
-    (readFlag(m, "attackFor") === attackMessage.id)
+    (attackIdOf(m) === attackMessage.id)
     && (readFlag(m, "attackHoldPending") === true) ) ) {
     await dmg.setFlag(MODULE_ID, "attackHoldPending", false);
   }

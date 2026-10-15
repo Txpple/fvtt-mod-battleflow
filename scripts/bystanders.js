@@ -13,7 +13,7 @@ import { bystanderMatters, dieMaxOf, dieOutcome, guardSign, neededOnDieLine, neu
 import { bfCard, esc, holdBarHTML, tickRowsHTML } from "./decide/present.js";
 import { activityNamed, featureNamed, resolveUuid, bystanderRows, bystanderDie, d20FactsOf, rerollD20 } from "./lookup.js";
 import { nearestFeet, tokenForUuid } from "./geometry.js";
-import { poolOf, poolUsesOf, reactionSpent, spendReaction, spendPoolUses, bystanderMuted, muteBystander, muteScopesFor, STORED_FLAG, spendStoredFace, storedChipOf, storedFacesUsable, withTargets } from "./shared.js";
+import { poolOf, poolUsesOf, reactionSpent, spendReaction, spendPoolUses, bystanderMuted, muteBystander, muteScopesFor, spendStoredFace, storedChipOf, storedFacesUsable, withTargets, saveDemandOf, storedFacesOf } from "./shared.js";
 import { facesThatTurn, setOutcome } from "./decide/stored-dice.js";
 import { bendRise, foldRise } from "./decide/dice-chips.js";
 import { riseDice } from "./dice-rise.js";
@@ -57,7 +57,7 @@ function bystandersFor(roller, roll, testKind, dc, demand = {}) {
       if ( ((actor.system?.attributes?.hp?.value ?? 0) <= 0) || actor.statuses?.has?.("incapacitated") ) continue;
       const friendly = side === rollerSide;
       // B4 — the sign follows the side ("either", Bend Luck) or the stored omen's parity ("omen", Cosmic Omen).
-      const omenFace = (row.sign === "omen") ? (readFlag(storedChipOf(actor, row.stored), STORED_FLAG)?.faces?.[0] ?? null) : null;
+      const omenFace = (row.sign === "omen") ? (storedFacesOf(storedChipOf(actor, row.stored))[0] ?? null) : null;
       const sign = signFor(row, { friendly, face: omenFace }) ?? NaN;
       if ( !Number.isFinite(sign) ) continue;   // an omen with no face rolled yet
       if ( (row.bend === "die") && (friendly === (sign < 0)) ) continue;
@@ -80,7 +80,7 @@ function bystandersFor(roller, roll, testKind, dc, demand = {}) {
       if ( row.bend === "set" ) {
         const chip = storedChipOf(actor, row.stored);
         if ( !known || !chip || !storedFacesUsable(chip, STORED_DICE[row.stored]) || bystanderMuted(actor, key) ) continue;
-        const faces = facesThatTurn({ faces: readFlag(chip, STORED_FLAG)?.faces ?? [], kept: Number(facts.kept), total,
+        const faces = facesThatTurn({ faces: storedFacesOf(chip), kept: Number(facts.kept), total,
           target: Number(dc), want: friendly ? "pass" : "fail" });
         if ( !faces.length ) continue;
         out.push({ uuid: actor.uuid, name: other.document?.name ?? actor.name, row: key, itemId: item.id, activityId: null,
@@ -162,7 +162,7 @@ registerWithhold(KEY, {
       if ( !Number.isFinite(total) || !Number.isFinite(dc) ) return false;
       const roller = await fromUuid(uuid);
       if ( !(roller instanceof Actor) ) return false;
-      const demand = readFlag(card, "saves")?.demand ?? {};
+      const demand = saveDemandOf(card) ?? {};
       // The save's own ability off the roll (dnd5e's roll flag), for a row's `abilities`; the demand's spell mark for `spells`.
       const ability = rollMessage.getFlag("dnd5e", "roll")?.ability ?? demand.ability ?? null;
       return await stampBystanders(rollMessage, roller, "save", { dc, demand: { statuses: demand.statuses ?? [], ability, spell: !!demand.spell },

@@ -20,6 +20,11 @@ import { listen, listenOnce } from "./dispatch.js";
 
 // Raising an ask: what the customers call.
 
+/** A card's ask at the area (`metamagicAsk`: the kind, the candidates, the status, the answer), or null. */
+export function areaAskOf(card) {
+  return readFlag(card, AREA_ASK_FLAG) ?? null;
+}
+
 /** The token document behind a demand row — its own id, the snapshot's token uuid, or the actor's token on the canvas. */
 function tokenDocOf(c) {
   if ( c?.tokenId ) return canvas?.tokens?.get(c.tokenId)?.document ?? null;

@@ -8,7 +8,7 @@
 import { MODULE_ID, readFlag, TITLE, statContext, queueFlagWrite, drivesMomentFor, decisionWindow } from "./core.js";
 import { lower, featureNamed, itemNamed, resolveUuid, dealtTypesOf } from "./lookup.js";
 import { damageEitherEntries, listedNames } from "./decide/registry.js";
-import { hitTargets, turnChitStands, writeTurnChit, rebuildRolls, spendPoolUses } from "./shared.js";
+import { hitTargets, turnChitStands, writeTurnChit, rebuildRolls, spendPoolUses, attackHoldClaims } from "./shared.js";
 import { DAMAGE_EITHER } from "./decide/registry.js";
 import { weaponDiceOf, setFormula, setTotal, eitherOutcome, eitherPatch, eitherDue, eitherOdds,
   bestRerollDie, oneDieOdds, rerollFaces } from "./decide/damage-dice.js";
@@ -18,7 +18,7 @@ import { empoweredReaches, empoweredOutcome } from "./decide/metamagic.js";
 import { bfCard, esc, holdBarHTML, tickRowsHTML, dieMeterHTML, spendPhrase } from "./decide/present.js";
 import { eitherRise, rerollRise } from "./decide/dice-chips.js";
 import { openMomentPopup, armAskTimer, disarmAskTimer, subjectOwns, dramaticVerdictPause, registerResumable, paintDieChip, pendingRow, closePopup } from "./ui.js";
-import { attackMessageForDamage } from "./auto-damage.js";
+import { attackMessageForDamage, weaponRollsOf } from "./auto-damage.js";
 import { moveAppliedDamage } from "./auto-apply.js";
 import { empoweredOffer, SORCERY_POINTS } from "./metamagic.js";
 import { SURFACES } from "./surfaces.js";
@@ -50,12 +50,6 @@ function eitherRowsFor(attacker, hit = {}) {
 const dealtOf = (config, activity) => {
   const types = [...new Set((config?.rolls ?? []).flatMap(r => r?.options?.types ?? (r?.options?.type ? [r.options.type] : [])))];
   return types.length ? types : dealtTypesOf(activity);
-};
-
-/** How many of the message's rolls are the activity's own (auto-damage.js stamps it); one when unstamped. */
-const weaponRollsOf = message => {
-  const n = Number(readFlag(message, "weaponRolls"));
-  return Number.isFinite(n) && (n > 0) ? n : 1;
 };
 
 const rollsTotal = rolls => (rolls ?? []).reduce((n, r) => n + (Number(r.total) || 0), 0);
@@ -119,7 +113,7 @@ listen("updateChatMessage", "dice-changers", message => {
 async function promote(message) {
   const flag = readFlag(message, DICE_CHANGE_FLAG);
   if ( (flag?.status !== "due") || offering.has(message.id) ) return;
-  if ( readFlag(message, "attackHoldPending") === true ) return;
+  if ( attackHoldClaims(message) ) return;
   offering.add(message.id);
   try {
     const actor = resolveUuid(flag.actorUuid);
@@ -452,7 +446,7 @@ const RESUME_MS = 20_000;
 registerResumable(DICE_CHANGE_FLAG, {
   // The driver finishes a completion the clicking client never took, and asks a DUE nobody promoted.
   pending: (flag, message) => ((flag?.status === "answering") && !!flag.pending && ((Date.now() - (flag.pending.at ?? 0)) > RESUME_MS))
-    || ((flag?.status === "due") && (readFlag(message, "attackHoldPending") !== true)
+    || ((flag?.status === "due") && !attackHoldClaims(message)
       && ((Date.now() - (message.timestamp ?? 0)) > RESUME_MS)),
   drives: flag => drivesMomentFor(flag?.actorUuid ?? null),
   drive: message => (readFlag(message, DICE_CHANGE_FLAG)?.status === "due") ? promote(message) : complete(message)

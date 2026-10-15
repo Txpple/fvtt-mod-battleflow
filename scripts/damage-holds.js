@@ -17,7 +17,7 @@ import { applyItemEffectOnHit } from "./effect-riders.js";
 import { reduceDamages } from "./decide/verdict.js";
 import { reductionRise } from "./decide/dice-chips.js";
 import { poolOf, poolUsesOf, reactionSpent, spendReaction, spendSuperiorityDie, spendPoolUses, resolveAttackMessage,
-  bystanderMuted, muteBystander, muteScopesFor } from "./shared.js";
+  bystanderMuted, muteBystander, muteScopesFor, holdTargets } from "./shared.js";
 import { applyDamagesWithReceipt, registerDamageClaim } from "./auto-apply.js";
 import { bfCard, esc, holdBarHTML, ruleLine, tickRowsHTML } from "./decide/present.js";
 import { openMomentPopup, armAskTimer, disarmAskTimer, keeperOwns, registerRelay, registerResumable, pendingRow, closePopup } from "./ui.js";
@@ -182,7 +182,7 @@ registerDamageClaim((receiptMessage, target, actor, damages, { multiplier = 1, n
   if ( !(Number(actor.system?.attributes?.hp?.value ?? 0) > 0) ) return false;
   const attack = resolveAttackMessage(receiptMessage);
   // An attack hit the attack hold already asked this target about stays the hold's.
-  const heldByAttack = !!readFlag(attack, "hold")?.targets?.some(t => t.uuid === target.uuid);
+  const heldByAttack = holdTargets(attack).some(t => t.uuid === target.uuid);
   const found = (own && !reactionSpent(actor) && !heldByAttack) ? anyReductionOf(actor) : null;
   if ( !found ) {
     // An ATTACK's damage to a creature with a guard beside it is held for the guards to answer (an `any` guard on any damage);

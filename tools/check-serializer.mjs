@@ -10,7 +10,7 @@
 // outside core.js. A write is a READ-MODIFY-WRITE when its value carries what was read:
 //   - the value is built on the flag: a spread of a `readFlag` (or of a variable holding one, declared
 //     in a function around the write or handed in by a same-file caller that read it, or of a reader
-//     of this file that wraps `readFlag`); or
+//     that wraps `readFlag`, the file's own or one it imports); or
 //   - the value is a variable or a call, and a function around the write (the innermost or any
 //     enclosing one, callbacks included) read the same flag with `readFlag(…, k)` first, and the value
 //     is not fresh.
@@ -137,6 +137,13 @@ class File {
     visit(this.sf);
   }
 
+  /** Is `name` a reader: a function of this file, or one it imports (an owner's exported reader), that hands back a readFlag? */
+  isReader(name) {
+    if (this.readers.has(name)) return true;
+    const imp = this.imports.get(name);
+    return !!(imp && files.get(imp.rel)?.readers.has(imp.name));
+  }
+
   at(node) { return `${this.rel}:${this.sf.getLineAndCharacterOfPosition(node.getStart()).line + 1}`; }
 
   /** The flag key an argument names: a literal, a constant of this file or an imported one; `<name>` when unreadable. */
@@ -199,7 +206,7 @@ class File {
     if (ts.isConditionalExpression(node)) return this.fresh(node.whenTrue, depth + 1) && this.fresh(node.whenFalse, depth + 1);
     if (ts.isCallExpression(node) || ts.isNewExpression(node)) {
       const callee = node.expression;
-      if (ts.isIdentifier(callee) && ((callee.text === "readFlag") || this.readers.has(callee.text))) return false;
+      if (ts.isIdentifier(callee) && ((callee.text === "readFlag") || this.isReader(callee.text))) return false;
       if (ts.isPropertyAccessExpression(callee) && (callee.name.text === "deepClone")) return this.fresh(node.arguments?.[0], depth + 1);
       // A call is fresh; the literals it is handed are looked into (`new Set([...prior, …])`).
       return (node.arguments ?? []).every(a => !(ts.isArrayLiteralExpression(a) || ts.isObjectLiteralExpression(a)) || this.fresh(a, depth + 1));

@@ -12,7 +12,7 @@ import { bystanderMatters, d20ModeOf, dieMaxOf, liveRows, plainRule, rescueRows,
 import { interruptEntries } from "../decide/registry.js";
 import { lower, activityNamed, cardActivity, reductionFor, holdsFor, itemsNamed, featureNamed, bystanderRows, bystanderDie, d20FactsOf, dealtTypesOf, wornNamed } from "../lookup.js";
 import { alliesWithin, nearestFeet, tokenForUuid } from "../geometry.js";
-import { reactionSpent, poolOf, placeOf, chipData, effectSourceOf, bystanderMuted, grantingActor, STORED_FLAG, storedChipOf, storedFacesUsable } from "../shared.js";
+import { reactionSpent, poolOf, placeOf, chipData, effectSourceOf, bystanderMuted, grantingActor, storedChipOf, storedFacesUsable, storedFacesOf } from "../shared.js";
 import { facesThatTurn } from "../decide/stored-dice.js";
 import { chipClock } from "../decide/chips.js";
 import { applyEffectsTo } from "../effect-riders.js";
@@ -277,7 +277,7 @@ export function bystandersOf(defender, attacker, roll, ac, { on = "hit" } = {}) 
       if ( row.inspired && !inspired ) continue;
       const item = inspired ? null : featureNamed(actor, key);
       // B4 — the sign follows the side ("either", Bend Luck) or the stored omen's parity ("omen", Cosmic Omen: its activity too).
-      const omenFace = (row.sign === "omen") ? (readFlag(storedChipOf(actor, row.stored), STORED_FLAG)?.faces?.[0] ?? null) : null;
+      const omenFace = (row.sign === "omen") ? (storedFacesOf(storedChipOf(actor, row.stored))[0] ?? null) : null;
       const sign = signFor(row, { friendly: on === "miss", face: omenFace }) ?? NaN;
       if ( !Number.isFinite(sign) ) continue;   // an omen with no face rolled yet
       const activityName = row.omen ? ((sign > 0) ? row.omen.even : row.omen.odd) : ((self && row.selfActivity) ? row.selfActivity : row.activity);
@@ -293,7 +293,7 @@ export function bystandersOf(defender, attacker, roll, ac, { on = "hit" } = {}) 
       if ( row.bend === "set" ) {
         const chip = storedChipOf(actor, row.stored);
         if ( !chip || !storedFacesUsable(chip, STORED_DICE[row.stored]) ) continue;
-        faces = facesThatTurn({ faces: readFlag(chip, STORED_FLAG)?.faces ?? [], kept: Number(facts.kept), total: Number(roll.total),
+        faces = facesThatTurn({ faces: storedFacesOf(chip), kept: Number(facts.kept), total: Number(roll.total),
           target: Number(ac), want, critAt: facts.critAt, fumbleAt: facts.fumbleAt });
         if ( !faces.length ) continue;
         out.push({ uuid: actor.uuid, name: token.document?.name ?? actor.name, row: key, itemId: item.id, activityId: null,

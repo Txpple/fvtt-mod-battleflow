@@ -9,7 +9,7 @@
  */
 import { MODULE_ID, readFlag, TITLE, drivesMomentFor, statContext, decisionWindow, queueFlagWrite, canApplyTo } from "./core.js";
 import { activityNamed, resolveUuid } from "./lookup.js";
-import { effectSourceOf } from "./shared.js";
+import { effectSourceOf, saveEntryFor } from "./shared.js";
 import { WARDS, answers, wardEntries, listedNames } from "./decide/registry.js";
 import { repeatRowFor, needsFloat } from "./decide/repeat-saves.js";
 import { wardGateFor, wardEnds, wardWords, wardVerdict } from "./decide/wards.js";
@@ -164,7 +164,7 @@ const settling = new Set();
 async function settleWard(card) {
   const w = readFlag(card, WARD_FLAG);
   if ( !w || w.settled ) return;
-  const entry = readFlag(card, "saves")?.targets?.find(t => t.uuid === w.attackerUuid);
+  const entry = saveEntryFor(card, w.attackerUuid);
   if ( !entry?.done || !drivesMomentFor(w.attackerUuid) ) return;
   if ( settling.has(card.id) ) return;
   settling.add(card.id);
@@ -199,7 +199,7 @@ function floatAside(message) {
   try {
     const w = readFlag(message, WARD_FLAG);
     if ( !w || floated.has(message.id) ) return;
-    const entry = readFlag(message, "saves")?.targets?.find(t => t.uuid === w.attackerUuid);
+    const entry = saveEntryFor(message, w.attackerUuid);
     if ( !entry?.done || (entry.outcome === "saved") ) return;
     floated.add(message.id);
     const token = tokenForUuid(w.wardUuid);
@@ -219,7 +219,7 @@ listen("dnd5e.renderChatMessage", "wards", (message, html) => {
     if ( !w ) return;
     void settleWard(message);   // the reload-resume twin of the update watcher
     const content = html.querySelector?.(SURFACES.messageContent) ?? html;
-    const entry = readFlag(message, "saves")?.targets?.find(t => t.uuid === w.attackerUuid);
+    const entry = saveEntryFor(message, w.attackerUuid);
     if ( !entry?.done || !content || content.querySelector(".bf-ward-line") ) return;
     const verdict = wardVerdict(entry.outcome, w.gate);
     const words = wardWords({ spell: w.key, attacker: "", ward: w.wardName, gate: w.gate });

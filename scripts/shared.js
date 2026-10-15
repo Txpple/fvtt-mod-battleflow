@@ -2,13 +2,14 @@
  * By the Books — Shared EDGE helpers: the hit test, the attack-chain lookup, status forcing, turn
  * chits, the Reaction chip and pool spends (ARCHITECTURE.md §7).
  */
-import { MODULE_ID, readFlag, TITLE, activeCombatFor, canApplyTo, combatStamp } from "./core.js";
+import { MODULE_ID, readFlag, TITLE, activeCombatFor, canApplyTo, combatStamp, stampedSourceOf } from "./core.js";
 import { CHIP_FLAG, chipClock, chitStamp, reactionStands, reactionStandsEveryTurn } from "./decide/chips.js";
 import { REACTION_RESETS, identifierOf } from "./decide/registry.js";
 import { foldsFrom, hitsAmong } from "./decide/verdict.js";
 import { storedChipName, withoutFace } from "./decide/stored-dice.js";
 import { CARD, describeTarget, isCard, targetsOf } from "./decide/card.js";
 import { esc } from "./decide/present.js";
+import { METAMAGIC_FLAG } from "./decide/metamagic.js";
 
 
 /** The attack's snapshot targets the roll hit; a null AC (total cover) MISSES, as dnd5e 6 judges it. */
@@ -28,7 +29,7 @@ export const masteryLabel = key => CONFIG.DND5E.weaponMasteries[key]?.label ?? k
 /** The attack roll a damage message descends from; null outside an attack chain.
  * ⚠ The `attackFor` stamp leads: a volley's rays share one usage card, so walking back is the fallback. */
 export function resolveAttackMessage(damageMessage) {
-  const forId = readFlag(damageMessage, "attackFor");
+  const forId = attackIdOf(damageMessage);
   if ( forId ) {
     const stamped = game.messages.get(forId);
     if ( stamped ) return stamped;
@@ -58,6 +59,95 @@ export function grantingActor(effect) {
   } catch { return null; }
 }
 
+/** An effect's SOURCE: the module's own stamp, else the actor behind its origin item, or null. */
+export function effectSourceUuid(effect) {
+  return stampedSourceOf(effect) ?? grantingActor(effect)?.uuid ?? null;
+}
+
+/* --- THE RECORDS ANOTHER UNIT READS (ARCHITECTURE §4) ---------------------------- */
+// Each key's readers, here where the services, the spine and every machine can import them: the writer
+// sits above one of its readers, or beside it. `npm run flagedges` holds every other read to them.
+
+/** The attack's hold record (hold/), or null. */
+export function holdOf(attackMessage) {
+  return readFlag(attackMessage, "hold") ?? null;
+}
+
+/** The hold's per-target entries; [] when the attack carries none. */
+export function holdTargets(attackMessage) {
+  return holdOf(attackMessage)?.targets ?? [];
+}
+
+/** Does a hold claim this damage roll (`attackHoldPending`, stamped at the roll while a reaction is pending)? */
+export function attackHoldClaims(damageMessage) {
+  return readFlag(damageMessage, "attackHoldPending") === true;
+}
+
+/** Has the hold that claimed this damage roll let it go? */
+export function attackHoldReleased(damageMessage) {
+  return readFlag(damageMessage, "attackHoldPending") === false;
+}
+
+/** The id of the attack a damage roll was rolled for (`attackFor`, auto-damage.js), or null. */
+export function attackIdOf(damageMessage) {
+  return readFlag(damageMessage, "attackFor") ?? null;
+}
+
+/** A save demand card's record (saves/), or null. */
+export function savesOf(card) {
+  return readFlag(card, "saves") ?? null;
+}
+
+/** Who forced the save: the demand's caster, or null. */
+export function saveSourceOf(card) {
+  return savesOf(card)?.sourceUuid ?? null;
+}
+
+/** What the save is against (`{ spell, statuses, … }`, read at the stamp), or null. */
+export function saveDemandOf(card) {
+  return savesOf(card)?.demand ?? null;
+}
+
+/** One saver's entry on a demand card, or null. */
+export function saveEntryFor(card, uuid) {
+  return savesOf(card)?.targets?.find(t => t.uuid === uuid) ?? null;
+}
+
+/** The kind a chip's fingerprint names (a mastery mark, a turn chit, `use`), or null for an effect that is no chip. */
+export function chipKindOf(effect) {
+  return readFlag(effect, CHIP_FLAG) ?? null;
+}
+
+/** The weapon mastery's moment on an attack card (mastery.js), or null. */
+export function masteryMomentOf(attackMessage) {
+  return readFlag(attackMessage, "mastery") ?? null;
+}
+
+/** A cast's Metamagic record (metamagic.js: the option, the caster, the spell), or null. */
+export function metamagicOf(card) {
+  return readFlag(card, METAMAGIC_FLAG) ?? null;
+}
+
+/** The folds a roll's d20 took (d20-folds.js), each `{ kind, label, … }`; [] when none. */
+export function d20FoldSpends(rollMessage) {
+  return readFlag(rollMessage, "d20fold")?.spends ?? [];
+}
+
+/** A Fighting Style face's fingerprint on its effect (damage-rules.js), or null. */
+export function styleFaceOf(effect) {
+  return readFlag(effect, "fightingStyle") ?? null;
+}
+
+/** Is this the pack's own effect a Fighting Style face switched off (damage-rules.js)? */
+export function styleTookOver(effect) {
+  return readFlag(effect, "fightingStyleTakenOver") === true;
+}
+
+/** The chips an attack roll used up (chip-spend.js's `chipSpend` record), each `{ id, name, key, uuid, … }`; [] when none. */
+export function chipSpendsOn(attackMessage) {
+  return readFlag(attackMessage, "chipSpend")?.spent ?? [];
+}
+
 /** Is this chip SPENT on record? With no GM its delete cannot happen, so a later `chipSpend` receipt counts. */
 export function chipSpentOnRecord(effect, { limit = 100 } = {}) {
   const bearerUuid = effect?.parent?.uuid;
@@ -67,8 +157,7 @@ export function chipSpentOnRecord(effect, { limit = 100 } = {}) {
   for ( let i = log.length - 1, n = 0; (i >= 0) && (n < limit); i--, n++ ) {
     const m = log[i];
     if ( m.timestamp < since ) continue;
-    const spent = readFlag(m, "chipSpend")?.spent;
-    if ( spent?.some(s => (s.id === effect.id) && (s.uuid === bearerUuid)) ) return true;
+    if ( chipSpendsOn(m).some(s => (s.id === effect.id) && (s.uuid === bearerUuid)) ) return true;
   }
   return false;
 }
@@ -281,6 +370,11 @@ const storedTurnNow = actor => { const c = activeCombatFor(actor); return c ? `$
 /** The bearer's chip for a STORED_DICE row, or null. */
 export const storedChipOf = (actor, key) => actor?.effects?.find?.(e => readFlag(e, STORED_FLAG)?.key === key) ?? null;
 
+/** The faces a stored-dice chip still keeps; [] when none (or no chip). */
+export function storedFacesOf(chip) {
+  return readFlag(chip, STORED_FLAG)?.faces ?? [];
+}
+
 /** May a face be spent now? One left, and (`oncePerTurn`) none spent this combat turn. */
 export function storedFacesUsable(chip, row) {
   const f = readFlag(chip, STORED_FLAG);
@@ -315,6 +409,11 @@ export function muteScopesFor(actor) {
     { until: "combat", label: "Don't ask again this combat", hint: "Don't ask me about this again until this combat ends." }
   ];
   return [{ until: "combat", label: "Don't ask again till the next combat", hint: "Don't ask me about this again until a combat starts." }];
+}
+
+/** A mute chip's record (`{ key, combat, until }`), or null for an effect that is no mute. */
+export function bystanderMuteOf(effect) {
+  return readFlag(effect, "bystanderMute") ?? null;
 }
 
 /** Is the bearer's mute on this feature live now — a combat's chip in that combat, an out-of-combat chip out of one? */
@@ -489,7 +588,7 @@ export function poolSpendsOn(message) {
   const hand = [];
   const flagged = readFlag(message, "poolSpend");
   if ( flagged ) hand.push(...(Array.isArray(flagged) ? flagged : [flagged]));
-  for ( const t of (readFlag(message, "hold")?.targets ?? []) ) if ( t.poolSpend ) hand.push(t.poolSpend);
+  for ( const t of holdTargets(message) ) if ( t.poolSpend ) hand.push(t.poolSpend);
   const hm = readFlag(message, "hitManeuver");
   for ( const pick of (Array.isArray(hm?.picks) ? hm.picks : (hm ? [hm] : [])) ) if ( pick?.poolSpend ) hand.push(pick.poolSpend);
   for ( const r of hand ) {

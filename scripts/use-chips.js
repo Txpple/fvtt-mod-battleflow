@@ -9,7 +9,7 @@ import { messageActivity } from "./effect-riders.js";
 import { ruleHTML } from "./rule-text.js";
 import { lower, featureNamed, itemNamed, namesAnswering, activityNamed, asiAssigned, resolveUuid } from "./lookup.js";
 import { effectEntries, cardChipEntries, damageRuleEntries, listedNames } from "./decide/registry.js";
-import { chipData, placeOf, hitTargets, withTargets, turnPlace } from "./shared.js";
+import { chipData, placeOf, hitTargets, withTargets, turnPlace, attackHoldClaims } from "./shared.js";
 import { bfCard, ruleLine, esc } from "./decide/present.js";
 import { USE_CHIPS, CARD_CHIPS, COATINGS, answers, tableIndex } from "./decide/registry.js";
 import { CHIP_FLAG, chipClock, cardChipRowKey, chipsLeft, coatSaveAbility, dosesLeft } from "./decide/chips.js";
@@ -425,7 +425,7 @@ const spending = new Set();
 async function spendCoat(message) {
   const f = readFlag(message, COAT_HIT);
   if ( (f?.status !== "due") || spending.has(message.id) ) return;
-  if ( readFlag(message, "attackHoldPending") === true ) return;   // its release brings this back
+  if ( attackHoldClaims(message) ) return;   // its release brings this back
   spending.add(message.id);
   try {
     const found = coatRowKeyed(f.key);

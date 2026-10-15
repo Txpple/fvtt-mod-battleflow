@@ -5,10 +5,11 @@
 import { readFlag, TITLE, queueFlagWrite } from "./core.js";
 import { clearStatus } from "./shared.js";
 import { exhaustionPhrase, receiptAmounts, revertPlan, traitPhrase } from "./decide/receipt.js";
-import { revertEffect } from "./effect-riders.js";
+import { revertEffect, effectReceiptOf } from "./effect-riders.js";
 import { esc } from "./decide/present.js";
 import { SURFACES } from "./surfaces.js";
 import { listen } from "./dispatch.js";
+import { notAppliedOf } from "./auto-apply.js";
 
 /** EDGE: the system's own name for a damage or healing type (the phrase is decide/receipt.js's). */
 function typeLabel(type) {
@@ -17,7 +18,7 @@ function typeLabel(type) {
 
 // Dice rolled on an attack that ended as a miss: the card says nothing landed, and why (auto-apply.js `stampNotApplied`).
 listen("dnd5e.renderChatMessage", "receipts", (message, html) => {
-  const notApplied = readFlag(message, "notApplied");
+  const notApplied = notAppliedOf(message);
   if ( !notApplied?.why || html.querySelector?.(".bythebooks-not-applied") ) return;
   const row = document.createElement("div");
   row.className = "bythebooks-not-applied";
@@ -32,7 +33,7 @@ listen("dnd5e.renderChatMessage", "receipts", (message, html) => {
 
 listen("dnd5e.renderChatMessage", "receipts", (message, html) => {
   const receipt = readFlag(message, "receipt");
-  const effectReceipt = readFlag(message, "effectReceipt");
+  const effectReceipt = effectReceiptOf(message);
   if ( !receipt?.targets?.length && !effectReceipt?.targets?.length ) return;
   // Everyone sees WHO the damage landed on; only the GM sees the pool and the revert.
   const isGM = game.user.isGM;

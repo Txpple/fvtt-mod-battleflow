@@ -3,11 +3,11 @@
  * *The rest of the maneuvers*) — each a USE whose consequence lands on a sheet, and for Lunging
  * and Feinting a die that rides the next hit. The pool is spent by the activity's own consumption.
  */
-import { MODULE_ID, readFlag, TITLE, canAnswerFor, drivesMomentFor, queueFlagWrite, statContext, decisionWindow } from "./core.js";
+import { MODULE_ID, readFlag, TITLE, canAnswerFor, drivesMomentFor, queueFlagWrite, statContext, decisionWindow, stampedSourceOf } from "./core.js";
 import { ruleHTML } from "./rule-text.js";
 import { cardItem, lower, featureNamed, activityNamed, resolveUuid, resolveDie } from "./lookup.js";
 import { superiorityUseEntries, listedNames } from "./decide/registry.js";
-import { chipData, hitTargets, placeOf, poolSpendsOn } from "./shared.js";
+import { chipData, hitTargets, placeOf, poolSpendsOn, chipSpendsOn } from "./shared.js";
 import { bfCard, holdBarHTML, riderMenuHTML, ruleLine, spendPhrase, esc } from "./decide/present.js";
 import { MANEUVER_FEATURE_NAMES, SUPERIORITY_USES, answers, tableIndex } from "./decide/registry.js";
 import { CHIP_FLAG, chipClock } from "./decide/chips.js";
@@ -279,10 +279,10 @@ listen("dnd5e.preRollDamage", "superiority-uses", (config, _dialog, message) => 
       if ( !row.marker || !names.has(lower(key)) ) continue;
       const hits = hitTargets(attackMessage);
       if ( !hits.length ) continue;
-      const spent = readFlag(attackMessage, "chipSpend")?.spent ?? [];
+      const spent = chipSpendsOn(attackMessage);
       const feinted = hits.every(t => {
         const target = resolveUuid(t.uuid);
-        const marker = target?.effects?.find(e => (lower(e.name) === lower(row.marker.effect)) && (readFlag(e, "sourceUuid") === attacker.uuid));
+        const marker = target?.effects?.find(e => (lower(e.name) === lower(row.marker.effect)) && (stampedSourceOf(e) === attacker.uuid));
         return !!marker || spent.some(s => (lower(s.name) === lower(row.marker.effect)) && (s.uuid === t.uuid));
       });
       if ( !feinted ) continue;

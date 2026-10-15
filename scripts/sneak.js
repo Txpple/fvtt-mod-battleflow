@@ -6,7 +6,7 @@ import { MODULE_ID, readFlag, TITLE, activeCombatFor, drivesMomentFor, queueFlag
 import { verdictsOn } from "./decide/demand.js";
 import { lower, featureNamed, namesAnswering } from "./lookup.js";
 import { registerResumable, registerOfferPart } from "./ui.js";
-import { damagePartsOf, hitTargets, statSourceOf, withTargets, writeTurnChit } from "./shared.js";
+import { damagePartsOf, hitTargets, statSourceOf, withTargets, writeTurnChit, savesOf, saveSourceOf } from "./shared.js";
 import { bfCard, cunningMenuHTML, ruleLine, esc } from "./decide/present.js";
 import { CUNNING_OPTIONS, DEATH_STRIKE } from "./decide/registry.js";
 import { cunningMenu, cunningPick, sneakFormula } from "./decide/sneak.js";
@@ -240,7 +240,7 @@ const followups = new Set();
 
 async function settleCunningFollowups(card) {
   const cunning = readFlag(card, "cunning");
-  const saves = readFlag(card, "saves");
+  const saves = savesOf(card);
   const verdicts = verdictsOn(saves);
   if ( !cunning?.onFail || !verdicts.length ) return;
   if ( !drivesMomentFor(saves.sourceUuid ?? null) ) return;
@@ -278,7 +278,7 @@ async function settleCunningFollowups(card) {
 // The follow-up on a failed save: on the answer's write and on reload, never at birth (no verdict yet).
 registerResumable("cunning", {
   pending: (flag, _message, cause) => (cause !== "create") && !!flag.onFail,
-  drives: (_flag, message) => drivesMomentFor(readFlag(message, "saves")?.sourceUuid ?? null),
+  drives: (_flag, message) => drivesMomentFor(saveSourceOf(message)),
   drive: settleCunningFollowups
 });
 

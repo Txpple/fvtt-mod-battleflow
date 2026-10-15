@@ -3,7 +3,7 @@
  * cover — the Foundry half; the arithmetic is decide/geometry.js and decide/cover.js.
  * ⚠ No hooks, no flags, no writes.
  */
-import { readFlag, TITLE } from "./core.js";
+import { readFlag, TITLE, stampedSourceOf } from "./core.js";
 import { measureCover } from "./decide/cover.js";
 import { lengthUnitKey, rectsOverlap, tokenSamplePoints } from "./decide/geometry.js";
 
@@ -84,7 +84,7 @@ export function feetOf(n, units) {
 
 /** Who put this Grappled on its bearer: the module's source stamp, else the origin's actor, or null. */
 export function grapplerOf(effect) {
-  const stamped = readFlag(effect, "sourceUuid");
+  const stamped = stampedSourceOf(effect);
   if ( stamped ) return stamped;
   let origin = null;
   try { origin = effect?.origin ? fromUuidSync(effect.origin) : null; } catch { origin = null; }

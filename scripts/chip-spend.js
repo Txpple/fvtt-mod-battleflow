@@ -3,11 +3,11 @@
  * chip (or a listed effect's marker), receipted on the attack card — and the tidies of expired chips.
  */
 import { readFlag, TITLE, isActiveGM, drivesMomentFor, canApplyTo, whisperNoGM, queueFlagWrite,
-  statContext } from "./core.js";
+  statContext, stampedSourceOf } from "./core.js";
 import { EFFECT_BENDS } from "./decide/registry.js";
-import { TURN_CHIPS, CHIP_FLAG, chipOwnedBy, chipSpentBy, netShownFor, rollModeOf, spendRecord } from "./decide/chips.js";
+import { TURN_CHIPS, chipOwnedBy, chipSpentBy, netShownFor, rollModeOf, spendRecord } from "./decide/chips.js";
 import { REMINDER_FLAG, rolledWith } from "./decide/reminders.js";
-import { chipSpentOnRecord, masteryLabel } from "./shared.js";
+import { chipSpentOnRecord, masteryLabel, chipKindOf, bystanderMuteOf } from "./shared.js";
 import { effectEntries, listedNames } from "./decide/registry.js";
 import { bfCard } from "./decide/present.js";
 import { messageActivity } from "./effect-riders.js";
@@ -32,7 +32,6 @@ async function spendChips(message, ctx) {
   const claimed = [];
   try {
     const attacker = ctx.attacker;
-    const chipKey = e => readFlag(e, CHIP_FLAG);
     // A chip's origin is the WEAPON that applied it; the attacker owns it when that weapon is theirs.
     const owned = e => chipOwnedBy(e.origin, attacker.uuid);
     // Already spent — on the log, or by the roll a moment before this one — is not spent again.
@@ -40,7 +39,7 @@ async function spendChips(message, ctx) {
     const spent = [];
     // The bearer attacking: its own Sap, from anyone.
     for ( const e of attacker.effects ) {
-      const key = chipKey(e);
+      const key = chipKindOf(e);
       if ( key && unspent(e) && chipSpentBy(key, { bearer: "attacker", attackerOwnsChip: owned(e) }) ) {
         spent.push({ actor: attacker, effect: e, key });
       }
@@ -50,7 +49,7 @@ async function spendChips(message, ctx) {
       const actor = await fromUuid(t.uuid);
       if ( !(actor instanceof Actor) || (actor.uuid === attacker.uuid) ) continue;
       for ( const e of actor.effects ) {
-        const key = chipKey(e);
+        const key = chipKindOf(e);
         if ( key && unspent(e) && chipSpentBy(key, { bearer: "target", attackerOwnsChip: owned(e) }) ) {
           spent.push({ actor, effect: e, key });
         }
@@ -69,9 +68,9 @@ async function spendChips(message, ctx) {
         const sided = (side === "attacker") ? (r?.attacker || r?.against) : (r?.target || (Number(r?.plus) > 0));
         if ( !r || !sided || !listed.has(String(name.split(" — ")[0])) ) return null;
         // `only: "source"` (Feinting Attack): a target's marker is spent by ITS source's roll alone.
-        if ( (r.only === "source") && (side === "target") && (readFlag(e, "sourceUuid") !== attacker.uuid) ) return null;
+        if ( (r.only === "source") && (side === "target") && (stampedSourceOf(e) !== attacker.uuid) ) return null;
         // `except: "source"` (Sundered): the placer's own roll never spends it.
-        if ( (r.except === "source") && (side === "target") && (readFlag(e, "sourceUuid") === attacker.uuid) ) return null;
+        if ( (r.except === "source") && (side === "target") && (stampedSourceOf(e) === attacker.uuid) ) return null;
         // `against` (Studied Attacks): spent only by a roll AT the creature the chip names.
         if ( r.against && !targetUuids.has(readFlag(e, "against")) ) return null;
         return r;
@@ -132,7 +131,7 @@ const expiryTidy = new Map();
 
 /** The tidy owns the module's chips and the hold's reaction effect (an expired Shield left on the sheet
  * reads as still up); a hand-dragged pack effect is not ours. */
-const tidyOwns = effect => !!readFlag(effect, CHIP_FLAG) || !!readFlag(effect, "reactionEffect");
+const tidyOwns = effect => !!chipKindOf(effect) || !!readFlag(effect, "reactionEffect");
 
 listen("updateActiveEffect", "chip-spend", (effect, changes) => {
   if ( changes?.duration?.expired !== true ) return;
@@ -178,13 +177,13 @@ listen("updateCombat", "chip-spend", (combat, changes) => {
 async function sweepTurnMutes(actor, combat) {
   try {
     const ids = actor.effects.filter(e => {
-      const m = readFlag(e, "bystanderMute");
+      const m = bystanderMuteOf(e);
       return m && (((m.until === "turn") && (m.combat === combat.id)) || (m.combat == null));
     }).map(e => e.id);
     if ( !ids.length ) return;
     await actor.deleteEmbeddedDocuments("ActiveEffect", ids);
   } catch(err) {
-    if ( actor.effects.some(e => readFlag(e, "bystanderMute")?.until === "turn") ) console.warn(`${TITLE} | The turn's mute sweep failed on ${actor.name}.`, err);
+    if ( actor.effects.some(e => bystanderMuteOf(e)?.until === "turn") ) console.warn(`${TITLE} | The turn's mute sweep failed on ${actor.name}.`, err);
   }
 }
 
@@ -194,9 +193,9 @@ async function sweepCombatChips(combat) {
     const actors = new Set(combat.combatants.map(c => c.actor).filter(a => a instanceof Actor));
     await Promise.all([...actors].map(async actor => {
       // …and the reaction's self-cast effect clocked to this combat.
-      const ids = actor.effects.filter(e => TURN_CHIPS.includes(readFlag(e, CHIP_FLAG))
+      const ids = actor.effects.filter(e => TURN_CHIPS.includes(chipKindOf(e))
         || (readFlag(e, "reactionEffect") && (e._source.start?.combat === combat.id))
-        || (readFlag(e, "bystanderMute")?.combat === combat.id)).map(e => e.id);
+        || (bystanderMuteOf(e)?.combat === combat.id)).map(e => e.id);
       if ( !ids.length ) return;
       try {
         await actor.deleteEmbeddedDocuments("ActiveEffect", ids);

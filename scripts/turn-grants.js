@@ -27,7 +27,7 @@ import { TURN_GRANTS, answers, turnGrantEntries, listedNames } from "./decide/re
 import { grantRowFor, grantDue, grantTitle, featureGrantRows, blockingTypes, damagedSince } from "./decide/turn-grants.js";
 import { riderPartFormula } from "./decide/clock.js";
 import { bfCard, ruleLine } from "./decide/present.js";
-import { applyDamagesWithReceipt } from "./auto-apply.js";
+import { applyDamagesWithReceipt, receiptEntries } from "./auto-apply.js";
 import { askHandOut } from "./rest-grants.js";
 import { listen } from "./dispatch.js";
 
@@ -456,7 +456,7 @@ function blockedBy(actor, item, combat) {
   const labels = Object.fromEntries(Object.entries(CONFIG.DND5E.damageTypes ?? {}).map(([k, v]) => [k, v?.label ?? k]));
   const types = blockingTypes(item.system?.description?.value ?? "", labels);
   if ( !types.length ) return null;
-  const entries = game.messages.contents.flatMap(m => readFlag(m, "receipt")?.targets ?? []);
+  const entries = game.messages.contents.flatMap(m => receiptEntries(m));
   const verdict = damagedSince({ entries, uuid: actor.uuid, combatId: combat.id, round: combat.round, turn: combat.turn, types });
   return verdict.blocked ? { type: verdict.type, label: labels[verdict.type] ?? verdict.type, types } : null;
 }

@@ -8,7 +8,7 @@ import { maneuverFoldEntries } from "./decide/registry.js";
 import { RULE_TEXT, SHOVES, tableIndex } from "./decide/registry.js";
 import { hitOfferStep, withinBashReach, sizeAllows } from "./decide/sequence.js";
 import { nearestFeet, tokenForUuid, tokenOfActor } from "./geometry.js";
-import { hitTargets, resolveAttackMessage } from "./shared.js";
+import { hitTargets, resolveAttackMessage, masteryMomentOf } from "./shared.js";
 import { bfCard, holdBarHTML, ruleLine, esc } from "./decide/present.js";
 import { SURFACES } from "./surfaces.js";
 import { CARD, isCard } from "./decide/card.js";
@@ -144,7 +144,7 @@ async function offerFacts(attackMessage, { damageLanded } = {}) {
   }
   return {
     status: b.status,
-    masteryStatus: readFlag(attackMessage, "mastery")?.status ?? null,
+    masteryStatus: masteryMomentOf(attackMessage)?.status ?? null,
     damageLanded: damageLanded ?? damageLandedFor(attackMessage),
     living, standing
   };
@@ -334,7 +334,7 @@ listen("updateChatMessage", "bash-offer", message => {
     if ( b.status !== "pending" ) disarmAskTimer(bashOfferTimers, message.id);
     // The sequence's second trigger: the mastery ask on this attack message just settled.
     if ( (b.status === "queued") && drivesMomentFor(b.attackerUuid)
-      && (readFlag(message, "mastery")?.status === "done") ) void sequenceBashOffer(message);
+      && (masteryMomentOf(message)?.status === "done") ) void sequenceBashOffer(message);
   }
 });
 

@@ -5,7 +5,7 @@
  */
 import { MODULE_ID, readFlag, TITLE, S, setting, decisionWindow, drivesMomentFor } from "./core.js";
 import { missShareFor, resolveUuid } from "./lookup.js";
-import { hitTargets } from "./shared.js";
+import { hitTargets, holdOf, savesOf } from "./shared.js";
 import { TONE, esc, popupKey, bfCard, momentBarHTML } from "./decide/present.js";
 import { armDeadline, disarmDeadline, livePopups, offerParts, openManagedPopup, frontPopup } from "./ui.js";
 import { CONDITION_BENDS } from "./decide/registry.js";
@@ -52,7 +52,7 @@ listen("dnd5e.rollAttack", "auto-damage", async (rolls, { subject }) => {
   // A hold pauses the APPLICATION, never the dice: the roll is born attackHoldPending.
   await stampHoldIfInterrupted(attackMessage, rolls[0], hits);
   // Except a crit a Disadvantage reaction could undo: `damageAfterHold` rolls it.
-  if ( readFlag(attackMessage, "hold")?.critAtStake ) return;
+  if ( holdOf(attackMessage)?.critAtStake ) return;
   return offerOrRollDamage(subject, attackMessage);
 });
 
@@ -202,6 +202,15 @@ function foldedCritStands(attackMessage, hits) {
   }
 }
 
+/**
+ * How many of a damage message's rolls are the activity's own (`weaponRolls`, stamped at the roll); one when unstamped.
+ * @param {any} message
+ */
+export function weaponRollsOf(message) {
+  const n = Number(readFlag(message, "weaponRolls"));
+  return Number.isFinite(n) && (n > 0) ? n : 1;
+}
+
 /** The attack an about-to-roll damage answers, from the message DATA: `attackFor`, else the clicked card's last attack. */
 export function attackMessageForDamage(config, message) {
   const data = message?.data ?? {};
@@ -258,7 +267,7 @@ export async function rollDamageForAttack(activity, attackMessage) {
     const originId = originIdOf(attackMessage) ?? attackMessage.id;
     // `attackFor` names the exact attack (a volley's rays share one usage card). The hold is read at
     // ROLL time, so one resolved while the popup sat open applies straight.
-    const holdPending = readFlag(attackMessage, "hold")?.status === "pending";
+    const holdPending = holdOf(attackMessage)?.status === "pending";
     // ⚠ Stamps ride NESTED under `flags`: data with both nested and dotted module flags keeps only the nested.
     await activity.rollDamage(
       { ability, ammunition, attackMode, isCritical },
@@ -278,7 +287,7 @@ export async function rollDamageForAttack(activity, attackMessage) {
 export async function rollDamageForSave(activity, card) {
   try {
     // The upcast: the demand's (an emanation's demand is a plain card), else the usage card's.
-    const scaling = Number(readFlag(card, "saves")?.scaling ?? card.system?.scaling ?? 0);
+    const scaling = Number(savesOf(card)?.scaling ?? card.system?.scaling ?? 0);
     // ⚠ The card's OWN targets ride the roll: dnd5e snapshots the client's live targets, which may have changed.
     const data = foundry.utils.expandObject(originData(card.id));
     const aimed = card._source?.system?.targets;

@@ -8,7 +8,7 @@
  */
 import { MODULE_ID, readFlag, TITLE, drivesMomentFor, statContext, decisionWindow, queueFlagWrite, canAnswerFor, canApplyTo } from "./core.js";
 import { activityNamed, activityOfType, answersOrEnchanted, resolveUuid } from "./lookup.js";
-import { effectSourceOf, forceStatus } from "./shared.js";
+import { effectSourceOf, forceStatus, savesOf } from "./shared.js";
 import { REPEAT_SAVES, repeatSaveEntries, listedNames } from "./decide/registry.js";
 import { repeatRowFor, repeatDue, repeatBend, repeatVerdict, needsFloat, repeatTitle, repeatEnds, repeatLift, repeatEndWords } from "./decide/repeat-saves.js";
 import { saveDemandData, saveTargetEntry } from "./decide/demand.js";
@@ -39,7 +39,7 @@ function rowOf(effect, { lockedToo = false } = {}) {
 
 /** Is a repeat for this effect still unanswered anywhere in the log? */
 const pendingFor = effect => game.messages.contents.some(m => (readFlag(m, REPEAT_FLAG)?.effectUuid === effect.uuid)
-  && (readFlag(m, "saves")?.status === "pending"));
+  && (savesOf(m)?.status === "pending"));
 
 /* --- the triggers ------------------------------------------------------------------------------ */
 
@@ -212,7 +212,7 @@ const settling = new Set();
 async function settleRepeat(card) {
   const rep = readFlag(card, REPEAT_FLAG);
   if ( !rep || rep.settled ) return;
-  const flag = readFlag(card, "saves");
+  const flag = savesOf(card);
   const entry = flag?.targets?.find(t => t.uuid === rep.actorUuid);
   if ( !entry?.done || !drivesMomentFor(flag.sourceUuid ?? null) ) return;
   if ( settling.has(card.id) ) return;

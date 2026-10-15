@@ -14,6 +14,7 @@ import { SURFACES } from "./surfaces.js";
 import { CARD, activityUuidOf, isCard, originIdOf, originData, targetsOf } from "./decide/card.js";
 import { openMomentPopup, acknowledgeMoment, momentAcknowledged, pendingRow, closePopup } from "./ui.js";
 import { listen } from "./dispatch.js";
+import { hasReceipt, receiptEntries } from "./auto-apply.js";
 
 // HEW — a reminder only; the player swings from the sheet. A crit that kills reminds once. ⚠ A
 // hand-tray kill posts no receipt, so no reminder: module damage is the only witness of "to 0".
@@ -143,12 +144,12 @@ async function maybeHewKillReminder(damageMessage) {
   try {
     if ( !isActiveGM() ) return;
     if ( readFlag(damageMessage, "hewNoticed") ) return;   // the crit already said it
-    const receipt = readFlag(damageMessage, "receipt");
-    if ( !receipt?.targets?.length ) return;
+    const entries = receiptEntries(damageMessage);
+    if ( !entries.length ) return;
     const ctx = await hewChainContext(damageMessage);
     if ( !ctx ) return;
     const downed = [];
-    for ( const t of receipt.targets ?? [] ) {
+    for ( const t of entries ) {
       if ( t.reverted ) continue;
       const actor = await fromUuid(t.uuid).catch(() => null);
       if ( actor && ((actor.system?.attributes?.hp?.value ?? 1) <= 0) ) downed.push(t.name ?? actor.name);
@@ -163,7 +164,7 @@ async function maybeHewKillReminder(damageMessage) {
 
 listen("updateChatMessage", "hew", message => {
   // The kill trigger rides receipt writes, through the check queue.
-  if ( readFlag(message, "receipt") && isActiveGM() ) {
+  if ( hasReceipt(message) && isActiveGM() ) {
     void queueHewCheck(message, () => maybeHewKillReminder(message));
   }
   // A durably-acknowledged notice closes its popup wherever it lives.

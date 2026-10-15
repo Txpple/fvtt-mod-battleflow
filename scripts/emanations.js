@@ -9,7 +9,7 @@ import { saveDemandData, saveTargetEntry } from "./decide/demand.js";
 import { lower, itemNamed, activityNamed, activityOfType, resolveUuid, namesAnswering, applicableProfiles, wearsEffectNamed } from "./lookup.js";
 import { ruleHTML } from "./rule-text.js";
 import { emanationEntries, listedNames } from "./decide/registry.js";
-import { reactionSpent, turnChitStands, writeTurnChit } from "./shared.js";
+import { reactionSpent, turnChitStands, writeTurnChit, savesOf } from "./shared.js";
 import { riderPartFormula } from "./decide/clock.js";
 import { tokensInRegions } from "./geometry.js";
 import { emanationShapeData } from "./decide/geometry.js";
@@ -1338,7 +1338,7 @@ async function endConcentrationAreas(effect) {
     const another = !!actor?.effects?.some(e => (e.id !== effect.id) && e.statuses?.has?.("concentrating")
       && (e.flags?.dnd5e?.activity?.uuid === activityUuid));
     const untiedIsOurs = !Array.isArray(tied) && !another;
-    const demanded = game.messages.contents.some(m => (m.system?.concentration === effect.id) && readFlag(m, "saves")?.templated);
+    const demanded = game.messages.contents.some(m => (m.system?.concentration === effect.id) && savesOf(m)?.templated);
     for ( const scene of game.scenes ) {
       for ( const region of scene.regions.filter(r => r.getFlag("dnd5e", "activity") === activityUuid) ) {
         const own = !!flagOf(region);                                   // this module's own emanation placement

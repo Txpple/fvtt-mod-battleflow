@@ -11,8 +11,8 @@ import { EFFECT_CHOICES, HEAL_REROLLS, MARK_USES, SLOT_DURATIONS, healRerollEntr
 import { rollMaximum } from "./decide/damage-dice.js";
 import { registerResumable, pendingRow } from "./ui.js";
 import { openPicker } from "./gallery.js";
-import { applyDamagesWithReceipt } from "./auto-apply.js";
-import { applyEffectsWithReceipt } from "./effect-riders.js";
+import { applyDamagesWithReceipt, hasReceipt } from "./auto-apply.js";
+import { applyEffectsWithReceipt, effectReceiptOf } from "./effect-riders.js";
 import { SURFACES } from "./surfaces.js";
 import { activityUuidOf, targetsOf } from "./decide/card.js";
 import { listen } from "./dispatch.js";
@@ -26,7 +26,7 @@ async function executeCastApply(message) {
   try {
     const payload = readFlag(message, "castApply");
     if ( !payload?.targets?.length ) return;
-    if ( readFlag(message, "effectReceipt")?.castDone ) return;
+    if ( effectReceiptOf(message)?.castDone ) return;
     // Through the CARD: a consumed item (a potion) lives on only in the card's snapshot.
     const activity = cardActivity(message, payload.activityUuid);
     // dnd5e 6: the list holds PROFILES; the effects resolve asynchronously.
@@ -124,7 +124,7 @@ const healRerollWaits = message => HEAL_REROLL_WAITS.has(readFlag(message, "heal
 
 async function applyCastHealing(message) {
   try {
-    if ( readFlag(message, "receipt") ) return; // applied (or reverted) already
+    if ( hasReceipt(message) ) return; // applied (or reverted) already
     if ( healRerollWaits(message) ) return;               // the Healer's answer first (the claim above)
     // A SELF-aimed heal carries its target on the stamp; the dnd5e snapshot is incidental there.
     const stamp = readFlag(message, "healPending");
@@ -201,7 +201,7 @@ registerResumable("castApply", {
 registerResumable("healPending", {
   // An update resumes it only as the Healer's claim settles (heal-rerolls.js writes its status here).
   pending: (_flag, message, cause) => (cause !== "update")
-    || (!!readFlag(message, "healReroll") && !healRerollWaits(message) && !readFlag(message, "receipt")),
+    || (!!readFlag(message, "healReroll") && !healRerollWaits(message) && !hasReceipt(message)),
   drives: (_flag, message) => drivesMomentFor(castSubject(message)),
   drive: applyCastHealing
 });

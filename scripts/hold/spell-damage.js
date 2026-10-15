@@ -7,7 +7,7 @@ import { MODULE_ID, readFlag, TITLE, drivesMomentFor, canApplyTo, whisperNoGM } 
 import { damagePartsOf } from "../shared.js";
 import { CARD, isCard, itemNameOf, originIdOf, targetsOf } from "../decide/card.js";
 import { registerResumable } from "../ui.js";
-import { applyDamagesWithReceipt } from "../auto-apply.js";
+import { applyDamagesWithReceipt, hasReceipt } from "../auto-apply.js";
 import { listen } from "../dispatch.js";
 
 /* The negate veto: preApplyDamage is the one place a negated target can be spared (an explicit false
@@ -45,7 +45,7 @@ listen("dnd5e.preApplyDamage", "hold/spell-damage", (actor, _amount, _updates, o
 async function applySpellDamage(message) {
   try {
     if ( readFlag(message, "spellDamage") !== true ) return;
-    if ( readFlag(message, "receipt") ) return;                   // applied already (resume)
+    if ( hasReceipt(message) ) return;                   // applied already (resume)
     const hold = readFlag(message.getOriginatingMessage?.(), "hold");
     if ( hold && (hold.status === "pending") ) return;                     // bridged and still open
     if ( readFlag(message, "spellHoldPending") === true ) {
@@ -80,8 +80,8 @@ const spellDamageSubject = message => message?.getAssociatedActor?.()?.uuid ?? n
 // Three triggers: arrival, the claim settling (update), and render (reload resume).
 registerResumable("spellDamage", {
   pending: (_flag, message, cause) => (cause === "create")
-    || ((cause === "update") && (readFlag(message, "spellHoldPending") === false) && !readFlag(message, "receipt"))
-    || ((cause === "render") && (readFlag(message, "spellHoldPending") !== true) && !readFlag(message, "receipt")),
+    || ((cause === "update") && (readFlag(message, "spellHoldPending") === false) && !hasReceipt(message))
+    || ((cause === "render") && (readFlag(message, "spellHoldPending") !== true) && !hasReceipt(message)),
   drives: (_flag, message) => drivesMomentFor(spellDamageSubject(message)),
   drive: applySpellDamage
 });

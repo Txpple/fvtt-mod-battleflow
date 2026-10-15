@@ -11,7 +11,7 @@ import { MODULE_ID, readFlag, TITLE, S, setting, queueFlagWrite, canAnswerFor, i
 import { ruleHTML } from "./rule-text.js";
 import { answers, d20FoldEntries, metamagicEntries, listedNames } from "./decide/registry.js";
 import { activityNamed, cardActivity, featureNamed, itemNamed, itemsNamed, lower, resolveUuid, resolveDie, rerollD20, wieldedNamed, wornNamed } from "./lookup.js";
-import { grantingActor, hitTargets, poolSpendsOn, poolOf, spendPoolUses, turnChitStands, writeTurnChit } from "./shared.js";
+import { grantingActor, hitTargets, poolSpendsOn, poolOf, spendPoolUses, turnChitStands, writeTurnChit, saveDemandOf } from "./shared.js";
 import { bfCard, holdBarHTML, momentBarHTML, ruleLine, spendPhrase, RESCUE_KINDS, rescueLabel, rescueView, rescueSourceFor } from "./decide/present.js";
 import { ATTACK_FOLDS, SAVE_FOLDS, foldsFrom, foldedRoll, foldedVerdict } from "./decide/verdict.js";
 import { ADVANTAGE_BUYS, D20_FLOORS, REROLLS, SAVE_SUCCEEDS, SUPERIORITY_FOLDS, TACTICAL_FOLDS, d20FloorEntries } from "./decide/registry.js";
@@ -574,7 +574,7 @@ async function offerFoldOnSave(rollMessage, card, uuid, total, dc, by = null) {
     if ( !(actor instanceof Actor) ) return false;
     const ability = rollMessage.system?.ability ?? null;
     // The demand the save answers (the DMG's Scarab reads its school and its caster's type).
-    const demand = readFlag(card, "saves")?.demand ?? null;
+    const demand = saveDemandOf(card);
     // only what could still lift the save to the DC
     const offers = reaching(availableFolds(actor, "save", [], { ability, demand }),
       { total, kept: naturalOf(rollMessage.rolls?.[0]), target: dc });

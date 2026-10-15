@@ -9,7 +9,7 @@ import { verdictsOn } from "./decide/demand.js";
 import { featureNamed, activityNamed, activityOfType, namesAnswering, profileEffects, resolveUuid, resolveDie, superiorityStandIn } from "./lookup.js";
 import { REMINDER_FLAG } from "./decide/reminders.js";
 import { hitMenuEntries } from "./decide/registry.js";
-import { forceStatus, hitTargets, noteSuperiorityStandIn, poolOf, spendSuperiorityDie, statSourceOf, turnChitStands, withTargets, writeTurnChit } from "./shared.js";
+import { forceStatus, hitTargets, noteSuperiorityStandIn, poolOf, spendSuperiorityDie, statSourceOf, turnChitStands, withTargets, writeTurnChit, savesOf, saveSourceOf } from "./shared.js";
 import { pactWeaponFits } from "./lookup.js";
 import { activeCombatFor } from "./core.js";
 import { bfCard, hitMenuHTML, momentBarHTML, ruleLine, spendPhrase } from "./decide/present.js";
@@ -564,7 +564,7 @@ const followups = new Set();
 
 async function settleHitFollowups(card) {
   const hc = readFlag(card, "hitManeuverCard");
-  const saves = readFlag(card, "saves");
+  const saves = savesOf(card);
   const uuids = [...(hc?.effectUuid && hc.onFail ? [hc.effectUuid] : []), ...(hc?.pressUuids ?? [])];
   const verdicts = verdictsOn(saves);   // the answered targets, through the one reader
   if ( !uuids.length || !verdicts.length ) return;
@@ -747,7 +747,7 @@ registerResumable("hitManeuver", {
 });
 registerResumable("hitManeuverCard", {
   pending: (flag, _message, cause) => (cause !== "create") && !!(flag.onFail || flag.pressUuids?.length),
-  drives: (flag, message) => drivesMomentFor(readFlag(message, "saves")?.sourceUuid ?? flag.sourceUuid ?? null),
+  drives: (flag, message) => drivesMomentFor(saveSourceOf(message) ?? flag.sourceUuid ?? null),
   drive: settleHitFollowups
 });
 registerResumable("sweepCard", {

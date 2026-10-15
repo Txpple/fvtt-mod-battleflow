@@ -8,8 +8,8 @@ import { applicableProfiles, resolveUuid, itemNamed, namesAnswering } from "../l
 import { CARD, activityUuidOf, isCard, targetsOf } from "../decide/card.js";
 import { saveDemandData, saveTargetEntry, putsToSleep } from "../decide/demand.js";
 import { METAMAGIC_FLAG, metamagicRuleText, carefulKind } from "../decide/metamagic.js";
-import { AREA_ASK_FLAG, AREA_CHOICE_FLAG, carefulProtects, heightenedMark, choiceCapFrom, choiceRuleFrom, chosenByDefault, choiceNeedsAsk } from "../decide/area-ask.js";
-import { askCandidates, newAsk, raiseAsk } from "../area-ask.js";
+import { AREA_CHOICE_FLAG, carefulProtects, heightenedMark, choiceCapFrom, choiceRuleFrom, chosenByDefault, choiceNeedsAsk } from "../decide/area-ask.js";
+import { askCandidates, newAsk, raiseAsk, areaAskOf } from "../area-ask.js";
 import { tokensInRegions } from "../geometry.js";
 import { isDeadForSaves } from "../decide/eligible.js";
 import { EFFECT_BENDS, EMANATIONS, SAVE_PRESSES, tableIndex } from "../decide/registry.js";
@@ -66,7 +66,7 @@ export async function metamagicForDemand(card, activity, contained) {
   const facts = casterFactsOf(activity);
   // THE ASK AT THE AREA: a pick not yet made is asked of the area's creatures; the demand WAITS.
   if ( (carefulKind(mm.key) || (mm.key === "heightened")) && !mm.chosen && contained.length ) {
-    const ask = readFlag(card, AREA_ASK_FLAG);
+    const ask = areaAskOf(card);
     if ( ask?.status !== "pending" && card.canUserModify?.(game.user, "update") ) {
       await raiseAsk(card, newAsk({ kind: mm.key, feature: mm.feature, cap: mm.cap ?? 1, rule: mm.rule ?? null,
         candidates: askCandidates(contained), caster: { uuid: facts.casterUuid, disposition: facts.casterDisposition, name: activity?.actor?.name ?? null } }));
@@ -106,7 +106,7 @@ export async function areaChoiceForDemand(card, activity, contained) {
     const chosen = new Set(record.chosen.map(c => c.uuid));
     return { contained: pool.filter(c => chosen.has(c.uuid)), hold: false };
   }
-  const ask = readFlag(card, AREA_ASK_FLAG);
+  const ask = areaAskOf(card);
   if ( (ask?.status === "pending") && (ask.kind === "choose") ) return { contained: [], hold: true };
   if ( !pool.length ) return { contained: pool, hold: false };
   const spell = activity.item.name;
@@ -151,7 +151,7 @@ listen("preCreateChatMessage", "saves/demand", doc => {
 function settleChoiceHold(activity, message) {
   const uuid = activity?.uuid ?? "";
   if ( !uuid || !isHeld(uuid) ) return;
-  const ask = readFlag(message, AREA_ASK_FLAG);
+  const ask = areaAskOf(message);
   if ( (ask?.status === "pending") && (ask.kind === "choose") ) return;
   if ( !chosenAreaListed(activity.item) ) return;   // somebody else's hold
   releaseHold(uuid, message ?? null);

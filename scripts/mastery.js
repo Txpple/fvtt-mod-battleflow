@@ -11,7 +11,7 @@ import { CHIP_FLAG, chipClock, chipIsDead } from "./decide/chips.js";
 import { chipData, chitStampOf, hitTargets, masteryLabel, placeOf, turnPlace } from "./shared.js";
 import { bfCard, holdBarHTML, momentBarHTML, ruleLine, foldedRuleHTML, esc } from "./decide/present.js";
 import { openMomentPopup, acknowledgeMoment, momentAcknowledged, armAskTimer, disarmAskTimer, electOwns, registerOfferPart, pendingRow, closePopup } from "./ui.js";
-import { applyDamagesWithReceipt } from "./auto-apply.js";
+import { applyDamagesWithReceipt, receiptEntries } from "./auto-apply.js";
 import { messageActivity } from "./effect-riders.js";
 import { SURFACES } from "./surfaces.js";
 import { CARD, isCard, masteryOf, targetsOf } from "./decide/card.js";
@@ -61,7 +61,7 @@ function masteryContext(attackMessage) {
 
 /** What this target TOOK (Vex/Slow's gate): the receipt, else the roll total (blind to immunity). */
 function dealtFor(damageMessage, uuid) {
-  const entry = readFlag(damageMessage, "receipt")?.targets?.find(t => t.uuid === uuid);
+  const entry = receiptEntries(damageMessage).find(t => t.uuid === uuid);
   if ( entry ) return takenOf(entry);
   return damageMessage?.rolls?.reduce((n, r) => n + r.total, 0) ?? 0;
 }

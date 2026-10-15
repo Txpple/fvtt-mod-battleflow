@@ -6,14 +6,14 @@ import { ruleHTML } from "./rule-text.js";
 import { lower, featureNamed, itemNamed, activityNamed, activityOfType, asiAssigned, cardActivity, resolveUuid, dealtTypesOf, pactWeaponFits, wieldsAs, wornNamed } from "./lookup.js";
 import { coatSaveAbility } from "./decide/chips.js";
 import { clockRiderEntries, listedNames } from "./decide/registry.js";
-import { forceStatus, grantingActor, hitTargets, poolOf, statSourceOf, turnChitStands, writeTurnChit, withTargets } from "./shared.js";
+import { forceStatus, grantingActor, hitTargets, poolOf, statSourceOf, turnChitStands, writeTurnChit, withTargets, attackIdOf, d20FoldSpends } from "./shared.js";
 import { applyActivityEffectsOnHit, applyItemEffectOnHit } from "./effect-riders.js";
 import { momentButton, registerResumable, registerOfferPart } from "./ui.js";
 import { bfCard, optionAskHTML, riderMenuHTML, ruleLine, esc } from "./decide/present.js";
 import { CLOCK_RIDERS, answers } from "./decide/registry.js";
 import { riderDue, riderPartFormula, riderUsesFrom, standingForm, targetsAnswer } from "./decide/clock.js";
 import { attackMessageForDamage } from "./auto-damage.js";
-import { applyDamagesWithReceipt } from "./auto-apply.js";
+import { applyDamagesWithReceipt, hasReceipt, receiptEntries } from "./auto-apply.js";
 import { creaturesWithin, feetOf, tokenForUuid, tokenOfActor } from "./geometry.js";
 import { SURFACES } from "./surfaces.js";
 import { listen } from "./dispatch.js";
@@ -89,7 +89,7 @@ function enchantedFor(attacker, item, feature, row) {
 function naturalTwentyOf(attackMessage) {
   const face = attackMessage?.rolls?.[0]?.dice?.[0]?.results?.find(r => (r.active !== false) && !r.discarded)?.result ?? null;
   if ( face === 20 ) return true;
-  const spends = readFlag(attackMessage, "d20fold")?.spends ?? [];
+  const spends = d20FoldSpends(attackMessage);
   return spends.some(s => Number.isFinite(s?.twenty?.total) || (s?.reroll?.isCritical === true));
 }
 
@@ -543,8 +543,7 @@ async function destroyAfterReceipt(message) {
   const cr = readFlag(message, "clockRiders");
   const rows = (cr?.riders ?? []).filter(r => (Number(r.destroy) > 0) && !r.destroyed);
   if ( !rows.length || !drivesMomentFor(cr.sourceUuid ?? null) ) return;
-  const receipt = readFlag(message, "receipt");
-  const landed = (receipt?.targets ?? []).filter(t => !t.reverted);
+  const landed = receiptEntries(message).filter(t => !t.reverted);
   if ( !landed.length ) return;
   let claimed = false;
   await queueFlagWrite(message, "clockRiders", current => {
@@ -575,7 +574,7 @@ async function destroyAfterReceipt(message) {
 
 listen("updateChatMessage", "clock-riders", message => {
   try {
-    if ( readFlag(message, "receipt") && readFlag(message, "clockRiders")?.riders?.some?.(r => r.destroy && !r.destroyed) ) {
+    if ( hasReceipt(message) && readFlag(message, "clockRiders")?.riders?.some?.(r => r.destroy && !r.destroyed) ) {
       void destroyAfterReceipt(message).catch(err => console.error(`${TITLE} | The destroy could not land — set it by hand.`, err));
     }
   } catch(err) { console.warn(`${TITLE} | The destroy check failed.`, err); }
@@ -758,8 +757,7 @@ listen("dnd5e.renderChatMessage", "clock-riders", (message, html) => {
         lines: [ruleLine(p.rule)] });
       html.querySelector(SURFACES.messageContent)?.appendChild(line);
     }
-    const receipt = readFlag(message, "receipt");
-    const damaged = [...new Map((receipt?.targets ?? []).filter(t => !t.reverted && (Number(t.taken) > 0)).map(t => [t.uuid, t])).values()];
+    const damaged = [...new Map(receiptEntries(message).filter(t => !t.reverted && (Number(t.taken) > 0)).map(t => [t.uuid, t])).values()];
     if ( !damaged.length ) return;
     const activity = cardActivity(message);
     const caster = activity?.actor ?? message.getAssociatedActor?.() ?? null;
@@ -767,7 +765,7 @@ listen("dnd5e.renderChatMessage", "clock-riders", (message, html) => {
     // A `spells` row reads a no-attack spell's card alone; a `spread` row any damage card of the bearer's.
     const spellCard = (activity?.item?.type === "spell") && (activity.type !== "attack");
     // RAVENLOFT — the Sneak Attack armed on the attack this damage answers (Wails from the Grave's spread).
-    const sneakArmed = !!readFlag(game.messages.get(readFlag(message, "attackFor") ?? readFlag(message, "clockRiders")?.attackId ?? ""), "sneak")?.armed
+    const sneakArmed = !!readFlag(game.messages.get(attackIdOf(message) ?? readFlag(message, "clockRiders")?.attackId ?? ""), "sneak")?.armed
       || !!readFlag(message, "sneakDamage");
     for ( const r of spellRidersFor(caster, damaged, sneakArmed) ) {
       if ( picked[r.key] || (!r.row.spread && !spellCard) ) continue;

@@ -5,14 +5,14 @@
  * the ONE interactive surface, whose chip folds offer Remove, Disable or Clear to an owner.
  * ⚠ It writes nothing of its own: a fold's click goes through the platform's own permission.
  */
-import { MODULE_ID, TITLE, isActiveGM, readFlag, S, setting } from "./core.js";
-import { CHIP_FLAG } from "./decide/chips.js";
+import { MODULE_ID, TITLE, isActiveGM, S, setting } from "./core.js";
 import { allRows, drawnAlways, drawsOnToken, everyRow, marksHeldBy, panelGroups, rowAction } from "./decide/effect-view.js";
 import { EMANATIONS, RANGE_FEATS, answers, tableIndex } from "./decide/registry.js";
 import { measuredCoverBetween } from "./geometry.js";
 import { emanationEntries, listedNames } from "./decide/registry.js";
 import { featureNamed, lower } from "./lookup.js";
 import { listen, listenOnce } from "./dispatch.js";
+import { chipKindOf, styleFaceOf, styleTookOver } from "./shared.js";
 
 const ROOT_ID = "bf-effect-view";
 
@@ -59,11 +59,6 @@ function ownAuraOf(effect) {
   return listedNames(emanationEntries()).has(lower(row.key));
 }
 
-/** A fighting style's FACE (damage-rules.js) reads as a worn passive — the panel, never the bar; the
- * pack effect it took over is not shown at all. */
-const styleOf = effect => readFlag(effect, "fightingStyle") ?? null;
-const takenOver = effect => readFlag(effect, "fightingStyleTakenOver") === true;
-
 /** The Fighting Style feat an item effect rides (Blind Fighting's senses), by dnd5e's own subtype. */
 const styleFeatOf = effect => {
   const item = effect.parent;
@@ -74,7 +69,8 @@ const styleFeatOf = effect => {
 
 /** One effect as the decision layer wants it. */
 function factOf(effect) {
-  const style = styleOf(effect);
+  // A fighting style's FACE (damage-rules.js) reads as a worn passive: the panel, never the bar.
+  const style = styleFaceOf(effect);
   return {
     id: effect.id, name: effect.name, img: effect.img ?? null,
     active: effect.active === true, temporary: effect.isTemporary === true, showIcon: effect.showIcon ?? null,
@@ -84,7 +80,7 @@ function factOf(effect) {
     aura: ownAuraOf(effect),
     onItem: effect.parent instanceof Item,
     statuses: [...(effect.statuses ?? [])],
-    chipKey: readFlag(effect, CHIP_FLAG) ?? null,
+    chipKey: chipKindOf(effect),
     clock: clockLabel(effect),
     origin: typeof effect.origin === "string" ? effect.origin : null,
     changes: (effect.changes ?? []).map(c => ({ key: c.key, mode: c.mode, value: c.value })),
@@ -95,7 +91,8 @@ function factOf(effect) {
 /** Every applicable effect on an actor — the sheet's own walk (items' transfer effects included). */
 function factsOf(actor) {
   const effects = typeof actor?.allApplicableEffects === "function" ? [...actor.allApplicableEffects()] : [...(actor?.effects ?? [])];
-  return effects.filter(e => !takenOver(e)).map(factOf);
+  // The pack effect a fighting style's face took over is not shown at all.
+  return effects.filter(e => !styleTookOver(e)).map(factOf);
 }
 
 /** The sheet's own buffs that are numbers, not effects: temp HP and Heroic Inspiration. */

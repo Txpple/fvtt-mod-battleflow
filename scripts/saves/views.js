@@ -7,7 +7,7 @@ import { readFlag, rollerUserFor,
 import { resolveUuid } from "../lookup.js";
 import { verdictTail, verdictText } from "../decide/verdict.js";
 import { holdBarHTML, momentBarHTML, esc } from "../decide/present.js";
-import { AREA_CHOICE_FLAG, AREA_ASK_FLAG, areaChoiceLine } from "../decide/area-ask.js";
+import { AREA_CHOICE_FLAG, areaChoiceLine } from "../decide/area-ask.js";
 import { scheduleBarSync, pendingRow, forgetShown, closePopup } from "../ui.js";
 import { saveAnsweredBy, foldSaveAnswer, flipForcedSave } from "./verdict.js";
 import { applySaveConsequences, reconcileSaveDamage } from "./consequences.js";
@@ -17,6 +17,7 @@ import { armSaveChoiceTimer, disarmSaveChoiceTimer, showSaveChoicePopup } from "
 import { SURFACES } from "../surfaces.js";
 import { CARD, isCard, resistedOf } from "../decide/card.js";
 import { listen } from "../dispatch.js";
+import { areaAskOf } from "../area-ask.js";
 
 /* --- the answer channels and the resume discipline ------------------------------------------- */
 
@@ -100,7 +101,7 @@ listen("dnd5e.renderChatMessage", "saves/views", (message, html) => {
     if ( flag.status !== "pending" ) return;
     void refreshDemandFromTemplates(message);   // gated on the demand's own driver inside
     // The area has landed and its caster is being asked; the ask's own line speaks.
-    if ( readFlag(message, AREA_ASK_FLAG)?.status === "pending" ) return;
+    if ( areaAskOf(message)?.status === "pending" ) return;
     const abilityLabel = CONFIG.DND5E.abilities[flag.abilities?.[0]]?.label ?? flag.abilities?.[0] ?? "";
     const row = document.createElement("div");
     row.className = "bythebooks-saves";

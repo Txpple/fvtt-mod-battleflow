@@ -196,6 +196,11 @@ export const combatStamp = () => {
  */
 export const statContext = (sourceUuid = null) => ({ combat: combatStamp(), sourceUuid });
 
+/** The actor uuid a document's own `sourceUuid` stamp names (an applied effect, a chip), or null. */
+export function stampedSourceOf(doc) {
+  return readFlag(doc, "sourceUuid") ?? null;
+}
+
 /**
  * The sheet's `appliedEffects` as plain facts, each with its item's name (the box names the item).
  * @param {Actor} actor

@@ -16,6 +16,7 @@ import { SURFACES } from "./surfaces.js";
 import { castLevelOn, originData, targetsInData, targetsOf } from "./decide/card.js";
 import { cardActivity } from "./lookup.js";
 import { listen } from "./dispatch.js";
+import { holdOf } from "./shared.js";
 
 const volleyTimers = new Map();
 
@@ -330,7 +331,7 @@ async function driveDarts(message, activity, v) {
       // here or the applier waits forever (spell-hold.js releases at use time, before these rolls).
       const rollMsg = rolls?.[0]?.parent;
       if ( (rollMsg instanceof ChatMessage)
-        && !readFlag(message, "hold")
+        && !holdOf(message)
         && readFlag(rollMsg, "spellHoldPending") ) {
         await rollMsg.setFlag(MODULE_ID, "spellHoldPending", false);
       }

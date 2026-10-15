@@ -8,13 +8,13 @@ import { bfCard } from "../decide/present.js";
 import { applicableProfiles, cardActivity, enchantedAs, featureNamed, lower, namesAnswering, resolveUuid } from "../lookup.js";
 import { CARD, castLevelOn, isCard, onSaveOf, originIdOf } from "../decide/card.js";
 import { saveMultiplier } from "../decide/verdict.js";
-import { forceStatus, damagePartsOf, statSourceOf } from "../shared.js";
+import { forceStatus, damagePartsOf, statSourceOf, attackIdOf } from "../shared.js";
 import { dramaticVerdictPause } from "../ui.js";
 import { EFFECT_BENDS, EVASIONS, SAVE_PRESSES, tableIndex } from "../decide/registry.js";
 import { effectRecord, joinEffectReceipt } from "../decide/receipt.js";
 import { saveNoneOnSuccess } from "../decide/reminders.js";
 import { effectEntries, reminderEntries } from "../decide/registry.js";
-import { applyDamagesWithReceipt } from "../auto-apply.js";
+import { applyDamagesWithReceipt, receiptEntries } from "../auto-apply.js";
 import { applyEffectsWithReceipt } from "../effect-riders.js";
 import { nearestFeet, tokenOfActor } from "../geometry.js";
 
@@ -141,8 +141,8 @@ async function applyFailDamage(card, flag, entry) {
   if ( !fd || (entry.outcome !== "failed") ) return;
   let amount = Number(fd.amount);
   if ( !Number.isFinite(amount) && (fd.equalTo === "taken") && fd.attackId && fd.takenBy ) {
-    amount = game.messages.contents.filter(m => readFlag(m, "attackFor") === fd.attackId)
-      .flatMap(m => (readFlag(m, "receipt")?.targets ?? []).filter(t => (t.uuid === fd.takenBy) && !t.reverted))
+    amount = game.messages.contents.filter(m => attackIdOf(m) === fd.attackId)
+      .flatMap(m => receiptEntries(m).filter(t => (t.uuid === fd.takenBy) && !t.reverted))
       .reduce((n, t) => n + (Number(t.taken) || 0), 0);
   }
   const by = fd.by ?? flag.item?.name ?? "the reaction";
@@ -293,8 +293,8 @@ export async function reconcileSaveDamage(card, onlyUuid = null) {
       const key = `${damageMessage.id}|${entry.uuid}`;
       if ( saveDamageApplications.has(key) ) continue;
       // ANY receipt entry, reverted included, is handled: a manual ↩ revert sticks.
-      if ( readFlag(damageMessage, "receipt")?.targets
-        ?.some(t => t.uuid === entry.uuid) ) continue;
+      if ( receiptEntries(damageMessage)
+        .some(t => t.uuid === entry.uuid) ) continue;
       saveDamageApplications.add(key);
       try {
         await applyOneSaveDamage(damageMessage, flag, entry);

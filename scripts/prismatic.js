@@ -20,6 +20,7 @@ import { rollDamageForSave } from "./auto-damage.js";
 import { applyEffectsWithReceipt } from "./effect-riders.js";
 import { SURFACES } from "./surfaces.js";
 import { listen } from "./dispatch.js";
+import { savesOf } from "./shared.js";
 
 const SPRAY_FLAG = "prismatic";
 const RAY_FLAG = "prismaticRay";
@@ -198,7 +199,7 @@ const settling = new Set();
 async function settleRay(card) {
   const ray = readFlag(card, RAY_FLAG);
   if ( !ray || ray.settled ) return;
-  const flag = readFlag(card, "saves");
+  const flag = savesOf(card);
   const entry = flag?.targets?.find(t => t.uuid === ray.targetUuid);
   if ( !entry?.done || !drivesMomentFor(flag.sourceUuid ?? null) ) return;
   if ( settling.has(card.id) ) return;

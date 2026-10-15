@@ -11,6 +11,8 @@ import { revertEffect } from "../effect-riders.js";
 import { revertTarget } from "../receipts.js";
 import { disarmSaveTimer } from "./ask.js";
 import { applySaveConsequences, applySaveEffects, casterHalfFor, evasionApplies, noneOnSuccessFor, saveDamageMessages, applyOneSaveDamage } from "./consequences.js";
+import { receiptEntries } from "../auto-apply.js";
+import { d20FoldSpends } from "../shared.js";
 
 /**
  * THE FOLD WITHOUT A DIE: a save the rules fail before the roll, recorded as a failure. The buzzer
@@ -148,7 +150,7 @@ export async function foldSaveAnswer(card, uuid, rollMessage) {
       entry.outcome = judged.outcome;
       entry.total = judged.total;
       if ( judged.made && !forced ) {
-        entry.madeBy = (readFlag(rollMessage, "d20fold")?.spends ?? []).find(s => s.kind === "succeed")?.label ?? "succeeded instead";
+        entry.madeBy = d20FoldSpends(rollMessage).find(s => s.kind === "succeed")?.label ?? "succeeded instead";
       }
       entry.rollMessageId = rollMessage.id;
       // Evasion's shape (EVASIONS): the row that applies is stamped by name — Evasion, or Avoidance.
@@ -225,8 +227,8 @@ async function unwindFailedConsequences(card, entry) {
   // Revert the damage, then re-apply at the success multiplier DIRECTLY (the deliberate exception to
   // the reconcile guard).
   for ( const dmg of saveDamageMessages(card) ) {
-    const had = readFlag(dmg, "receipt")?.targets
-      ?.find(t => (t.uuid === entry.uuid) && !t.reverted);
+    const had = receiptEntries(dmg)
+      .find(t => (t.uuid === entry.uuid) && !t.reverted);
     if ( !had ) continue;
     await revertTarget(dmg, entry.uuid);
     await applyOneSaveDamage(dmg, flag, entry);

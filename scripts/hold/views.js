@@ -17,6 +17,7 @@ import { resolveUuid, activityNamed, d20FactsOf } from "../lookup.js";
 import { continueHold } from "./continue.js";
 import { SURFACES } from "../surfaces.js";
 import { listen } from "../dispatch.js";
+import { receiptEntries } from "../auto-apply.js";
 
 /** The math a hold may show, or null with the reveal off. ⚠ ONE gate for card and popup — never re-derive. */
 function revealDetail(target, roll, actor) {
@@ -42,8 +43,8 @@ function revealLine(reveal, target) {
 // `atZero` (Deflect Attacks' Redirect): on the DAMAGE card, the defender's own client — the reduction took it to 0.
 listen("dnd5e.renderChatMessage", "hold/views", (message, html) => {
   try {
-    const receipt = readFlag(message, "receipt");
-    if ( !receipt?.targets?.length ) return;
+    const entries = receiptEntries(message);
+    if ( !entries.length ) return;
     const attack = resolveAttackMessage(message);
     const hold = readFlag(attack, "hold");
     if ( !hold?.targets?.length ) return;
@@ -53,7 +54,7 @@ listen("dnd5e.renderChatMessage", "hold/views", (message, html) => {
       const key = Object.keys(INTERRUPT_REDUCTIONS).find(k => k.toLowerCase() === String(target.reaction ?? "").toLowerCase());
       const row = key ? INTERRUPT_REDUCTIONS[key] : null;
       if ( !row?.atZero ) continue;
-      const landed = receipt.targets.find(t => (t.uuid === target.uuid) && !t.reverted);
+      const landed = entries.find(t => (t.uuid === target.uuid) && !t.reverted);
       if ( !landed || (Number(landed.taken) !== 0) ) continue;
       const actor = resolveUuid(target.uuid);
       if ( !(actor instanceof Actor) || done[actor.id] || !canAnswerFor(actor) ) continue;

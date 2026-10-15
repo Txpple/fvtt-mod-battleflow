@@ -8,7 +8,7 @@ import { ruleHTML } from "./rule-text.js";
 import { lower, itemNamed, activityNamed, activityOfType, resolveUuid } from "./lookup.js";
 import { registerResumable } from "./ui.js";
 import { damageShieldEntries, listedNames } from "./decide/registry.js";
-import { damagePartsOf, effectSourceOf, hitTargets, resolveAttackMessage, turnChitStands, writeTurnChit } from "./shared.js";
+import { damagePartsOf, effectSourceOf, hitTargets, resolveAttackMessage, turnChitStands, writeTurnChit, holdOf, attackHoldClaims, attackHoldReleased } from "./shared.js";
 import { nearestFeet, tokenForUuid, tokenOfActor } from "./geometry.js";
 import { bfCard, ruleLine, esc } from "./decide/present.js";
 import { DAMAGE_SHIELDS, answers, tableIndex } from "./decide/registry.js";
@@ -85,8 +85,8 @@ function settledMeleeAttack(message) {
   if ( !isCard(message, CARD.damage) ) return null;
   const attackMessage = resolveAttackMessage(message);
   if ( !attackMessage ) return null;
-  if ( readFlag(message, "attackHoldPending") === true ) {
-    const hold = readFlag(attackMessage, "hold");
+  if ( attackHoldClaims(message) ) {
+    const hold = holdOf(attackMessage);
     if ( !hold || (hold.status === "pending") ) return null;   // the hold still decides
   }
   const activity = messageActivity(attackMessage);
@@ -105,7 +105,7 @@ function consider(message, { resume = false } = {}) {
   if ( !listed().size ) return false;
   if ( judged.has(message.id) ) return false;
   if ( resume ) {
-    if ( readFlag(message, "attackHoldPending") !== false ) return false;   // only an ex-held roll resumes here
+    if ( !attackHoldReleased(message) ) return false;   // only an ex-held roll resumes here
     if ( readFlag(message, "damageShields")?.judged ) return false;         // …and only once across reloads
   }
   return !!settledMeleeAttack(message);
@@ -118,7 +118,7 @@ registerResumable("damageShields", {
   drives: () => true,   // per defender, inside: the flow elect for the ward's bearer
   drive: message => {
     const attackMessage = settledMeleeAttack(message);
-    return attackMessage ? settle(message, attackMessage, { wasHeld: readFlag(message, "attackHoldPending") === false }) : undefined;
+    return attackMessage ? settle(message, attackMessage, { wasHeld: attackHoldReleased(message) }) : undefined;
   }
 });
 

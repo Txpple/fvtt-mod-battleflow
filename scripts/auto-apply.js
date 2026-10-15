@@ -6,7 +6,7 @@ import { MODULE_ID, readFlag, TITLE, drivesMomentFor, canApplyTo, whisperNoGM, q
 import { receiptEntry, joinDamageReceipt } from "./decide/receipt.js";
 import { interruptMultiplier, reduceDamages } from "./decide/verdict.js";
 import { INTERRUPT_MULTIPLIERS } from "./decide/registry.js";
-import { hitTargets, resolveAttackMessage, damagePartsOf, statSourceOf } from "./shared.js";
+import { hitTargets, resolveAttackMessage, damagePartsOf, statSourceOf, holdOf, holdTargets, attackHoldClaims, attackHoldReleased } from "./shared.js";
 import { missShareFor } from "./lookup.js";
 import { CARD, isCard, targetsOf } from "./decide/card.js";
 import { DICE_CHANGE_FLAG, DICE_CHANGE_WAITS } from "./decide/dice-changers.js";
@@ -14,6 +14,33 @@ import { registerResumable } from "./ui.js";
 import { applyEffectRiders, applyItemEffectOnHit } from "./effect-riders.js";
 import { resolveHitMastery } from "./mastery.js";
 import { sequenceBashOffer } from "./bash-offer.js";
+
+/* --- The receipt's readers (ARCHITECTURE §4) ----------------------------- */
+
+/**
+ * Does the card carry a damage receipt: its damage landed (or was reverted since)?
+ * @param {any} message
+ */
+export function hasReceipt(message) {
+  return !!readFlag(message, "receipt");
+}
+
+/**
+ * The receipt's entries, one per target the damage landed on (`uuid`, `taken`, `prior`, `reverted`, …); [] when none.
+ * @param {any} message
+ * @returns {any[]}
+ */
+export function receiptEntries(message) {
+  return readFlag(message, "receipt")?.targets ?? [];
+}
+
+/**
+ * Dice rolled on an attack every judged target was missed on: `{ why, at }` (the card says nothing landed, and why), or null.
+ * @param {any} message
+ */
+export function notAppliedOf(message) {
+  return readFlag(message, "notApplied") ?? null;
+}
 
 /* --- Auto-apply damage to hit targets ---------------------------------------------------------- */
 
@@ -29,7 +56,7 @@ const eitherWaits = message => DICE_CHANGE_WAITS.includes(readFlag(message, DICE
 registerResumable("attackDamage", {
   flagless: true,
   pending: (_flag, message, cause) => (cause === "create")
-    || ((readFlag(message, "attackHoldPending") === false) && !readFlag(message, "receipt"))
+    || (attackHoldReleased(message) && !readFlag(message, "receipt"))
     || (!!readFlag(message, DICE_CHANGE_FLAG) && !eitherWaits(message) && !readFlag(message, "receipt")),
   drives: (_flag, message) => drivesMomentFor(payoutSubject(message)),
   drive: resolveAttackDamage
@@ -39,9 +66,9 @@ async function resolveAttackDamage(message) {
   if ( !isCard(message, CARD.damage) ) return; // healing is typed "healing"
   const attackMessage = resolveAttackMessage(message);
   if ( !attackMessage ) return;
-  if ( readFlag(message, "attackHoldPending") === true ) {
+  if ( attackHoldClaims(message) ) {
     // Claimed for a hold: a hold already RESOLVED (released before this roll landed) applies now.
-    const hold = readFlag(attackMessage, "hold");
+    const hold = holdOf(attackMessage);
     if ( !hold || (hold.status === "pending") ) return;
   }
   if ( eitherWaits(message) ) return;
@@ -68,7 +95,7 @@ async function stampNotApplied(message, attackMessage) {
   if ( !message.isOwner || readFlag(message, "notApplied") ) return;
   const judged = targetsOf(attackMessage).filter(t => (t.ac !== null) && (t.ac !== undefined));
   if ( !judged.length ) return;   // nothing was judged: not a miss, just no target
-  const turned = (readFlag(attackMessage, "hold")?.targets ?? [])
+  const turned = holdTargets(attackMessage)
     .filter(t => (t.verdict === "miss") && (t.rescue || t.reaction))
     .map(t => `${t.rescue ?? t.reaction}${t.guardedBy?.name ? ` (${t.guardedBy.name})` : ""} turned the hit on ${t.name} into a miss`);
   const why = turned.length ? turned.join("; ") : `the attack missed ${judged.map(t => t.name).join(", ")}`;
@@ -79,7 +106,7 @@ async function stampNotApplied(message, attackMessage) {
 /** The judged targets this attack MISSED — never one a duplicate absorbed — still standing and writable here. */
 async function missedTargets(attackMessage, hits) {
   const hit = new Set(hits.map(t => t.uuid));
-  const hold = readFlag(attackMessage, "hold");
+  const hold = holdOf(attackMessage);
   const out = [];
   for ( const t of targetsOf(attackMessage) ) {
     if ( hit.has(t.uuid) || (t.ac === null) || (t.ac === undefined) ) continue;
@@ -115,7 +142,7 @@ async function resolveDamagePayouts(damageMessage, attackMessage, hits) {
 async function applyToHitTargets(damageMessage, attackMessage, hits) {
   const damages = damagePartsOf(damageMessage.rolls);
   // A held attack lands per reactor (Uncanny Dodge's multiplier): one application per group.
-  const hold = readFlag(attackMessage, "hold");
+  const hold = holdOf(attackMessage);
   const groups = new Map();
   for ( const target of hits ) {
     const entry = (hold?.status === "resolved") ? hold.targets?.find(t => t.uuid === target.uuid) : null;

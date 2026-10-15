@@ -6,11 +6,16 @@ import { MODULE_ID, readFlag, TITLE, isActiveGM, queueFlagWrite, statContext } f
 import { cardActivity, lower, profileEffects, resolveUuid } from "./lookup.js";
 import { CLOCK_RIDERS } from "./decide/registry.js";
 import { effectRecord, joinEffectReceipt, revertableEffect } from "./decide/receipt.js";
-import { CHIP_FLAG, TURN_PINNED, chipClock } from "./decide/chips.js";
+import { TURN_PINNED, chipClock } from "./decide/chips.js";
 import { CARD, castLevelOn, concentrationIdOf, isCard, scalingOf } from "./decide/card.js";
-import { chipData, placeOf, statSourceOf, turnPlace } from "./shared.js";
-import { METAMAGIC_FLAG, extendedDuration } from "./decide/metamagic.js";
+import { chipData, placeOf, statSourceOf, turnPlace, chipKindOf, metamagicOf } from "./shared.js";
+import { extendedDuration } from "./decide/metamagic.js";
 import { listen } from "./dispatch.js";
+
+/** A card's effect receipt (the effects applied from it, per target; `castDone`, `ridersDone`), or null. */
+export function effectReceiptOf(message) {
+  return readFlag(message, "effectReceipt") ?? null;
+}
 
 export function messageActivity(message) {
   return cardActivity(message);
@@ -160,7 +165,7 @@ export async function applyEffectsTo(targets, effects,
 export async function applyEffectsWithReceipt(receiptMessage, effects, targets,
   { concentration = null, scaling = 0, spellLevel, marker, source = null, message = null, activity = null, clock = null } = {}) {
   const entries = await applyEffectsTo(targets, effects, {
-    extend: readFlag(receiptMessage, METAMAGIC_FLAG)?.key === "extended",
+    extend: metamagicOf(receiptMessage)?.key === "extended",
     concentration, scaling, spellLevel, source, clock, message: message ?? receiptMessage, activity });
   if ( !entries.length && !marker ) return;
   // ⚠ Read AFTER the await, through the queued write: concurrent passes would drop each other's entries.
@@ -191,7 +196,7 @@ listen("createActiveEffect", "effect-riders", effect => {
   if ( !isActiveGM() ) return;
   const actor = effect.parent;
   if ( !(actor instanceof Actor) ) return;
-  const fingerprinted = e => !!(readFlag(e, "applied") || readFlag(e, CHIP_FLAG));
+  const fingerprinted = e => !!(readFlag(e, "applied") || chipKindOf(e));
   if ( !fingerprinted(effect) ) return;
   // A deliberate STACK (use-chips.js) is not a twin.
   if ( readFlag(effect, "stacks") ) return;
