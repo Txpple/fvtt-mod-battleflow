@@ -42,33 +42,20 @@ const f = await connectSuite({ tag: TAG, watchdogMs: 600_000, requireElect: true
 announcePlan(TAG, plan, pulled);
 
 const out = await f.evaluate(async ({ sections, titles }) => {
-  const results = [];
-  const log = [];
-  const skips = [];
+  const { until, watch, tokenOn, viewScene, faces, unrig } = window.__btb;
+  // The plan travels as DATA (harness.mjs, sectionArg): `want` reads it.
+  const { results, log, skips, ok, want, section } = window.__btb.begin({ sections, titles });
   let fatal = null;
-  const ok = (name, pass, detail = "") => results.push({ name, pass, detail });
-  // The closure cannot import `want()`, so the plan travels as DATA (harness.mjs, sectionArg).
-  const has = n => {
-    if (!sections) return true;
-    if (sections.includes(String(n))) return true;
-    skips.push(`section ${n}: ${titles[n] ?? ""} — not in this run`);
-    return false;
-  };
   const MODULE_ID = "fvtt-mod-bythebooks";
-  const sleep = ms => new Promise(r => setTimeout(r, ms));
   // ⚠ Wait for what the next assertion reads, never a flat sleep.
-  const until = async (fn, ms = 10_000) => {
-    const t0 = Date.now();
-    while (Date.now() - t0 < ms) { const v = fn(); if (v) return v; await sleep(200); }
-    return fn();
-  };
 
   // ⚠ The range is VIEWED and read, never `game.scenes.active`: the world's active scene is whatever the
   // table last played (a prod mirror made it Party Camp, whose Drill Post became the foe while the
   // fighter stood on the range, and Precision had no target it could reach). smoke-summons' 2fb0002.
   const range = game.scenes.getName("By the Books Test Range");
-  if (range && (canvas.scene?.id !== range.id)) await range.view();
-  for (let i = 0; i < 40 && !(canvas.ready && canvas.scene?.id === range?.id); i++) await sleep(250);
+  // Soft: a range that never comes up is named by each canvas section's skip (`where()`), and §1, §2, §4
+  // and §5 need no canvas.
+  if (range) await viewScene(range).catch(() => null);
   // The foe fixture-d20-folds places: the range's unlinked BTB Test Dummy, else any unlinked fixture NPC.
   const foeOn = scene => scene?.tokens?.find(t => (t.actor?.name === "BTB Test Dummy") && !t.actorLink)
     ?? scene?.tokens?.find(t => t.actor && (t.actor.type === "npc") && !t.actorLink && /^BTB Test /.test(t.actor.name ?? "")) ?? null;
@@ -83,7 +70,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     }
 
     /* --- 1: content ------------------------------------------------------------------- */
-    if (has(1)) {
+    if (want(1)) await section(1, async () => {
       const entries = game.modules.get(MODULE_ID)?.api?.registries?.d20Folds?.() ?? [];
       // Every entry is one of the fold kinds and each is represented; an older stored list may lack some.
       const KINDS = ["heroic", "tactical", "bardic", "seeking", "advantage", "succeed", "reroll"];
@@ -126,10 +113,10 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       ok("…and silently collapses to ZERO against the recipient — why it must be resolved bard-side",
         recipientRoll.formula === "0" && recipientRoll.total === 0,
         `recipient formula=${recipientRoll.formula} total=${recipientRoll.total}`);
-    }
+    });
 
     /* --- 2: spend --------------------------------------------------------------------- */
-    if (has(2)) {
+    if (want(2)) await section(2, async () => {
       await fighter.update({ "system.attributes.inspiration": true });
       await fighter.update({ "system.attributes.inspiration": false });
       ok("heroic spends by writing the boolean false",
@@ -142,7 +129,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const tm = fighter.items.find(i => i.name === "Tactical Mind");
       const act = tm.system.activities.contents[0];
       await act.use({ subsequentActions: false }, { configure: false }, { create: false });
-      await sleep(400);
+      await until(() => fighter.items.get(sw.id).system.uses.value !== before, { label: "Second Wind's uses written" });
       const after = fighter.items.get(sw.id).system.uses.value;
       ok("tactical spends a use of Second Wind through the system's own consumption",
         after === before - 1, `uses ${before} → ${after}`);
@@ -150,13 +137,13 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const eff = fighter.effects.find(e => e.name === "Inspired");
       const effId = eff?.id;
       await eff.delete();
-      await sleep(300);
+      await until(() => !fighter.effects.get(effId), { label: "the Inspired effect gone" });
       ok("bardic spends by deleting the effect", !fighter.effects.get(effId), `deleted ${effId}`);
       log.push("⚠ section 2 CONSUMES the fixtures — re-run tools/fixture-d20-folds.mjs after it");
-    }
+    });
 
     /* --- 3: the attack path ------------------------------------------------------------ */
-    if (has(3)) {
+    if (want(3)) await section(3, async () => {
       // Drives the whole chain: spend → reroll → re-verdict → damage (the fixture grants a Longsword).
       const scene = range;
       const foeToken = foeOn(scene);   // UNLINKED: a linked foe collapses two tokens onto one actor
@@ -174,10 +161,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
          * `CONFIG.Dice.randomUniform` and `mapRandomFace(u) = ceil((1 - u) * faces)`, so a face is forced
          * by inverting it. 5 then 19, never 1 or 20 (crit and fumble take other paths). Restored in
          * `finally`: a stubbed PRNG would make every later section silently deterministic. */
-        const realPRNG = CONFIG.Dice.randomUniform;
-        const face = (n, faces = 20) => {
-          CONFIG.Dice.randomUniform = () => 1 - ((n - 0.5) / faces);
-        };
+        const face = (n, of = 20) => faces([[n, of]]);
         const priorAC = {
           override: foe.system._source.attributes.ac.override ?? null
         };
@@ -201,12 +185,13 @@ const out = await f.evaluate(async ({ sections, titles }) => {
             || (m.getFlag(MODULE_ID, "d20fold")?.status === "pending"));
           if (stale.length) {
             await ChatMessage.deleteDocuments(stale.map(m => m.id));
-            await sleep(500);
+            // Their windows close on the delete; one still closing is in priorDialogs below.
+            await until(() => stale.every(m => !game.messages.has(m.id)), { label: "the stale offers deleted" });
           }
 
           game.user.targets.forEach(t => { t.setTarget(false, { releaseOthers: true }); });
           placed.setTarget(true, { releaseOthers: true });
-          await sleep(200);
+          await until(() => (game.user.targets.size === 1) && game.user.targets.has(placed), { label: "the foe the only target" });
           const priorDialogs = new Set(
             [...document.querySelectorAll(".application")]
               .filter(el => el.tagName === "DIALOG").map(el => el.id));
@@ -223,7 +208,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
             { configure: false },
             usageId ? { data: { 'system.origin': usageId } } : {});
           attackMsg = rolls?.[0]?.parent ?? null;
-          const flag = await until(() => attackMsg?.getFlag(MODULE_ID, "d20fold"), 8000);
+          const flag = await until(() => attackMsg?.getFlag(MODULE_ID, "d20fold"), { timeout: 8000 });
 
           ok("a clean miss stamps a pending attack fold, with the target it missed",
             !!flag && (flag.status === "pending") && (flag.testKind === "attack")
@@ -240,7 +225,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           // only button. A Precision row may stand beside it (the fixture is a Battle Master); press heroic only.
           const popup = await until(() => [...document.querySelectorAll(".application")]
             .find(el => (el.tagName === "DIALOG") && !priorDialogs.has(el.id)
-              && !!el.querySelector('[data-bf-rescue-action="heroic"]')), 8000);
+              && !!el.querySelector('[data-bf-rescue-action="heroic"]')), { timeout: 8000 });
           ok("the offer pops, carrying the spend and the pass",
             !!popup?.querySelector('[data-bf-rescue-action="heroic"]')
               && !!popup?.querySelector('button[data-action="pass"]'),
@@ -255,7 +240,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           const done = await until(() => {
             const cur = attackMsg?.getFlag(MODULE_ID, "d20fold");
             return (cur?.status === "resolved") ? cur : null;
-          }, 20_000);
+          }, { timeout: 20_000 });
 
           ok("the spend is recorded on the flag, with the reroll that replaced the d20",
             !!done && (done.spends?.length === 1) && (done.spends[0].kind === "heroic")
@@ -283,14 +268,14 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           // ⚠ The fold must DRIVE the damage; which shape depends on a setting, so it is read.
           const playerRolls = game.settings.get(MODULE_ID, "playerRollDamage");
           if (playerRolls) {
-            const bar = await until(() => attackMsg?.getFlag(MODULE_ID, "damageOffer"), 12_000);
+            const bar = await until(() => attackMsg?.getFlag(MODULE_ID, "damageOffer"), { timeout: 12_000 });
             ok("…and the damage OFFER is raised (playerRollDamage is on)", !!bar,
               bar ? "offered" : "no damage offer");
           } else {
             const dmg = await until(() => game.messages.contents.findLast(m =>
               (m.type === "damage")
               && (m.speaker?.actor === fighter.id)
-              && (m.timestamp >= (attackMsg?.timestamp ?? 0))), 15_000);
+              && (m.timestamp >= (attackMsg?.timestamp ?? 0))), { timeout: 15_000 });
             ok("…and the damage re-drives itself on the new verdict", !!dmg,
               dmg ? `damage ${dmg.rolls?.[0]?.total}` : "NO DAMAGE ROLLED after the fold hit");
           }
@@ -298,7 +283,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
             + `folded ${done?.foldedTotal} · ${done?.targets?.[0]?.verdict}`);
         } finally {
           // ⚠ Restore unconditionally, PRNG first; §5 needs Heroic Inspiration back.
-          CONFIG.Dice.randomUniform = realPRNG;
+          unrig();
           await foe.update({
             "system.attributes.ac.override": priorAC.override,
             "system.attributes.hp.value": priorHP
@@ -308,10 +293,10 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           game.user.targets.forEach(t => { t.setTarget(false, { releaseOthers: true }); });
         }
       }
-    }
+    });
 
     /* --- 4: THE HOOKS ACTUALLY FIRE ---------------------------------------------------- */
-    if (has(4)) {
+    if (want(4)) await section(4, async () => {
       // ⚠ Registration proves nothing; only dispatch does. dnd5e's `#rollD20Test` fires only the
       // non-V2 check/save names, `#rollSkillTool` a V2 pair and `rollToolCheck` for tools.
       const WANT = [
@@ -341,17 +326,18 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       } finally {
         for (const [hook, id] of ids) Hooks.off(hook, id);
       }
-    }
+    });
 
     /* --- 5: the offer is stamped, complete, and kind-matched ---------------------------- */
-    if (has(5)) {
+    if (want(5)) await section(5, async () => {
       // ⚠ Asserts the whole OFFER LIST: offering only the first eligible fold hides the rest.
       // ⚠ A COUNT IS NOT A CURSOR: a deletion elsewhere shifts the log index, so every find matches
       // by content created since a pre-click TIMESTAMP.
       const since = Date.now();
       await fighter.rollAbilityCheck({ ability: "str" }, { configure: false }, { create: true });
-      await sleep(600);
-      const msg = game.messages.contents.findLast(m => (m.timestamp >= since) && m.getFlag(MODULE_ID, "d20fold"));
+      // Soft: the stamp follows the roll's message, and a check that stamps nothing is the NO FLAG below.
+      const msg = await until(() => game.messages.contents.findLast(m => (m.timestamp >= since) && m.getFlag(MODULE_ID, "d20fold")),
+        { timeout: 8000, label: "the check's fold stamp" }).catch(() => null);
       const flag = msg?.getFlag(MODULE_ID, "d20fold");
       ok("an ability check stamps a d20 fold offer", !!flag, flag ? "stamped" : "NO FLAG");
       if (flag) {
@@ -372,8 +358,9 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       // Tactical Mind is ability-check-only: it must NOT appear on an attack or a save.
       const since2 = Date.now();
       await fighter.rollSavingThrow({ ability: "dex" }, { configure: false }, { create: true });
-      await sleep(600);
-      const sMsg = game.messages.contents.findLast(m => (m.timestamp >= since2) && m.getFlag(MODULE_ID, "d20fold"));
+      // Soft: the stamp follows the roll's message, and a save that stamps nothing is the NO FLAG below.
+      const sMsg = await until(() => game.messages.contents.findLast(m => (m.timestamp >= since2) && m.getFlag(MODULE_ID, "d20fold")),
+        { timeout: 8000, label: "the save's fold stamp" }).catch(() => null);
       const sFlag = sMsg?.getFlag(MODULE_ID, "d20fold");
       ok("a native save stamps an offer too", !!sFlag, sFlag ? "stamped" : "NO FLAG");
       if (sFlag) {
@@ -382,10 +369,10 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           !kinds.includes("tactical"), `offers=[${kinds.join(", ")}]`);
       }
       if (sMsg) await sMsg.delete();
-    }
+    });
 
     /* --- 6: TWO RESCUES, ONE ROLL ------------------------------------------------------ */
-    if (has(6)) {
+    if (want(6)) await section(6, async () => {
       // ⚠ One missed attack stamped TWICE — `precision` and `d20fold` — must compose: precision's
       // verdict walks the registry, not `flag.attackTotal`. Asserts what the table sees: the card's
       // sentence and whether damage arrives.
@@ -405,12 +392,9 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           + " — run tools/fixture-d20-folds.mjs");
       } else {
         const foe = foeToken.actor;
-        const realPRNG = CONFIG.Dice.randomUniform;
-        // Force faces as in §3. ⚠ `faces` is an argument: a uniform computed for a d20 means a
+        // Force faces as in §3. ⚠ `of` is an argument: a uniform computed for a d20 means a
         // different face on a d8, so re-force immediately before each roll.
-        const face = (n, faces) => {
-          CONFIG.Dice.randomUniform = () => 1 - ((n - 0.5) / faces);
-        };
+        const face = (n, of) => faces([[n, of]]);
         const priorAC = {
           override: foe.system._source.attributes.ac.override ?? null
         };
@@ -444,7 +428,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
             || (m.getFlag(MODULE_ID, "d20fold")?.status === "pending"));
           if (stale.length) {
             await ChatMessage.deleteDocuments(stale.map(m => m.id));
-            await sleep(500);
+            // Their windows close on the delete; one still closing is in priorDialogs below.
+            await until(() => stale.every(m => !game.messages.has(m.id)), { label: "the stale offers deleted" });
             log.push(`section 6: swept ${stale.length} unanswered offer(s) from an earlier run`);
           }
 
@@ -455,7 +440,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
 
           game.user.targets.forEach(t => { t.setTarget(false, { releaseOthers: true }); });
           placed.setTarget(true, { releaseOthers: true });
-          await sleep(200);
+          await until(() => (game.user.targets.size === 1) && game.user.targets.has(placed), { label: "the foe the only target" });
 
           // ⚠ Remember existing dialogs: deleting a message closes its popups ASYNCHRONOUSLY, and a
           // leftover's callback writes to a deleted message silently. Dialog ids only climb.
@@ -471,8 +456,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
             usageId ? { data: { 'system.origin': usageId } } : {});
           attackMsg = rolls?.[0]?.parent ?? null;
 
-          const fold = await until(() => attackMsg?.getFlag(MODULE_ID, "d20fold"), 8000);
-          const prec = await until(() => attackMsg?.getFlag(MODULE_ID, "precision"), 8000);
+          const fold = await until(() => attackMsg?.getFlag(MODULE_ID, "d20fold"), { timeout: 8000 });
+          const prec = await until(() => attackMsg?.getFlag(MODULE_ID, "precision"), { timeout: 8000 });
 
           ok("ONE missed attack carries BOTH rescue flags",
             !!fold && !!prec && (fold.status === "pending") && (prec.status === "pending"),
@@ -493,7 +478,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           const win = await until(() => {
             const w = rescueWindow();
             return (w && rowFor(w, "bardic") && rowFor(w, "use")) ? w : null;
-          }, 8000);
+          }, { timeout: 8000 });
 
           // ONE window carrying a row from each machine (the spawn coalesce renders it complete).
           const windows = [...document.querySelectorAll(".application")]
@@ -522,18 +507,19 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           const foldDone = await until(() => {
             const cur = attackMsg?.getFlag(MODULE_ID, "d20fold");
             return (cur?.status === "resolved") ? cur : null;
-          }, 20_000);
+          }, { timeout: 20_000 });
           ok("the bardic die is spent and composed, and the attack STILL misses",
             !!foldDone && (foldDone.foldedTotal === 13)
               && (foldDone.targets?.[0]?.verdict === "miss"),
             `folded=${foldDone?.foldedTotal} verdict=${foldDone?.targets?.[0]?.verdict}`);
 
           /* --- then precision, whose die closes the gap the fold left ------------------- */
-          // The window survives the spend: the spent row greys in place.
+          // The window survives the spend: the spent row greys in place. Soft: a window that never redraws is
+          // reported below, and precision is pressed on the first one (`after ?? win`).
           const after = await until(() => {
             const w = rescueWindow();
             return (w && !rowFor(w, "bardic") && rowFor(w, "use")) ? w : null;
-          }, 12_000);
+          }, { timeout: 12_000 }).catch(() => null);
           ok("the spend greys IN PLACE and the survivor stays pressable",
             !!after && (after.querySelectorAll("[data-bf-rescue-row]").length === 2)
               && !rowFor(after, "bardic") && !!rowFor(after, "use"),
@@ -560,7 +546,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           const precDone = await until(() => {
             const cur = attackMsg?.getFlag(MODULE_ID, "precision");
             return (cur?.status === "resolved") ? cur : null;
-          }, 25_000);
+          }, { timeout: 25_000 });
           ok("the superiority die is really rolled and recorded",
             !!precDone && (precDone.outcome === "used") && (precDone.die === 6),
             JSON.stringify({ outcome: precDone?.outcome, die: precDone?.die,
@@ -578,8 +564,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
             + `${precDone?.die} = ${(precDone?.attackTotal ?? 0) + (precDone?.die ?? 0)})`);
 
           const card = await until(() => game.messages.contents.findLast(m => (m.timestamp >= since) &&
-            (m.content ?? "").includes("Precision Attack") && (m.content ?? "").includes("vs AC")),
-            15_000);
+            (m.content ?? "").includes("Precision Attack") && (m.content ?? "").includes("vs AC")), { timeout: 15_000 });
           const text = (card?.content ?? "").replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim();
           ok("⚠ RECEIPT 2: precision's CARD announces the composed sum and calls it a hit",
             !!card && text.includes(`= ${composed} vs AC 18`) && /now hits/.test(text),
@@ -589,14 +574,14 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           // depends on a setting, so it is read.
           const playerRolls = game.settings.get(MODULE_ID, "playerRollDamage");
           if (playerRolls) {
-            const bar = await until(() => attackMsg?.getFlag(MODULE_ID, "damageOffer"), 12_000);
+            const bar = await until(() => attackMsg?.getFlag(MODULE_ID, "damageOffer"), { timeout: 12_000 });
             ok("⚠ RECEIPT 3: the damage OFFER is raised on the composed hit (playerRollDamage on)",
               !!bar, bar ? "offered" : "NO DAMAGE OFFER after the composed hit");
           } else {
             const dmg = await until(() => game.messages.contents.findLast(m =>
               (m.type === "damage")
               && (m.speaker?.actor === fighter.id)
-              && (m.timestamp >= (attackMsg?.timestamp ?? 0))), 15_000);
+              && (m.timestamp >= (attackMsg?.timestamp ?? 0))), { timeout: 15_000 });
             ok("⚠ RECEIPT 3: the damage re-drives itself on the composed hit",
               !!dmg, dmg ? `damage ${dmg.rolls?.[0]?.total}` : "NO DAMAGE ROLLED after the composed hit");
           }
@@ -606,7 +591,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         } finally {
           // ⚠ PRNG first, then the setting, then the world. Re-seed Inspired and refill superiority:
           // repeated runs would otherwise exhaust the pool silently.
-          CONFIG.Dice.randomUniform = realPRNG;
+          unrig();
           await game.settings.set(MODULE_ID, "holdTimer", priorTimer).catch(() => {});
           await foe.update({
             "system.attributes.ac.override": priorAC.override,
@@ -629,9 +614,9 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           game.user.targets.forEach(t => { t.setTarget(false, { releaseOthers: true }); });
         }
       }
-    }
+    });
     /* --- 7: TWO TARGETS, ONE DIE ------------------------------------------------------- */
-    if (has(7)) {
+    if (want(7)) await section(7, async () => {
       // ⚠ An attack is ONE roll judged against MANY targets, so two missed targets and one bardic die
       // give two `add`s of the die; the card's sentence and `foldedTotal` must count it once.
       // ⚠ THE BAND: attack +5, d20 5 → 10, bardic 3, AC 30: right 13, wrong 16 — both miss on purpose
@@ -644,10 +629,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         skips.push("section 7: needs an NPC token on the active scene and the fighter's "
           + `Longsword (token=${!!foeToken} weapon=${!!act}) — run tools/fixture-d20-folds.mjs`);
       } else {
-        const realPRNG = CONFIG.Dice.randomUniform;
-        const face = (n, faces) => {
-          CONFIG.Dice.randomUniform = () => 1 - ((n - 0.5) / faces);
-        };
+        const face = (n, of) => faces([[n, of]]);
         const priorInspiration = fighter.system.attributes.inspiration;
         const priorTimer = game.settings.get(MODULE_ID, "holdTimer");
         let scratchId = null;
@@ -668,7 +650,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
             || (m.getFlag(MODULE_ID, "d20fold")?.status === "pending"));
           if (stale.length) {
             await ChatMessage.deleteDocuments(stale.map(m => m.id));
-            await sleep(500);
+            // Their windows close on the delete; one still closing is in priorDialogs below.
+            await until(() => stale.every(m => !game.messages.has(m.id)), { label: "the stale offers deleted" });
           }
 
           // ⚠ The second target is BUILT (a scratch token of the same unlinked actor): one AC to set and
@@ -679,9 +662,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
               { inplace: false, performDeletions: true })
           ]);
           scratchId = scratch?.id ?? null;
-          for (let i = 0; i < 40 && !(canvas.ready && canvas.tokens.get(scratchId)); i++) {
-            await sleep(250);
-          }
+          // Soft: a token that never draws is the skip below.
+          await tokenOn(scratchId).catch(() => null);
           const placedA = canvas.tokens.get(foeToken.id);
           const placedB = canvas.tokens.get(scratchId);
           if (!placedA || !placedB) {
@@ -707,7 +689,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
             game.user.targets.forEach(t => { t.setTarget(false, { releaseOthers: true }); });
             placedA.setTarget(true, { releaseOthers: true });
             placedB.setTarget(true, { releaseOthers: false });
-            await sleep(300);
+            await until(() => (game.user.targets.size === 2) && game.user.targets.has(placedA) && game.user.targets.has(placedB),
+              { label: "both tokens the only targets" });
             const priorDialogs = new Set(
               [...document.querySelectorAll(".application")]
                 .filter(el => el.tagName === "DIALOG").map(el => el.id));
@@ -722,7 +705,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
             const flag = await until(() => {
               const cur = attackMsg?.getFlag(MODULE_ID, "d20fold");
               return (cur?.targets?.length === 2) ? cur : null;
-            }, 8000);
+            }, { timeout: 8000 });
 
             ok("one attack roll is judged against TWO missed targets",
               !!flag && (flag.status === "pending") && (flag.targets?.length === 2),
@@ -731,14 +714,14 @@ const out = await f.evaluate(async ({ sections, titles }) => {
 
             const popup = await until(() => [...document.querySelectorAll(".application")]
               .find(el => (el.tagName === "DIALOG") && !priorDialogs.has(el.id)
-                && !!el.querySelector('[data-bf-rescue-action="bardic"]')), 8000);
+                && !!el.querySelector('[data-bf-rescue-action="bardic"]')), { timeout: 8000 });
             const since = Date.now();
             face(3, 8);
             popup?.querySelector('[data-bf-rescue-action="bardic"]')?.click();
             const done = await until(() => {
               const cur = attackMsg?.getFlag(MODULE_ID, "d20fold");
               return (cur?.status === "resolved") ? cur : null;
-            }, 25_000);
+            }, { timeout: 25_000 });
 
             ok("⚠ RECEIPT: the composed total counts the die ONCE, not once per target",
               done?.foldedTotal === 13,
@@ -750,7 +733,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
               JSON.stringify((done?.targets ?? []).map(t => t.verdict)));
 
             const card = await until(() => game.messages.contents.findLast(m => (m.timestamp >= since) &&
-              (m.content ?? "").includes("vs AC")), 15_000);
+              (m.content ?? "").includes("vs AC")), { timeout: 15_000 });
             const text = (card?.content ?? "").replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim();
             const sums = [...text.matchAll(/10 \+ (\d+) = (\d+) vs AC \d+/g)].map(m => m[2]);
             ok("⚠ RECEIPT: the CARD says the same number on every row, and says it once",
@@ -761,7 +744,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           }
         } finally {
           // PRNG, setting, world — the scratch token LAST: restoring its AC needs it to exist.
-          CONFIG.Dice.randomUniform = realPRNG;
+          unrig();
           await game.settings.set(MODULE_ID, "holdTimer", priorTimer).catch(() => {});
           for (const [uuid, prior] of priorAC) {
             const a = await fromUuid(uuid).catch(() => null);
@@ -786,9 +769,9 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           }
         }
       }
-    }
+    });
     /* --- 8: THE WINDOW CLOSES --------------------------------------------------------- */
-    if (has(8)) {
+    if (want(8)) await section(8, async () => {
       // ⚠ The merged window must go away when nothing is left to ask:
       //   (a) the clock ran out;
       //   (b) a spend fixed the roll — a click would spend a real die on a target already hit.
@@ -802,10 +785,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           + `(token=${!!placed} weapon=${!!act}; ${where()}) — run tools/fixture-d20-folds.mjs`);
       } else {
         const foe = foeToken.actor;
-        const realPRNG = CONFIG.Dice.randomUniform;
-        const face = (n, faces) => {
-          CONFIG.Dice.randomUniform = () => 1 - ((n - 0.5) / faces);
-        };
+        const face = (n, of) => faces([[n, of]]);
         const priorAC = {
           override: foe.system._source.attributes.ac.override ?? null
         };
@@ -830,7 +810,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
               || (m.getFlag(MODULE_ID, "d20fold")?.status === "pending"));
             if (stale.length) {
               await ChatMessage.deleteDocuments(stale.map(m => m.id));
-              await sleep(500);
+              // Their windows close on the delete; one still closing is in `prior` below.
+              await until(() => stale.every(m => !game.messages.has(m.id)), { label: "the stale offers deleted" });
             }
           };
           const windows = prior => [...document.querySelectorAll(".application")]
@@ -844,7 +825,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
             });
             game.user.targets.forEach(x => { x.setTarget(false, { releaseOthers: true }); });
             placed.setTarget(true, { releaseOthers: true });
-            await sleep(200);
+            await until(() => (game.user.targets.size === 1) && game.user.targets.has(placed), { label: "the foe the only target" });
             const prior = new Set([...document.querySelectorAll(".application")]
               .filter(el => el.tagName === "DIALOG").map(el => el.id));
             face(d20, 20);
@@ -854,8 +835,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
               { configure: false },
               usageId ? { data: { 'system.origin': usageId } } : {});
             const msg = rolls?.[0]?.parent ?? null;
-            await until(() => msg?.getFlag(MODULE_ID, "precision"), 8000);
-            await until(() => windows(prior).length === 1, 8000);
+            await until(() => msg?.getFlag(MODULE_ID, "precision"), { timeout: 8000 });
+            await until(() => windows(prior).length === 1, { timeout: 8000 });
             return { msg, prior };
           };
 
@@ -869,11 +850,11 @@ const out = await f.evaluate(async ({ sections, titles }) => {
               const p = msg?.getFlag(MODULE_ID, "precision");
               const d = msg?.getFlag(MODULE_ID, "d20fold");
               return ((p?.status === "resolved") && (d?.status === "resolved")) ? { p, d } : null;
-            }, 15_000);
+            }, { timeout: 15_000 });
             ok("§8a both offers really expire on the house clock",
               !!timedOut, JSON.stringify({ precision: timedOut?.p?.outcome,
                 d20fold: timedOut?.d?.outcome }));
-            const gone = await until(() => (windows(prior).length === 0) ? "gone" : null, 10_000);
+            const gone = await until(() => (windows(prior).length === 0) ? "gone" : null, { timeout: 10_000 });
             ok("⚠ §8a RECEIPT: …and the window CLOSES when the clock takes the last offer",
               gone === "gone", `windows still open=${windows(prior).length}`);
           }
@@ -884,7 +865,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
             // 8 → 13 against AC 15: short by 2; a bardic 4 makes 17 and precision has no premise left.
             const { msg, prior } = await swing(15, 8);
             const row = () => windows(prior)[0]?.querySelector('[data-bf-rescue-action="bardic"]');
-            const pressable = await until(row, 8000);
+            const pressable = await until(row, { timeout: 8000 });
             ok("§8b the bardic row is there to press", !!pressable,
               `rows=${windows(prior)[0]?.querySelectorAll("[data-bf-rescue-row]").length ?? 0}`);
             face(4, 8);
@@ -892,22 +873,22 @@ const out = await f.evaluate(async ({ sections, titles }) => {
             const hit = await until(() => {
               const d = msg?.getFlag(MODULE_ID, "d20fold");
               return (d?.targets ?? []).some(x => x.verdict === "hit") ? d : null;
-            }, 20_000);
+            }, { timeout: 20_000 });
             ok("§8b the bardic die turns the miss into a hit",
               !!hit && (hit.foldedTotal === 17), `folded=${hit?.foldedTotal}`);
             const moot = await until(() => {
               const p = msg?.getFlag(MODULE_ID, "precision");
               return (p?.status === "resolved") ? p : null;
-            }, 15_000);
+            }, { timeout: 15_000 });
             ok("⚠ §8b RECEIPT: the survivor withdraws itself — nothing spent",
               (moot?.outcome === "no longer needed") && !Number.isFinite(moot?.die),
               JSON.stringify({ outcome: moot?.outcome, die: moot?.die ?? null }));
-            const gone = await until(() => (windows(prior).length === 0) ? "gone" : null, 10_000);
+            const gone = await until(() => (windows(prior).length === 0) ? "gone" : null, { timeout: 10_000 });
             ok("⚠ §8b RECEIPT: …and the window gets out of the way of the damage",
               gone === "gone", `windows still open=${windows(prior).length}`);
           }
         } finally {
-          CONFIG.Dice.randomUniform = realPRNG;
+          unrig();
           await game.settings.set(MODULE_ID, "holdTimer", priorTimer).catch(() => {});
           await foe.update({
             "system.attributes.ac.override": priorAC.override,
@@ -930,9 +911,9 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           game.user.targets.forEach(x => { x.setTarget(false, { releaseOthers: true }); });
         }
       }
-    }
+    });
     /* --- 9: THE WASTED-SPEND RACE ----------------------------------------------------- */
-    if (has(9)) {
+    if (want(9)) await section(9, async () => {
       // ⚠ THE WASTED-SPEND RACE: a click arriving after a sibling fixed the roll must not spend. A
       // click can be in flight when the window closes, and crash-resume calls the resolver directly.
       // Asserts the OUTCOME (the die is still there), not which guard caught it.
@@ -946,10 +927,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           + `(token=${!!placed} weapon=${!!act}; ${where()}) — run tools/fixture-d20-folds.mjs`);
       } else {
         const foe = foeToken.actor;
-        const realPRNG = CONFIG.Dice.randomUniform;
-        const face = (n, faces) => {
-          CONFIG.Dice.randomUniform = () => 1 - ((n - 0.5) / faces);
-        };
+        const face = (n, of) => faces([[n, of]]);
         const priorAC = {
           override: foe.system._source.attributes.ac.override ?? null
         };
@@ -972,7 +950,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
             || (m.getFlag(MODULE_ID, "d20fold")?.status === "pending"));
           if (stale.length) {
             await ChatMessage.deleteDocuments(stale.map(m => m.id));
-            await sleep(500);
+            // Their windows close on the delete; one still closing is in priorDialogs below.
+            await until(() => stale.every(m => !game.messages.has(m.id)), { label: "the stale offers deleted" });
           }
           await foe.update({
             "system.attributes.ac.override": 15,
@@ -980,7 +959,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           });
           game.user.targets.forEach(x => { x.setTarget(false, { releaseOthers: true }); });
           placed.setTarget(true, { releaseOthers: true });
-          await sleep(200);
+          await until(() => (game.user.targets.size === 1) && game.user.targets.has(placed), { label: "the foe the only target" });
           const priorDialogs = new Set([...document.querySelectorAll(".application")]
             .filter(el => el.tagName === "DIALOG").map(el => el.id));
           const windows = () => [...document.querySelectorAll(".application")]
@@ -999,7 +978,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
             const w = windows()[0];
             return (w?.querySelector('[data-bf-rescue-action="bardic"]')
               && w.querySelector('[data-bf-rescue-action="use"]')) ? w : null;
-          }, 8000);
+          }, { timeout: 8000 });
           ok("§9 both rescues are on the window before anything is spent",
             !!win, `rows=${win?.querySelectorAll("[data-bf-rescue-row]").length ?? 0}`);
 
@@ -1016,26 +995,32 @@ const out = await f.evaluate(async ({ sections, titles }) => {
             const p = attackMsg?.getFlag(MODULE_ID, "precision");
             return ((p?.outcome === "used") && (p.targets ?? []).some(x => x.verdict === "hit"))
               ? p : null;
-          }, 20_000);
+          }, { timeout: 20_000 });
           ok("§9 precision lands and the attack now hits",
             !!hit && (hit.die === 4), JSON.stringify({ die: hit?.die,
               verdict: hit?.targets?.[0]?.verdict }));
 
           staleBardic?.click();
-          await sleep(2500);
+          // The window in which the stale click would spend: a spend on the fold, or the Inspired effect gone.
+          const stray = await watch(() => {
+            const d = attackMsg?.getFlag(MODULE_ID, "d20fold");
+            if ((d?.spends ?? []).length) return `a spend landed (${d.spends.map(s => s.kind).join(", ")})`;
+            const e = inspiredBefore ? fighter.effects.get(inspiredBefore) : null;
+            return (inspiredBefore && (!e || e.disabled)) ? "the Inspired effect went" : null;
+          }, { ms: 2500 });
           const fold = attackMsg?.getFlag(MODULE_ID, "d20fold");
           ok("⚠ §9 RECEIPT: the stale click spends NOTHING",
-            !(fold?.spends ?? []).length,
+            !stray && !(fold?.spends ?? []).length,
             JSON.stringify({ status: fold?.status, outcome: fold?.outcome,
-              spends: (fold?.spends ?? []).length }));
+              spends: (fold?.spends ?? []).length, stray }));
           ok("⚠ §9 RECEIPT: …and the Bardic die is still on the sheet",
-            !!fighter.effects.get(inspiredBefore ?? "")
+            !stray && !!fighter.effects.get(inspiredBefore ?? "")
               && !fighter.effects.get(inspiredBefore ?? "")?.disabled,
-            `effect ${inspiredBefore} survives=${!!fighter.effects.get(inspiredBefore ?? "")}`);
+            `effect ${inspiredBefore} survives=${!!fighter.effects.get(inspiredBefore ?? "")}${stray ? ` · ${stray}` : ""}`);
           log.push(`section 9: precision ${hit?.die} closed a 2-point gap; the bardic click after `
             + `it left ${(fold?.spends ?? []).length} spend(s) and outcome "${fold?.outcome}"`);
         } finally {
-          CONFIG.Dice.randomUniform = realPRNG;
+          unrig();
           await game.settings.set(MODULE_ID, "holdTimer", priorTimer).catch(() => {});
           await foe.update({
             "system.attributes.ac.override": priorAC.override,
@@ -1050,10 +1035,10 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           game.user.targets.forEach(x => { x.setTarget(false, { releaseOthers: true }); });
         }
       }
-    }
+    });
 
     /* --- 10: THE REFUND ASK ------------------------------------------------------------ */
-    if (has(10)) {
+    if (want(10)) await section(10, async () => {
       // Tactical Mind's refund ASKS (DESIGN *Tactical Mind's refund*): refund writes the use back with a
       // receipt, keep leaves it spent. Both asserted against the POOL.
       const sw = fighter.items.find(i => i.name === "Second Wind");
@@ -1077,11 +1062,11 @@ const out = await f.evaluate(async ({ sections, titles }) => {
             const usesBefore = fighter.items.get(sw.id).system.uses.value;
             await fighter.rollAbilityCheck({ ability: "str" }, { configure: false }, { create: true });
             const msg = await until(() => game.messages.contents
-              .findLast(m => (m.timestamp >= since) && (m.getFlag(MODULE_ID, "d20fold")?.status === "pending")), 8000);
+              .findLast(m => (m.timestamp >= since) && (m.getFlag(MODULE_ID, "d20fold")?.status === "pending")), { timeout: 8000 });
             if (msg) made.push(msg);
             const popup = await until(() => [...document.querySelectorAll(".application")]
               .find(el => (el.tagName === "DIALOG") && !priorDialogs.has(el.id)
-                && !!el.querySelector('[data-bf-rescue-action="tactical:Tactical Mind"]')), 8000);
+                && !!el.querySelector('[data-bf-rescue-action="tactical:Tactical Mind"]')), { timeout: 8000 });
             ok(`§10 (${choice}) the check offers Tactical Mind`, !!popup, popup ? "row present" : "NO WINDOW");
             popup?.querySelector('[data-bf-rescue-action="tactical:Tactical Mind"]')?.click();
             // A check never moots, so the bardic die is re-offered and the fold stays pending until Pass;
@@ -1089,15 +1074,18 @@ const out = await f.evaluate(async ({ sections, titles }) => {
             await until(() => {
               const cur = msg?.getFlag(MODULE_ID, "d20fold");
               return ((cur?.status === "resolved") || (cur?.spends?.length && !cur.answer)) ? cur : null;
-            }, 20_000);
-            await sleep(400);
-            [...document.querySelectorAll(".application")]
-              .find(el => (el.tagName === "DIALOG") && !priorDialogs.has(el.id) && !!el.querySelector('button[data-action="pass"]'))
-              ?.querySelector('button[data-action="pass"]')?.click();
+            }, { timeout: 20_000 });
+            // A re-offer redraws the window (close and reopen) with the spent row greyed: Pass goes to the redrawn one.
+            const passWin = () => [...document.querySelectorAll(".application")]
+              .find(el => (el.tagName === "DIALOG") && !priorDialogs.has(el.id) && !!el.querySelector('button[data-action="pass"]')
+                && !el.querySelector('[data-bf-rescue-action="tactical:Tactical Mind"]'));
+            await until(() => (msg?.getFlag(MODULE_ID, "d20fold")?.status === "resolved") || passWin(),
+              { label: "the window redrawn with the re-offer" });
+            passWin()?.querySelector('button[data-action="pass"]')?.click();
             const fold = await until(() => {
               const cur = msg?.getFlag(MODULE_ID, "d20fold");
               return (cur?.status === "resolved") ? cur : null;
-            }, 20_000);
+            }, { timeout: 20_000 });
             ok(`§10 (${choice}) the die is added and the fold settles`,
               !!fold && fold.spends?.some(s => s.kind === "tactical") && Number.isFinite(fold.foldedTotal),
               JSON.stringify(fold?.spends ?? null));
@@ -1108,13 +1096,13 @@ const out = await f.evaluate(async ({ sections, titles }) => {
             const ask = await until(() => {
               const r = msg?.getFlag(MODULE_ID, "tacticalRefund");
               return (r?.status === "pending") ? r : null;
-            }, 8000);
+            }, { timeout: 8000 });
             ok(`§10 (${choice}) the refund ask is stamped on the roll, pending, naming the pool`,
               !!ask && (ask.poolName === "Second Wind") && Number.isFinite(ask.deadline),
               JSON.stringify(ask ? { status: ask.status, pool: ask.poolName, deadline: !!ask.deadline } : null));
             const win = await until(() => [...document.querySelectorAll(".application")]
               .find(el => (el.tagName === "DIALOG") && !priorDialogs.has(el.id)
-                && !!el.querySelector('button[data-action="refund"]') && !!el.querySelector('button[data-action="keep"]')), 8000);
+                && !!el.querySelector('button[data-action="refund"]') && !!el.querySelector('button[data-action="keep"]')), { timeout: 8000 });
             ok(`§10 (${choice}) the ask POPS with both answers`, !!win, win ? "keep + refund" : "NO WINDOW");
             // The ask carries the check before and after the die, and the window states both.
             const numbersOk = !!ask && (ask.baseTotal === fold?.baseTotal) && (ask.total === fold?.foldedTotal)
@@ -1128,23 +1116,29 @@ const out = await f.evaluate(async ({ sections, titles }) => {
             const settled = await until(() => {
               const r = msg?.getFlag(MODULE_ID, "tacticalRefund");
               return (r?.status && (r.status !== "pending")) ? r : null;
-            }, 10_000);
-            await sleep(500);
+            }, { timeout: 10_000 });
+            // The pool write lands after the status: a refund waits for it; keep is the window in which a wrong
+            // write-back would land.
+            const back = () => fighter.items.get(sw.id).system.uses.value !== usesSpent;
+            let stray = null;
+            if (choice === "refund") await until(back, { label: "the refunded use written back" });
+            else stray = await watch(back, { ms: 500 });
             const usesAfter = fighter.items.get(sw.id).system.uses.value;
             if (choice === "refund") {
               ok("⚠ §10 RECEIPT: refund RESTORES the use of Second Wind on the sheet",
                 (settled?.status === "refunded") && (usesAfter === usesBefore), `uses ${usesSpent} → ${usesAfter} status=${settled?.status}`);
               // ⚠ Waited for: the receipt is created after the pool write.
               const receipt = await until(() => game.messages.contents
-                .findLast(m => (m.timestamp >= receiptsSince) && /use is refunded/.test(m.content ?? "")), 8000);
+                .findLast(m => (m.timestamp >= receiptsSince) && /use is refunded/.test(m.content ?? "")), { timeout: 8000 });
               ok("§10 …and a receipt card says so", !!receipt, receipt ? "posted" : "NO RECEIPT");
               if (receipt) made.push(receipt);
             } else {
               ok("⚠ §10 RECEIPT: keep leaves the use SPENT",
-                (settled?.status === "kept") && (usesAfter === usesSpent), `uses ${usesSpent} → ${usesAfter} status=${settled?.status}`);
+                !stray && (settled?.status === "kept") && (usesAfter === usesSpent),
+                `uses ${usesSpent} → ${usesAfter} status=${settled?.status}${stray ? " · the use came back in the window" : ""}`);
             }
             ok(`§10 (${choice}) the window closes on the answer`,
-              await until(() => (!document.getElementById(win?.id ?? "") ? true : null), 5000) === true,
+              await until(() => (!document.getElementById(win?.id ?? "") ? true : null), { timeout: 5000 }) === true,
               "closed");
             for (const m of game.messages.contents.filter(m => m.timestamp >= since)) {
               if (m.getFlag(MODULE_ID, "respondsTo") === msg?.id) made.push(m);
@@ -1159,12 +1153,12 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           for (const m of made) await m.delete().catch(() => {});
         }
       }
-    }
+    });
 
     /* --- 11: GUARDED MIND on a save rolled from the sheet -------------------------------- */
     // No DC exists for a save rolled from the sheet, so the `succeed` fold is an offer the roller
     // judges; pressing it spends the feat's use and the save succeeds.
-    if (has(11)) {
+    if (want(11)) await section(11, async () => {
       const pack = game.packs.get("dnd-players-handbook.feats");
       const src = pack ? (await pack.getIndex()).find(e => e.name === "Mage Slayer") : null;
       const doc = src ? await pack.getDocument(src._id) : null;
@@ -1183,7 +1177,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           const since = Date.now();
           await fighter.rollSavingThrow({ ability: "wis" }, { configure: false }, { create: true });
           const msg = await until(() => game.messages.contents
-            .findLast(m => (m.timestamp >= since) && m.getFlag(MODULE_ID, "d20fold")), 8000);
+            .findLast(m => (m.timestamp >= since) && m.getFlag(MODULE_ID, "d20fold")), { timeout: 8000 });
           if (msg) made.push(msg);
           const flag = msg?.getFlag(MODULE_ID, "d20fold");
           const offer = (flag?.offers ?? []).find(o => o.kind === "succeed");
@@ -1191,37 +1185,39 @@ const out = await f.evaluate(async ({ sections, titles }) => {
             !!offer && (offer.label === "Guarded Mind") && (flag?.ability === "wis") && !Number.isFinite(flag?.dc),
             JSON.stringify({ offers: flag?.offers, ability: flag?.ability }));
           const popup = await until(() => [...document.querySelectorAll(".application")]
-            .find(el => (el.tagName === "DIALOG") && !priorDialogs.has(el.id) && !!el.querySelector('[data-bf-rescue-action="succeed"]')), 8000);
+            .find(el => (el.tagName === "DIALOG") && !priorDialogs.has(el.id) && !!el.querySelector('[data-bf-rescue-action="succeed"]')), { timeout: 8000 });
           popup?.querySelector('[data-bf-rescue-action="succeed"]')?.click();
           // The fixture's Bardic die is not re-offered: the save succeeded.
           const done = await until(() => {
             const cur = msg?.getFlag(MODULE_ID, "d20fold");
             return (cur?.status === "resolved") ? cur : null;
-          }, 20_000);
+          }, { timeout: 20_000 });
           ok("§11 pressed: the spend is the verdict — no die, no reroll — and the fold settles with no re-offer",
             !!done && (done.spends?.length === 1) && (done.spends?.[0]?.kind === "succeed") && (done.spends?.[0]?.verdict === "saved")
               && !Number.isFinite(done.spends?.[0]?.die) && !done.spends?.[0]?.reroll,
             JSON.stringify(done?.spends ?? null));
-          const spent = await until(() => (Number(fighter.items.get(lent.id)?.system?.uses?.value) === 0) ? true : null, 6000);
+          const spent = await until(() => (Number(fighter.items.get(lent.id)?.system?.uses?.value) === 0) ? true : null, { timeout: 6000 });
           ok("§11 the feat's one use is really spent (its own Guard Mind activity)", !!spent,
             `uses=${fighter.items.get(lent.id)?.system?.uses?.value}`);
           const card = await until(() => game.messages.contents.findLast(m => (m.timestamp >= since)
-            && /the failed save succeeds instead/.test(m.content ?? "")), 8000);
+            && /the failed save succeeds instead/.test(m.content ?? "")), { timeout: 8000 });
           ok("§11 the card says it: Guarded Mind — the failed save succeeds instead", !!card, card ? "posted" : "NO CARD");
           for (const m of game.messages.contents.filter(m => m.timestamp >= since)) made.push(m);
           // A Dexterity save is not Guarded Mind's: with the use restored, only the rule can refuse it.
           await fighter.items.get(lent.id)?.update({ "system.uses.spent": 0 });
           const since2 = Date.now();
           await fighter.rollSavingThrow({ ability: "dex" }, { configure: false }, { create: true });
-          await sleep(800);
-          const dMsg = game.messages.contents.findLast(m => (m.timestamp >= since2) && (m.system?.ability === "dex"));
+          const dMsg = await until(() => game.messages.contents.findLast(m => (m.timestamp >= since2) && (m.system?.ability === "dex")),
+            { label: "the Dexterity save's roll" });
+          // The fold stamps after the roll's message: the window in which a wrong offer would land.
+          const stray = await watch(() => (dMsg.getFlag(MODULE_ID, "d20fold")?.offers ?? []).some(o => o.kind === "succeed"), { ms: 800 });
           const dOffers = (dMsg?.getFlag(MODULE_ID, "d20fold")?.offers ?? []).map(o => o.kind);
-          ok("§11 a Dexterity save is never offered it", !!dMsg && !dOffers.includes("succeed"), `roll=${!!dMsg} offers=[${dOffers.join(", ")}]`);
+          ok("§11 a Dexterity save is never offered it", !stray && !!dMsg && !dOffers.includes("succeed"), `roll=${!!dMsg} offers=[${dOffers.join(", ")}]`);
           for (const m of game.messages.contents.filter(m => m.timestamp >= since2)) made.push(m);
-          [...document.querySelectorAll(".application")]
-            .find(el => (el.tagName === "DIALOG") && !!el.querySelector('button[data-action="pass"]'))
-            ?.querySelector('button[data-action="pass"]')?.click();
-          await sleep(400);
+          const passWin = [...document.querySelectorAll(".application")]
+            .find(el => (el.tagName === "DIALOG") && !!el.querySelector('button[data-action="pass"]'));
+          passWin?.querySelector('button[data-action="pass"]')?.click();
+          if (passWin) await until(() => !passWin.isConnected, { label: "the passed window closed" });
         } finally {
           if (lent) await fighter.deleteEmbeddedDocuments("Item", [lent.id]).catch(() => {});
           await fighter.update({ "system.attributes.inspiration": priorInspiration }).catch(() => {});
@@ -1229,13 +1225,13 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           for (const m of made) await m.delete().catch(() => {});
         }
       }
-    }
+    });
 
     /* --- 12: INDOMITABLE — the `reroll` fold ------------------------------------------- */
     // The pack's Indomitable: uses `@scale.fighter.indomitable` (nothing below Fighter 9 — the lent copy's max is
     // pinned to 1), an unnamed activity whose "Bonus" roll is `@classes.fighter.levels` (5 here) and NO consumption
     // — the fold writes the use off itself. A sheet save has no DC, so the offer is the roller's to judge.
-    if (has(12)) {
+    if (want(12)) await section(12, async () => {
       const pack = game.packs.get("dnd-players-handbook.classes");
       const src = pack ? (await pack.getIndex()).find(e => e.name === "Indomitable") : null;
       const doc = src ? await pack.getDocument(src._id) : null;
@@ -1245,8 +1241,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         const priorInspiration = fighter.system.attributes.inspiration;
         const made = [];
         let lent = null;
-        const realPRNG = CONFIG.Dice.randomUniform;
-        const face = (n, faces = 20) => { CONFIG.Dice.randomUniform = () => 1 - ((n - 0.5) / faces); };
+        const face = (n, of = 20) => faces([[n, of]]);
         try {
           await fighter.update({ "system.attributes.inspiration": false });   // no heroic row beside it
           const data = doc.toObject();
@@ -1257,10 +1252,10 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           const since = Date.now();
           face(3);
           const rolls = await fighter.rollSavingThrow({ ability: "wis" }, { configure: false }, { create: true });
-          CONFIG.Dice.randomUniform = realPRNG;
+          unrig();
           const base = Number(rolls?.[0]?.total);
           const msg = await until(() => game.messages.contents
-            .findLast(m => (m.timestamp >= since) && m.getFlag(MODULE_ID, "d20fold")), 8000);
+            .findLast(m => (m.timestamp >= since) && m.getFlag(MODULE_ID, "d20fold")), { timeout: 8000 });
           if (msg) made.push(msg);
           const flag = msg?.getFlag(MODULE_ID, "d20fold");
           const offer = (flag?.offers ?? []).find(o => o.kind === "reroll");
@@ -1268,7 +1263,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
             !!offer && (offer.label === "Indomitable") && (offer.bonus === level) && (level > 0) && /1 use · 1 left/.test(offer.cost ?? "") && !Number.isFinite(flag?.dc),
             JSON.stringify({ offers: flag?.offers, level }));
           const popup = await until(() => [...document.querySelectorAll(".application")]
-            .find(el => (el.tagName === "DIALOG") && !priorDialogs.has(el.id) && !!el.querySelector('[data-bf-rescue-action="reroll"]')), 8000);
+            .find(el => (el.tagName === "DIALOG") && !priorDialogs.has(el.id) && !!el.querySelector('[data-bf-rescue-action="reroll"]')), { timeout: 8000 });
           const rowText = popup?.querySelector('[data-bf-rescue-action="reroll"]')?.closest("[data-bf-rescue-row]")?.textContent?.replace(/\s+/g, " ") ?? "";
           ok("§12 the window's row reads the feature's name", !!popup && /Indomitable/.test(rowText), rowText.slice(0, 160) || "NO POPUP");
           face(14);
@@ -1278,55 +1273,63 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           const done = await until(() => {
             const cur = msg?.getFlag(MODULE_ID, "d20fold");
             return (cur?.spends?.length && !cur.spends.some(sp => sp.pendingVerdict)) ? cur : null;
-          }, 20_000);
-          CONFIG.Dice.randomUniform = realPRNG;
+          }, { timeout: 20_000 });
+          unrig();
           const spend = done?.spends?.[0] ?? null;
           const mod = base - 3;
           ok("§12 pressed: the d20 is REROLLED (a `reroll` entry with the new total) and the bonus rides the same entry; the folded total is the new roll + the bonus",
             !!done && (done.spends?.length === 1) && (spend?.kind === "reroll") && (Number(spend?.reroll?.total) === 14 + mod) && (spend?.bonus === level)
               && (done.foldedTotal === 14 + mod + level) && !Number.isFinite(spend?.die),
             JSON.stringify({ base, spends: done?.spends ?? null, foldedTotal: done?.foldedTotal }));
-          const spent = await until(() => (Number(fighter.items.get(lent.id)?.system?.uses?.value) === 0) ? true : null, 6000);
+          const spent = await until(() => (Number(fighter.items.get(lent.id)?.system?.uses?.value) === 0) ? true : null, { timeout: 6000 });
           ok("§12 the feature's one use is written off (the pack's activity consumes nothing — the fold spends it)", !!spent,
             `uses=${fighter.items.get(lent.id)?.system?.uses?.value}`);
           const card = await until(() => game.messages.contents.findLast(m => (m.timestamp >= since)
-            && /Indomitable — the roll is patched/.test(m.content ?? "") && new RegExp(`${base} → ${14 + mod} \\+ ${level} = ${14 + mod + level}`).test(m.content ?? "")), 8000);
+            && /Indomitable — the roll is patched/.test(m.content ?? "") && new RegExp(`${base} → ${14 + mod} \\+ ${level} = ${14 + mod + level}`).test(m.content ?? "")), { timeout: 8000 });
           ok("§12 the card says the arithmetic: base → new d20 + bonus = total", !!card, card ? "posted" : `NO CARD (looked for "${base} → ${14 + mod} + ${level} = ${14 + mod + level}")`);
           const rise = game.messages.contents.find(m => (m.timestamp >= since) && (m.getFlag(MODULE_ID, "respondsTo") === msg?.id))?.getFlag(MODULE_ID, "diceRise");
           ok("§12 the dice rise: the old face struck, the new one up, the bonus its own chip", !!rise && (rise.chips?.length === 2) && (rise.chips[0]?.was === "3") && (rise.chips[0]?.label === "14") && (rise.chips[1]?.label === `+${level}`),
             JSON.stringify(rise ?? null));
           for (const m of game.messages.contents.filter(m => m.timestamp >= since)) made.push(m);
-          // The re-offered Bardic die is passed before the next roll.
-          [...document.querySelectorAll(".application")]
-            .filter(el => (el.tagName === "DIALOG") && !!el.querySelector('button[data-action="pass"]'))
-            .forEach(el => { el.querySelector('button[data-action="pass"]')?.click(); });
-          await sleep(500);
+          // The re-offered Bardic die is passed before the next roll: the spend redraws the window (close and
+          // reopen) with the reroll row greyed, and the passed windows close.
+          const redrawn = () => [...document.querySelectorAll(".application")]
+            .find(el => (el.tagName === "DIALOG") && !priorDialogs.has(el.id) && !!el.querySelector('button[data-action="pass"]')
+              && !el.querySelector('[data-bf-rescue-action="reroll"]'));
+          await until(() => (msg?.getFlag(MODULE_ID, "d20fold")?.status !== "pending") || redrawn(),
+            { label: "the window redrawn with the re-offer" });
+          const passed = [...document.querySelectorAll(".application")]
+            .filter(el => (el.tagName === "DIALOG") && !!el.querySelector('button[data-action="pass"]'));
+          passed.forEach(el => { el.querySelector('button[data-action="pass"]')?.click(); });
+          await until(() => passed.every(el => !el.isConnected), { label: "the passed windows closed" });
           // No uses left: a second save is not offered it.
           const since2 = Date.now();
           await fighter.rollSavingThrow({ ability: "wis" }, { configure: false }, { create: true });
-          await sleep(900);
-          const dMsg = game.messages.contents.findLast(m => (m.timestamp >= since2) && (m.system?.ability === "wis"));
+          const dMsg = await until(() => game.messages.contents.findLast(m => (m.timestamp >= since2) && (m.system?.ability === "wis")),
+            { label: "the second save's roll" });
+          // The fold stamps after the roll's message: the window in which a wrong offer would land.
+          const stray = await watch(() => (dMsg.getFlag(MODULE_ID, "d20fold")?.offers ?? []).some(o => o.kind === "reroll"), { ms: 900 });
           const dOffers = (dMsg?.getFlag(MODULE_ID, "d20fold")?.offers ?? []).map(o => o.kind);
-          ok("§12 no uses left: not offered", !!dMsg && !dOffers.includes("reroll"), `roll=${!!dMsg} offers=[${dOffers.join(", ")}]`);
+          ok("§12 no uses left: not offered", !stray && !!dMsg && !dOffers.includes("reroll"), `roll=${!!dMsg} offers=[${dOffers.join(", ")}]`);
           for (const m of game.messages.contents.filter(m => m.timestamp >= since2)) made.push(m);
-          [...document.querySelectorAll(".application")]
-            .find(el => (el.tagName === "DIALOG") && !!el.querySelector('button[data-action="pass"]'))
-            ?.querySelector('button[data-action="pass"]')?.click();
-          await sleep(400);
+          const passWin = [...document.querySelectorAll(".application")]
+            .find(el => (el.tagName === "DIALOG") && !!el.querySelector('button[data-action="pass"]'));
+          passWin?.querySelector('button[data-action="pass"]')?.click();
+          if (passWin) await until(() => !passWin.isConnected, { label: "the passed window closed" });
         } finally {
-          CONFIG.Dice.randomUniform = realPRNG;
+          unrig();
           if (lent) await fighter.deleteEmbeddedDocuments("Item", [lent.id]).catch(() => {});
           await fighter.update({ "system.attributes.inspiration": priorInspiration }).catch(() => {});
           for (const m of made) await m.delete().catch(() => {});
         }
       }
-    }
+    });
 
     /* --- 13: FANATICAL FOCUS — the Rage's once --------------------------------------- */
     // The pack's Fanatical Focus carries NOTHING (no uses, no activity): the row's bonus is `@scale.barbarian.rage-damage`,
     // which the Fighter cannot read — the fold stays OFF (never a guessed number). The lent copy is then given the
     // pinned part the pack's shape allows: an activity whose roll is the bonus (`pinPart`'s lesson), read first.
-    if (has(13)) {
+    if (want(13)) await section(13, async () => {
       const pack = game.packs.get("dnd-players-handbook.classes");
       const src = pack ? (await pack.getIndex()).find(e => e.name === "Fanatical Focus") : null;
       const doc = src ? await pack.getDocument(src._id) : null;
@@ -1337,23 +1340,34 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         const made = [];
         const effects = [];
         let lent = null;
-        const realPRNG = CONFIG.Dice.randomUniform;
-        const face = (n, faces = 20) => { CONFIG.Dice.randomUniform = () => 1 - ((n - 0.5) / faces); };
-        const offersOn = async () => {
+        const face = (n, of = 20) => faces([[n, of]]);
+        const passWindows = () => [...document.querySelectorAll(".application")]
+          .filter(el => (el.tagName === "DIALOG") && !!el.querySelector('button[data-action="pass"]'));
+        const rerollWindow = () => [...document.querySelectorAll(".application")]
+          .find(el => (el.tagName === "DIALOG") && !!el.querySelector('[data-bf-rescue-action="reroll"]'));
+        // `offered`: the reroll offer, its window up, is what the step waits for; otherwise the fold stamps after
+        // the roll's message and this is the window in which a wrong offer would land (`stray`).
+        const offersOn = async ({ offered = false } = {}) => {
           const since = Date.now();
           face(3);
           await fighter.rollSavingThrow({ ability: "wis" }, { configure: false }, { create: true });
-          CONFIG.Dice.randomUniform = realPRNG;
-          await sleep(900);
-          const msg = game.messages.contents.findLast(m => (m.timestamp >= since) && (m.system?.ability === "wis"));
+          unrig();
+          const roll = () => game.messages.contents.findLast(m => (m.timestamp >= since) && (m.system?.ability === "wis"));
+          const rerollOn = () => (roll()?.getFlag(MODULE_ID, "d20fold")?.offers ?? []).some(o => o.kind === "reroll");
+          let stray = null;
+          if (offered) await until(() => rerollOn() && rerollWindow(), { label: "the reroll offer and its window" });
+          else stray = await watch(rerollOn, { ms: 900 });
+          const msg = roll();
           for (const m of game.messages.contents.filter(m => m.timestamp >= since)) made.push(m);
-          return { msg, offers: msg?.getFlag(MODULE_ID, "d20fold")?.offers ?? [] };
+          return { msg, offers: msg?.getFlag(MODULE_ID, "d20fold")?.offers ?? [], stray };
         };
-        const passOpen = async () => {
-          [...document.querySelectorAll(".application")]
-            .filter(el => (el.tagName === "DIALOG") && !!el.querySelector('button[data-action="pass"]'))
-            .forEach(el => { el.querySelector('button[data-action="pass"]')?.click(); });
-          await sleep(400);
+        // Pass the roll's offer: its window up unless the fold is not pending, every Pass clicked, those windows closed.
+        const passOpen = async msg => {
+          await until(() => (msg?.getFlag(MODULE_ID, "d20fold")?.status !== "pending") || passWindows().length,
+            { label: "the offer's window up" });
+          const passed = passWindows();
+          passed.forEach(el => { el.querySelector('button[data-action="pass"]')?.click(); });
+          await until(() => passed.every(el => !el.isConnected), { label: "the passed windows closed" });
         };
         const rage = () => fighter.effects.find(e => e.name === "Rage") ?? null;
         try {
@@ -1361,48 +1375,51 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           [lent] = await fighter.createEmbeddedDocuments("Item", [doc.toObject()]);
           // a. not raging: nothing
           let r = await offersOn();
-          ok("§13a not raging: Fanatical Focus is not offered", !!r.msg && !r.offers.some(o => o.kind === "reroll"), JSON.stringify(r.offers.map(o => o.kind)));
-          await passOpen();
+          ok("§13a not raging: Fanatical Focus is not offered", !r.stray && !!r.msg && !r.offers.some(o => o.kind === "reroll"), JSON.stringify(r.offers.map(o => o.kind)));
+          await passOpen(r.msg);
           // b. raging, the bonus unreadable on a Fighter: still nothing (the fold stays off rather than guessing)
           effects.push(...(await fighter.createEmbeddedDocuments("ActiveEffect", [{ name: "Rage", img: "icons/svg/aura.svg", transfer: false, disabled: false, changes: [] }])).map(e => e.id));
           r = await offersOn();
-          ok("§13b raging but the Rage Damage scale unreadable on this sheet: not offered (never a guessed bonus)", !!r.msg && !r.offers.some(o => o.kind === "reroll"), JSON.stringify(r.offers.map(o => o.kind)));
-          await passOpen();
+          ok("§13b raging but the Rage Damage scale unreadable on this sheet: not offered (never a guessed bonus)", !r.stray && !!r.msg && !r.offers.some(o => o.kind === "reroll"), JSON.stringify(r.offers.map(o => o.kind)));
+          await passOpen(r.msg);
           // c. the pinned part: an activity whose roll is the bonus — offered, "once this Rage"
           await lent.update({ "system.activities.bfpinnedbonus000": { type: "utility", _id: "bfpinnedbonus000", name: "Bonus", activation: { type: "special" }, roll: { formula: "2", name: "Bonus" } } });
-          r = await offersOn();
+          r = await offersOn({ offered: true });
           const offer = r.offers.find(o => o.kind === "reroll");
           ok("§13c raging, the bonus pinned to 2: offered by name, +2, \"once this Rage\"",
             !!offer && (offer.label === "Fanatical Focus") && (offer.bonus === 2) && /once this Rage/.test(offer.cost ?? ""), JSON.stringify(r.offers));
-          const popup = await until(() => [...document.querySelectorAll(".application")]
-            .find(el => (el.tagName === "DIALOG") && !!el.querySelector('[data-bf-rescue-action="reroll"]')), 6000);
+          const popup = await until(rerollWindow, { timeout: 6000 });
           face(12);
           popup?.querySelector('[data-bf-rescue-action="reroll"]')?.click();
-          const done = await until(() => { const cur = r.msg?.getFlag(MODULE_ID, "d20fold"); return (cur?.spends?.length && !cur.spends.some(sp => sp.pendingVerdict)) ? cur : null; }, 20_000);
-          await passOpen();   // the Bardic die re-offered (no DC: still failing)
-          CONFIG.Dice.randomUniform = realPRNG;
+          const done = await until(() => { const cur = r.msg?.getFlag(MODULE_ID, "d20fold"); return (cur?.spends?.length && !cur.spends.some(sp => sp.pendingVerdict)) ? cur : null; }, { timeout: 20_000 });
+          // The Bardic die re-offered (no DC: still failing): the spend redraws the window (close and reopen) with
+          // the reroll row greyed.
+          await until(() => (r.msg?.getFlag(MODULE_ID, "d20fold")?.status !== "pending")
+            || passWindows().find(el => !el.querySelector('[data-bf-rescue-action="reroll"]')), { label: "the window redrawn with the re-offer" });
+          await passOpen(r.msg);
+          unrig();
           const used = rage()?.getFlag(MODULE_ID, "rerollUsed") ?? [];
           ok("§13c pressed: rerolled with +2, and the once is a mark on the RAGE effect", !!done && (done.spends?.[0]?.kind === "reroll") && (done.spends?.[0]?.bonus === 2) && used.includes("Fanatical Focus"),
             JSON.stringify({ spends: done?.spends ?? null, used }));
           // d. the same Rage: spent — not offered
           r = await offersOn();
-          ok("§13d a second failure the same Rage: not offered", !!r.msg && !r.offers.some(o => o.kind === "reroll"), JSON.stringify(r.offers.map(o => o.kind)));
-          await passOpen();
+          ok("§13d a second failure the same Rage: not offered", !r.stray && !!r.msg && !r.offers.some(o => o.kind === "reroll"), JSON.stringify(r.offers.map(o => o.kind)));
+          await passOpen(r.msg);
           // e. the Rage ends and a new one begins: offered again
           await fighter.deleteEmbeddedDocuments("ActiveEffect", effects.splice(0)).catch(() => {});
           effects.push(...(await fighter.createEmbeddedDocuments("ActiveEffect", [{ name: "Rage", img: "icons/svg/aura.svg", transfer: false, disabled: false, changes: [] }])).map(e => e.id));
-          r = await offersOn();
+          r = await offersOn({ offered: true });
           ok("§13e a new Rage: offered again", !!r.msg && r.offers.some(o => o.kind === "reroll"), JSON.stringify(r.offers.map(o => o.kind)));
-          await passOpen();
+          await passOpen(r.msg);
         } finally {
-          CONFIG.Dice.randomUniform = realPRNG;
+          unrig();
           if (effects.length) await fighter.deleteEmbeddedDocuments("ActiveEffect", effects).catch(() => {});
           if (lent) await fighter.deleteEmbeddedDocuments("Item", [lent.id]).catch(() => {});
           await fighter.update({ "system.attributes.inspiration": priorInspiration }).catch(() => {});
           for (const m of made) await m.delete().catch(() => {});
         }
       }
-    }
+    });
   } catch (err) {
     fatal = `${err?.message}\n${err?.stack ?? ""}`;
   }

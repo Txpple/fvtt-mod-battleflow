@@ -53,7 +53,6 @@ const CEILING = {
   "smoke-class-warlock": 33,
   "smoke-class-wizard": 23,
   "smoke-companions": 4,
-  "smoke-d20-folds": 27,
   "smoke-damage-rules": 37,
   "smoke-drop": 13,
   "smoke-effects": 22,
@@ -85,12 +84,11 @@ const STANDING = new Set([
   "smoke-cast", "smoke-class-barbarian", "smoke-class-bard", "smoke-class-cleric",
   "smoke-class-druid", "smoke-class-fighter", "smoke-class-items", "smoke-class-monk",
   "smoke-class-paladin", "smoke-class-ranger", "smoke-class-rogue", "smoke-class-sorcerer",
-  "smoke-class-warlock", "smoke-class-wizard", "smoke-companions", "smoke-d20-folds",
-  "smoke-damage-rules", "smoke-drop", "smoke-effects", "smoke-familiar", "smoke-gear-lights",
-  "smoke-goliath", "smoke-guards", "smoke-heal", "smoke-hitmenu", "smoke-hold", "smoke-lucky",
-  "smoke-maneuvers", "smoke-metamagic", "smoke-nogm", "smoke-reminders", "smoke-resources",
-  "smoke-riders", "smoke-saves", "smoke-shields", "smoke-spells", "smoke-surfaces",
-  "smoke-twoclient"
+  "smoke-class-warlock", "smoke-class-wizard", "smoke-companions", "smoke-damage-rules",
+  "smoke-drop", "smoke-effects", "smoke-familiar", "smoke-gear-lights", "smoke-goliath",
+  "smoke-guards", "smoke-heal", "smoke-hitmenu", "smoke-hold", "smoke-lucky", "smoke-maneuvers",
+  "smoke-metamagic", "smoke-nogm", "smoke-reminders", "smoke-resources", "smoke-riders",
+  "smoke-saves", "smoke-shields", "smoke-spells", "smoke-surfaces", "smoke-twoclient"
 ]);
 
 /** A name that is a poll by what it is called. */
