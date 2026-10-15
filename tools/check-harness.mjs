@@ -39,7 +39,6 @@ const CEILING = {
   "smoke-class-fighter": 19,
   "smoke-class-items": 17,
   "smoke-class-monk": 15,
-  "smoke-class-paladin": 15,
   "smoke-class-rogue": 9,
   "smoke-class-warlock": 1,
   "smoke-damage-rules": 1,
@@ -51,7 +50,7 @@ const CEILING = {
 /** The suites still on their own helpers, not yet on the prelude. ⚠ Only shrinks. */
 const STANDING = new Set([
   "smoke-class-bard", "smoke-class-druid", "smoke-class-fighter", "smoke-class-items",
-  "smoke-class-monk", "smoke-class-paladin", "smoke-class-rogue"
+  "smoke-class-monk", "smoke-class-rogue"
 ]);
 
 /** A name that is a poll by what it is called. */
