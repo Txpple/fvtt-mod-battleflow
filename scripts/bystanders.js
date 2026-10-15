@@ -12,7 +12,7 @@ import { INTERRUPT_ROLLS, STORED_DICE } from "./decide/registry.js";
 import { bystanderMatters, dieMaxOf, dieOutcome, guardSign, neededOnDieLine, neutraliseOutcome, rerollOutcome, signFor } from "./decide/rescue-hit.js";
 import { bfCard, esc, holdBarHTML } from "./decide/present.js";
 import { activityNamed, featureNamed, bystanderRows, bystanderDie, d20FactsOf, rerollD20 } from "./lookup.js";
-import { nearestFeet, tokenForUuid } from "./geometry.js";
+import { nearestFeet, tokenOf } from "./geometry.js";
 import { poolOf, poolUsesOf, reactionSpent, spendReaction, spendPoolUses, bystanderMuted, muteBystander, muteScopesFor, spendStoredFace, storedChipOf, storedFacesUsable, withTargets, saveDemandOf, storedFacesOf } from "./shared.js";
 import { facesThatTurn, setOutcome } from "./decide/stored-dice.js";
 import { bendRise, foldRise } from "./decide/dice-chips.js";
@@ -39,7 +39,7 @@ const TEST_WORD = { save: "saving throw", check: "check" };
  *        card's statuses for a row's `against`, its ability for `abilities`, its spell mark for `spells`)
  */
 function bystandersFor(roller, roll, testKind, dc, demand = {}) {
-  const token = tokenForUuid(roller?.uuid);
+  const token = tokenOf(roller?.uuid);
   const rollerSide = token?.document?.disposition;
   const facts = d20FactsOf(roll);
   if ( !token || !roll || !Number.isFinite(facts.kept) ) return [];
@@ -136,7 +136,7 @@ async function stampBystanders(rollMessage, roller, testKind, { dc = null, resum
   if ( !guards.length ) return false;
   const window = decisionWindow();
   await rollMessage.setFlag(MODULE_ID, KEY, {
-    status: "pending", testKind, rollerUuid: roller.uuid, rollerName: tokenForUuid(roller.uuid)?.document?.name ?? roller.name,
+    status: "pending", testKind, rollerUuid: roller.uuid, rollerName: tokenOf(roller.uuid)?.document?.name ?? roller.name,
     baseTotal: Number(roll?.total), ...(Number.isFinite(Number(dc)) && (dc !== null) ? { dc: Number(dc) } : {}),
     ...(resume ? { resume } : {}),
     guards, answer: null, bent: null,
@@ -377,7 +377,7 @@ listen("updateChatMessage", "bystanders", message => {
     const verdict = Number.isFinite(flag.dc) ? ((Number(b.total) >= Number(flag.dc)) ? "SUCCESS" : "FAILURE") : null;
     const drawn = flashBend(message.id, { key: flag.rescue ?? "Portent", by: flag.byName ?? "The diviner", roller: flag.rollerName ?? "The roller",
       test: TEST_WORD[flag.testKind] ?? "roll", first: b.first, stood: b.stood, firstTotal: b.firstTotal, total: b.total, verdict });
-    if ( drawn && flag.rollerUuid ) riseDice(tokenForUuid(flag.rollerUuid), foldRise({ mode: "set", oldFace: b.first, newFace: b.stood, on: flag.rollerUuid })?.chips ?? []);
+    if ( drawn && flag.rollerUuid ) riseDice(tokenOf(flag.rollerUuid), foldRise({ mode: "set", oldFace: b.first, newFace: b.stood, on: flag.rollerUuid })?.chips ?? []);
   }
   if ( (flag.status !== "resolved") || !flag.resume || flag.resumed || !keepsMessage(message) ) return;
   if ( resuming.has(message.id) ) return;

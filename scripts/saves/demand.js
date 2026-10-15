@@ -10,7 +10,7 @@ import { saveDemandData, saveTargetEntry, putsToSleep } from "../decide/demand.j
 import { METAMAGIC_FLAG, metamagicRuleText, carefulKind } from "../decide/metamagic.js";
 import { AREA_CHOICE_FLAG, carefulProtects, heightenedMark, choiceCapFrom, choiceRuleFrom, chosenByDefault, choiceNeedsAsk } from "../decide/area-ask.js";
 import { askCandidates, newAsk, raiseAsk, areaAskOf } from "../area-ask.js";
-import { tokensInRegions } from "../geometry.js";
+import { tokensInRegions, tokenDocOf } from "../geometry.js";
 import { isDeadForSaves } from "../decide/eligible.js";
 import { EFFECT_BENDS, EMANATIONS, SAVE_PRESSES, tableIndex } from "../decide/registry.js";
 import { reachAdmits, affectsAdmits } from "../decide/emanations.js";
@@ -49,7 +49,7 @@ function channelDivinityUse(activity) {
 /** The caster's identity and side, as Careful's and Heightened's defaults read them. */
 function casterFactsOf(activity) {
   const caster = activity?.actor ?? null;
-  const tok = caster?.token ?? caster?.getActiveTokens?.(true, true)?.[0] ?? null;
+  const tok = tokenDocOf(caster);
   return { casterUuid: caster?.uuid ?? null, casterDisposition: tok?.disposition ?? (caster ? CONST.TOKEN_DISPOSITIONS.FRIENDLY : null) };
 }
 
@@ -99,7 +99,7 @@ export async function metamagicForDemand(card, activity, contained) {
 export async function areaChoiceForDemand(card, activity, contained) {
   if ( !Array.isArray(contained) || !chosenAreaListed(activity?.item) ) return { contained, hold: false };
   const facts = casterFactsOf(activity);
-  const casterTok = activity?.actor?.token ?? activity?.actor?.getActiveTokens?.(true, true)?.[0] ?? null;
+  const casterTok = tokenDocOf(activity?.actor);
   const pool = contained.filter(c => (c.uuid !== facts.casterUuid) && !(casterTok && (c.tokenId === casterTok.id))).filter(saveDemandable);
   const record = readFlag(card, AREA_CHOICE_FLAG);
   if ( Array.isArray(record?.chosen) ) {
@@ -327,7 +327,7 @@ export function emanationReach(activity, contained) {
   const affects = activity?.target?.affects?.type ?? null;
   if ( !row && (affects !== "enemy") && (affects !== "ally") ) return contained;
   const caster = activity.actor ?? null;
-  const casterTok = caster?.token ?? caster?.getActiveTokens?.(true, true)?.[0] ?? null;
+  const casterTok = tokenDocOf(caster);
   const casterDisposition = casterTok?.disposition ?? CONST.TOKEN_DISPOSITIONS.FRIENDLY;
   return contained.filter(c => (c.tokenId !== casterTok?.id) && (c.uuid !== caster?.uuid)
     && (!row || reachAdmits(row.reach, casterDisposition, c.disposition ?? CONST.TOKEN_DISPOSITIONS.NEUTRAL))

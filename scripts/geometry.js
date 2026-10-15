@@ -1,18 +1,80 @@
 /**
- * By the Books — EDGE layer (ARCHITECTURE.md §2): containment, token distance in FEET and measured
- * cover — the Foundry half; the arithmetic is decide/geometry.js and decide/cover.js.
+ * By the Books — EDGE layer (ARCHITECTURE.md §2): which token a subject stands as, containment, token
+ * distance in FEET and measured cover — the Foundry half; the arithmetic is decide/geometry.js and decide/cover.js.
  * ⚠ No hooks, no flags, no writes.
  */
 import { readFlag, TITLE, stampedSourceOf, resolveUuid } from "./core.js";
 import { measureCover } from "./decide/cover.js";
 import { lengthUnitKey, rectsOverlap, tokenSamplePoints } from "./decide/geometry.js";
 
-/** The roller's own token for this actor: a controlled one first, else the first on the canvas. */
-export function tokenOfActor(actor) {
-  if ( !actor ) return null;
-  const controlled = canvas.tokens?.controlled?.find(t => t.actor?.uuid === actor.uuid);
-  if ( controlled ) return controlled;
-  try { return actor.getActiveTokens?.(true, false)?.[0] ?? null; } catch { return null; }
+/* THE TOKEN (ARCHITECTURE §7 *The shared readers*): which token a subject stands as, by one rule, read here and
+ * nowhere else (tools/check-lookups.mjs). A subject is an actor; an actor's or a token's uuid; a token's id on the
+ * viewed scene; a token document; or a token on the canvas. */
+
+/** A string with a dot is a uuid; one without is a token's id on the viewed scene. */
+const isUuid = s => s.includes(".");
+
+/**
+ * The token document a subject stands as, or null. An actor: its own token when it is a token's synthetic actor;
+ * else its token this client controls; else its first token drawn on the viewed scene; else its first linked token
+ * there — dnd5e's own usage token (`Activity#getUsageToken`), a synthetic actor's own token ahead of it. A uuid
+ * answers for the document behind it, a token's id for that token on the viewed scene, a token on the canvas for
+ * its document; a token document is itself.
+ * @param {any} subject
+ * @returns {any}
+ */
+export function tokenDocOf(subject) {
+  if ( !subject ) return null;
+  if ( typeof subject === "string" ) {
+    return isUuid(subject) ? tokenDocOf(resolveUuid(subject)) : (canvas?.tokens?.get?.(subject)?.document ?? null);
+  }
+  if ( subject.documentName === "Token" ) return subject;
+  if ( subject.document?.documentName === "Token" ) return subject.document;
+  if ( subject.documentName !== "Actor" ) return null;
+  if ( subject.token ) return subject.token;
+  try {
+    const controlled = canvas?.tokens?.controlled?.find(t => t.actor?.uuid === subject.uuid);
+    if ( controlled ) return controlled.document;
+    return subject.getActiveTokens?.()?.[0]?.document ?? subject.getActiveTokens?.(true, true)?.[0] ?? null;
+  } catch { return null; }
+}
+
+/**
+ * The token on the canvas a subject stands as (tokenDocOf's rule), or null when it is not drawn; a token on the
+ * canvas is itself, a token's id the viewed scene's token of that id.
+ * @param {any} subject
+ * @returns {any}
+ */
+export function tokenOf(subject) {
+  if ( !subject ) return null;
+  if ( (typeof subject === "string") && !isUuid(subject) ) return canvas?.tokens?.get?.(subject) ?? null;
+  if ( subject.document?.documentName === "Token" ) return subject;
+  return tokenDocOf(subject)?.object ?? null;
+}
+
+/**
+ * The subject's token document on a named scene, or null: the scene's first token whose actor carries the
+ * subject's uuid (a token's synthetic actor stands on its own scene alone). No controlled-first: the same token on
+ * every client.
+ * @param {any} subject   an actor, or its uuid
+ * @param {any} scene
+ * @returns {any}
+ */
+export function tokenOnScene(subject, scene) {
+  const uuid = (typeof subject === "string") ? subject : (subject?.uuid ?? null);
+  if ( !uuid || !scene?.tokens ) return null;
+  return scene.tokens.find(t => t.actor?.uuid === uuid) ?? null;
+}
+
+/**
+ * Every token the actor stands as on the viewed scene, drawn: its linked tokens (a token's synthetic actor: its
+ * own). `all` adds a world actor's unlinked tokens; `documents` answers their documents, drawn or not. [] when none.
+ * @param {any} actor
+ * @param {{ all?: boolean, documents?: boolean }} [opts]
+ * @returns {any[]}
+ */
+export function tokensOf(actor, { all = false, documents = false } = {}) {
+  try { return actor?.getActiveTokens?.(!all, documents) ?? []; } catch { return []; }
 }
 
 /** Who could GUARD a token (Interception, Protection): its side, alive, not Incapacitated, within
@@ -54,11 +116,6 @@ export function creaturesWithin(origin, feet) {
     if ( (d !== null) && (d <= feet) ) out.push(other);
   }
   return out;
-}
-
-/** The canvas token whose actor (linked or synthetic) carries this uuid. */
-export function tokenForUuid(uuid) {
-  return canvas.tokens?.placeables?.find(t => t.actor?.uuid === uuid) ?? null;
 }
 
 /** Every occupied square's center, from the committed SOURCE. ⚠ While a token animates, the

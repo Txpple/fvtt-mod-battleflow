@@ -32,6 +32,7 @@ import { CONCENTRATION_ASKED } from "./shared.js";
 import { momentButton, registerResumable, pendingRow } from "./ui.js";
 import { SURFACES } from "./surfaces.js";
 import { listen, listenOnce } from "./dispatch.js";
+import { tokenDocOf, tokenOnScene, tokensOf } from "./geometry.js";
 
 const SUMMON_FLAG = "summon";
 /** The transform record a SUMMON_EMPOWERS cast stamps on its card instead of a summon record (transforms.js lands it). */
@@ -357,7 +358,7 @@ async function stampEmpower(activity, message, answer) {
     ui.notifications?.error(`${TITLE}: the ${lower(companionOf(erow?.companion ?? "")?.noun ?? "companion")} is no longer on the table — ${activity.item.name} could not empower it.`);
     return;
   }
-  const tok = actor.token ?? activity.getUsageToken?.() ?? actor.getActiveTokens?.(true, true)?.[0] ?? null;
+  const tok = tokenDocOf(actor);
   const record = transformRecord({
     key: erow.transform, sourceUuid: actor.uuid, sourceName: tok?.name ?? actor.name,
     itemUuid: activity.item.uuid, itemName: activity.item.name, itemType: activity.item.type, activityUuid: activity.uuid,
@@ -496,7 +497,7 @@ const sizesOf = activity => sizesInOrder([...(activity.creatureSizes ?? [])], Ob
 /** What the record and the menu share, read off the activity at a level. */
 async function castFacts(activity, level) {
   const actor = activity.actor;
-  const tok = actor.token ?? activity.getUsageToken?.() ?? actor.getActiveTokens?.(true, true)?.[0] ?? null;
+  const tok = tokenDocOf(actor);
   return {
     sourceUuid: actor.uuid, sourceName: tok?.name ?? actor.name,
     itemUuid: activity.item.uuid, itemName: activity.item.name, activityUuid: activity.uuid,
@@ -588,7 +589,7 @@ function dismissSingles(sourceUuid, itemName, keep) {
 function casterToken(flag) {
   const actor = resolveUuid(flag.sourceUuid);
   const scene = game.scenes.get(flag.sceneId) ?? canvas.scene;
-  return actor?.token ?? scene?.tokens?.find(t => t.actor?.uuid === flag.sourceUuid) ?? actor?.getActiveTokens?.(true, true)?.[0] ?? null;
+  return actor?.token ?? tokenOnScene(flag.sourceUuid, scene) ?? tokenDocOf(actor);
 }
 
 /** The count a profile's formula makes at this cast (a roll when it is dice), on the caster's roll data. */
@@ -1187,7 +1188,7 @@ async function showCompanionMenu(message, activity, cause = null) {
   const act = {
     away: () => askCompanion(message, { kind: "away" }),
     recall: async () => {
-      const origin = caster.getActiveTokens?.(false, true)?.find(t => t.parent?.id === canvas.scene?.id) ?? null;
+      const origin = tokensOf(caster, { all: true, documents: true })[0] ?? null;
       const [placement] = await pickSpots({ originToken: origin, actorUuid: flag.summonUuid, count: 1, rangeFt: row.recallFt ?? null,
         label: flag.companion.name || flag.summonName, seen: false, img: flag.companion.snapshot?.texture?.src ?? null });
       if ( placement ) await askCompanion(message, { kind: "recall", placement: { ...placement, sceneId: canvas.scene?.id ?? null } });
@@ -1437,7 +1438,7 @@ listen("updateChatMessage", "summons", message => {
       const on = e.kind === "appear";
       const text = `${on ? "+" : "−"}(${e.label ?? e.name})`;
       const owner = e.ownerUuid ? resolveUuid(e.ownerUuid) : null;
-      const tokens = (owner?.getActiveTokens?.(true) ?? []).filter(t => t.visible && !t.document?.isSecret);
+      const tokens = tokensOf(owner).filter(t => t.visible && !t.document?.isSecret);
       const at = tokens.length ? tokens.map(t => ({ point: t.center, h: t.h })) : [{ point: { x: e.x, y: e.y }, h: canvas.grid.size }];
       for ( const { point, h } of at ) canvas.interface.createScrollingText(point, text, {
         anchor: CONST.TEXT_ANCHOR_POINTS.CENTER,

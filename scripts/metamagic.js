@@ -8,7 +8,7 @@ import { MODULE_ID, readFlag, TITLE, publish, statContext, decisionWindow, owner
 import { cardActivity, featureNamed, lower, namesAnswering } from "./lookup.js";
 import { metamagicEntries, listedNames, chosenAreaListed } from "./decide/registry.js";
 import { poolOf, spendPoolUses, isPartyMember } from "./shared.js";
-import { feetOf, tokenOfActor, tokensInRegions } from "./geometry.js";
+import { feetOf, tokensInRegions, tokenOf } from "./geometry.js";
 import { bfCard, foldedRuleHTML, esc, pickInputHTML } from "./decide/present.js";
 import { METAMAGIC, TRANSMUTED_TYPES, TWINNED_EXCEPTIONS, tableIndex } from "./decide/registry.js";
 import { METAMAGIC_FLAG, metamagicMenu, metamagicPick, metamagicRuleText, metamagicCardLine, distantRange, scalesTargetsFrom, carefulKind } from "./decide/metamagic.js";
@@ -63,7 +63,7 @@ function poolFor(actor, item) {
 
 /** Who an option can name IN THE WINDOW: only the targeted; a cast targeting nobody is asked at the area. */
 function candidatesFor(actor) {
-  const casterTok = tokenOfActor(actor) ?? null;
+  const casterTok = tokenOf(actor) ?? null;
   const casterDisposition = casterTok?.document?.disposition ?? actor.prototypeToken?.disposition ?? CONST.TOKEN_DISPOSITIONS.FRIENDLY;
   const selected = [...(game.user?.targets ?? [])]
     .map(t => ({ uuid: t.actor?.uuid ?? null, name: t.document?.name ?? t.name, disposition: t.document?.disposition ?? null }))
@@ -444,7 +444,7 @@ async function carryDeferredCard(activity, held, templates) {
   const pool = held.pick.poolId ? actor?.items?.get(held.pick.poolId) : null;
   const record = pool ? await spendPoolUses(actor, pool, held.pick.feature, held.pick.cost ?? 1, POOL_NAME) : null;
   if ( !pool ) console.warn(`${TITLE} | ${held.pick.feature}: no Sorcery Points pool on ${actor?.name} — nothing spent.`);
-  const casterTok = tokenOfActor(actor) ?? null;
+  const casterTok = tokenOf(actor) ?? null;
   // A chosen area never asks its caster about themself.
   const spell = activity.item?.name ?? "the spell";
   const chooses = chosenAreaListed(activity.item);

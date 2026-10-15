@@ -8,7 +8,7 @@
 import { MODULE_ID, TITLE, isActiveGM, S, setting, resolveUuid } from "./core.js";
 import { allRows, drawnAlways, drawsOnToken, everyRow, marksHeldBy, panelGroups, rowAction } from "./decide/effect-view.js";
 import { EMANATIONS, RANGE_FEATS, answers, tableIndex } from "./decide/registry.js";
-import { measuredCoverBetween } from "./geometry.js";
+import { measuredCoverBetween, tokenDocOf } from "./geometry.js";
 import { emanationEntries, listedNames } from "./decide/registry.js";
 import { featureNamed, lower } from "./lookup.js";
 import { listen, listenOnce } from "./dispatch.js";
@@ -27,7 +27,7 @@ function clockLabel(effect) {
 /** A creature's side, as its token on the scene says it (else its prototype): 1 friendly, 0 neutral, −1 hostile. */
 function sideOf(actor) {
   if ( !actor ) return null;
-  const onScene = canvas.tokens?.placeables?.find(t => t.actor === actor)?.document;
+  const onScene = tokenDocOf(actor);
   const d = onScene?.disposition ?? actor.prototypeToken?.disposition;
   return Number.isFinite(d) ? d : null;
 }

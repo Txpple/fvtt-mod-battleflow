@@ -14,7 +14,7 @@ import { CLOCK_RIDERS, answers } from "./decide/registry.js";
 import { riderDue, riderPartFormula, riderUsesFrom, standingForm, targetsAnswer } from "./decide/clock.js";
 import { attackMessageForDamage } from "./auto-damage.js";
 import { applyDamagesWithReceipt, hasReceipt, receiptEntries } from "./auto-apply.js";
-import { creaturesWithin, feetOf, tokenForUuid, tokenOfActor } from "./geometry.js";
+import { creaturesWithin, feetOf, tokenOf } from "./geometry.js";
 import { SURFACES } from "./surfaces.js";
 import { listen } from "./dispatch.js";
 
@@ -497,7 +497,7 @@ async function settleRiderEffects(message) {
       // THE DMG — the weapon's own SAVE activity used at the hit creatures: the saves machine takes the usage card.
       if ( r.save ) {
         const save = feature?.system?.activities?.get?.(r.activityId) ?? null;
-        const tokens = hits.map(h => tokenForUuid(h.uuid)).filter(Boolean);
+        const tokens = hits.map(h => tokenOf(h.uuid)).filter(Boolean);
         // ⚠ `riderSave`: the save alone. An enchantment's legacy `system.damage.parts` change (Sword of Wounding's 2d6) lands on
         // EVERY activity of the weapon, the save's too — the hit already dealt it; the card never rolls it again.
         if ( save && tokens.length ) await withTargets(tokens, () => save.use({ consume: false }, { configure: false },
@@ -681,7 +681,7 @@ async function pickThen(message, key, option, attacker) {
     const feature = featureNamed(attacker, r.follow.feature);
     const act = feature ? activityNamed(feature, option.activity) : null;
     if ( !act ) { ui.notifications?.warn(`${TITLE}: ${r.follow.feature} — no "${option.activity}" on the sheet; use it by hand.`); return; }
-    const own = tokenOfActor(attacker);
+    const own = tokenOf(attacker);
     const feet = feetOf(Number(act.target?.template?.size), act.target?.template?.units || "ft");
     const targets = (own && option.radius && (feet > 0))
       ? creaturesWithin(own, feet).filter(t => (t.actor?.uuid !== attacker.uuid) && (t.document.disposition !== own.document.disposition))
@@ -728,7 +728,7 @@ function spellRidersFor(caster, damaged = [], sneakArmed = false) {
     if ( row.spread ) {
       const marked = row.marked ? damaged.find(t => wearsMarkOf(resolveUuid(t.uuid), caster, row.marked))
         : ((row.requires === "sneak") ? (sneakArmed ? damaged[0] : null) : damaged[0]);
-      const at = marked ? tokenForUuid(marked.uuid) : null;
+      const at = marked ? tokenOf(marked.uuid) : null;
       if ( !at ) continue;
       candidates = creaturesWithin(at, row.spread).filter(t => t.actor && (t.actor.uuid !== marked.uuid) && (t.actor.uuid !== caster.uuid))
         .map(t => ({ uuid: t.actor.uuid, name: t.document?.name ?? t.actor.name }));
@@ -806,7 +806,7 @@ listen("dnd5e.renderChatMessage", "clock-riders", (message, html) => {
       label.textContent = `${r.label} — ${r.offers.label}:`;
       row.appendChild(label);
       row.appendChild(momentButton("Use it", () => void (async () => {
-        const token = attacker.getActiveTokens?.()?.[0] ?? null;
+        const token = tokenOf(attacker);
         await withTargets(token ? [token] : [], () => act.use({}, { configure: false }, {}));
         if ( message.canUserModify?.(game.user, "update") ) {
           await queueFlagWrite(message, "clockRiders", current => {

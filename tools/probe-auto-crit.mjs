@@ -14,7 +14,7 @@ const out = await f.evaluate(async () => {
   const log = [];
   const { attackMessageForDamage } = await import("/modules/fvtt-mod-bythebooks/scripts/auto-damage.js");
   const { hitTargets } = await import("/modules/fvtt-mod-bythebooks/scripts/shared.js");
-  const { tokenOfActor, tokenForUuid, nearestFeet } = await import("/modules/fvtt-mod-bythebooks/scripts/geometry.js");
+  const { tokenOf, nearestFeet } = await import("/modules/fvtt-mod-bythebooks/scripts/geometry.js");
   const { autoCritSources } = await import("/modules/fvtt-mod-bythebooks/scripts/decide/reminders.js");
   const { CONDITION_BENDS } = await import("/modules/fvtt-mod-bythebooks/scripts/decide/registry.js");
 
@@ -39,12 +39,12 @@ const out = await f.evaluate(async () => {
       if ( attack ) {
         const hits = hitTargets(attack);
         const actor = attack.getAssociatedActor();
-        const attackerToken = tokenOfActor(actor);
+        const attackerToken = tokenOf(actor);
         rec.speaker = attack.speaker; rec.attackerActor = actor?.uuid ?? null; rec.attackerIsToken = actor?.isToken ?? null;
         rec.attackerToken = attackerToken?.id ?? null; rec.attackerDoc = attackerToken ? { x: attackerToken.document.x, y: attackerToken.document.y } : null;
         rec.targets = attack.system?.targets?.map(t => ({ actor: t.actor, token: t.token, ac: t.ac })) ?? null;
         rec.hits = hits.map(h => {
-          const token = tokenForUuid(h.uuid);
+          const token = tokenOf(h.uuid);
           const tActor = token?.actor;
           const distanceFeet = (attackerToken && token) ? nearestFeet(attackerToken, token) : null;
           return { uuid: h.uuid, token: token?.id ?? null, doc: token ? { x: token.document.x, y: token.document.y } : null,

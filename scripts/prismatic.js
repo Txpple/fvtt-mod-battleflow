@@ -14,7 +14,7 @@ import { raysFor, rayWords, raySummaryLines, rayVerdict } from "./decide/prismat
 import { saveDemandData, saveTargetEntry } from "./decide/demand.js";
 import { CARD, activityUuidOf, castLevelOn, isCard } from "./decide/card.js";
 import { bfCard, esc, ruleLine } from "./decide/present.js";
-import { tokensInRegions } from "./geometry.js";
+import { tokensInRegions, tokenDocOf } from "./geometry.js";
 import { isDeadForSaves } from "./decide/eligible.js";
 import { rollDamageForSave } from "./auto-damage.js";
 import { applyEffectsWithReceipt } from "./effect-riders.js";
@@ -93,7 +93,7 @@ async function spray(card, regions) {
     const row = castRowOf(activity);
     if ( !row ) return;
     const caster = activity.actor ?? null;
-    const casterTok = caster?.token ?? caster?.getActiveTokens?.(true, true)?.[0] ?? null;
+    const casterTok = tokenDocOf(caster);
     // A dead creature stays out; an unresolvable uuid stays in (never eat a demand on a lookup miss).
     const alive = c => { const a = resolveUuid(c.uuid); return !(a instanceof Actor) || !isDeadForSaves(a); };
     const inside = (tokensInRegions(regions) ?? []).filter(c => (c.uuid !== caster?.uuid) && (c.tokenId !== casterTok?.id)).filter(alive);

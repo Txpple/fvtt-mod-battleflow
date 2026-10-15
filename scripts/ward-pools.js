@@ -13,6 +13,7 @@ import { esc } from "./decide/present.js";
 import { driftChip } from "./dice-rise.js";
 import { SURFACES } from "./surfaces.js";
 import { listen } from "./dispatch.js";
+import { tokensOf } from "./geometry.js";
 
 const WARD = "bfWard";            // on the apply options, client-local — the receipt reads it
 const POOL_FLAG = "wardPool";     // B4 — on the warded creature's effect (Bastion of Law): { feature, left, max }
@@ -102,7 +103,7 @@ listen("updateActor", "ward-pools", (actor, changes) => {
     const key = `${actor.uuid}|${take.at}`;
     if ( popped.has(key) ) return;
     popped.add(key);
-    for ( const token of actor.getActiveTokens?.(true) ?? [] ) driftChip(token, token, `−${take.took} ${take.feature}`);
+    for ( const token of tokensOf(actor) ) driftChip(token, token, `−${take.took} ${take.feature}`);
   } catch(err) { console.warn(`${TITLE} | The ward's take could not draw.`, err); }
 });
 

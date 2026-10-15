@@ -11,6 +11,7 @@ import { MODULE_ID, LEGACY_ID, TITLE, publish, resolveUuid } from "./core.js";
 import { MOMENT_KINDS, MOMENT_RECORDS, MOMENT_WORDS, isMomentWord, momentId, newMoments, resolvedMoments } from "./decide/moments.js";
 import { hitTargets } from "./shared.js";
 import { listen, listenOnce } from "./dispatch.js";
+import { tokenOnScene } from "./geometry.js";
 
 /** The contract's version and vocabulary, for other modules. */
 export const MOMENT_CONTRACT = Object.freeze({
@@ -24,10 +25,10 @@ export const MOMENT_CONTRACT = Object.freeze({
 const uuidOf = x => (typeof x === "string") ? x : (x?.uuid ?? null);
 const idOf = x => (typeof x === "string") ? x : (x?.id ?? null);
 
-/** The actor's token on the active scene — the one the table sees, not the controlled-first one. */
+/** The actor's token on the viewed scene — the one the table sees, not the controlled-first one. */
 function tokenUuidOf(actor) {
   if ( !actor || (typeof actor === "string") ) return null;
-  try { return actor.getActiveTokens?.(true, true)?.[0]?.uuid ?? null; } catch { return null; }
+  return tokenOnScene(actor, globalThis.canvas?.scene)?.uuid ?? null;
 }
 
 function actorByUuid(uuid) {

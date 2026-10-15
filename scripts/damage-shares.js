@@ -10,7 +10,7 @@ import { effectSourceOf } from "./shared.js";
 import { DAMAGE_SHARES, answers, damageShareEntries, listedNames } from "./decide/registry.js";
 import { repeatRowFor, needsFloat } from "./decide/repeat-saves.js";
 import { shareVerdict, shareTitle, shareEnds } from "./decide/damage-shares.js";
-import { nearestFeet, tokenForUuid } from "./geometry.js";
+import { nearestFeet, tokenOf, tokensOf } from "./geometry.js";
 import { bfCard, esc, ruleLine } from "./decide/present.js";
 import { applyDamagesWithReceipt } from "./auto-apply.js";
 import { SURFACES } from "./surfaces.js";
@@ -36,9 +36,8 @@ function bondsOn(actor) {
 /** The shortest distance between ANY token of the bearer and ANY of the caster on the canvas (a linked actor
  * may stand twice); null when either has none, or the map is unreadable. */
 function nearestDistance(bearer, caster) {
-  const of = actor => (canvas?.tokens?.placeables ?? []).filter(t => t.actor?.uuid === actor.uuid);
-  const a = of(bearer), b = of(caster);
-  if ( !a.length || !b.length ) return (tokenForUuid(bearer.uuid) && tokenForUuid(caster.uuid)) ? null : null;
+  const a = tokensOf(bearer), b = tokensOf(caster);
+  if ( !a.length || !b.length ) return (tokenOf(bearer.uuid) && tokenOf(caster.uuid)) ? null : null;
   let best = null;
   for ( const x of a ) for ( const y of b ) {
     const d = nearestFeet(x, y);
@@ -110,7 +109,7 @@ async function endBond(card, bearer, effect, why) {
   const floats = needsFloat({ statuses: effect.statuses, changes: effect.changes ?? [] });
   await effect.delete();
   if ( floats ) {
-    for ( const token of bearer.getActiveTokens(true) ) {
+    for ( const token of tokensOf(bearer) ) {
       if ( !token.visible || token.document.isSecret || !canvas?.interface?.createScrollingText ) continue;
       canvas.interface.createScrollingText(token.center, `−(${effect.name})`, {
         anchor: CONST.TEXT_ANCHOR_POINTS.CENTER, direction: CONST.TEXT_ANCHOR_POINTS.BOTTOM,

@@ -13,11 +13,11 @@ import { chipData, placeOf, hitTargets, withTargets, turnPlace, attackHoldClaims
 import { bfCard, ruleLine, esc } from "./decide/present.js";
 import { USE_CHIPS, CARD_CHIPS, COATINGS, answers, tableIndex } from "./decide/registry.js";
 import { CHIP_FLAG, chipClock, cardChipRowKey, chipsLeft, coatSaveAbility, dosesLeft } from "./decide/chips.js";
-import { tokenForUuid } from "./geometry.js";
 import { attackMessageForDamage } from "./auto-damage.js";
 import { momentButton, openMomentPopup, postCard } from "./ui.js";
 import { SURFACES } from "./surfaces.js";
 import { listen } from "./dispatch.js";
+import { tokenOf, tokensOf } from "./geometry.js";
 
 /* USE CHIPS (USE_CHIPS): a utility activity with NO effect becomes, on use, a chip named as the
  * feature, which the effect table's row lets the gate read and the roll spend. On the using client;
@@ -380,7 +380,7 @@ const floatCoat = (effect, on) => {
   try {
     const actor = effect.parent;
     if ( !readFlag(effect, COAT_FLAG) || !(actor instanceof Actor) || !canvas?.interface?.createScrollingText ) return;
-    for ( const token of actor.getActiveTokens(true) ) {
+    for ( const token of tokensOf(actor) ) {
       if ( !token.visible || token.document.isSecret ) continue;
       canvas.interface.createScrollingText(token.center, `${on ? "+" : "−"}(${effect.name})`, {
         anchor: CONST.TEXT_ANCHOR_POINTS.CENTER,
@@ -459,7 +459,7 @@ async function spendCoat(message) {
     const chip = attacker.effects.get(f.chipId) ?? coatChipOf(attacker);
     if ( chip ) await chip.delete();
     if ( !act ) return;
-    const tokens = hits.map(t => tokenForUuid(t.uuid)).filter(Boolean);
+    const tokens = hits.map(t => tokenOf(t.uuid)).filter(Boolean);
     hitUses.add(act.uuid);
     let results;
     try { results = await withTargets(tokens, () => act.use({ consume: false }, { configure: false }, {})); }

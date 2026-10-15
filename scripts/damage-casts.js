@@ -7,7 +7,6 @@ import { MODULE_ID, readFlag, TITLE, S, setting, statContext } from "./core.js";
 import { lower, activityNamed, namesAnswering } from "./lookup.js";
 import { damageSaveEntries, emanationEntries, listedNames } from "./decide/registry.js";
 import { withTargets } from "./shared.js";
-import { tokenForUuid } from "./geometry.js";
 import { bfCard, ruleLine } from "./decide/present.js";
 import { DAMAGE_SAVES, EMANATIONS, MANEUVER_FEATURE_NAMES, answers, tableIndex } from "./decide/registry.js";
 import { pulseFormKey } from "./decide/emanations.js";
@@ -16,6 +15,7 @@ import { offerSaveDamageRoll, rollDamageForSave } from "./auto-damage.js";
 import { SURFACES } from "./surfaces.js";
 import { targetsInData, targetsOf } from "./decide/card.js";
 import { listen } from "./dispatch.js";
+import { tokenOf } from "./geometry.js";
 
 /* THE DICE: a bare damage activity aimed at targets is rolled at the use on the casting client,
  * chained to the usage card, where the `spellDamage` applier lands it (no roll dialog click).
@@ -84,7 +84,7 @@ async function driveDamageCast(activity, message, targets) {
   // The save, used at the same targets; the saves machine takes it from here. No slot: already cast.
   const save = activityNamed(activity.item, row.save);
   if ( !save ) { console.warn(`${TITLE} | ${row.key}: no activity named "${row.save}" on the sheet — ask for the save by hand.`); return; }
-  const tokens = targets.map(t => tokenForUuid(t.uuid)).filter(Boolean);
+  const tokens = targets.map(t => tokenOf(t.uuid)).filter(Boolean);
   if ( !tokens.length ) return;
   try {
     await withTargets(tokens, () => save.use({ consume: { spellSlot: false, resources: false, action: false }, subsequentActions: false }, { configure: false },

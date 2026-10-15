@@ -11,7 +11,7 @@ import { standingDuplicates, seesThrough } from "../decide/duplicates.js";
 import { bystanderMatters, d20ModeOf, dieMaxOf, liveRows, plainRule, rescueRows, signFor } from "../decide/rescue-hit.js";
 import { interruptEntries } from "../decide/registry.js";
 import { lower, activityNamed, cardActivity, reductionFor, holdsFor, itemsNamed, featureNamed, bystanderRows, bystanderDie, d20FactsOf, dealtTypesOf, wornNamed } from "../lookup.js";
-import { alliesWithin, nearestFeet, tokenForUuid } from "../geometry.js";
+import { alliesWithin, nearestFeet, tokenOf } from "../geometry.js";
 import { reactionSpent, poolOf, placeOf, chipData, effectSourceOf, bystanderMuted, grantingActor, storedChipOf, storedFacesUsable, storedFacesOf } from "../shared.js";
 import { facesThatTurn } from "../decide/stored-dice.js";
 import { chipClock } from "../decide/chips.js";
@@ -218,7 +218,7 @@ export function protectionGuardsOf(defender, attacker) {
     .map(e => Object.keys(INTERRUPT_ROLLS).find(k => lower(k) === lower(e.name)))
     .filter(k => k && INTERRUPT_ROLLS[k].ally);
   if ( !rows.length || !defender ) return [];
-  const guarded = tokenForUuid(defender.uuid);
+  const guarded = tokenOf(defender.uuid);
   if ( !guarded ) return [];
   const out = [];
   for ( const key of rows ) {
@@ -249,7 +249,7 @@ export function protectionGuardsOf(defender, attacker) {
 export function bystandersOf(defender, attacker, roll, ac, { on = "hit" } = {}) {
   const keys = bystanderRows("attack").filter(k => [on, "both"].includes(INTERRUPT_ROLLS[k].on ?? "hit"));
   if ( !keys.length || !defender || !attacker || !roll ) return [];
-  const guarded = tokenForUuid(defender.uuid), from = tokenForUuid(attacker.uuid);
+  const guarded = tokenOf(defender.uuid), from = tokenOf(attacker.uuid);
   const side = (on === "hit") ? guarded?.document?.disposition : from?.document?.disposition;
   const other = (on === "hit") ? from?.document?.disposition : guarded?.document?.disposition;
   if ( !guarded || !from || ((side !== 1) && (side !== -1)) ) return [];

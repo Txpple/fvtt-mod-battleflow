@@ -16,7 +16,7 @@ import { saveNoneOnSuccess } from "../decide/reminders.js";
 import { effectEntries, reminderEntries } from "../decide/registry.js";
 import { applyDamagesWithReceipt, receiptEntries } from "../auto-apply.js";
 import { applyEffectsWithReceipt } from "../effect-riders.js";
-import { nearestFeet, tokenOfActor } from "../geometry.js";
+import { nearestFeet, tokenOf } from "../geometry.js";
 
 import { gateSaveChoice, announceBashOutcome, announceWordOutcome, settleInterpose } from "./choices.js";
 import { cleanupSpentTemplates } from "./areas.js";
@@ -183,7 +183,7 @@ export function evasionApplies(actor, flag) {
   }
   // C1 — a `share` row (Leading Evasion): ANOTHER target of the same demand holds it within `share` feet of this one,
   // and is not Incapacitated; the verdict is shared for this save alone. The card names the sharer.
-  const own = tokenOfActor(actor);
+  const own = tokenOf(actor);
   if ( !own ) return null;
   for ( const [key, row] of Object.entries(EVASIONS) ) {
     if ( !row.share || (row.side === "caster") ) continue;
@@ -192,7 +192,7 @@ export function evasionApplies(actor, flag) {
       if ( t.uuid === actor.uuid ) continue;
       const other = resolveUuid(t.uuid);
       if ( !(other instanceof Actor) || other.statuses?.has?.("incapacitated") || !featureNamed(other, key) ) continue;
-      const tok = tokenOfActor(other);
+      const tok = tokenOf(other);
       const feet = tok ? nearestFeet(own, tok) : null;
       if ( (feet !== null) && (feet <= row.share) ) return `${key} (${other.name})`;
     }

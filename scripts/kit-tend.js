@@ -10,7 +10,7 @@ import { answers, kitTendEntries, listedNames } from "./decide/registry.js";
 import { KIT_TENDS } from "./decide/registry.js";
 import { bfCard, esc, holdBarHTML, foldedRuleHTML, tickRowsHTML } from "./decide/present.js";
 import { targetsOf } from "./decide/card.js";
-import { nearestFeet, tokenForUuid, tokenOfActor } from "./geometry.js";
+import { nearestFeet, tokenOf } from "./geometry.js";
 import { withTargets } from "./shared.js";
 import { openMomentPopup, armAskTimer, disarmAskTimer, subjectOwns, registerRelay, registerResumable, pendingRow, closePopup, postAnswer, picked, pickInputs } from "./ui.js";
 import { SURFACES } from "./surfaces.js";
@@ -71,8 +71,8 @@ listen("dnd5e.postUseActivity", "kit-tend", (activity, _usage, results) => {
     const targets = snap.length ? snap : [...(game.user?.targets ?? [])].map(t => ({ uuid: t.actor?.uuid ?? null })).filter(t => t.uuid);
     if ( targets.length !== 1 ) return;
     const target = resolveUuid(targets[0].uuid);
-    const token = tokenForUuid(targets[0].uuid);
-    const own = tokenOfActor(actor);
+    const token = tokenOf(targets[0].uuid);
+    const own = tokenOf(actor);
     if ( !(target instanceof Actor) || !token || !own ) return;
     const feet = (own === token) ? 0 : nearestFeet(own, token);
     if ( (feet === null) || (feet > found.row.reach) ) return;
@@ -136,7 +136,7 @@ async function landTend(message) {
     const target = resolveUuid(flag.targetUuid);
     const pool = (flag.pools ?? []).find(p => p.key === flag.pick);
     const activity = healActivityFor(actor?.items?.get(flag.featureId), pool?.faces);
-    const token = tokenForUuid(flag.targetUuid);
+    const token = tokenOf(flag.targetUuid);
     if ( !(target instanceof Actor) || !pool || !activity || !token ) return;
     // The die first — the rule's order; a client that may not write the creature says so, and rolls anyway.
     if ( canApplyTo(target) ) {

@@ -10,8 +10,8 @@ import { acChips } from "../decide/dice-chips.js";
 import { duplicateChips } from "../decide/duplicates.js";
 import { reactionACBonus } from "./lookup.js";
 import { riseDice } from "../dice-rise.js";
-import { tokenForUuid } from "../geometry.js";
 import { listen, listenOnce } from "../dispatch.js";
+import { tokenOf } from "../geometry.js";
 
 const played = new Set();
 const keyOf = (message, target, which = "bent") => `${message.id}|${target.uuid}|${which}`;
@@ -24,10 +24,10 @@ listenOnce("ready", "hold/dice", () => {
 });
 
 listen("updateChatMessage", "hold/dice", message => {
-  const roller = tokenForUuid(message.getAssociatedActor?.()?.uuid) ?? null;
+  const roller = tokenOf(message.getAssociatedActor?.()?.uuid) ?? null;
   for ( const target of bentTargets(message) ) {
     try {
-      const token = tokenForUuid(target.uuid);
+      const token = tokenOf(target.uuid);
       // A bent roll's d20s over the roller, or a cast AC reaction's bonus over the one hit, once.
       const key = keyOf(message, target);
       if ( (target.bent || isShield(target)) && !played.has(key) ) {

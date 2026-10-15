@@ -10,12 +10,12 @@ import { damagePartsOf, hitTargets, statSourceOf, withTargets, writeTurnChit, sa
 import { bfCard, cunningMenuHTML, ruleLine, esc } from "./decide/present.js";
 import { CUNNING_OPTIONS, DEATH_STRIKE } from "./decide/registry.js";
 import { cunningMenu, cunningPick, sneakFormula } from "./decide/sneak.js";
-import { tokenForUuid } from "./geometry.js";
 import { attackMessageForDamage } from "./auto-damage.js";
 import { applyDamagesWithReceipt } from "./auto-apply.js";
 import { applyEffectsWithReceipt } from "./effect-riders.js";
 import { SURFACES } from "./surfaces.js";
 import { listen } from "./dispatch.js";
+import { tokenOf } from "./geometry.js";
 
 /** The feature names the Cunning Strike menu answers to. */
 const CUNNING_FEATURES = [...Object.values(CUNNING_OPTIONS).flatMap(r => [r.feature, r.upgrade?.feature]), "Improved Cunning Strike"].filter(Boolean);
@@ -192,7 +192,7 @@ async function runCunningEffects(damageMessage, sd, activity) {
     const attacker = activity?.actor ?? attackMessage?.getAssociatedActor();
     if ( !attackMessage || !attacker ) return;
     const hits = hitTargets(attackMessage);
-    const tokens = hits.map(t => tokenForUuid(t.uuid)).filter(Boolean);
+    const tokens = hits.map(t => tokenOf(t.uuid)).filter(Boolean);
     const stamps = [];
     const useAt = async (item, activity, stamp) => {
       if ( !item || !activity ) return;

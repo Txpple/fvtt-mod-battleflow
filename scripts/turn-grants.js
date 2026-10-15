@@ -22,7 +22,7 @@ import { openMomentPopup, armAskTimer, disarmAskTimer, subjectOwns, registerRela
 import { SURFACES } from "./surfaces.js";
 import { CARD, isCard, targetsOf } from "./decide/card.js";
 import { extendedThisTurn } from "./decide/turn-grants.js";
-import { grappledBy, tokenForUuid } from "./geometry.js";
+import { grappledBy, tokenOf, tokenDocOf } from "./geometry.js";
 import { TURN_GRANTS, answers, turnGrantEntries, listedNames } from "./decide/registry.js";
 import { grantRowFor, grantDue, grantTitle, featureGrantRows, blockingTypes, damagedSince } from "./decide/turn-grants.js";
 import { riderPartFormula } from "./decide/clock.js";
@@ -78,11 +78,11 @@ async function remindExtend({ effect, row, item, actor, place, combat, round, tu
     const began = turnBegan.get(`${combat.id}|${round}|${turn}`);
     if ( !began ) return;
     const mine = game.messages.contents.filter(m => ((m.timestamp ?? 0) >= began) && (m.getAssociatedActor?.()?.uuid === actor.uuid));
-    const side = actor.getActiveTokens?.()?.[0]?.document?.disposition ?? 0;
+    const side = tokenDocOf(actor)?.disposition ?? 0;
     const cards = mine.map(m => {
       const activity = cardActivity(m);
       const kind = isCard(m, CARD.attack) ? "attack" : ((activity?.type === "save") && !isCard(m, CARD.damage)) ? "save" : null;
-      return kind ? { kind, sides: targetsOf(m).map(t => resolveUuid(t.uuid)?.getActiveTokens?.()?.[0]?.document?.disposition ?? 0) } : null;
+      return kind ? { kind, sides: targetsOf(m).map(t => tokenDocOf(t.uuid)?.disposition ?? 0) } : null;
     }).filter(Boolean);
     const verdict = extendedThisTurn({ cards, side });
     if ( verdict.extended ) return;
@@ -134,7 +134,7 @@ listen("updateCombat", "turn-grants", (combat, changes, options) => {
       const due = grantDue({ paid, place: settledAt(place) ? null : place });
       if ( !due.due ) continue;
       if ( row.deals === "grappled" ) {
-        const token = combat.combatant?.token?.object ?? tokenForUuid(actor.uuid);
+        const token = combat.combatant?.token?.object ?? tokenOf(actor.uuid);
         const held = grappledBy(actor, token).filter(c => c.certain);
         if ( !held.length ) continue;   // nothing held: nothing dealt, no card, the turn stays open
         paid.add(place);

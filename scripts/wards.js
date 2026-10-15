@@ -15,10 +15,10 @@ import { repeatRowFor, needsFloat } from "./decide/repeat-saves.js";
 import { wardGateFor, wardEnds, wardWords, wardVerdict } from "./decide/wards.js";
 import { saveDemandData, saveTargetEntry } from "./decide/demand.js";
 import { bfCard, esc, ruleLine } from "./decide/present.js";
-import { tokenForUuid } from "./geometry.js";
 import { SURFACES } from "./surfaces.js";
 import { listen } from "./dispatch.js";
 import { postCard } from "./ui.js";
+import { tokenOf, tokenDocOf, tokensOf } from "./geometry.js";
 
 const WARD_FLAG = "ward";
 /** A pass in hand: `attacker|ward|gate` → until; the next use of that shape goes through unasked. */
@@ -117,7 +117,7 @@ async function raiseWard({ row, effect, item, ward }, attacker, activity, gate, 
       return retrigger(activity, gate, configure);
     }
     const caster = item.actor ?? null;
-    const token = attacker.token ?? attacker.getActiveTokens?.(true, true)?.[0] ?? null;
+    const token = tokenDocOf(attacker);
     const window = decisionWindow();
     const words = wardWords({ spell: row.key, attacker: attacker.name, ward: ward.name, gate, what: activity.item?.name ?? null });
     const abilityLabel = CONFIG.DND5E.abilities[abilities[0]]?.label ?? abilities[0];
@@ -203,7 +203,7 @@ function floatAside(message) {
     const entry = saveEntryFor(message, w.attackerUuid);
     if ( !entry?.done || (entry.outcome === "saved") ) return;
     floated.add(message.id);
-    const token = tokenForUuid(w.wardUuid);
+    const token = tokenOf(w.wardUuid);
     if ( !token?.visible || !canvas?.interface?.createScrollingText ) return;
     canvas.interface.createScrollingText(token.center, "turned aside", {
       anchor: CONST.TEXT_ANCHOR_POINTS.CENTER, direction: CONST.TEXT_ANCHOR_POINTS.TOP,
@@ -263,7 +263,7 @@ async function endWards(actor, act, { ownItem = null } = {}) {
 function floatEnd(actor, name) {
   try {
     if ( !canvas?.interface?.createScrollingText ) return;
-    for ( const token of actor.getActiveTokens(true) ) {
+    for ( const token of tokensOf(actor) ) {
       if ( !token.visible || token.document.isSecret ) continue;
       canvas.interface.createScrollingText(token.center, `−(${name})`, {
         anchor: CONST.TEXT_ANCHOR_POINTS.CENTER, direction: CONST.TEXT_ANCHOR_POINTS.BOTTOM,

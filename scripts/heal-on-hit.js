@@ -8,7 +8,7 @@
 import { MODULE_ID, readFlag, TITLE, canApplyTo, whisperNoGM, queueFlagWrite } from "./core.js";
 import { activityNamed, activityOfType, cardActivity, featureNamed, lower, wearsEffectNamed } from "./lookup.js";
 import { damagePartsOf, turnChitStands, writeTurnChit } from "./shared.js";
-import { nearestFeet, tokenOfActor } from "./geometry.js";
+import { nearestFeet, tokenOf } from "./geometry.js";
 import { HEAL_BLOCKS, HEAL_ON_HIT, tableIndex, healOnHitEntries, listedNames } from "./decide/registry.js";
 import { healOnHitAmount, healOnHitTitle, killPays } from "./decide/heal-on-hit.js";
 import { riderPartFormula } from "./decide/clock.js";
@@ -232,7 +232,7 @@ listen("dnd5e.applyDamage", "heal-on-hit", (actor, _amount, _options) => {
 /** The `kill` rows' bearers on the scene this drop pays, each with its row, feature and why. */
 function killBearers(fallen, dealer) {
   const listed = listedNames(healOnHitEntries());
-  const fallenToken = tokenOfActor(fallen);
+  const fallenToken = tokenOf(fallen);
   const out = [];
   for ( const [key, row] of Object.entries(HEAL_ON_HIT) ) {
     if ( (row.on !== "kill") || !listed.has(lower(key)) ) continue;

@@ -17,7 +17,7 @@ import { HIT_GROUPS, HIT_OPTIONS, answers } from "./decide/registry.js";
 import { hitMenu, hitPick, optionReaches, picksOf, pluralOf, sweepVerdict } from "./decide/hit-menu.js";
 import { riderPartFormula } from "./decide/clock.js";
 import { effectRecord, joinEffectReceipt } from "./decide/receipt.js";
-import { nearestFeet, tokenForUuid, tokenOfActor } from "./geometry.js";
+import { nearestFeet, tokenOf } from "./geometry.js";
 import { attackMessageForDamage } from "./auto-damage.js";
 import { applyDamagesWithReceipt } from "./auto-apply.js";
 import { applyActivityEffectsOnHit, applyEffectsWithReceipt, messageActivity } from "./effect-riders.js";
@@ -424,7 +424,7 @@ async function runConsequences(damageMessage, record) {
     const attacker = attackMessage?.getAssociatedActor();
     if ( !attackMessage || !attacker ) return;
     const hits = hitTargets(attackMessage);
-    const tokens = hits.map(t => tokenForUuid(t.uuid)).filter(Boolean);
+    const tokens = hits.map(t => tokenOf(t.uuid)).filter(Boolean);
     const notes = [];
     for ( const pick of picksOf(record) ) {
       const hm = { ...pick, attackId: record.attackId, attackRoll: record.attackRoll ?? pick.attackRoll ?? null };
@@ -596,8 +596,8 @@ async function settleHitFollowups(card) {
 /* --- the sweep: a second creature, the die rolled apart, the original roll judged ------------ */
 
 async function postSweepCard(damageMessage, hm, attackMessage, attacker, hits, item) {
-  const target = hits[0] ? tokenForUuid(hits[0].uuid) : null;
-  const attackerToken = tokenOfActor(attacker);
+  const target = hits[0] ? tokenOf(hits[0].uuid) : null;
+  const attackerToken = tokenOf(attacker);
   // Within 5 feet of the original target AND within the weapon's reach, read off the sheet.
   const weapon = messageActivity(attackMessage)?.item ?? null;
   const reach = Number(weapon?.system?.range?.reach) || 5;
@@ -675,7 +675,7 @@ async function showSweepPopup(card) {
   // Hovering a creature's button pings its token and lights its hover state (public API only).
   for ( const b of (dialog?.element?.querySelectorAll('button[data-action^="pick-"]') ?? []) ) {
     const c = sc.candidates[Number(b.dataset.action.slice(5))];
-    const token = c?.tokenUuid ? canvas.tokens?.get(resolveUuid(c.tokenUuid)?.id ?? "") : null;
+    const token = tokenOf(c?.tokenUuid);
     if ( !token ) continue;
     b.addEventListener("mouseenter", () => {
       try {

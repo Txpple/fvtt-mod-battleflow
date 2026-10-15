@@ -10,13 +10,13 @@ import { castLevelOf, clampVolleyCount } from "./decide/eligible.js";
 import { popupKey, bfCard, esc, momentBarHTML, reminderDetailsHTML } from "./decide/present.js";
 import { REMINDER_FLAG, reminderRecord } from "./decide/reminders.js";
 import { livePopups, openManagedPopup, armDeadline, disarmDeadline, closePopup, frontPopup } from "./ui.js";
-import { tokenForUuid } from "./geometry.js";
 import { judgeRoll } from "./reminders.js";
 import { SURFACES } from "./surfaces.js";
 import { castLevelOn, originData, targetsInData, targetsOf } from "./decide/card.js";
 import { cardActivity } from "./lookup.js";
 import { listen } from "./dispatch.js";
 import { holdOf } from "./shared.js";
+import { tokenOf } from "./geometry.js";
 
 const volleyTimers = new Map();
 
@@ -105,7 +105,7 @@ function judgeRays(caster, activity, picks) {
   if ( !(caster instanceof Actor) ) return picks.map(() => null);
   const spent = new Set();
   return picks.map(uuid => {
-    const token = tokenForUuid(uuid);
+    const token = tokenOf(uuid);
     const j = judgeRoll(caster, { activity, targets: token ? [token] : [], spent, spendNote: " — spent by this ray" });
     for ( const id of (j?.spends ?? []) ) spent.add(id);
     return j;
@@ -305,14 +305,14 @@ async function fireVolley(message, assignment) {
 /** Aim the canvas at one actor uuid, run fn, restore the prior targets. */
 async function aimed(uuid, fn) {
   const prior = [...game.user.targets].map(t => t.id);
-  const token = canvas.tokens?.placeables?.find(t => t.actor?.uuid === uuid);
+  const token = tokenOf(uuid);
   try {
     game.user.targets.forEach(t => { t.setTarget(false, { releaseOthers: false }); });
     if ( token ) token.setTarget(true, { releaseOthers: true });
     await fn();
   } finally {
     game.user.targets.forEach(t => { t.setTarget(false, { releaseOthers: false }); });
-    for ( const id of prior ) canvas.tokens?.get(id)?.setTarget(true, { releaseOthers: false });
+    for ( const id of prior ) tokenOf(id)?.setTarget(true, { releaseOthers: false });
   }
 }
 
@@ -347,7 +347,7 @@ async function driveRays(message, activity, v) {
   for ( const [i, ray] of (v.assignment ?? []).entries() ) {
     let record = null;
     try {
-      const token = tokenForUuid(ray.uuid);
+      const token = tokenOf(ray.uuid);
       const j = (caster instanceof Actor)
         ? judgeRoll(caster, { activity, targets: token ? [token] : [], spent }) : null;
       for ( const id of (j?.spends ?? []) ) spent.add(id);

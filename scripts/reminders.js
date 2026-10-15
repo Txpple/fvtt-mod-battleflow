@@ -13,10 +13,10 @@ import { bfCard, reminderFieldsetHTML, ruleLine, sneakBoxHTML, TONE, esc } from 
 import { chipIsDead, chipOwnedBy, rollModeOf } from "./decide/chips.js";
 import { CHECK_BENDS, CONDITION_BENDS, CROSSBOWS, EFFECT_BENDS, EMANATIONS, MASTERY_RULES, RANGE_FEATS, RANGE_RULES, SAVE_BENDS, SNEAK_ATTACK, tableIndex } from "./decide/registry.js";
 import { askDefaults, circleBend, creatureTypeOf } from "./decide/emanations.js";
-import { tokensInRegions } from "./geometry.js";
+import { tokensInRegions, tokenOf } from "./geometry.js";
 import { parseDice, sneakConditionsHold, sneakWeaponQualifies } from "./decide/sneak.js";
 import { CARD, itemNameOf, originIdInData, rollKindInData } from "./decide/card.js";
-import { feetOf, measuredCoverBetween, nearestFeet, tokenForUuid, tokenOfActor, tokensOverlap } from "./geometry.js";
+import { feetOf, measuredCoverBetween, nearestFeet, tokensOverlap } from "./geometry.js";
 import { COVER_DEGREES, coverAtTheAttack } from "./decide/cover.js";
 import { SURFACES } from "./surfaces.js";
 import { REMINDER_FLAG, checkGate, checkSources, conditionSources, sightOf, demandBendSources, effectCheckSources, effectSaveSources, effectSources, modeSources, modeTitle, netMode, proneSources, rangeSources,
@@ -181,7 +181,7 @@ listen("dnd5e.preRollAttack", "reminders", (config, _dialog, message) => {
     const attacker = activity.item?.actor;
     const targets = message?.data?.system?.targets;
     if ( !(attacker instanceof Actor) || !Array.isArray(targets) || !targets.length ) return;
-    const from = tokenOfActor(attacker);
+    const from = tokenOf(attacker);
     const feat = reminderEntries().some(e => e.kind === "range") ? rangeFeatsOf(attacker, activity).cover : null;
     if ( !from && !feat ) return;
     const measured = [], ignored = [];
@@ -194,7 +194,7 @@ listen("dnd5e.preRollAttack", "reminders", (config, _dialog, message) => {
         continue;
       }
       let carried = coverOf(actor);
-      const token = from ? (resolveUuid(t.token)?.object ?? tokenForUuid(actor?.uuid)) : null;
+      const token = from ? (resolveUuid(t.token)?.object ?? tokenOf(actor?.uuid)) : null;
       const m = token ? measuredCoverBetween(from, token) : null;
       if ( m ) {
         const { raise, total } = coverAtTheAttack(carried, m.degree);
@@ -485,7 +485,7 @@ function allyNearTarget(attackerToken, targetToken) {
 /** The feet between a bearer's token and its effect's source's token, or null. */
 function sourceFeetOf(bearer, sourceUuid) {
   if ( !sourceUuid || (sourceUuid === bearer?.uuid) ) return null;
-  const from = tokenOfActor(bearer), to = tokenForUuid(sourceUuid);
+  const from = tokenOf(bearer), to = tokenOf(sourceUuid);
   return (from && to) ? nearestFeet(from, to) : null;
 }
 
@@ -503,7 +503,7 @@ function sourcesFor(attacker, enabled, { activity = null, attackMode = null, tar
   const live = e => !chipIsDead(e.duration ?? {}) && !chipSpentOnRecord(e) && !spent?.has(e.id);
   const conditions = enabled.has("condition") ? conditionEntries().map(e => e.kind) : [];
   const conditionFacts = { enabled: conditions, table: CONDITION_BENDS };
-  const attackerToken = tokenOfActor(attacker);
+  const attackerToken = tokenOf(attacker);
   const feats = enabled.has("range") ? rangeFeatsOf(attacker, activity) : { cancels: [], cover: null, reach: null };
   const range = enabled.has("range") ? reachedRange(rangeFactsFor(activity, attackMode, rangeFeet), feats.reach) : { ranged: false };
   const effectsOn = enabled.has("effect") ? effectEntries().map(e => e.kind) : [];
@@ -702,7 +702,7 @@ function sneakFactsFor(attacker, activity, attackMode, net, targets = []) {
   const used = turnChitStands(attacker, "sneak");
   // The ally clause holds only when measured true at every target.
   const aimed = [...(targets ?? [])].filter(t => t.actor && (t.actor.uuid !== attacker.uuid));
-  const attackerToken = tokenOfActor(attacker);
+  const attackerToken = tokenOf(attacker);
   const allyNear = aimed.length ? aimed.every(t => allyNearTarget(attackerToken, t) === true) : null;
   return {
     dice: `${dice.number}d${dice.faces}`, number: dice.number, faces: dice.faces, type, weaponName: item.name,

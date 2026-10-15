@@ -169,7 +169,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       await place(cleric, 2);    // 10 ft
       await place(bard, 3);      // 15 ft
       await place(fighter, 8);   // 40 ft
-      own?.control({ releaseOthers: true });   // tokenOfActor: the controlled token is the actor's
+      own?.control({ releaseOthers: true });   // tokenOf: the controlled token is the actor's
       const songCard = (t0, row = 'Musician') => game.messages.contents.filter(m => (m.timestamp >= t0) && (m.getFlag(MOD, 'restSong')?.row === row)).pop() ?? null;
       const songPopup = () => [...foundry.applications.instances.values()]
         .find(app => app.rendered && (app.element?.textContent ?? '').includes('Who gets Heroic Inspiration')) ?? null;

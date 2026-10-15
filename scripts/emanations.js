@@ -11,7 +11,7 @@ import { ruleHTML } from "./rule-text.js";
 import { emanationEntries, listedNames } from "./decide/registry.js";
 import { reactionSpent, turnChitStands, writeTurnChit, savesOf } from "./shared.js";
 import { riderPartFormula } from "./decide/clock.js";
-import { tokensInRegions } from "./geometry.js";
+import { tokensInRegions, tokenDocOf, tokenOnScene } from "./geometry.js";
 import { emanationShapeData } from "./decide/geometry.js";
 import { castLevelOn } from "./decide/card.js";
 import { bfCard, ruleLine, esc, pickInputHTML } from "./decide/present.js";
@@ -849,7 +849,7 @@ async function adoptRegion(region, { kind, key, tok, itemUuid, reach, scaling = 
     flags: { [MODULE_ID]: { [FLAG]: { kind, key, tokenId: tok?.id ?? null, itemUuid, initial } } }
   });
   // C1 — a `bearer` ring's SOURCE is another token (the druid's), the attachment the bearer's.
-  const sourceDoc = (source ?? tok)?.document ?? (source ?? tok) ?? null;   // a placeable has no uuid; its document does
+  const sourceDoc = tokenDocOf(source ?? tok);   // a placeable has no uuid; its document does
   await region.createEmbeddedDocuments("RegionBehavior", [{ type: TYPE, name: key, disabled,
     system: { key, source: sourceDoc?.uuid ?? null, item: itemUuid, reach, scaling, effect } }]);
   if ( tok && (region.attachment?.token?.id !== tok.id) ) await region.update({ attachment: { token: tok.id } });
@@ -910,7 +910,7 @@ function bearerSourceOf(tok, row) {
   const item = (origin instanceof Item) ? origin : (origin?.item instanceof Item) ? origin.item : null;
   const source = item?.actor ?? null;
   if ( !(source instanceof Actor) || (lower(item.name) !== lower(row.bearer.of)) || (source.uuid === tok.actor.uuid) ) return null;
-  const sourceTok = tok.parent?.tokens?.find(t => t.actor?.uuid === source.uuid) ?? null;
+  const sourceTok = tokenOnScene(source, tok.parent);
   return sourceTok ? { actor: source, sourceTok } : null;
 }
 
@@ -1046,7 +1046,7 @@ async function adoptSpellRegion(region) {
     // where it was placed and the caster drags it (the platform raises enter for whoever it then covers).
     const originTok = resolveUuid(region.getFlag("dnd5e", "origin"));
     const tok = (row.kind === "area") ? null : (originTok?.documentName === "Token") ? originTok
-      : actor?.token ?? region.parent.tokens.find(t => t.actor && ((t.actor === actor) || (t.actor.uuid === actor?.uuid))) ?? null;
+      : actor?.token ?? tokenOnScene(actor, region.parent);
     const rollData = actor?.getRollData?.() ?? {};
     const effect = row.effect ? (item.effects.find(e => lower(e.name) === lower(row.effect)) ?? null) : null;
     const resolved = effect ? resolveChanges(effect.changes.map(c => ({ key: c.key, mode: c.mode, value: c.value, priority: c.priority })), rollData) : { changes: [], unresolved: [] };
@@ -1057,7 +1057,7 @@ async function adoptSpellRegion(region) {
     const size = activitySizeOf(item, rollData);
     const drawn = region.shapes?.[0]?.radius;
     // The held spells' facets: the wall's burning band (away from the caster by default) and the ask's picks.
-    const choices = await adoptChoices(region, row, (originTok?.documentName === "Token") ? originTok : (actor?.token ?? actor?.getActiveTokens?.(true, true)?.[0] ?? null));
+    const choices = await adoptChoices(region, row, (originTok?.documentName === "Token") ? originTok : tokenDocOf(actor));
     await announce(row, actor, item, size ?? (Number.isFinite(drawn) ? drawn / pxPerUnit(region.parent) : null), effect ? { name: effect.name, changes: resolved.changes } : null, "is cast",
       { activity: activityOfType(item, "save"), regionId: region.id, sceneId: region.parent?.id ?? null, ...choices });
     await reconcileMembers(region);
@@ -1252,7 +1252,7 @@ listen("dnd5e.postUseActivity", "emanations", (activity, _usageConfig, results) 
 
 async function placeSelfArea(activity, row, message) {
   const actor = activity.actor;
-  const tok = actor.token ?? activity.getUsageToken?.() ?? actor.getActiveTokens?.(true, true)?.[0] ?? null;
+  const tok = tokenDocOf(actor);
   const scene = tok?.parent;
   if ( !tok || !scene ) return;
   const tpl = activity.target.template;

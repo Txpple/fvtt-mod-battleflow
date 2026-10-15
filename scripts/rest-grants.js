@@ -14,7 +14,7 @@ import { coatSaveAbility } from "./decide/chips.js";
 import { riderPartFormula } from "./decide/clock.js";
 import { holdsTemp, mealStanding, restEnds } from "./decide/rest-grants.js";
 import { SURFACES } from "./surfaces.js";
-import { nearestFeet, tokenOfActor } from "./geometry.js";
+import { nearestFeet, tokenOf } from "./geometry.js";
 import { effectSourceOf, isPartyMember } from "./shared.js";
 import { openMomentPopup, registerRelay, registerResumable, armAskTimer, disarmAskTimer, subjectOwns, pendingRow, closePopup, postCard, postAnswer, pickInputs, pickedAll, pickInputAt } from "./ui.js";
 import { listen, listenOnce } from "./dispatch.js";
@@ -302,7 +302,7 @@ export async function askHandOut(actor, { name, row, item, amount, roll = null, 
  * hand-out (`to: "ally"`) takes any creature on its side (a summon, an allied NPC).
  */
 function songCandidates(actor, row, flag, ownRest = null) {
-  const own = tokenOfActor(actor);
+  const own = tokenOf(actor);
   if ( !own ) return [];
   const seen = new Set(row.self ? [] : [actor.uuid]);
   const out = [];
@@ -674,7 +674,7 @@ function syncSongCap(box) {
 listenOnce("ready", "rest-grants", () => document.addEventListener("change", ev => {
   const input = pickInputAt(ev.target, "bf-rest-song");
   if ( !input ) return;
-  const tok = input.dataset.token ? canvas?.tokens?.get(input.dataset.token) : null;
+  const tok = tokenOf(input.dataset.token);
   if ( input.checked && tok ) { try { canvas.ping(tok.center); } catch { /* no canvas to ping */ } }
   syncSongCap(input.closest("[data-bf-rest-song]"));
 }));

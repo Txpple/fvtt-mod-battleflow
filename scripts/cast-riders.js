@@ -17,7 +17,7 @@ import { esc } from "./decide/present.js";
 import { poolOf, withTargets } from "./shared.js";
 import { askHandOut } from "./rest-grants.js";
 import { applyItemEffectOnHit } from "./effect-riders.js";
-import { tokenOfActor, tokensInRegions } from "./geometry.js";
+import { tokensInRegions, tokenOf } from "./geometry.js";
 import { momentButton, postCard } from "./ui.js";
 import { SURFACES } from "./surfaces.js";
 import { listen } from "./dispatch.js";
@@ -216,7 +216,7 @@ async function chooseTamed(message, text) {
 
 /** The tokens inside the caster's own `aura` rings (the module's feature regions keyed by the aura's name), the caster too. */
 function auraMembersOf(actor, auraKey) {
-  const tok = tokenOfActor(actor);
+  const tok = tokenOf(actor);
   const scene = tok?.scene ?? tok?.document?.parent ?? null;
   if ( !tok || !scene ) return [];
   const regions = scene.regions.filter(r => {
@@ -267,7 +267,7 @@ async function useOnSelf({ name, row, feature, actor }) {
   try {
     const activity = activityNamed(feature, row.use);
     if ( !activity ) { console.warn(`${TITLE} | ${name}: no "${row.use}" on the sheet — use it by hand.`); return; }
-    const token = tokenOfActor(actor);
+    const token = tokenOf(actor);
     await withTargets(token ? [token] : [], () => activity.use({}, { configure: false }, {}));
   } catch(err) {
     console.error(`${TITLE} | ${name} could not be used — use it from the sheet.`, err);

@@ -527,7 +527,7 @@ if (want('bystander')) {
         const L = await import(`/modules/${MOD}/scripts/lookup.js`);
         const G = await import(`/modules/${MOD}/scripts/geometry.js`);
         const shielder = game.actors.get(globalThis.__bf2c.shielderId);
-        const aTok = G.tokenForUuid(roller.uuid), sTok = G.tokenForUuid(shielder.uuid);
+        const aTok = G.tokenOf(roller.uuid), sTok = G.tokenOf(shielder.uuid);
         const rbItem = shielder.items.find(x => x.name === 'Restore Balance');
         const diag = { rows: L.bystanderRows('check'), aTok: aTok ? [aTok.document.x, aTok.document.y, aTok.document.disposition] : null,
           sTok: sTok ? [sTok.document.x, sTok.document.y, sTok.document.disposition] : null, feet: (aTok && sTok) ? G.nearestFeet(sTok, aTok) : null,

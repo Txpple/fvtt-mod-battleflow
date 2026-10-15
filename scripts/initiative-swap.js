@@ -13,6 +13,7 @@ import { dispositionStyle } from "./shared.js";
 import { openMomentPopup, armAskTimer, disarmAskTimer, subjectOwns, registerRelay, registerResumable, pendingRow, closePopup, postCard, postAnswer, picked, pickInputAt } from "./ui.js";
 import { SURFACES } from "./surfaces.js";
 import { listen, listenOnce } from "./dispatch.js";
+import { tokenOf } from "./geometry.js";
 
 const SWAP_FLAG = "initiativeSwap";
 /** The combat's own latch — which combatants were already asked (once per combat). */
@@ -201,7 +202,7 @@ async function showSwapPopup(message) {
   const lineup = flag.lineup ?? (flag.allies ?? []).map(a => ({ ...a, role: "ally" }));
   const rows = lineup.map((a, i) => {
     const pick = a.role === "ally";
-    const cue = dispositionStyle(a.tokenId ? canvas?.tokens?.get(a.tokenId) : null);
+    const cue = dispositionStyle(tokenOf(a.tokenId));
     const word = (a.role === "self") ? "(you)" : (a.role === "incapacitated") ? "Incapacitated" : cue.label;
     // One grid for every row (an empty radio slot where none), so portraits and numbers line up.
     const style = "display:grid;grid-template-columns:1.2rem 1.4rem 32px minmax(0,1fr) auto 2rem 2.8rem;gap:0.5rem;align-items:center;"
@@ -245,7 +246,7 @@ async function showSwapPopup(message) {
 listenOnce("ready", "initiative-swap", () => document.addEventListener("change", ev => {
   const input = pickInputAt(ev.target, "bf-initiative-swap");
   if ( !input ) return;
-  const tok = input.dataset.token ? canvas?.tokens?.get(input.dataset.token) : null;
+  const tok = tokenOf(input.dataset.token);
   if ( tok ) { try { canvas.ping(tok.center); } catch { /* no canvas to ping */ } }
   const list = input.closest("[data-bf-initiative-swap]");
   const self = list?.querySelector('[data-bf-initiative-row="self"]');

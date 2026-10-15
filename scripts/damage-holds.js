@@ -9,7 +9,7 @@
  */
 import { MODULE_ID, readFlag, TITLE, keepsMessage, queueFlagWrite, canAnswerFor, statContext, decisionWindow, resolveUuid } from "./core.js";
 import { lower, itemNamed, reductionFor, holdsFor, featureNamed, activityNamed, bystanderRows, bystanderDie } from "./lookup.js";
-import { alliesWithin, nearestFeet, tokenForUuid } from "./geometry.js";
+import { alliesWithin, nearestFeet, tokenOf } from "./geometry.js";
 import { interruptEntries } from "./decide/registry.js";
 import { INTERRUPT_MULTIPLIERS, INTERRUPT_REDUCTIONS, INTERRUPT_ROLLS } from "./decide/registry.js";
 import { dieMaxOf, reductionKeepsUp } from "./decide/rescue-hit.js";
@@ -75,7 +75,7 @@ function typedEffectFor(row, item, damages) {
  * `{ name, row, guards: [{ actorUuid, actorName, itemId, activityId, formula, passed }] }` or null.
  */
 function interceptorsFor(defender, attacker, { attackDamage = true } = {}) {
-  const guarded = tokenForUuid(defender?.uuid);
+  const guarded = tokenOf(defender?.uuid);
   if ( !guarded ) return null;
   for ( const entry of interruptEntries() ) {
     const key = Object.keys(INTERRUPT_REDUCTIONS).find(k => lower(k) === lower(entry.name));
@@ -114,7 +114,7 @@ function interceptorsFor(defender, attacker, { attackDamage = true } = {}) {
  * @returns {{name: string, row: any, guards: object[]}|null}
  */
 function cuttersFor(defender, attacker, amount) {
-  const guarded = tokenForUuid(defender?.uuid), from = tokenForUuid(attacker?.uuid);
+  const guarded = tokenOf(defender?.uuid), from = tokenOf(attacker?.uuid);
   if ( !guarded || !from || !(Number(amount) > 0) ) return null;
   const side = guarded.document?.disposition;
   if ( ((side !== 1) && (side !== -1)) || (from.document?.disposition === side) ) return null;

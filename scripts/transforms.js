@@ -25,6 +25,7 @@ import { isPartyMember } from "./shared.js";
 import { momentButton, registerRelay, registerResumable, acknowledgeMoment, momentAcknowledged, pendingRow, postCard, postAnswer } from "./ui.js";
 import { SURFACES } from "./surfaces.js";
 import { listen } from "./dispatch.js";
+import { tokenDocOf, tokensOf } from "./geometry.js";
 
 const TRANSFORM_FLAG = "transform";
 const FORM_SWAP_FLAG = "formSwap";
@@ -92,14 +93,10 @@ function capFromTarget(target) {
   return capOfTarget({ cr: actor?.system?.details?.cr ?? null, level: actor?.system?.details?.level ?? null });
 }
 
-/** The owner's token on the scene, for the card's name and the record's scene. */
-function tokenOf(actor, activity) {
-  return actor?.token ?? activity?.getUsageToken?.() ?? actor?.getActiveTokens?.(true, true)?.[0] ?? null;
-}
 
 async function stampRecord(activity, usageConfig, message, row) {
   const actor = activity.actor;
-  const tok = tokenOf(actor, activity);
+  const tok = tokenDocOf(actor);   // the owner's token, for the card's name and the record's scene
   const profileId = stashed.get(usageConfig) ?? null;
   const profile = activity.profiles.find(p => p._id === profileId) ?? activity.availableProfiles?.[0] ?? activity.profiles[0] ?? null;
   const self = row.self === true;
@@ -288,7 +285,7 @@ async function wearFormArt(landed, formName) {
   if ( !art.token && !art.portrait ) return;
   if ( art.portrait ) await landed.update({ img: art.portrait });
   if ( !art.token ) return;
-  const tokens = landed.isToken ? [landed.token].filter(Boolean) : landed.getActiveTokens(false, true);
+  const tokens = landed.isToken ? [landed.token].filter(Boolean) : tokensOf(landed, { all: true, documents: true });
   for ( const t of tokens ) await t.update({ "texture.src": art.token });
   if ( !landed.isToken ) await landed.update({ "prototypeToken.texture.src": art.token });
 }

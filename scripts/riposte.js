@@ -12,6 +12,7 @@ import { SURFACES } from "./surfaces.js";
 import { CARD, activityUuidOf, isCard, originData, originIdInData, targetsOf } from "./decide/card.js";
 import { openMomentPopup, scheduleBarSync, armAskTimer, disarmAskTimer, electOwns, registerRelay, pendingRow, closePopup, postCard, postAnswer } from "./ui.js";
 import { listen } from "./dispatch.js";
+import { tokenOf } from "./geometry.js";
 
 
 const riposteTimers = new Map();
@@ -169,7 +170,7 @@ async function resolveRiposte(message, uuid, weaponId, { trusted = false } = {})
     if ( riposteDriven(message.id, uuid) ) return;   // idempotent — the attack already exists
     const actor = await resolveUuidAsync(uuid);
     if ( !(actor instanceof Actor) ) return;
-    const attackerToken = canvas.tokens?.placeables?.find(t => t.actor?.uuid === flag.attackerUuid);
+    const attackerToken = tokenOf(flag.attackerUuid);
 
     // Aim first, so every card in the sequence says who it is aimed at.
     const priorTargets = [...game.user.targets].map(t => t.id);
@@ -214,7 +215,7 @@ async function resolveRiposte(message, uuid, weaponId, { trusted = false } = {})
     } finally {
       // Put the table back the way the reactor had it.
       game.user.targets.forEach(t => { t.setTarget(false, { releaseOthers: false }); });
-      for ( const id of priorTargets ) canvas.tokens?.get(id)?.setTarget(true, { releaseOthers: false });
+      for ( const id of priorTargets ) tokenOf(id)?.setTarget(true, { releaseOthers: false });
     }
   } catch(err) {
     console.error(`${TITLE} | Riposte resolution failed.`, err);

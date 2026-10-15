@@ -9,7 +9,7 @@ import { lower, itemNamed, activityNamed, activityOfType } from "./lookup.js";
 import { registerResumable, postCard } from "./ui.js";
 import { damageShieldEntries, listedNames } from "./decide/registry.js";
 import { damagePartsOf, effectSourceOf, hitTargets, resolveAttackMessage, turnChitStands, writeTurnChit, holdOf, attackHoldClaims, attackHoldReleased } from "./shared.js";
-import { nearestFeet, tokenForUuid, tokenOfActor } from "./geometry.js";
+import { nearestFeet, tokenOf } from "./geometry.js";
 import { bfCard, ruleLine, esc } from "./decide/present.js";
 import { DAMAGE_SHIELDS, answers, tableIndex } from "./decide/registry.js";
 import { durationSeconds, shieldDue, shieldEffectNames, shieldReach, shieldType } from "./decide/shields.js";
@@ -134,14 +134,14 @@ async function settle(damageMessage, attackMessage, { wasHeld = false } = {}) {
       catch(err) { console.warn(`${TITLE} | Could not stamp the shield judgement on the damage card.`, err); }
     }
     const hits = hitTargets(attackMessage);
-    const attackerToken = tokenOfActor(attacker);
+    const attackerToken = tokenOf(attacker);
     for ( const t of hits ) {
       const defender = resolveUuid(t.uuid);
       if ( !(defender instanceof Actor) || (defender.uuid === attacker.uuid) ) continue;
       if ( !drivesMomentFor(defender.uuid) ) continue;   // the elect for this ward's bearer
       const wards = shieldsOn(defender);
       if ( !wards.length ) continue;
-      const defenderToken = tokenForUuid(t.uuid);
+      const defenderToken = tokenOf(t.uuid);
       const distanceFeet = (attackerToken && defenderToken) ? nearestFeet(attackerToken, defenderToken) : null;
       // ⚠ Read BEFORE any await: Agathys strikes "while you have these Hit Points", and the attack's
       // own damage, applied on the same tick, may take the last of them.

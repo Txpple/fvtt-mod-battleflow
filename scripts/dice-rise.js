@@ -9,8 +9,7 @@
 import { readFlag, TITLE } from "./core.js";
 import { changedDice } from "./decide/dice-chips.js";
 import { listen } from "./dispatch.js";
-
-const tokenForUuid = uuid => canvas.tokens?.placeables?.find(t => t.actor?.uuid === uuid) ?? null;
+import { tokenOf } from "./geometry.js";
 
 /** Above the tokens, where core's own scrolling text sits. */
 function onTop(container) {
@@ -154,9 +153,9 @@ listen("createChatMessage", "dice-rise", message => {
   const rise = readFlag(message, "diceRise");
   if ( !rise?.on ) { platformChanged(message); return; }
   try {
-    const from = tokenForUuid(rise.on);
+    const from = tokenOf(rise.on);
     riseDice(from, rise.chips ?? []);
-    if ( rise.drift?.label ) setTimeout(() => driftChip(from, tokenForUuid(rise.drift.to ?? rise.on), rise.drift.label), 900);
+    if ( rise.drift?.label ) setTimeout(() => driftChip(from, tokenOf(rise.drift.to ?? rise.on), rise.drift.label), 900);
   } catch(err) {
     console.warn(`${TITLE} | the dice could not draw.`, err);
   }
@@ -170,8 +169,7 @@ function platformChanged(message) {
     const chips = changedDice(message.rolls.map(r => (typeof r?.toJSON === "function") ? r.toJSON() : r));
     if ( !chips.length ) return;
     const speaker = message.speaker ?? {};
-    const token = (speaker.token && canvas?.tokens?.get(speaker.token))
-      || canvas?.tokens?.placeables?.find(t => t.actor?.id === speaker.actor) || null;
+    const token = tokenOf(speaker.token) ?? tokenOf(game.actors?.get(speaker.actor ?? ""));
     riseDice(token, chips);
   } catch(err) {
     console.warn(`${TITLE} | the changed dice could not draw.`, err);

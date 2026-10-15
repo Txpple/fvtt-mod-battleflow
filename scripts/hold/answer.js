@@ -17,10 +17,10 @@ import { applyDamagesWithReceipt } from "../auto-apply.js";
 import { spendReaction, poolOf, spendSuperiorityDie, spendPoolUses, reactionSpent, muteBystander, withTargets, spendStoredFace } from "../shared.js";
 import { setOutcome } from "../decide/stored-dice.js";
 import { registerRelay, openMomentPopup, postAnswer } from "../ui.js";
-import { tokenForUuid } from "../geometry.js";
 import { originData } from "../decide/card.js";
 import { SPELL_ROW_TYPES, reactionItem, reactionItemFor, applyReactionEffect, reactionACArrived, reactionImg } from "./lookup.js";
 import { listen } from "../dispatch.js";
+import { tokenOf } from "../geometry.js";
 
 /**
  * ONE ANSWER AMONG SEVERAL ASKED (RULINGS *The fighting styles*): the first that ACTS settles it;
@@ -415,7 +415,7 @@ export async function bystanderReaction(attackMessage, target, guard, { face = n
  * weapon's range is the table's. Riposte's driven attack. */
 async function offerStrike(attackMessage, actor, key) {
   const attacker = attackMessage.getAssociatedActor?.() ?? null;
-  const token = attacker ? tokenForUuid(attacker.uuid) : null;
+  const token = attacker ? tokenOf(attacker.uuid) : null;
   const option = preferredMeleeOption(actor, meleeOptions(actor));
   if ( !attacker || !token || !option ) return;
   await openMomentPopup(attackMessage, `strike|${actor.uuid}`, actor, {
@@ -514,7 +514,7 @@ export async function castReaction(attackMessage, target) {
     await spendPoolUses(actor, ownItem, target.reaction).catch(err => console.warn(`${TITLE} | Could not spend a use of ${target.reaction}.`, err));
   }
   const attackerUuid = attackMessage.getAssociatedActor?.()?.uuid ?? null;
-  const aim = (multiplierRow?.at === "attacker") ? tokenForUuid(attackerUuid) : null;
+  const aim = (multiplierRow?.at === "attacker") ? tokenOf(attackerUuid) : null;
   const data = multiplierRow?.failDamage
     ? { data: { flags: { [MODULE_ID]: { failDamage: { ...multiplierRow.failDamage, attackId: attackMessage.id, takenBy: actor.uuid, by: multiplierKey } } } } }
     : {};
@@ -569,7 +569,7 @@ export async function useAtZero(damageMessage, actor, offer) {
   try {
     const item = reactionItem(actor, offer.row);
     const activity = item ? activityNamed(item, offer.activity) : null;
-    const token = tokenForUuid(offer.attackerUuid);
+    const token = tokenOf(offer.attackerUuid);
     if ( !activity || !token ) { ui.notifications?.warn(`${TITLE}: ${offer.row} — ${offer.activity} or the attacker is gone; use it from the sheet.`); return; }
     await withTargets([token], () => activity.use({ subsequentActions: false }, { configure: false }));
   } catch(err) {

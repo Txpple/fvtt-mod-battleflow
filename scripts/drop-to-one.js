@@ -15,7 +15,7 @@
 import { MODULE_ID, S, readFlag, TITLE, keepsMessage, queueFlagWrite, canAnswerFor, statContext, decisionWindow, isActiveGM, setting, resolveUuid } from "./core.js";
 import { featureNamed, lower, activityNamed, activityOfType, applicableProfiles, wearsEffectNamed } from "./lookup.js";
 import { poolOf } from "./shared.js";
-import { nearestFeet } from "./geometry.js";
+import { nearestFeet, tokenOf } from "./geometry.js";
 import { riderPartFormula } from "./decide/clock.js";
 import { applyDamagesWithReceipt } from "./auto-apply.js";
 import { applyActivityEffectsOnHit } from "./effect-riders.js";
@@ -26,7 +26,7 @@ import { saveDemandData, saveTargetEntry } from "./decide/demand.js";
 import { bfCard, esc, holdBarHTML, ruleLine } from "./decide/present.js";
 import { openMomentPopup, armAskTimer, disarmAskTimer, keeperOwns, registerRelay, registerResumable, pendingRow, closePopup, postCard, postAnswer } from "./ui.js";
 import { resolveAttackMessage } from "./shared.js";
-import { creaturesWithin, feetOf, tokenOfActor } from "./geometry.js";
+import { creaturesWithin, feetOf } from "./geometry.js";
 import { rollDamageForSave } from "./auto-damage.js";
 import { SURFACES } from "./surfaces.js";
 import { listen } from "./dispatch.js";
@@ -84,7 +84,7 @@ function wearsWhile(actor, name) {
 /** C1 — the keeper of an `ally` row: a creature within `ally` feet holding the feature, wearing its `while`, its activity's pool
  * with a use left: `{ item, keeper, activity, pool }` or null. */
 function allyKeeperOf(actor, name, row) {
-  const own = tokenOfActor(actor);
+  const own = tokenOf(actor);
   if ( !own ) return null;
   for ( const token of (canvas.tokens?.placeables ?? []) ) {
     const keeper = token.actor;
@@ -378,7 +378,7 @@ async function landedZero(actor, { source }) {
       const dc = activity?.save?.dc?.value;
       const abilities = [...(activity?.save?.ability ?? [])];
       if ( !activity || !(dc > 0) || !abilities.length ) { console.warn(`${TITLE} | ${found.name}: no save activity on ${actor.name}'s sheet — use it by hand.`); continue; }
-      const corpse = tokenOfActor(actor);
+      const corpse = tokenOf(actor);
       const feet = feetOf(Number(activity.target?.template?.size), activity.target?.template?.units || "ft");
       if ( !corpse || !(feet > 0) ) { console.warn(`${TITLE} | ${found.name}: ${actor.name} has no token in view, or its activity no Emanation — use it by hand.`); continue; }
       const victims = creaturesWithin(corpse, feet);
@@ -628,7 +628,7 @@ const offeredFor = new Set();
 /** The `deathSave` rows' keepers for this creature: `{ name, row, keeper, item, activity }[]`. */
 function deathSaveKeepersOf(actor) {
   const on = listedNames(dropToOneEntries());
-  const own = tokenOfActor(actor);
+  const own = tokenOf(actor);
   const out = [];
   for ( const [name, row] of Object.entries(DROP_TO_ONE) ) {
     if ( (row.on !== "deathSave") || !on.has(lower(name)) ) continue;
@@ -749,7 +749,7 @@ async function landOffer(message) {
       record.healed = heal;
     }
     // The burst: the activity's damage rolled once on the keeper, landed on every enemy of the creature within its Emanation.
-    const corpse = tokenOfActor(actor);
+    const corpse = tokenOf(actor);
     const feet = feetOf(Number(activity.target?.template?.size), activity.target?.template?.units || "ft");
     const victims = (corpse && (feet > 0)) ? creaturesWithin(corpse, feet).filter(t => t.actor && (t.actor.uuid !== actor.uuid)
       && (t.document.disposition !== corpse.document.disposition)) : [];

@@ -12,9 +12,9 @@
 import { MODULE_ID, TITLE } from "./core.js";
 import { activityNamed, featureNamed, lower, d20FactsOf } from "./lookup.js";
 import { withTargets } from "./shared.js";
-import { tokenOfActor } from "./geometry.js";
 import { MISHAPS, mishapEntries, listedNames } from "./decide/registry.js";
 import { listen } from "./dispatch.js";
+import { tokenOf } from "./geometry.js";
 
 const MISHAP_FLAG = "mishap";   // on the save's usage card — which roll raised it
 
@@ -61,7 +61,7 @@ for ( const [hook, kind] of D20_HOOKS ) {
 
 /** The feature's save, used at the bearer (the saves machine demands it); one card per row. */
 async function raise(actor, rows, { kind, total }) {
-  const token = tokenOfActor(actor);
+  const token = tokenOf(actor);
   for ( const { key, row, activity } of rows ) {
     try {
       const data = { data: { flags: { [MODULE_ID]: { [MISHAP_FLAG]: { row: key, actorUuid: actor.uuid, actorName: actor.name, face: 1, test: kind, total, at: Date.now() } } } } };

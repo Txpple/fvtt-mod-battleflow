@@ -8,7 +8,7 @@
 import { MODULE_ID, readFlag, TITLE, isActiveGM, queueFlagWrite, canAnswerFor, statContext, decisionWindow, resolveUuid } from "./core.js";
 import { activityNamed, featureNamed, lower } from "./lookup.js";
 import { poolOf, spendPoolUses } from "./shared.js";
-import { nearestFeet, tokenForUuid } from "./geometry.js";
+import { nearestFeet, tokenOf } from "./geometry.js";
 import { INITIATIVE_GRANTS, initiativeGrantEntries, listedNames } from "./decide/registry.js";
 import { initiativeGrantDue, initiativeGrantLine } from "./decide/initiative-grants.js";
 import { riderPartFormula } from "./decide/clock.js";
@@ -302,11 +302,11 @@ async function giveToAllies(flag, actor, item) {
   const n = Math.max(0, Number(roll.total) || 0);
   await roll.toMessage({ speaker: ChatMessage.getSpeaker({ actor }), flavor: `${flag.row} — the die for allies within ${flag.reach ?? 30} ft` });
   await spendPoolUses(actor, pool, flag.row, 1, (pool === item) ? null : pool.name);
-  const own = combat.combatants.get(flag.combatantId)?.token?.object ?? tokenForUuid(actor.uuid);
+  const own = combat.combatants.get(flag.combatantId)?.token?.object ?? tokenOf(actor.uuid);
   const side = own?.document?.disposition;
   const given = [], due = [];
   for ( const c of combat.combatants ) {
-    const token = c.token?.object ?? (c.actor ? tokenForUuid(c.actor.uuid) : null);
+    const token = c.token?.object ?? (c.actor ? tokenOf(c.actor.uuid) : null);
     if ( !token || !c.actor || (token.document?.disposition !== side) ) continue;
     const feet = (c.actor.uuid === actor.uuid) ? 0 : nearestFeet(own, token);
     if ( (feet === null) || (feet > (flag.reach ?? 30)) ) continue;

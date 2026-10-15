@@ -12,7 +12,7 @@ import { rebukeReach, rebukeBlocked, rebukeCost, rebukeLine, rebukeTypesAdmit } 
 import { poolOf, reactionSpent, resolveAttackMessage, spendReaction, withTargets, hitTargets, grantingActor } from "./shared.js";
 import { CARD, isCard, targetsOf } from "./decide/card.js";
 import { isActiveGM } from "./core.js";
-import { feetOf, nearestFeet, tokenForUuid } from "./geometry.js";
+import { feetOf, nearestFeet, tokenOf } from "./geometry.js";
 import { bfCard, esc, holdBarHTML, ruleLine } from "./decide/present.js";
 import { openMomentPopup, momentButton, armAskTimer, disarmAskTimer, keeperOwns, registerRelay, pendingRow, closePopup, postCard, postAnswer } from "./ui.js";
 import { SURFACES } from "./surfaces.js";
@@ -47,8 +47,8 @@ function reactionActivity(item, row) {
  * bystander to the hit); `attackHit`: the damage came from an attack. */
 function offersFor(actor, source, { ward = false, attackHit = false, hitMelee = false, miss = false, missMelee = true, onAttack = false, damageTypes = [], becameBloodied = false, watch = false } = {}) {
   const listed = listedNames(rebukeEntries());
-  const bearer = tokenForUuid(actor.uuid);
-  const damager = tokenForUuid(source.uuid);
+  const bearer = tokenOf(actor.uuid);
+  const damager = tokenOf(source.uuid);
   const distance = (bearer && damager) ? nearestFeet(bearer, damager) : null;
   const out = [];
   for ( const [name, row] of Object.entries(REBUKES) ) {
@@ -152,7 +152,7 @@ function attackActivityOf(origin) {
 async function stampWatchers(hurt, dealer, amount, origin) {
   const listed = listedNames(rebukeEntries());
   if ( !Object.entries(REBUKES).some(([name, row]) => (row.judge === "enemyBloodied") && listed.has(lower(name))) ) return;
-  const hurtToken = tokenForUuid(hurt.uuid);
+  const hurtToken = tokenOf(hurt.uuid);
   if ( !hurtToken ) return;
   const seen = new Set();
   for ( const t of canvas.tokens?.placeables ?? [] ) {
@@ -329,7 +329,7 @@ async function driveRebuke(message, option) {
   try {
     const flag = readFlag(message, REBUKE_FLAG);
     const actor = resolveUuid(flag?.actorUuid);
-    const damager = tokenForUuid(flag?.sourceUuid);
+    const damager = tokenOf(flag?.sourceUuid);
     if ( !(actor instanceof Actor) || !damager ) return;
     const item = actor.items.get(option.itemId);
     await withTargets([damager], async () => {

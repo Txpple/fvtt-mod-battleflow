@@ -8,7 +8,7 @@
  */
 import { MODULE_ID, readFlag, TITLE, statContext, resolveUuid } from "./core.js";
 import { itemsNamed, standingCompanion } from "./lookup.js";
-import { nearestFeet, tokenOfActor } from "./geometry.js";
+import { nearestFeet, tokenOf } from "./geometry.js";
 import { reminderEntries } from "./decide/registry.js";
 import { DialogCarried, markDefaultButton, pickInputs } from "./ui.js";
 import { bfCard, buyBoxHTML, forgoBoxHTML, modeTagHTML, reminderFieldsetHTML } from "./decide/present.js";
@@ -45,8 +45,8 @@ function companionFacts(actor, near) {
   if ( !companion ) return null;
   const doc = companion.token;
   const sameScene = !!doc && (doc.parent?.id === canvas.scene?.id);
-  const mine = tokenOfActor(actor);
-  const theirs = sameScene ? (canvas.tokens?.get(doc.id) ?? null) : null;
+  const mine = tokenOf(actor);
+  const theirs = sameScene ? tokenOf(doc) : null;
   const distanceFt = (mine && theirs) ? nearestFeet(mine, theirs) : null;
   return { state: companion.state, sameScene, distanceFt, name: companion.name };
 }

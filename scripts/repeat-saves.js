@@ -18,6 +18,7 @@ import { rollDamageForSave } from "./auto-damage.js";
 import { revertEffect } from "./effect-riders.js";
 import { SURFACES } from "./surfaces.js";
 import { listen } from "./dispatch.js";
+import { tokenDocOf, tokensOf } from "./geometry.js";
 
 const REPEAT_FLAG = "repeatSave";
 const OFFER_FLAG = "repeatOffer";
@@ -111,7 +112,7 @@ async function endOutright(effect, row, cause) {
     const actor = effect.parent;
     if ( !(actor instanceof Actor) || !canApplyTo(actor) ) return;
     const lifted = repeatLift(row, readFlag(effect, COUNT_FLAG) ?? null);
-    const token = actor.token ?? actor.getActiveTokens?.(true, true)?.[0] ?? null;
+    const token = tokenDocOf(actor);
     const says = repeatEndWords({ effectName: effect.name, bearer: token?.name ?? actor.name, cause, spell: row.key, lifted });
     await endEffect({ castCard: effect.system?.origin?.message ?? null }, actor, effect);
     const item = row.item;
@@ -137,7 +138,7 @@ async function raiseRepeat(effect, row, cause, why) {
     const dc = activity?.save?.dc?.value;
     const abilities = [...(activity?.save?.ability ?? [])];
     if ( !(actor instanceof Actor) || !activity || !(dc > 0) || !abilities.length ) return;
-    const token = actor.token ?? actor.getActiveTokens?.(true, true)?.[0] ?? null;
+    const token = tokenDocOf(actor);
     const caster = item.actor ?? null;
     const onSave = row.onSave ?? activity.damage?.onSave ?? "half";
     const hasDamage = !!activity.damage?.parts?.length && (onSave !== "full");
@@ -291,7 +292,7 @@ listen("deleteActiveEffect", "repeat-saves", effect => {
     if ( !needsFloat({ statuses: effect.statuses, changes: effect.system?.changes ?? effect.changes ?? [] }) ) return;
     if ( !rowOf(effect, { lockedToo: true }) ) return;
     // The platform's own float (ActiveEffect#_displayScrollingStatus), for the effect it skips.
-    for ( const token of actor.getActiveTokens(true) ) {
+    for ( const token of tokensOf(actor) ) {
       if ( !token.visible || token.document.isSecret ) continue;
       canvas.interface.createScrollingText(token.center, `−(${effect.name})`, {
         anchor: CONST.TEXT_ANCHOR_POINTS.CENTER, direction: CONST.TEXT_ANCHOR_POINTS.BOTTOM,

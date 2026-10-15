@@ -8,7 +8,6 @@
 import { MODULE_ID, readFlag, TITLE, publish, statContext, queueFlagWrite, canAnswerFor, decisionWindow, resolveUuid } from "./core.js";
 import { itemNamed } from "./lookup.js";
 import { isPartyMember } from "./shared.js";
-import { tokenForUuid } from "./geometry.js";
 import { bfCard, esc, holdBarHTML, ruleLine, pickInputHTML } from "./decide/present.js";
 import { AREA_ASK_FLAG, AREA_CHOICE_FLAG, askDefaults, askMark, askOutcome, askTicks, askWords } from "./decide/area-ask.js";
 import { saveTargetEntry } from "./decide/demand.js";
@@ -17,6 +16,7 @@ import { openMomentPopup, armAskTimer, disarmAskTimer, electOwns, pendingRow, cl
 import { releaseHold } from "./holds.js";
 import { SURFACES } from "./surfaces.js";
 import { listen, listenOnce } from "./dispatch.js";
+import { tokenOf, tokenDocOf } from "./geometry.js";
 
 // Raising an ask: what the customers call.
 
@@ -26,17 +26,17 @@ export function areaAskOf(card) {
 }
 
 /** The token document behind a demand row — its own id, the snapshot's token uuid, or the actor's token on the canvas. */
-function tokenDocOf(c) {
-  if ( c?.tokenId ) return canvas?.tokens?.get(c.tokenId)?.document ?? null;
+function rowTokenDoc(c) {
+  if ( c?.tokenId ) return tokenDocOf(c.tokenId);
   const viaUuid = c?.token ? resolveUuid(c.token) : null;
   if ( viaUuid instanceof TokenDocument ) return viaUuid;
-  return tokenForUuid(c?.uuid)?.document ?? null;
+  return tokenOf(c?.uuid)?.document ?? null;
 }
 
 /** The ask's rows, disposition and token filled from the canvas (a targeted cast's snapshot has neither). */
 export function askCandidates(contained) {
   return (contained ?? []).map(c => {
-    const tok = tokenDocOf(c);
+    const tok = rowTokenDoc(c);
     return { uuid: c.uuid, name: c.name, disposition: c.disposition ?? tok?.disposition ?? null, tokenId: c.tokenId ?? tok?.id ?? null, party: isPartyMember(c.uuid) };
   });
 }
@@ -138,7 +138,7 @@ listenOnce("ready", "area-ask", () => document.addEventListener("change", ev => 
   const any = pickInputAt(ev.target, "bf-metamagic-ask");
   if ( !any ) return;
   if ( any.checked && any.dataset.token ) {
-    const tok = canvas.tokens?.get(any.dataset.token);
+    const tok = tokenOf(any.dataset.token);
     if ( tok ) { try { canvas.ping(tok.center); } catch { /* no canvas to ping */ } }
   }
   if ( any.type !== "checkbox" ) return;

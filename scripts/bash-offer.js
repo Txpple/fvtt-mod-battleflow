@@ -7,7 +7,7 @@ import { foldEntryFor, itemNamed, dealtTypesOf } from "./lookup.js";
 import { maneuverFoldEntries } from "./decide/registry.js";
 import { RULE_TEXT, SHOVES, tableIndex } from "./decide/registry.js";
 import { hitOfferStep, withinBashReach, sizeAllows } from "./decide/sequence.js";
-import { nearestFeet, tokenForUuid, tokenOfActor } from "./geometry.js";
+import { nearestFeet, tokenOf } from "./geometry.js";
 import { hitTargets, resolveAttackMessage, masteryMomentOf } from "./shared.js";
 import { bfCard, holdBarHTML, ruleLine, esc } from "./decide/present.js";
 import { SURFACES } from "./surfaces.js";
@@ -85,7 +85,7 @@ listen("dnd5e.rollAttack", "bash-offer", async (rolls, { subject }) => {
     const sizes = Object.keys(CONFIG.DND5E?.actorSizes ?? {});
     const hits = hitTargets(message);
     if ( !hits.length ) return;
-    const attackerToken = tokenOfActor(attacker);
+    const attackerToken = tokenOf(attacker);
     const living = [];
     for ( const t of hits ) {
       const a = await resolveUuidAsync(t.uuid);
@@ -93,7 +93,7 @@ listen("dnd5e.rollAttack", "bash-offer", async (rolls, { subject }) => {
       if ( a.statuses?.has?.("dead") ) continue;
       if ( (a.type === "npc") && ((a.system.attributes?.hp?.value ?? 0) <= 0) ) continue;
       // "a creature within 5 feet of you", measured at the hit: a reach or thrown hit carries no bash.
-      const token = tokenForUuid(t.uuid);
+      const token = tokenOf(t.uuid);
       if ( (!row || row.reach) && !withinBashReach((attackerToken && token) ? nearestFeet(attackerToken, token) : null) ) continue;
       // Crusher's "no more than one size larger than you"
       if ( row && !sizeAllows(sizes, attacker.system?.traits?.size ?? null, a.system?.traits?.size ?? null, row.larger) ) continue;
@@ -211,7 +211,7 @@ async function resolveBashOffer(message) {
       ?? item?.system.activities?.contents?.find(a => a.id === flag.activityId);
     if ( !(attacker instanceof Actor) || !activity ) return;
     const targetUuid = flag.targetUuid ?? flag.targets?.[0]?.uuid ?? null;
-    const token = canvas.tokens?.placeables?.find(t => t.actor?.uuid === targetUuid);
+    const token = tokenOf(targetUuid);
     const priorTargets = [...game.user.targets].map(t => t.id);
     if ( token ) {
       game.user.targets.forEach(t => { t.setTarget(false, { releaseOthers: false }); });
@@ -227,7 +227,7 @@ async function resolveBashOffer(message) {
       }
     } finally {
       game.user.targets.forEach(t => { t.setTarget(false, { releaseOthers: false }); });
-      for ( const id of priorTargets ) canvas.tokens?.get(id)?.setTarget(true, { releaseOthers: false });
+      for ( const id of priorTargets ) tokenOf(id)?.setTarget(true, { releaseOthers: false });
     }
   } catch(err) {
     console.error(`${TITLE} | Bash offer resolution failed.`, err);

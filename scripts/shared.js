@@ -10,6 +10,7 @@ import { storedChipName, withoutFace } from "./decide/stored-dice.js";
 import { CARD, describeTarget, isCard, targetsOf } from "./decide/card.js";
 import { esc } from "./decide/present.js";
 import { METAMAGIC_FLAG } from "./decide/metamagic.js";
+import { tokenDocOf } from "./geometry.js";
 
 
 /** The attack's snapshot targets the roll hit; a null AC (total cover) MISSES, as dnd5e 6 judges it. */
@@ -602,7 +603,7 @@ export function poolSpendsOn(message) {
  * @param {Actor|null} actor
  */
 export function targetDescriptorOf(token, actor) {
-  const doc = token?.document ?? token ?? null;
+  const doc = tokenDocOf(token);
   const subject = doc?.actor ?? actor;
   if ( !subject?.uuid ) return null;
   return describeTarget({ actorUuid: subject.uuid, tokenUuid: doc?.uuid ?? null,

@@ -16,7 +16,7 @@ import { SURFACES } from "./surfaces.js";
 import { riseDice, driftChip } from "./dice-rise.js";
 import { withTargets, resolveAttackMessage, turnChitStands, writeTurnChit } from "./shared.js";
 import { attackMessageForDamage } from "./auto-damage.js";
-import { grappledBy, tokenForUuid } from "./geometry.js";
+import { grappledBy, tokenOf, tokensOf } from "./geometry.js";
 import { openMomentPopup, momentButton, armAskTimer, disarmAskTimer, keeperOwns, registerRelay, pendingRow, closePopup, postCard, postAnswer, picked } from "./ui.js";
 import { listen, listenOnce } from "./dispatch.js";
 
@@ -368,7 +368,7 @@ listen("updateActiveEffect", "damage-rules", (effect, changes) => {
     const actor = effect.parent;
     if ( !faceOf(effect) || !(actor instanceof Actor) || !("disabled" in changes) || !canvas?.interface?.createScrollingText ) return;
     const enabled = !effect.disabled;
-    for ( const token of actor.getActiveTokens(true) ) {
+    for ( const token of tokensOf(actor) ) {
       if ( !token.visible || token.document.isSecret ) continue;
       const title = faceOf(effect).feat ? effect.name : `Fighting Style: ${effect.name}`;
       canvas.interface.createScrollingText(token.center, `${enabled ? "+" : "−"}(${title})`, {
@@ -481,7 +481,7 @@ listen("updateActor", "damage-rules", (actor, changes) => {
     if ( popped.has(key) ) return;
     popped.add(key);
     publish("armorBlock", { actorUuid: actor.uuid, ...block });
-    for ( const token of actor.getActiveTokens?.(true) ?? [] ) driftChip(token, token, `−${block.amount}`);
+    for ( const token of tokensOf(actor) ) driftChip(token, token, `−${block.amount}`);
   } catch(err) { console.warn(`${TITLE} | Heavy Armor Master's block could not draw.`, err); }
 });
 
@@ -564,8 +564,7 @@ listen("createChatMessage", "damage-rules", message => {
     const changed = (flag?.styles ?? []).filter(e => e.gain > 0);
     if ( !changed.length || floated.has(message.id) ) return;
     floated.add(message.id);
-    const token = (message.speaker?.token && canvas?.tokens?.get(message.speaker.token))
-      || resolveUuid(flag.sourceUuid)?.getActiveTokens?.()?.[0] || null;
+    const token = tokenOf(message.speaker?.token) ?? tokenOf(flag.sourceUuid);
     changed.forEach((entry, i) => {
       const { chips } = chipsOf(entry, flag.dice ?? []);
       publish("styleDice", { messageId: message.id, key: entry.key, chips });
@@ -611,7 +610,7 @@ listen("updateCombat", "damage-rules", (combat, changed) => {
     const turnKey = `${combat.id}:${combat.round}:${combat.turn}`;
     if ( grappleAsked.has(turnKey) ) return;
     grappleAsked.add(turnKey);
-    const token = combatant.token?.object ?? tokenForUuid(actor.uuid);
+    const token = combatant.token?.object ?? tokenOf(actor.uuid);
     const candidates = grappledBy(actor, token);
     if ( !candidates.length ) return;
     void stampGrapple(actor, feature, activity, candidates);

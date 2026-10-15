@@ -14,6 +14,7 @@ import { targetsOf } from "./decide/card.js";
 import { effectRecord, joinEffectReceipt } from "./decide/receipt.js";
 import { SURFACES } from "./surfaces.js";
 import { listen } from "./dispatch.js";
+import { tokenDocOf } from "./geometry.js";
 
 // TOKEN LIGHTS (registry TOKEN_LIGHTS): a `token.*` change on an effect lights the bearer's tokens and
 // lives the effect's life; no token document is written. `self`: the pack's Searing Radiance sits on a
@@ -53,7 +54,7 @@ listen("dnd5e.postUseActivity", "token-lights", (activity, usageConfig, results)
       return;
     }
     const message = (results?.message instanceof ChatMessage) ? results.message : null;
-    const tok = actor.token ?? activity.getUsageToken?.() ?? actor.getActiveTokens?.(true, true)?.[0] ?? null;
+    const tok = tokenDocOf(actor);
     const snapshot = message ? targetsOf(message) : [];
     const live = [...game.user.targets].filter(t => t.actor).map(t => ({ uuid: t.actor.uuid, name: t.name }));
     const targets = lightTargets(row, { self: { uuid: actor.uuid, name: tok?.name ?? actor.name },

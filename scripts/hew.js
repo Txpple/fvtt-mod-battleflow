@@ -5,7 +5,7 @@
 import { MODULE_ID, readFlag, TITLE, isActiveGM, canAnswerFor, combatStamp, decisionWindow, resolveUuid, resolveUuidAsync } from "./core.js";
 import { cardActivity, foldEntryFor, lower } from "./lookup.js";
 import { attackMessageForDamage } from "./auto-damage.js";
-import { creaturesWithin, tokenForUuid } from "./geometry.js";
+import { creaturesWithin, tokenOf } from "./geometry.js";
 import { maneuverFoldEntries } from "./decide/registry.js";
 import { BONUS_SWINGS, RULE_TEXT } from "./decide/registry.js";
 import { hitTargets, withTargets } from "./shared.js";
@@ -221,7 +221,7 @@ function attackSwingFor(attackMessage) {
  * attacker — `{ target, others }` by name, or null. */
 function secondTargetNear(attackMessage, attacker, feet) {
   const target = targetsOf(attackMessage)[0] ?? null;
-  const token = target ? tokenForUuid(target.uuid) : null;
+  const token = target ? tokenOf(target.uuid) : null;
   if ( !token ) return null;
   const others = creaturesWithin(token, feet).filter(t => t.actor?.uuid !== attacker.uuid);
   return others.length ? { target: token.document?.name ?? target.name, others: others.map(t => t.document?.name ?? t.actor?.name) } : null;
@@ -312,7 +312,7 @@ async function answerSwingOffer(message, use) {
     const attacker = resolveUuid(notice.attackerUuid);
     const weapon = attacker?.items?.get(notice.offer.weaponId);
     const activity = weapon?.system?.activities?.get(notice.offer.activityId);
-    const token = tokenForUuid(notice.offer.targetUuid);
+    const token = tokenOf(notice.offer.targetUuid);
     if ( !activity || !token ) { ui.notifications?.warn(`${TITLE}: ${notice.label} — the weapon or the target is gone; swing from the sheet.`); return; }
     await withTargets([token], async () => {
       const done = await activity.use({ subsequentActions: false }, { configure: false }, { data: { flags: { [MODULE_ID]: { poleStrike: message.id } } } });

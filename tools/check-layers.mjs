@@ -256,6 +256,22 @@ const ALLOW = [
       + "attack's targets. A second walk in events.js would be a second verdict. (2026-09-11, the gate)"
   },
   {
+    from: "events.js", to: "geometry.js", disposition: "BY DESIGN",
+    why: "spine → spine: a moment's payload names the actor's token on the viewed scene through `tokenOnScene`, "
+      + "the one token rule (ARCHITECTURE §7 *The shared readers*); geometry.js imports no spine file, so the edge "
+      + "closes no cycle"
+  },
+  {
+    from: "dice-rise.js", to: "geometry.js", disposition: "BY DESIGN",
+    why: "spine → spine: the dice rise over the token a uuid or a speaker stands as, through `tokenOf`, the one "
+      + "token rule; geometry.js imports no spine file, so the edge closes no cycle"
+  },
+  {
+    from: "shared.js", to: "geometry.js", disposition: "BY DESIGN",
+    why: "spine → spine: a target descriptor reads a token or its document through `tokenDocOf`, the one token "
+      + "rule; geometry.js imports no spine file, so the edge closes no cycle"
+  },
+  {
     from: "auto-apply.js", to: "effect-riders.js", disposition: "BY DESIGN",
     why: "service → service: applying damage and applying effects are one consequence pass, and "
       + "the receipt merge disciplines are shared. The services tier is where this belongs"

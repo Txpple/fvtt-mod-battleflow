@@ -12,7 +12,7 @@ import { CONDITION_BENDS } from "./decide/registry.js";
 import { autoCritSources } from "./decide/reminders.js";
 import { foldedRoll, foldsFrom } from "./decide/verdict.js";
 import { CARD, isCard, originData, originIdInData, originIdOf } from "./decide/card.js";
-import { nearestFeet, tokenForUuid, tokenOfActor } from "./geometry.js";
+import { nearestFeet, tokenOf } from "./geometry.js";
 import { stampHoldIfInterrupted, stampMissHoldIfBystanders } from "./hold/index.js";
 import { SURFACES } from "./surfaces.js";
 import { listen } from "./dispatch.js";
@@ -155,9 +155,9 @@ function critFor(attackMessage) {
   const out = { isCritical: rolled, rolled, undone: d20Crit && !rolled, auto: false, sources: [], dropped: [] };
   try {
     if ( !hits.length ) return out;
-    const attackerToken = tokenOfActor(attackMessage.getAssociatedActor());
+    const attackerToken = tokenOf(attackMessage.getAssociatedActor());
     const per = hits.map(t => {
-      const token = tokenForUuid(t.uuid);
+      const token = tokenOf(t.uuid);
       const actor = token?.actor ?? resolveUuid(t.uuid);
       const distanceFeet = (attackerToken && token) ? nearestFeet(attackerToken, token) : null;
       return { name: t.name ?? actor?.name ?? "the target",
@@ -169,7 +169,7 @@ function critFor(attackMessage) {
     const weapon = attackMessage.getAssociatedItem?.() ?? null;
     const ammo = attackMessage.system?.ammunitionItem ?? null;
     const adamantine = [weapon, ammo].some(i => i?.system?.properties?.has?.("ada"));
-    if ( adamantine && hits.every(t => (tokenForUuid(t.uuid)?.actor ?? resolveUuid(t.uuid))?.type === "vehicle") ) {
+    if ( adamantine && hits.every(t => (tokenOf(t.uuid)?.actor ?? resolveUuid(t.uuid))?.type === "vehicle") ) {
       for ( const p of per ) p.sources.push({ status: "adamantine", label: "Adamantine — a hit on an object is a Critical Hit",
         rule: { item: "Adamantine Weapon", uuid: "Compendium.dnd-dungeon-masters-guide.equipment.Item.dmgAdamantineWea" } });
     }

@@ -11,6 +11,7 @@ import { targetDescriptorOf, dispositionStyle, holdOf } from "./shared.js";
 import { cardActivity, cardItem, featureNamed, lower, profileEffectSync } from "./lookup.js";
 import { listen } from "./dispatch.js";
 import { SURFACES } from "./surfaces.js";
+import { tokenOf } from "./geometry.js";
 
 /** A reaction's or a spell's row means a spell or a monster's feature, never armor of the same name. */
 const SPELL_ROW_TYPES = ["spell", "feat"];
@@ -47,7 +48,7 @@ listen("dnd5e.preUseActivity", "polish", (activity, _usageConfig, _dialogConfig,
   const actor = activity.actor;
   if ( !actor ) return;
   // No token needed to aim: an off-scene drinker still gets the snapshot.
-  const token = actor.getActiveTokens?.()?.[0] ?? null;
+  const token = tokenOf(actor);
   const descriptor = targetDescriptorOf(token, actor);
   if ( !descriptor ) return;
 

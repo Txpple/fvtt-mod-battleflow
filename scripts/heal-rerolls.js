@@ -7,7 +7,7 @@ import { MODULE_ID, readFlag, TITLE, statContext, queueFlagWrite, drivesMomentFo
 import { lower, featureNamed, activityNamed, cardActivity } from "./lookup.js";
 import { healRerollEntries, listedNames } from "./decide/registry.js";
 import { rebuildRolls, withTargets } from "./shared.js";
-import { nearestFeet, tokenOfActor } from "./geometry.js";
+import { nearestFeet, tokenOf } from "./geometry.js";
 import { CARD, isCard, originData, originIdOf, targetsOf } from "./decide/card.js";
 import { applyDamagesWithReceipt } from "./auto-apply.js";
 import { HEAL_REROLLS } from "./decide/registry.js";
@@ -348,7 +348,7 @@ function alsoRowsFor(message) {
 
 /** Who the pick may heal: the caster, and every creature on its side within the row's feet. */
 function alsoCandidates(caster, feet) {
-  const from = tokenOfActor(caster);
+  const from = tokenOf(caster);
   if ( !from ) return [];
   const side = from.document?.disposition;
   const out = [{ uuid: caster.uuid, name: from.document?.name ?? caster.name, token: from }];
