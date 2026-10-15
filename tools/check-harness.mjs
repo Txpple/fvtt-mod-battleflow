@@ -50,7 +50,6 @@ const CEILING = {
   "smoke-damage-rules": 1,
   "smoke-effects": 3,
   "smoke-expiry": 1,
-  "smoke-goliath": 18,
   "smoke-metamagic": 3,
   "smoke-saves": 94
 };
@@ -60,7 +59,7 @@ const STANDING = new Set([
   "class-kit", "smoke-class-barbarian", "smoke-class-bard", "smoke-class-cleric",
   "smoke-class-druid", "smoke-class-fighter", "smoke-class-items", "smoke-class-monk",
   "smoke-class-paladin", "smoke-class-ranger", "smoke-class-rogue", "smoke-class-sorcerer",
-  "smoke-class-warlock", "smoke-class-wizard", "smoke-goliath", "smoke-saves"
+  "smoke-class-warlock", "smoke-class-wizard", "smoke-saves"
 ]);
 
 /** A name that is a poll by what it is called. */
