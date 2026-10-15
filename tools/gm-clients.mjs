@@ -141,7 +141,14 @@ export function armArrival(cfg) {
     ["createActiveEffect", (e, _o, userId) => {
       if (e.parent?.id === casterId) push({ kind: "effect", by: userId, id: e.id, companion: !!e.getFlag(mod, "companion") });
     }],
-    ["createChatMessage", (m, _o, userId) => { if (m.id !== messageId) push({ kind: "message", by: userId, id: m.id }); }],
+    ["createChatMessage", (m, _o, userId) => {
+      if (m.id === messageId) return;
+      // the landing's own: spoken by the caster or a creature it made, or naming the card; anything else is another machine's
+      let mentions = false;
+      try { mentions = JSON.stringify({ flags: m.flags, content: m.content }).includes(messageId); } catch { /* unreadable: not the landing's */ }
+      push({ kind: "message", by: userId, id: m.id, actor: m.speaker?.actor ?? null, token: m.speaker?.token ?? null, mentions,
+        flags: Object.keys(m.flags?.[mod] ?? {}) });
+    }],
     ["bythebooks.moment", p => {
       try { if (JSON.stringify(p).includes(messageId)) push({ kind: "moment", what: p?.kind ?? null }); }
       catch { /* a counter never reaches the moment it counts */ }
@@ -228,7 +235,9 @@ export async function arrivalLanding(f, { env, key, prep, prepArg = null, flagKe
 /**
  * Page, on the client already on, once the second client is gone: the arrival landing judged — the record landed
  * once (one claim, one token made and standing, `expect.companionEffects` companion effects made and standing, no
- * other effect made on the caster unless `expect.casterEffects` says so, one moment over both pages, no extra card) —
+ * other effect made on the caster unless `expect.casterEffects` says so, one moment over both pages, no extra card of
+ * the landing's: spoken by the caster or a creature it made, or naming the card; another machine's card posted
+ * meanwhile, an aura the new elect raises on the live scene, is logged, not counted) —
  * and then put away: the summon dismissed, what carries the card removed, Concentration ended where the prep began
  * one, the lent spell (`flags.world.twoGmSection`), the card and the actors the system imported for it deleted.
  * Answers the prelude's `{ results, log, skips }` for section `id`.
@@ -250,7 +259,11 @@ export async function judgeArrival({ sections, titles, run, id, expect = {} }) {
     const claims = ev.filter(e => (e.kind === "update") && e.claim);
     const tokens = ev.filter(e => e.kind === "token");
     const effects = ev.filter(e => e.kind === "effect");
-    const cards = ev.filter(e => e.kind === "message");
+    const madeTokens = new Set(tokens.map(t => t.id));
+    const ofLanding = e => e.mentions || (e.actor === prep.casterId) || (!!e.token && madeTokens.has(e.token));
+    const cards = ev.filter(e => (e.kind === "message") && ofLanding(e));
+    const elsewhere = ev.filter(e => (e.kind === "message") && !ofLanding(e));
+    if (elsewhere.length) log.push(`§${id} ${elsewhere.length} card(s) of other machines posted meanwhile, not the landing's: ${elsewhere.map(e => `${name(e.by)} [${e.flags.join("+") || "no module flag"}]`).join("; ")}`);
     const moments = ev.filter(e => e.kind === "moment").length + (xMoments?.length ?? 0);
     const after = (Number.isFinite(ledger?.fired) && Number.isFinite(ledger?.heard)) ? (ledger.fired - ledger.heard) : null;
     log.push(`§${id} the second GM client ${joined?.ok ? "joined" : `did not join (${joined?.err})`}; the answer written ${after ?? "?"} ms after the arrival; `
@@ -266,7 +279,7 @@ export async function judgeArrival({ sections, titles, run, id, expect = {} }) {
     const others = effects.filter(e => !e.companion).length;
     ok(`§${id} no other effect made on the caster`, others === (expect.casterEffects ?? 0), JSON.stringify(effects));
     ok(`§${id} one moment over both clients`, moments === 1, JSON.stringify({ first: ev.filter(e => e.kind === "moment"), second: xMoments }));
-    ok(`§${id} no extra card`, cards.length === 0, JSON.stringify(cards));
+    ok(`§${id} no extra card from the landing`, cards.length === 0, JSON.stringify(cards));
     ok(`§${id} the second GM client hung up`, gone === true, `gone=${gone}`);
   });
   // put away, whatever the asserts said
