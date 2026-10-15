@@ -532,7 +532,9 @@ function analyse({ row, i, offset, tStart, connect, attached, ws, xs, clean }) {
     ordering: row.name, cycle: i + 1, offset, w: row.w.user, x: row.x.user,
     connectMs: Number.isFinite(act) ? act - tStart : null, xConnected: connect.ok, xError: connect.ok ? null : connect.err, xTimeline: attached && !!xs?.rec,
     fireRel, fireHow: ws.fireHow, fireError: ws.fireError, phase,
-    xSetupRel: rel(xSetup?.t), xReadyRel: rel(xReady?.t), xSnapshot: snap, xRenders: xEv.filter(e => e.kind === "render").map(e => ({ at: rel(e.t), record: e.record, self: e.state?.self ?? null })),
+    xSetupRel: rel(xSetup?.t), xReadyRel: rel(xReady?.t), xSnapshot: snap,
+    // the snapshot path: X claimed during its setup, before its `ready` (ui.js's snapshot guard defers it to `ready`)
+    xClaimBeforeReady: claims.some(k => k.x && Number.isFinite(k.at) && Number.isFinite(rel(xReady?.t)) && (k.at < rel(xReady.t))), xRenders: xEv.filter(e => e.kind === "render").map(e => ({ at: rel(e.t), record: e.record, self: e.state?.self ?? null })),
     claims, writers, landings, tokens: tokens.length, tokensBy: tokens.map(e => name(e.by)), companionEffects: companions.length, moments, messages,
     final: ws.final, doubled, landed: !!ws.final?.applied && (ws.final.outcome === "landed"),
     overlapMs, gapMs, wElect: ws.wSamples.map(s => ({ at: rel(s.t), active: s.active, elect: s.elect })),
@@ -742,6 +744,9 @@ function summary(rows, plan) {
       + ` | ${["pre", "boot", "setup", "ready"].map(ph => latency(ph) ?? "—").join(" / ")}`
       + ` | ${median(rs.map(r => r.xSetupRel)) ?? "—"} / ${median(rs.map(r => r.xReadyRel)) ?? "—"} |`);
   }
+  const early = rows.filter(r => !r.error && !r.hang && r.xClaimBeforeReady);
+  out.push("");
+  out.push(`X claimed before its own ready (the snapshot path): ${early.length} cycle(s)${early.length ? ` — ${early.map(r => `${r.ordering} ${r.cycle}`).join(", ")}` : ""}`);
   if (Object.keys(plan).some(k => HANG[k])) {
     out.push("");
     out.push("| Ordering | W → X | Cycles | Landed once by W | Not landed once | X's claim, then W's | W re-claim after X gone, median / max ms | X's tokens / removed by W | Standing tokens / effects |");

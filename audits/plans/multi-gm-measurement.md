@@ -255,3 +255,32 @@ cycles. The claim needs no user id to stop it; the snapshot needs a guard. So th
 4. **Pass 2's done-when** follows from the harness mode: `smoke-companions` and `smoke-summons` each declare
    `GM_CLIENTS`, connect a second GM through `gmConfig`, and assert one landing per record while it arrives; then again
    with a Gamemaster beside an Assistant once the `gm2` user exists.
+
+## 4. Built
+
+Built on the branch `handoff/4j` (2026-10-15), in §3's order. Nothing here is a game-rules ruling; RULINGS is
+untouched.
+
+1. **The snapshot guard** (ui.js `resume`): a `"render"` resume before `game.ready` sets its message aside, and the
+   `ready` handler resumes it on the document `ready` finds (the buffered events applied). Unit:
+   `tests/snapshot-guard.test.js` (3 of its 6 fail without the guard).
+2. **The `isGM` audit** (`tools/check-gm-sites.mjs`, `npm run gmsites`, in verify): 24 `isGM` reads at 21 sites,
+   each pinned with its count, tag and reason — 12 presentation, 5 own (the leading window's own User flag, the
+   casting client's own held card, the re-drive's lead hand-over), 7 role reads (recipients, the roller, the viewers).
+   **No consequence sits behind `isGM`** and none needed moving: every `game.user.isGM` gate draws or offers (a
+   button, a popup, a control, a view, a notification), and its click's write is guarded where it lands. §1.3's
+   reading stands: no consequence write needs a role split. The loser's popup: canAnswerFor's GM branch pops an
+   unowned subject's moment on every GM screen, and five machines did not close theirs when another client answered;
+   each now does on the update (Sweeping Attack's pick, Bait and Switch, a cast's effect choice, the mastery swap, the
+   GM's change of a form). Loot Shelf's 21 sites are Pass 4's (listed in the 4j report).
+3. **The claim with its claimant, and the re-drive** (core.js `claimStamp`, `claimHolds`, `claimLanding`,
+   `CLAIM_CEILING_MS` = 60 s; ui.js's `userConnected` / `updateUser` / lead resumes): 13 claim sites on the helper (the
+   eleven of §3, damage-holds' `landHeld`, initiative-grants' fallback); a dead claim reads as none in every
+   `pending`; a summon's tokens and shared resistance carry `summonCard`, and a landing over a dead claim sweeps what
+   the card names first. Unit: `tests/landing-claim.test.js` (13). The check fails the pre-change tree 41 times.
+4. **The two-GM sections**: `smoke-companions` §9, `smoke-summons` §10 (`tools/gm-clients.mjs`, the arrival landing);
+   the probe's `hangup-claim` and `hangup-landing` orderings.
+
+**Live** (the sandbox, Foundry 14.369, dnd5e 6.0.6): waits for the 4j sandbox seat — the re-run of §2.5's aimed
+series (`same-moves --aim=-8 --cycles 12`), the two hang-up orderings, the two sections alone, and the full battery.
+The Gamemaster-beside-Assistant runs wait for the `gm2` user (HANDOFF §7 item 1).
