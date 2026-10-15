@@ -27,7 +27,7 @@ const f = await connectSuite({ tag: 'class-ranger', watchdogMs: 900_000 });
 announcePlan('class-ranger', plan, pulled);
 
 const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ sections, titles }) => {
-  const { sleep, until, faces, unrig } = window.__btb;
+  const { until, watch, faces, unrig } = window.__btb;
   const { results, skips, ok, want, section } = window.__btb.begin({ sections, titles });
   const KIT = window.__btbClasses;
   const { MOD, a1Damage, a1Formula, a1Hit, a1Roll, a1Victim, ackHew, act, attackOf, attacker, attackerToken, c1Cards, cardEl, cardText, clearTargets, cleric, clericToken, closeA1, closeDialogs, closeOffers, damageFor, dropEffects, dropNamed, dropReactionChips, dropVictimFx, halfling, halflingToken, healFull, hewNotices, hgKeep, hgLend, hitAt, holdOf, hp, lend, log, markOn, pcAttacker, pcToken, pcWeapon, pickApply, popups, resolvedTarget, riderBox, riderChits, riderRow, ridersOf, set, sorcTokC, sorcerer, spendLuckC, swing, textOf, unlend, victim, victimToken } = KIT;
@@ -55,8 +55,7 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
             !!ask && /Hunter's Prey — which option did you take\?/.test(textOf(ask)) && radios.some(r => r.value === 'Colossus Slayer')
               && radios.some(r => r.value === 'Horde Breaker') && radios.every(r => !r.checked) && /rides this hit/.test(textOf(ask)) && !riderBox(offer, KEY),
             `offer=${!!offer} radios=${radios.map(r => r.value)} ask="${textOf(ask).slice(0, 260)}"`);
-          ask?.querySelector('input[value="Colossus Slayer"]')?.click();
-          await sleep(50);
+          ask?.querySelector('input[value="Colossus Slayer"]')?.click();   // the radio's change handler keeps the pick at once
           const d1 = await a1Roll(msg, offer);
           const r1 = ridersOf(d1).find(x => x.key === KEY);
           ok(`18b. picked Colossus Slayer: kept on the feature (option flag); on the damaged target its ${cs} of the weapon's type rides`,
@@ -77,20 +76,19 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
             `offer=${!!o3} checked=${box3?.checked} ask=${!!askOf(o3)} row="${riderRow(o3, KEY)}"`);
           const d3 = await a1Roll(m3, o3);
           // e/f — the card's Change
-          const change = await until(() => [...(cardEl(d3?.id)?.querySelectorAll('button') ?? [])].find(b => /Change Hunter's Prey option/.test(b.textContent ?? '')), { timeout: 6000 }).catch(() => null);
+          const change = await until(() => [...(cardEl(d3?.id)?.querySelectorAll('button') ?? [])].find(b => /Change Hunter's Prey option/.test(b.textContent ?? '')), { timeout: 6000, label: 'the damage card\'s "Change Hunter\'s Prey option" button' });
           ok('18e. the damage card: "Colossus Slayer — … rode this roll" with "Change Hunter\'s Prey option"',
             !!change && /Colossus Slayer — .*rode this roll/.test(cardText(d3?.id)), cardText(d3?.id).slice(0, 260));
           change?.click();
-          const cleared = await until(() => optOf() === null, { timeout: 6000 }).catch(() => null);
+          const cleared = await until(() => optOf() === null, { timeout: 6000, label: 'the Hunter\'s Prey option forgotten' });
           ok('18f. Change forgets the option', cleared === true, `option=${JSON.stringify(optOf())}`);
           // g — asked again; Horde Breaker; BTB Test Cleric stands 5 ft from the Victim (1600 vs 1500, y 1900)
           const tH = Date.now();
           const { msg: m4, offer: o4 } = await a1Hit(pcAttacker, pcToken, act, { hpTo: 300 });
           const ask4 = askOf(o4);
-          ask4?.querySelector('input[value="Horde Breaker"]')?.click();
-          await sleep(50);
+          ask4?.querySelector('input[value="Horde Breaker"]')?.click();   // the radio's change handler keeps the pick at once
           const d4 = await a1Roll(m4, o4);
-          const hb = await until(() => hewNotices(tH, 'Horde Breaker')[0] ?? null, { timeout: 8000 }).catch(() => null);
+          const hb = await until(() => hewNotices(tH, 'Horde Breaker')[0] ?? null, { timeout: 8000, label: 'Hew\'s Horde Breaker reminder' });
           const n = hb?.getFlag(MOD, 'hewNotice');
           const clericName = clericToken.document?.name ?? cleric.name;
           ok(`18g. the next hit asks again; Horde Breaker is kept (nothing rides) and, ${clericName} within 5 ft of the target, Hew's reminder "Horde Breaker — BTB Test PC Attacker can attack again … within 5 ft of …"`,
@@ -120,7 +118,6 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
       try {
         if (!ranger || !companion || !fury || !mark || !summonAct) log.push(`§70 skipped: ranger=${!!ranger} companion=${!!companion} fury=${!!fury} mark=${!!mark} summon=${!!summonAct}`);
         else {
-          await sleep(300);
           await attacker.setFlag('dnd5e', 'summon', { origin: summonAct.uuid });
           marked = await markOn(halfling, "Hunter's Mark", mark.uuid, ['marked']);
           const r1 = await hitAt(attackerToken, act(), halflingToken, { hpTo: 400, actor: halfling });
@@ -174,7 +171,6 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
       try {
         if (!ranger || !prey || !mark || !pcWeapon) log.push(`§71 skipped: ranger=${!!ranger} prey=${!!prey} mark=${!!mark} weapon=${!!pcWeapon}`);
         else {
-          await sleep(300);
           await attacker.update({ 'system.attributes.hp.value': Number(attacker.system.attributes.hp.max) || 20 });
           const ahp0 = Number(attacker.system.attributes.hp.value);
           marked = await markOn(victim, "Hunter's Mark", mark.uuid, ['marked']);
@@ -182,7 +178,7 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
           ok('71a. the hit on the marked Victim: no rider on the roll (a pick, never a die)', !riderBox(r1.offer, 'superior-hunters-prey'), `offer=${!!r1.offer}`);
           const d1 = r1.offer ? await a1Roll(r1.msg, r1.offer) : await a1Damage(r1.msg);
           // The row is the label span's parent (the outer card div would match the text too).
-          const row = await until(() => [...(cardEl(d1?.id)?.querySelectorAll?.('span') ?? [])].find(el => /^Superior Hunter's Prey — \+/.test(textOf(el)))?.parentElement ?? null, { timeout: 8000 }).catch(() => null);
+          const row = await until(() => [...(cardEl(d1?.id)?.querySelectorAll?.('span') ?? [])].find(el => /^Superior Hunter's Prey — \+/.test(textOf(el)))?.parentElement ?? null, { timeout: 8000, label: 'the damage card\'s Superior Hunter\'s Prey row' });
           const buttons = [...(row?.querySelectorAll?.('button') ?? [])].map(b => textOf(b));
           const { creaturesWithin } = await import('/modules/fvtt-mod-bythebooks/scripts/geometry.js');
           const expected = creaturesWithin(victimToken, 30).filter(t => t.actor && (t.actor.uuid !== victim.uuid) && (t.actor.uuid !== pcAttacker.uuid)).length;
@@ -192,14 +188,14 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
           const t0 = Date.now();
           faces([[4, 6]]);
           [...(row?.querySelectorAll?.('button') ?? [])].find(b => textOf(b) === attackerToken.document.name)?.click();
-          const pickCard = await until(() => c1Cards(t0, 'spellRiderCard').find(m => m.getFlag(MOD, 'spellRiderCard')?.targetUuid === attacker.uuid) ?? null, { timeout: 10000 }).catch(() => null);
-          await until(() => Number(attacker.system.attributes.hp.value) < ahp0, { timeout: 6000 }).catch(() => null);
-          await sleep(300);
+          const pickCard = await until(() => c1Cards(t0, 'spellRiderCard').find(m => m.getFlag(MOD, 'spellRiderCard')?.targetUuid === attacker.uuid) ?? null, { timeout: 10000, label: 'the pick\'s own card for the Attacker' });
+          await until(() => Number(attacker.system.attributes.hp.value) < ahp0, { timeout: 6000, label: 'the pick\'s damage on the Attacker' });
+          const twice = await watch(() => Number(attacker.system.attributes.hp.value) < ahp0 - 4, { ms: 300 });   // a window: the die lands once
           unrig();
           const rec = pickCard?.getFlag(MOD, 'spellRiderCard');
           ok('71c. the Attacker picked: its own card "+4 force to BTB Test Attacker", the die rolled there, the damage landed',
-            !!pickCard && (rec?.value === 4) && (rec?.type === 'force') && (Number(attacker.system.attributes.hp.value) === ahp0 - 4),
-            `record=${JSON.stringify(rec && { value: rec.value, type: rec.type, target: rec.targetUuid === attacker.uuid })} hp=${attacker.system.attributes.hp.value} from ${ahp0}`);
+            !twice && !!pickCard && (rec?.value === 4) && (rec?.type === 'force') && (Number(attacker.system.attributes.hp.value) === ahp0 - 4),
+            `record=${JSON.stringify(rec && { value: rec.value, type: rec.type, target: rec.targetUuid === attacker.uuid })} hp=${attacker.system.attributes.hp.value} from ${ahp0} twice=${!!twice}`);
         }
       } finally {
         await closeOffers(); await closeDialogs();
@@ -219,18 +215,18 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
       try {
         if (!ranger || !ambusher || !flurry || !pcWeapon) log.push(`§72 skipped: ranger=${!!ranger} ambusher=${!!ambusher} flurry=${!!flurry} weapon=${!!pcWeapon}`);
         else {
-          await sleep(300);
           const followRow = d => cardEl(d?.id)?.querySelector('.bf-rider-follow') ?? null;
           const r1 = await a1Hit(pcAttacker, pcToken, attackOf(pcAttacker, pcWeapon));
           ok('72a. the hit offers Dreadful Strike', !!riderBox(r1.offer, 'dread-ambusher'), `offer=${!!r1.offer} rows=${JSON.stringify(r1.offer ? [...r1.offer.element.querySelectorAll('[data-bf-rider-row]')].map(e => e.dataset.bfRiderRow) : null)}`);
           const d1 = await a1Roll(r1.msg, r1.offer);
-          const row1 = await until(() => followRow(d1), { timeout: 8000 }).catch(() => null);
+          const row1 = await until(() => followRow(d1), { timeout: 8000, label: 'the damage card\'s Stalker\'s Flurry row' });
           const labels = [...(row1?.querySelectorAll?.('button') ?? [])].map(b => textOf(b));
           ok('72b. it rode: the damage card offers "Stalker\'s Flurry — one of: Sudden Strike / Mass Fear"', !!row1 && /Stalker's Flurry — one of/.test(textOf(row1)) && labels.includes('Sudden Strike') && labels.includes('Mass Fear'),
             `row="${textOf(row1).slice(0, 160)}" labels=${JSON.stringify(labels)}`);
           [...(row1?.querySelectorAll?.('button') ?? [])].find(b => textOf(b) === 'Sudden Strike')?.click();
-          const picked = await until(() => ridersOf(game.messages.get(d1?.id)).find(r => r.key === 'dread-ambusher')?.follow?.picked ?? null, { timeout: 6000 }).catch(() => null);
-          await sleep(300);
+          const picked = await until(() => ridersOf(game.messages.get(d1?.id)).find(r => r.key === 'dread-ambusher')?.follow?.picked ?? null, { timeout: 6000, label: 'Sudden Strike recorded on the rider' });
+          // The card re-renders with the pick a moment after the flag lands.
+          await until(() => /one more attack/.test(textOf(followRow(d1))), { label: 'the card\'s "one more attack" line' });
           ok('72c. Sudden Strike picked: recorded on the rider, the card says "one more attack … from the sheet"', (picked?.label === 'Sudden Strike') && /one more attack/.test(textOf(followRow(d1))),
             `picked=${JSON.stringify(picked)} row="${textOf(followRow(d1)).slice(0, 160)}"`);
           await dropEffects(pcAttacker, riderChits(pcAttacker));
@@ -240,11 +236,12 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
           const t2 = Date.now();
           const r2 = await a1Hit(pcAttacker, pcToken, attackOf(pcAttacker, pcWeapon));
           const d2 = await a1Roll(r2.msg, r2.offer);
-          const row2 = await until(() => followRow(d2), { timeout: 8000 }).catch(() => null);
+          const row2 = await until(() => followRow(d2), { timeout: 8000, label: 'the second damage card\'s Stalker\'s Flurry row' });
           faces([[1, 20], [1, 20]]);
           [...(row2?.querySelectorAll?.('button') ?? [])].find(b => textOf(b) === 'Mass Fear')?.click();
-          const demand = await until(() => game.messages.contents.find(m => (m.timestamp >= t2) && m.getFlag(MOD, 'saves') && (m.id !== d2?.id) && (m.getFlag(MOD, 'saves')?.item?.name === "Stalker's Flurry")) ?? null, { timeout: 10000 }).catch(() => null);
-          await sleep(600);
+          const demand = await until(() => game.messages.contents.find(m => (m.timestamp >= t2) && m.getFlag(MOD, 'saves') && (m.id !== d2?.id) && (m.getFlag(MOD, 'saves')?.item?.name === "Stalker's Flurry")) ?? null, { timeout: 10000, label: 'Mass Fear\'s save demand' });
+          // The saves roll themselves on the pinned 1s and their Frightened lands before the dice go back.
+          await until(() => (demand.getFlag(MOD, 'saves')?.targets ?? []).every(t => t.applied), { timeout: 10000, label: 'Mass Fear\'s saves rolled and applied' });
           unrig();
           const targets = (demand?.getFlag(MOD, 'saves')?.targets ?? []).map(t => t.uuid);
           const since = game.messages.contents.filter(m => m.timestamp >= t2).map(m => [m.type, m.getFlag('dnd5e', 'item')?.type ?? null, Object.keys(m.flags?.[MOD] ?? {}).join('+'), (m.content ?? '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').slice(0, 60)]);
@@ -268,7 +265,7 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
       const holdPopup = () => popups().find(app => /Superior Hunter's Defense/.test(textOf(app.element)) && (app.element?.querySelector?.('[data-bf-ticks="bf-rescue"]') || app.element?.querySelector?.('button[data-action="cast"]'))) ?? null;
       const answerHold = async pop => {
         const box = [...(pop?.element?.querySelectorAll?.('input[name="bf-rescue"]') ?? [])].find(x => x.value === "Superior Hunter's Defense");
-        if (box) { if (!box.checked) box.click(); await sleep(50); pickApply(pop); }
+        if (box) { if (!box.checked) box.click(); pickApply(pop); }   // the tick's change handler runs inside the click
         else pop?.element?.querySelector('button[data-action="cast"]')?.click();
       };
       const typed = () => halfling.effects.find(e => e.name.startsWith("Hunter's Defense: ")) ?? null;
@@ -276,16 +273,16 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
         if (!shd) log.push('§73 skipped: no Superior Hunter\'s Defense in the PHB');
         else {
           const msg = await swing({ d20: [12], dmg: 6 });
-          const pop = await until(holdPopup, { timeout: 8000 }).catch(() => null);
+          const pop = await until(holdPopup, { timeout: 8000, label: 'the Halfling\'s Superior Hunter\'s Defense popup' });
           const t0 = holdOf(msg)?.targets?.find(x => x.uuid === halfling.uuid);
           ok('73a. a hit is held for Superior Hunter\'s Defense (a damage interrupt, the half); the Halfling\'s popup', !!pop && (t0?.reaction === "Superior Hunter's Defense") && (t0?.kind === 'damage'),
             `pop=${!!pop} target=${JSON.stringify(t0 && { reaction: t0.reaction, kind: t0.kind })}`);
-          await until(() => damageFor(msg?.id), { timeout: 8000 }).catch(() => null);
+          await until(() => damageFor(msg?.id), { timeout: 8000, label: 'the held hit\'s damage rolled' });
           await answerHold(pop);
           const rt = await resolvedTarget(msg);
-          const dmg = await until(() => { const m = damageFor(msg?.id); return m?.getFlag(MOD, 'receipt') ? m : null; }, { timeout: 12000 }).catch(() => null);
+          const dmg = await until(() => { const m = damageFor(msg?.id); return m?.getFlag(MOD, 'receipt') ? m : null; }, { timeout: 12000, label: 'the held hit\'s damage receipt' });
           const receipt = dmg?.getFlag(MOD, 'receipt')?.targets?.find(x => x.uuid === halfling.uuid);
-          const fx = await until(typed, { timeout: 8000 }).catch(() => null);
+          const fx = await until(typed, { timeout: 8000, label: 'the typed "Hunter\'s Defense: <type>" on the Halfling' });
           // ⚠ The goblin's weapon rolls ONE die (8 with the pinned 6); the effect lands AFTER the share, so the half is one half.
           const rolled = (dmg?.rolls ?? []).reduce((n, r) => n + (Number(r.total) || 0), 0);
           const half = Math.floor(rolled / 2);
@@ -301,17 +298,16 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
             const t1 = Date.now();
             attackerToken.control({ releaseOthers: true });
             halflingToken.setTarget(true, { releaseOthers: true });
-            await sleep(100);
             faces([[4, 8], [1, 20]]);   // ⚠ the damage die rolls BEFORE the save: the d8 first, then the natural 1
             await flameAct.use({ consume: { spellSlot: false } }, { configure: false }, {});
-            const hold = await until(() => c1Cards(t1, 'damageHold').find(m => m.getFlag(MOD, 'damageHold')?.reaction === "Superior Hunter's Defense") ?? null, { timeout: 10000 }).catch(() => null);
-            const pop2 = await until(() => popups().find(app => /Superior Hunter's Defense/.test(textOf(app.element)) && /may reduce \d+ damage/.test(textOf(app.element))) ?? null, { timeout: 6000 }).catch(() => null);
+            const hold = await until(() => c1Cards(t1, 'damageHold').find(m => m.getFlag(MOD, 'damageHold')?.reaction === "Superior Hunter's Defense") ?? null, { timeout: 10000, label: 'the damage hold card for Superior Hunter\'s Defense' });
+            const pop2 = await until(() => popups().find(app => /Superior Hunter's Defense/.test(textOf(app.element)) && /may reduce \d+ damage/.test(textOf(app.element))) ?? null, { timeout: 6000, label: 'the damage hold\'s "may reduce N damage" popup' });
             ok('73c. a failed save\'s damage is held by the damage hold: the card "is about to take N damage", the popup "may reduce N damage"', !!hold && !!pop2 && (hold.getFlag(MOD, 'damageHold')?.halve === 0.5),
               `hold=${JSON.stringify(hold?.getFlag(MOD, 'damageHold') && { amount: hold.getFlag(MOD, 'damageHold').amount, halve: hold.getFlag(MOD, 'damageHold').halve })} pop=${!!pop2}`);
             const amount = Number(hold?.getFlag(MOD, 'damageHold')?.amount ?? 0);
             pop2?.element?.querySelector('button[data-action="cast"]')?.click();
-            const done = await until(() => hold?.getFlag(MOD, 'damageHold')?.applied ? hold.getFlag(MOD, 'damageHold') : null, { timeout: 12000 }).catch(() => null);
-            await sleep(500);
+            // `applied` is written last: the halved share and the typed Resistance have landed by then.
+            const done = await until(() => hold?.getFlag(MOD, 'damageHold')?.applied ? hold.getFlag(MOD, 'damageHold') : null, { timeout: 12000, label: 'the damage hold applied' });
             unrig();
             ok('73d. Cast: half the share lands, the typed Resistance (radiant) with it', (done?.answer === 'cast') && (Number(done?.reduceBy) === amount - Math.floor(amount / 2)) && (hp() === 400 - Math.floor(amount / 2)) && (typed()?.name === "Hunter's Defense: Radiant"),
               `done=${JSON.stringify(done && { answer: done.answer, reduceBy: done.reduceBy, amount: done.amount })} hp=${hp()} fx=${typed()?.name ?? null}`);
@@ -342,17 +338,16 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
           await sorcerer.update({ 'system.spells.spell1.value': 4, 'system.attributes.hp.max': 100, 'system.attributes.hp.value': 100 });
           const markAct = mark.system.activities.find(a => a.name === 'Mark Creature') ?? mark.system.activities.contents[0];
           victimToken.setTarget(true, { releaseOthers: true });
-          await sleep(80);
           await markAct.use({ spell: { slot: 'spell1' }, subsequentActions: false }, { configure: false }, {});
           clearTargets();
-          const conc = await until(() => sorcerer.effects.find(e => e.statuses?.has?.('concentrating')) ?? null, { timeout: 8000 }).catch(() => null);
+          const conc = await until(() => sorcerer.effects.find(e => e.statuses?.has?.('concentrating')) ?? null, { timeout: 8000, label: 'the sorcerer concentrating on Hunter\'s Mark' });
           const t0 = Date.now();
           await sorcerer.applyDamage([{ value: 5, type: 'fire' }]);
-          const exempt = await until(() => c1Cards(t0, 'concentrationExempt')[0] ?? null, { timeout: 8000 }).catch(() => null);
-          await sleep(1200);
+          const exempt = await until(() => c1Cards(t0, 'concentrationExempt')[0] ?? null, { timeout: 8000, label: 'the Relentless Hunter exempt card' });
+          const ask84 = await watch(() => c1Cards(t0, 'concentration')[0] ?? null, { ms: 1200 });   // a window: no Concentration ask
           const asked = c1Cards(t0, 'concentration').length;
           ok('84a. concentrating on Hunter\'s Mark, 5 damage: the card "Relentless Hunter — no save for Hunter\'s Mark", no Concentration ask, the effect standing',
-            !!conc && !!exempt && (asked === 0) && /Relentless Hunter — no save for Hunter's Mark/.test(cardText(exempt?.id)) && !!sorcerer.effects.get(conc.id),
+            !!conc && !!exempt && !ask84 && (asked === 0) && /Relentless Hunter — no save for Hunter's Mark/.test(cardText(exempt?.id)) && !!sorcerer.effects.get(conc.id),
             `conc=${!!conc} exempt=${!!exempt} asks=${asked} card="${cardText(exempt?.id).slice(0, 160)}"`);
         }
       } finally {
