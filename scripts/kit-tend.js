@@ -12,7 +12,7 @@ import { bfCard, esc, holdBarHTML, foldedRuleHTML, tickRowsHTML } from "./decide
 import { targetsOf } from "./decide/card.js";
 import { nearestFeet, tokenForUuid, tokenOfActor } from "./geometry.js";
 import { withTargets } from "./shared.js";
-import { openMomentPopup, armAskTimer, disarmAskTimer, subjectOwns, registerRelay, registerResumable, pendingRow, closePopup } from "./ui.js";
+import { openMomentPopup, armAskTimer, disarmAskTimer, subjectOwns, registerRelay, registerResumable, pendingRow, closePopup, postAnswer } from "./ui.js";
 import { SURFACES } from "./surfaces.js";
 import { listen } from "./dispatch.js";
 
@@ -105,9 +105,9 @@ async function answerTend(message, answer, pick = null, { timedOut = false } = {
     await queueFlagWrite(message, TEND_FLAG, current => settle(current, answer, pick, timedOut));
     return;
   }
-  await ChatMessage.create({
-    speaker: ChatMessage.getSpeaker({ actor: resolveUuid(flag.actorUuid) }),
-    content: "", whisper: game.users.filter(u => u.isGM).map(u => u.id),
+  await postAnswer("kitTendAnswer", {
+    actor: resolveUuid(flag.actorUuid),
+    card: "", toElect: true,
     flags: { [MODULE_ID]: { kitTendAnswer: { messageId: message.id, answer, pick } } }
   });
 }

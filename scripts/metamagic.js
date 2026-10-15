@@ -4,7 +4,7 @@
  * flag; `postUseActivity` spends the points (`poolSpend`). Empowered is a dice-changers row, Seeking a
  * d20 fold kind, the ask at the area is area-ask.js.
  */
-import { MODULE_ID, readFlag, TITLE, publish, statContext, decisionWindow } from "./core.js";
+import { MODULE_ID, readFlag, TITLE, publish, statContext, decisionWindow, ownersAndGmIds } from "./core.js";
 import { cardActivity, featureNamed, lower, namesAnswering, resolveUuid } from "./lookup.js";
 import { metamagicEntries, listedNames, chosenAreaListed } from "./decide/registry.js";
 import { poolOf, spendPoolUses, isPartyMember } from "./shared.js";
@@ -18,6 +18,7 @@ import { raiseHold, releaseHold, isHeld } from "./holds.js";
 import { SURFACES } from "./surfaces.js";
 import { CARD, activityUuidOf, isCard, originIdInData } from "./decide/card.js";
 import { listen } from "./dispatch.js";
+import { postCard } from "./ui.js";
 
 const INDEX = tableIndex(METAMAGIC);
 /** The name the record shows for Font of Magic's uses — what the table calls them. */
@@ -454,7 +455,6 @@ async function carryDeferredCard(activity, held, templates) {
   const uuid = activity.uuid;
   const carrierMade = await (async () => {
   const casterDisposition = casterTok?.document?.disposition ?? actor?.prototypeToken?.disposition ?? CONST.TOKEN_DISPOSITIONS.FRIENDLY;
-  const whisper = [...new Set([...(actor ? game.users.filter(u => actor.testUserPermission(u, "OWNER")).map(u => u.id) : []), ...game.users.filter(u => u.isGM).map(u => u.id)])];
   const candidates = contained.map(c => ({ uuid: c.uuid, name: c.name, disposition: c.disposition ?? null, tokenId: c.tokenId ?? null, party: isPartyMember(c.uuid) }));
   const option = featureNamed(actor, held.pick.feature);
   const featureRule = held.pick.rule ?? metamagicRuleText(option?.system?.description?.value ?? "");
@@ -469,9 +469,9 @@ async function carryDeferredCard(activity, held, templates) {
       heightened: { feature: held.pick.feature, rule: featureRule }, candidates, caster })
     : newAsk({ kind: held.pick.key, feature: held.pick.feature, cap: held.pick.cap ?? 1, rule: featureRule, candidates, caster });
   const words = askWords(ask);
-  await ChatMessage.create({
-    speaker: ChatMessage.getSpeaker({ actor }), whisper,
-    content: bfCard({ img: merged ? (activity.item?.img ?? null) : (option?.img ?? null),
+  await postCard({
+    actor, to: ownersAndGmIds(actor),
+    card: bfCard({ img: merged ? (activity.item?.img ?? null) : (option?.img ?? null),
       eyebrow: words.eyebrow, tone: "pending", title: words.carrierTitle, subtitle: words.carrierSubtitle }),
     flags: { [MODULE_ID]: {
       [AREA_ASK_FLAG]: ask,

@@ -4,7 +4,7 @@
  * failure presses `endConcentration`, whose `dependentOn` cascade strips every riding effect.
  * ⚠ dnd5e never ends concentration at 0 HP or on Incapacitated; this machine does (no save).
  */
-import { MODULE_ID, readFlag, TITLE, S, setting, rollerUserFor, leadsWindow, canAnswerFor, drivesMomentFor, canApplyTo, whisperNoGM, statContext, decisionWindow, savesRollThemselves } from "./core.js";
+import { MODULE_ID, readFlag, TITLE, S, setting, rollerUserFor, leadsWindow, canAnswerFor, drivesMomentFor, canApplyTo, whisperNoGM, statContext, decisionWindow, savesRollThemselves, ownersAndGmIds } from "./core.js";
 import { cardItem, featureNamed, lower, resolveUuid, wieldedNamed } from "./lookup.js";
 import { askConcentrationEnd, concentrationEnding, CONCENTRATION_ASKED, rollConfigFor } from "./shared.js";
 import { concentrationExemptEntries, damageRuleEntries, listedNames } from "./decide/registry.js";
@@ -12,7 +12,7 @@ import { CONCENTRATION_EXEMPTS, DAMAGE_RULES } from "./decide/registry.js";
 import { ruleLine } from "./decide/present.js";
 import { popupKey, bfCard, esc, holdBarHTML } from "./decide/present.js";
 import { DialogCarried, armAskTimer, disarmAskTimer, electOwns, dramaticVerdictPause, registerDemand, demandAnsweredBy, registerWithheld, withholds,
-  pendingRow, forgetShown, closePopup, frontPopup } from "./ui.js";
+  pendingRow, forgetShown, closePopup, frontPopup, postCard } from "./ui.js";
 import { SAVE_FOLDS, foldedSave, foldsFrom } from "./decide/verdict.js";
 import { SURFACES } from "./surfaces.js";
 import { isConcentrationPrompt } from "./decide/card.js";
@@ -119,9 +119,9 @@ function concentrationExemptFor(actor) {
 async function exemptCard(actor, { key, row, item }, changes) {
   try {
     const damage = -changes.total;
-    await ChatMessage.create({
-      speaker: ChatMessage.getSpeaker({ actor }),
-      content: bfCard({ img: item.img ?? null, eyebrow: "Concentration check", tone: "good",
+    await postCard({
+      actor,
+      card: bfCard({ img: item.img ?? null, eyebrow: "Concentration check", tone: "good",
         title: `${key} — no save for ${row.spell}`,
         subtitle: `${actor.name} took ${damage} damage; its Concentration on ${row.spell} holds`,
         lines: [ruleLine(row.rule)] }),
@@ -152,9 +152,6 @@ function concAbility(actor) {
     : CONFIG.DND5E.defaultAbilities.concentration;
 }
 
-const concRecipients = actor => [...new Set(game.users
-  .filter(u => u.isGM || actor?.testUserPermission?.(u, "OWNER")).map(u => u.id))];
-
 async function stampConcentrationAsk(actor, changes) {
   const damage = -changes.total;
   const names = concentratingOn(actor);
@@ -170,8 +167,8 @@ async function stampConcentrationAsk(actor, changes) {
   const window = decisionWindow();
   const abilityLabel = CONFIG.DND5E.abilities[concAbility(actor)]?.label ?? "Constitution";
 
-  await ChatMessage.create({
-    content: bfCard({
+  await postCard({
+    card: bfCard({
       img: actor.img ?? null,
       eyebrow: "Concentration check",
       title: `${abilityLabel} save, DC ${dc}`,
@@ -179,8 +176,8 @@ async function stampConcentrationAsk(actor, changes) {
       lines: [causeLine(cause, damage), ...(breaker ? [breakerLine(breaker)] : [])],
       tone: "pending"
     }),
-    speaker: ChatMessage.getSpeaker({ actor }),
-    ...(setting(S.concVisibility) ? {} : { whisper: concRecipients(actor) }),
+    actor,
+    to: setting(S.concVisibility) ? null : ownersAndGmIds(actor),
     flags: { [MODULE_ID]: { concentration: {
       status: "pending",
       actorUuid: actor.uuid,
@@ -305,7 +302,7 @@ async function foldConcentrationRoll(askMessage, rollMessage) {
 
     const actor = await fromUuid(ask.actorUuid);
     // ⚠ Visibility frozen AT VERDICT TIME (a flip during the pause must not re-address), and stored.
-    const whisper = setting(S.concVisibility) ? null : concRecipients(actor);
+    const whisper = setting(S.concVisibility) ? null : ownersAndGmIds(actor);
 
     ask.status = "done";
     ask.outcome = {
@@ -379,8 +376,8 @@ async function resumeConcOutcome(askMessage) {
 
 /** Quiet good news, visibility-scoped (ARCHITECTURE.md §6); `whisper` is fixed at verdict time. */
 async function announceConcentrationHolds(actor, ask, whisper = null) {
-  await ChatMessage.create({
-    content: bfCard({
+  await postCard({
+    card: bfCard({
       img: actor?.img ?? null,
       eyebrow: "Concentration",
       title: `${ask.names?.join(", ") || "Concentration"} holds`,
@@ -388,8 +385,8 @@ async function announceConcentrationHolds(actor, ask, whisper = null) {
         + `${ask.outcome.timedOut ? " — rolled by the timer" : ""}`,
       tone: "good"
     }),
-    speaker: { alias: TITLE },
-    ...(whisper ? { whisper } : {})
+    alias: TITLE,
+    to: whisper
   });
 }
 
@@ -411,8 +408,8 @@ async function breakConcentration(actor, { names = [], effectIds = null, ask = n
       "The save and its verdict stand — end the effect from their sheet.");
   }
   const what = names.length ? names.join(", ") : "concentration";
-  await ChatMessage.create({
-    content: bfCard({
+  await postCard({
+    card: bfCard({
       img: actor?.img ?? null,
       eyebrow: "Concentration broken",
       title: `${what} ends`,
@@ -425,7 +422,7 @@ async function breakConcentration(actor, { names = [], effectIds = null, ask = n
       lines: [],
       tone: "bad"
     }),
-    speaker: { alias: TITLE }
+    alias: TITLE
   });
 }
 
@@ -602,7 +599,7 @@ async function foldConcentrationAutoFail(askMessage, sources = []) {
     const ask = foundry.utils.deepClone(readFlag(askMessage, "concentration") ?? {});
     if ( ask.status !== "pending" ) return;
     const actor = await fromUuid(ask.actorUuid);
-    const whisper = setting(S.concVisibility) ? null : concRecipients(actor);
+    const whisper = setting(S.concVisibility) ? null : ownersAndGmIds(actor);
     ask.status = "done";
     ask.outcome = {
       total: null, success: false, autoFailed: true,

@@ -17,7 +17,7 @@ import { DICE_CHANGE_FLAG, orderRows, birthStatus, diceChipsOf, answerPlan, butt
 import { empoweredReaches, empoweredOutcome } from "./decide/metamagic.js";
 import { bfCard, esc, holdBarHTML, tickRowsHTML, dieMeterHTML, spendPhrase } from "./decide/present.js";
 import { eitherRise, rerollRise } from "./decide/dice-chips.js";
-import { openMomentPopup, armAskTimer, disarmAskTimer, subjectOwns, dramaticVerdictPause, registerResumable, paintDieChip, pendingRow, closePopup } from "./ui.js";
+import { openMomentPopup, armAskTimer, disarmAskTimer, subjectOwns, dramaticVerdictPause, registerResumable, paintDieChip, pendingRow, closePopup, postCard } from "./ui.js";
 import { attackMessageForDamage, weaponRollsOf } from "./auto-damage.js";
 import { moveAppliedDamage } from "./auto-apply.js";
 import { empoweredOffer, SORCERY_POINTS } from "./metamagic.js";
@@ -374,10 +374,10 @@ async function resolve(message, { ticked, picks }) {
     const lines = ran.map(r => esc(stepLine({ ...r, ...outcomes[r.key] })));
     if ( record ) lines.push(esc(spendPhrase([record], "Sorcery Point")));
     const rise = mergeRises(rises);
-    const announce = await ChatMessage.create({
-      speaker: ChatMessage.getSpeaker({ actor }),
+    const announce = await postCard({
+      actor,
       rolls: fresh,
-      content: bfCard({ img: featureOf(actor, ran[0])?.img ?? null,
+      card: bfCard({ img: featureOf(actor, ran[0])?.img ?? null,
         eyebrow: (ran.length === 1) && (ran[0].kind === "pick") ? "Metamagic — Empowered Spell" : `Damage — ${ran.map(r => r.feature).join(", then ")}`,
         tone: delta > 0 ? "good" : "neutral",
         title: `${ran.map(r => r.feature).join(", then ")} — ${flag.total} → ${total}`,

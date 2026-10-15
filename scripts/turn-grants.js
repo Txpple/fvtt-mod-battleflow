@@ -18,7 +18,7 @@ import { activityNamed, activityOfType, cardActivity, featureNamed, lower, resol
 import { chitStampOf, effectSourceOf, poolOf } from "./shared.js";
 import { endOptionsOf } from "./decide/turn-grants.js";
 import { holdBarHTML, esc } from "./decide/present.js";
-import { openMomentPopup, armAskTimer, disarmAskTimer, subjectOwns, registerRelay, registerResumable, pendingRow, closePopup } from "./ui.js";
+import { openMomentPopup, armAskTimer, disarmAskTimer, subjectOwns, registerRelay, registerResumable, pendingRow, closePopup, postCard, postAnswer } from "./ui.js";
 import { SURFACES } from "./surfaces.js";
 import { CARD, isCard, targetsOf } from "./decide/card.js";
 import { extendedThisTurn } from "./decide/turn-grants.js";
@@ -86,9 +86,9 @@ async function remindExtend({ effect, row, item, actor, place, combat, round, tu
     }).filter(Boolean);
     const verdict = extendedThisTurn({ cards, side });
     if ( verdict.extended ) return;
-    await ChatMessage.create({
-      speaker: ChatMessage.getSpeaker({ actor }),
-      content: bfCard({ img: item.img ?? null, eyebrow: "Turn end", tone: "neutral",
+    await postCard({
+      actor,
+      card: bfCard({ img: item.img ?? null, eyebrow: "Turn end", tone: "neutral",
         title: `${row.key} — it ends now unless you extended it`,
         subtitle: `${actor.name} made ${verdict.why} this turn — ${row.says}; nothing is removed`,
         lines: [ruleLine(row.rule)] }),
@@ -220,9 +220,9 @@ async function grantInspiration({ row, item, actor, place }) {
     if ( actor.type !== "character" ) return;
     if ( actor.system?.attributes?.inspiration === true ) return;   // held already: nothing to give, nothing said
     await actor.update({ "system.attributes.inspiration": true });
-    await ChatMessage.create({
-      speaker: ChatMessage.getSpeaker({ actor }),
-      content: bfCard({ img: item.img ?? null, eyebrow: "Turn start", tone: "good",
+    await postCard({
+      actor,
+      card: bfCard({ img: item.img ?? null, eyebrow: "Turn start", tone: "good",
         title: `${row.key} — ${actor.name} gains Heroic Inspiration`, subtitle: "none was held — the start of its turn",
         lines: [ruleLine(row.rule)] }),
       flags: { [MODULE_ID]: { [GRANT_FLAG]: { ...statContext(actor.uuid), key: row.key, place, effectUuid: null, actorUuid: actor.uuid,
@@ -261,9 +261,9 @@ async function offerEnd({ row, item, actor, bearer, place, on, why }) {
       bearerUuid: bearer.uuid, bearerName: bearer.name, itemId: item.id, activityId: activity?.id ?? null,
       poolName: pool?.name ?? null, poolLeft: left, options, ...statContext(actor.uuid),
       ...(window ? { window, deadline: Date.now() + (window * 1000) } : {}) };
-    await ChatMessage.create({
-      speaker: ChatMessage.getSpeaker({ actor }),
-      content: bfCard({ img: item.img ?? null, eyebrow: (on === "use") ? `${why}` : (on === "turnEnd") ? "Turn end" : "Turn start", tone: "pending",
+    await postCard({
+      actor,
+      card: bfCard({ img: item.img ?? null, eyebrow: (on === "use") ? `${why}` : (on === "turnEnd") ? "Turn end" : "Turn start", tone: "pending",
         title: `${row.key} — end a condition on ${bearer.name}?`, subtitle: options.map(o => o.label).join(" · ") }),
       flags: { [MODULE_ID]: { [END_FLAG]: flag } }
     });
@@ -283,9 +283,9 @@ async function answerEnd(message, answer, { timedOut = false } = {}) {
     await queueFlagWrite(message, END_FLAG, current => settleEnd(current, answer, timedOut));
     return;
   }
-  if ( !game.users.activeGM ) { ui.notifications?.warn(`${flag.row}: a GM must be on — end it from the sheet by hand.`); return; }
-  await ChatMessage.create({ speaker: ChatMessage.getSpeaker({ actor: resolveUuid(flag.actorUuid) }), content: "",
-    whisper: game.users.filter(u => u.isGM).map(u => u.id),
+  await postAnswer("conditionEndAnswer", {
+    noGM: `${flag.row}: a GM must be on — end it from the sheet by hand.`,
+    actor: resolveUuid(flag.actorUuid), card: "", toElect: true,
     flags: { [MODULE_ID]: { conditionEndAnswer: { messageId: message.id, answer } } } });
 }
 
@@ -435,10 +435,10 @@ async function dealToGrappled({ row, item, actor, place, held, why }) {
     if ( !raw ) { console.warn(`${TITLE} | ${row.key}: no damage part on "${row.activity ?? "its damage activity"}" — deal it by hand.`); return; }
     const roll = await new Roll(raw, activity.getRollData?.() ?? item.getRollData?.() ?? {}).evaluate();
     const targets = held.map(c => ({ uuid: c.uuid, name: c.name }));
-    const card = await ChatMessage.create({
-      speaker: ChatMessage.getSpeaker({ actor }),
+    const card = await postCard({
+      actor,
       rolls: [roll],
-      content: bfCard({ img: item.img ?? null, eyebrow: "Turn start", tone: "bad",
+      card: bfCard({ img: item.img ?? null, eyebrow: "Turn start", tone: "bad",
         title: `${row.key} — ${actor.name} deals ${roll.total} ${type} damage to ${targets.map(t => t.name).join(", ")}`,
         subtitle: `the creature${targets.length === 1 ? "" : "s"} it grapples — ${why}`,
         lines: [ruleLine(row.rule), row.caveat ? `<span style="opacity:0.8;">${row.caveat}</span>` : null] }),
@@ -464,9 +464,9 @@ function blockedBy(actor, item, combat) {
 /** Nothing paid: the card says which damage stopped it (R5). No receipt — nothing landed. */
 async function blockedCard({ row, item, actor, place, block }) {
   try {
-    await ChatMessage.create({
-      speaker: ChatMessage.getSpeaker({ actor }),
-      content: bfCard({ img: item.img ?? null, eyebrow: "Turn start", tone: "neutral",
+    await postCard({
+      actor,
+      card: bfCard({ img: item.img ?? null, eyebrow: "Turn start", tone: "neutral",
         title: `${row.key} — ${actor.name} regains nothing this turn`,
         subtitle: `it took ${block.label} damage since its last turn`,
         lines: [ruleLine(row.rule)] }),
@@ -491,10 +491,10 @@ async function pay({ effect, row, item, actor, place, why, on = "turnStart" }) {
     const caster = item.actor ?? null;
     const roll = await new Roll(raw, activity.getRollData?.() ?? item.getRollData?.() ?? {}).evaluate();
     const type = [...(part.types ?? [])][0] ?? (deals ? "bludgeoning" : "healing");
-    const card = await ChatMessage.create({
-      speaker: ChatMessage.getSpeaker({ actor: caster ?? actor }),
+    const card = await postCard({
+      actor: caster ?? actor,
       rolls: deals ? [roll] : [],
-      content: bfCard({ img: item.img ?? null, eyebrow: (on === "use") ? (row.of ?? "Use") : (on === "turnEnd") ? "Turn end" : "Turn start", tone: deals ? "bad" : "good",
+      card: bfCard({ img: item.img ?? null, eyebrow: (on === "use") ? (row.of ?? "Use") : (on === "turnEnd") ? "Turn end" : "Turn start", tone: deals ? "bad" : "good",
         title: grantTitle({ spell: row.key, bearer: actor.name, total: roll.total, type, deals }),
         subtitle: effect ? `${effect.name} stands on ${actor.name} — ${why}` : `${actor.name}'s own ${row.key} — ${why}`,
         lines: [ruleLine(row.rule), row.caveat ? `<span style="opacity:0.8;">${row.caveat}</span>` : null] }),

@@ -16,7 +16,7 @@ import { holdsTemp, mealStanding, restEnds } from "./decide/rest-grants.js";
 import { SURFACES } from "./surfaces.js";
 import { nearestFeet, tokenOfActor } from "./geometry.js";
 import { effectSourceOf, isPartyMember } from "./shared.js";
-import { openMomentPopup, registerRelay, registerResumable, armAskTimer, disarmAskTimer, subjectOwns, pendingRow, closePopup } from "./ui.js";
+import { openMomentPopup, registerRelay, registerResumable, armAskTimer, disarmAskTimer, subjectOwns, pendingRow, closePopup, postCard, postAnswer } from "./ui.js";
 import { listen, listenOnce } from "./dispatch.js";
 
 /** What a grant writes, by its `grant` word — the sheet facts the table knows how to set. */
@@ -289,9 +289,9 @@ export async function askHandOut(actor, { name, row, item, amount, roll = null, 
   const candidates = songCandidates(actor, grantRow, base).map(c => distribute ? { ...c, has: false } : c);
   if ( !candidates.some(c => !c.has) ) return null;
   const flag = { ...base, candidates };
-  return ChatMessage.create({
-    speaker: ChatMessage.getSpeaker({ actor }), rolls: roll ? [roll] : [],
-    content: bfCard({ img: item.img, eyebrow: name, tone: "pending",
+  return postCard({
+    actor, rolls: roll ? [roll] : [],
+    card: bfCard({ img: item.img, eyebrow: name, tone: "pending",
       title: distribute ? `${name} — ${amount} Temporary Hit Points to divide` : `${name} — ${grantText(flag)} for another creature` }),
     flags: { [MODULE_ID]: { [SONG_FLAG]: flag } }
   });
@@ -382,9 +382,9 @@ listen("dnd5e.restCompleted", "rest-grants", (actor, result, config) => {
       const candidates = songCandidates(actor, row, base, ownRest);
       if ( !candidates.some(c => !c.has) ) continue;   // nobody who could take it
       const flag = { ...base, candidates };
-      void ChatMessage.create({
-        speaker: ChatMessage.getSpeaker({ actor }),
-        content: bfCard({ img: item.img, eyebrow: name, tone: "pending", title: `${name} — ${grantText(flag)} for allies` }),
+      void postCard({
+        actor,
+        card: bfCard({ img: item.img, eyebrow: name, tone: "pending", title: `${name} — ${grantText(flag)} for allies` }),
         flags: { [MODULE_ID]: { [SONG_FLAG]: flag } }
       }).catch(err => console.error(`${TITLE} | ${name}'s ask could not be posted.`, err));
     }
@@ -444,13 +444,10 @@ async function answerSong(message, picks, { declined = false, timedOut = false }
     });
     return;
   }
-  if ( !game.users.activeGM ) {
-    ui.notifications?.warn(`${flag.row}: a GM must be on to give ${grantText(flag)} — give it on each sheet by hand.`);
-    return;
-  }
-  await ChatMessage.create({
-    speaker: ChatMessage.getSpeaker({ actor: resolveUuid(flag.actorUuid) }),
-    content: "", whisper: game.users.filter(u => u.isGM).map(u => u.id),
+  await postAnswer("restSongAnswer", {
+    noGM: `${flag.row}: a GM must be on to give ${grantText(flag)} — give it on each sheet by hand.`,
+    actor: resolveUuid(flag.actorUuid),
+    card: "", toElect: true,
     flags: { [MODULE_ID]: { restSongAnswer: { messageId: message.id, picks: chosen, ...marks } } }
   });
 }
@@ -478,9 +475,9 @@ async function serveMeal(flag, eaters, { chefName = flag.actorName } = {}) {
     await actor.applyDamage([{ value: roll.total, type: "healing" }]);
     served.push({ name: actor.name, total: roll.total });
   }
-  await ChatMessage.create({
-    speaker: { alias: chefName }, rolls,
-    content: bfCard({ eyebrow: "Replenishing Meal", tone: "good",
+  await postCard({
+    alias: chefName, rolls,
+    card: bfCard({ eyebrow: "Replenishing Meal", tone: "good",
       title: served.map(s => `${s.name} +${s.total}`).join(", "),
       subtitle: `${chefName}'s cooking — ${flag.formula} Hit Points each, on top of the Hit Dice spent` })
   });

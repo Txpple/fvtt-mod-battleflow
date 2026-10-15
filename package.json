@@ -4,7 +4,7 @@
   "type": "module",
   "description": "Development tooling for By the Books (formerly Battle Flow). NOTHING HERE SHIPS — the module is plain ES modules loaded straight from scripts/, with no build step (ARCHITECTURE.md).",
   "scripts": {
-    "verify": "npm run check && npm run knip && npm run typecheck && npm run imports && npm run cardreads && npm run layers && npm run flagedges && npm run coverage && npm run hooks && npm run dispatch && npm run writers && npm run clocks && npm run serializer && npm run html && npm run rulefolds && npm run pickers && npm run popups && npm run surfaces && npm run registry && npm run identifiers && npm run moments && npm run manifest && npm run comments && npm run doclinks && npm run test",
+    "verify": "npm run check && npm run knip && npm run typecheck && npm run imports && npm run cardreads && npm run layers && npm run flagedges && npm run coverage && npm run hooks && npm run dispatch && npm run writers && npm run clocks && npm run serializer && npm run html && npm run cards && npm run rulefolds && npm run pickers && npm run popups && npm run surfaces && npm run registry && npm run identifiers && npm run moments && npm run manifest && npm run comments && npm run doclinks && npm run test",
     "check": "biome check --error-on-warnings .",
     "check:fix": "biome check --write .",
     "lint": "biome lint ./scripts",
@@ -22,6 +22,7 @@
     "clocks": "node tools/check-clocks.mjs",
     "serializer": "node tools/check-serializer.mjs",
     "html": "node tools/check-html.mjs",
+    "cards": "node tools/check-cards.mjs",
     "rulefolds": "node tools/check-rule-folds.mjs",
     "pickers": "node tools/check-pickers.mjs",
     "popups": "node tools/check-popups.mjs",

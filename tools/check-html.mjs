@@ -8,7 +8,8 @@
 //
 // How it reads (the repo's TypeScript parser):
 //   - an HTML template literal is one whose text carries a tag, or one that sits where HTML goes:
-//     a card's `lines: [...]`, a `content:` / `html:` property, the right side of `innerHTML =`;
+//     a card's `lines: [...]`, a `content:` / `html:` / `card:` property (`card:` is ui.js postCard's
+//     content), the right side of `innerHTML =`;
 //   - a builder's result (`…HTML(…)`, `bfCard`, `ruleLine`, `spendLine`, `spendPhrase`) is HTML
 //     already, its own literals checked where they are written; a nested template literal too;
 //   - a condition is not text: a ternary's test, an `&&`'s left side, a comparison, a `!x`;
@@ -52,7 +53,7 @@ for (const path of jsFiles(SCRIPTS)) {
     let p = tpl.parent;
     while (p && (ts.isParenthesizedExpression(p) || ts.isConditionalExpression(p) || ts.isBinaryExpression(p))) p = p.parent;
     if (p && ts.isArrayLiteralExpression(p) && ts.isPropertyAssignment(p.parent) && (p.parent.name.getText() === "lines")) return true;
-    if (p && ts.isPropertyAssignment(p) && /^(content|html)$/.test(p.name.getText())) return true;
+    if (p && ts.isPropertyAssignment(p) && /^(content|html|card)$/.test(p.name.getText())) return true;
     if (p && ts.isBinaryExpression(p) && /innerHTML$/.test(p.left.getText())) return true;
     return false;
   };

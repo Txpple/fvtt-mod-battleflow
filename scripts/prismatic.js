@@ -21,6 +21,7 @@ import { applyEffectsWithReceipt } from "./effect-riders.js";
 import { SURFACES } from "./surfaces.js";
 import { listen } from "./dispatch.js";
 import { savesOf } from "./shared.js";
+import { postCard } from "./ui.js";
 
 const SPRAY_FLAG = "prismatic";
 const RAY_FLAG = "prismaticRay";
@@ -115,10 +116,10 @@ async function spray(card, regions) {
       rolls.push(pool);
       entries.push({ ...c, rays, faces: drawn });
     }
-    await ChatMessage.create({
-      speaker: ChatMessage.getSpeaker({ actor: caster, token: casterTok ?? undefined }),
+    await postCard({
+      actor: caster, token: casterTok ?? undefined,
       rolls,
-      content: bfCard({ img: activity.item.img ?? null, eyebrow: `${row.key} — the rays`, tone: "bad",
+      card: bfCard({ img: activity.item.img ?? null, eyebrow: `${row.key} — the rays`, tone: "bad",
         title: entries.length ? `${row.key} — ${entries.length} creature${entries.length === 1 ? "" : "s"} in the cone` : `${row.key} — nobody in the cone`,
         subtitle: entries.length ? `a d${row.die} per creature (the pool's first faces); an ${row.twice} is two rays` : "the cone found no creature",
         lines: [...raySummaryLines(entries).map(esc), ruleLine(row.rule)] }),
@@ -153,9 +154,9 @@ async function raiseRay({ row, activity, caster, casterTok, card, target, ray, s
     const words = rayWords({ spell: row.key, ray, target: target.name, caster: caster?.name ?? null });
     const abilityLabel = CONFIG.DND5E.abilities[abilities[0]]?.label ?? abilities[0];
     const scaling = Math.max(0, Number(spellLevel ?? 0) - Number(item.system?.level ?? 0));
-    const demand = await ChatMessage.create({
-      speaker: ChatMessage.getSpeaker({ actor: caster, token: casterTok ?? undefined }),
-      content: bfCard({ img: item.img ?? null, eyebrow: words.eyebrow, tone: "bad", title: words.title,
+    const demand = await postCard({
+      actor: caster, token: casterTok ?? undefined,
+      card: bfCard({ img: item.img ?? null, eyebrow: words.eyebrow, tone: "bad", title: words.title,
         subtitle: `${words.subtitle} · ${abilityLabel} save DC ${dc}`, lines: [ruleLine(row.rule)] }),
       flags: { [MODULE_ID]: {
         saves: saveDemandData({

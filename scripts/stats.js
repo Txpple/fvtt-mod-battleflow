@@ -4,11 +4,12 @@
  * ⚠ The roster is STATIC — a snapshot and a closing round, never clock ownership.
  * ⚠ Ungated by design (a toggle would punch holes in the ledger).
  */
-import { MODULE_ID, readFlag, TITLE, isActiveGM, statContext } from "./core.js";
+import { MODULE_ID, readFlag, TITLE, isActiveGM, statContext, gmIds } from "./core.js";
 import { bfCard, esc } from "./decide/present.js";
 // Safe: shared.js registers no hooks and evaluates first.
 import { statSourceOf } from "./shared.js";
 import { listen } from "./dispatch.js";
+import { postCard } from "./ui.js";
 
 /** The dispatched names (pinned in tools/dnd5e-hooks.json); one roll can fire several. */
 const D20_TEST_HOOKS = [
@@ -67,10 +68,10 @@ async function stampRoster(combat) {
       }));
     const order = combatants.map(c =>
       `${(c.initiative ?? "—")} · ${c.name}${c.isPC ? "" : " (foe)"}`);
-    await ChatMessage.create({
-      whisper: game.users.filter(u => u.isGM).map(u => u.id),
-      speaker: { alias: "By the Books" },
-      content: bfCard({
+    await postCard({
+      to: gmIds(),
+      alias: TITLE,
+      card: bfCard({
         eyebrow: "Combat",
         title: scene?.name ?? "The field",
         subtitle: `${combatants.length} combatants`,

@@ -8,7 +8,7 @@ import { featureNamed, isWorn, lower, namesAnswering, resolveUuid } from "./look
 import { damagedSince } from "./decide/turn-grants.js";
 import { conditionEntries, effectEntries, reminderEntries } from "./decide/registry.js";
 import { chipSpentOnRecord, grantingActor, turnChitStands, chipKindOf, effectSourceUuid, metamagicOf, savesOf } from "./shared.js";
-import { DialogCarried, cardRow, markDefaultButton, pendingDemandsFor } from "./ui.js";
+import { DialogCarried, cardRow, markDefaultButton, pendingDemandsFor, postCard } from "./ui.js";
 import { bfCard, reminderFieldsetHTML, ruleLine, sneakBoxHTML, TONE, esc } from "./decide/present.js";
 import { chipIsDead, chipOwnedBy, rollModeOf } from "./decide/chips.js";
 import { CHECK_BENDS, CONDITION_BENDS, CROSSBOWS, EFFECT_BENDS, EMANATIONS, MASTERY_RULES, RANGE_FEATS, RANGE_RULES, SAVE_BENDS, SNEAK_ATTACK, tableIndex } from "./decide/registry.js";
@@ -903,9 +903,9 @@ function postSheetAutoFail(gate) {
   if ( !(actor instanceof Actor) ) return;
   const abilityLabel = CONFIG.DND5E.abilities[gate.ability]?.label ?? gate.ability;
   const failing = gate.sources.filter(s => s.autoFail);
-  void ChatMessage.create({
-    speaker: ChatMessage.getSpeaker({ actor }),
-    content: bfCard({
+  void postCard({
+    actor,
+    card: bfCard({
       img: actor.img ?? null, eyebrow: "Saving throw — automatic failure", tone: "bad",
       title: `${actor.name}: ${abilityLabel} save fails`,
       subtitle: failing.map(s => s.statusName).join(", "),

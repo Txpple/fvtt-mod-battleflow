@@ -4,7 +4,7 @@
  * Owns the lifecycle of the rings, the floor that keeps member effects true, and the triggers.
  * Only the active GM writes. Rulings: RULINGS *Emanations*.
  */
-import { MODULE_ID, readFlag, TITLE, isActiveGM, activeCombatFor, statContext, whisperNoGM, drivesMomentFor, decisionWindow, queueFlagWrite } from "./core.js";
+import { MODULE_ID, readFlag, TITLE, isActiveGM, activeCombatFor, statContext, whisperNoGM, drivesMomentFor, decisionWindow, queueFlagWrite, selfIds } from "./core.js";
 import { saveDemandData, saveTargetEntry } from "./decide/demand.js";
 import { lower, itemNamed, activityNamed, activityOfType, resolveUuid, namesAnswering, applicableProfiles, wearsEffectNamed } from "./lookup.js";
 import { ruleHTML } from "./rule-text.js";
@@ -20,7 +20,7 @@ import { pulseFormKey, reachAdmits, resolveChanges, emanationRange, triggerDue, 
   awaySide, bandShape, bandOptions, askDefaults, creatureTypeOf, typeAdmits, movePayout, alertPhrase, alertKeysOnTurn, pickCandidates } from "./decide/emanations.js";
 import { feetOf } from "./geometry.js";
 import { canAnswerFor } from "./core.js";
-import { momentButton, registerRelay, waitForWrite } from "./ui.js";
+import { momentButton, registerRelay, waitForWrite, postCard, postAnswer } from "./ui.js";
 import { rollDamageForSave } from "./auto-damage.js";
 import { applyDamagesWithReceipt } from "./auto-apply.js";
 import { SURFACES } from "./surfaces.js";
@@ -299,9 +299,9 @@ async function maybeTrigger(behType, token, cause) {
       : { fail: profiles.filter(e => !e.onSave).map(e => e.effect.name), always: profiles.filter(e => e.onSave).map(e => e.effect.name) };
     const window = decisionWindow();
     const abilityLabel = CONFIG.DND5E.abilities[abilities[0]]?.label ?? abilities[0];
-    const card = await ChatMessage.create({
-      speaker: ChatMessage.getSpeaker({ actor: casterActor, token: source ?? undefined }),
-      content: bfCard({
+    const card = await postCard({
+      actor: casterActor, token: source ?? undefined,
+      card: bfCard({
         img: item.img, eyebrow: "Emanation", tone: "bad",
         title: `${row.key} — ${actor.name} ${why}`,
         subtitle: `${abilityLabel} save DC ${dc} · ${due.why}${hasDamage ? ` · ${onSave === "half" ? "half on a success" : "none on a success"}` : ""}`,
@@ -345,10 +345,10 @@ async function triggerDamage({ region, row, sys, item, damage, token, actor, cas
     const type = list[0]?.options?.type ?? [...(damage.damage?.parts?.[0]?.types ?? [])][0] ?? null;
     // ⚠ Read the rolls BEFORE the card: ChatMessage.create serializes the array it is handed in place.
     const damages = list.map(r => ({ value: Number(r.total), type: r.options?.type ?? type ?? "slashing", properties: new Set(["mgc"]) }));
-    const card = await ChatMessage.create({
-      speaker: ChatMessage.getSpeaker({ actor: casterActor, token: source ?? undefined }),
+    const card = await postCard({
+      actor: casterActor, token: source ?? undefined,
       rolls: [...list],
-      content: bfCard({ img: item.img ?? null, eyebrow: "Emanation", tone: "bad",
+      card: bfCard({ img: item.img ?? null, eyebrow: "Emanation", tone: "bad",
         title: `${row.key} — ${actor.name} ${why}: ${total} ${type ?? ""} damage`.replace(/\s+/g, " "),
         subtitle: `no save · ${due.why}`,
         lines: [ruleLine(row.rule)] }),
@@ -400,9 +400,9 @@ async function maybeAlert(behType, token, movement, cause) {
     const window = decisionWindow();
     const what = alertPhrase(cause);
     const trait = item?.system?.type?.value === "monster";
-    await ChatMessage.create({
-      speaker: ChatMessage.getSpeaker({ actor: bearer, token: source }),
-      content: bfCard({ img: item?.img ?? null, eyebrow: `${trait ? "Trait" : "Feat"} — ${item?.name ?? row.key}`, tone: "good",
+    await postCard({
+      actor: bearer, token: source,
+      card: bfCard({ img: item?.img ?? null, eyebrow: `${trait ? "Trait" : "Feat"} — ${item?.name ?? row.key}`, tone: "good",
         title: `${row.alert.label} — ${token.name} ${what} ${bearer.name}'s reach`,
         subtitle: weapon ? `${weapon.name} · ${weaponReachOf(weapon)} ft` : (row.range ? `${row.range} ft` : ""),
         lines: [ruleLine(row.rule), row.alert.swing, row.caveat ? `<span style="opacity:0.8;">${esc(row.caveat)}</span>` : null] }),
@@ -422,9 +422,9 @@ async function maybeAlert(behType, token, movement, cause) {
 async function notice(region, row, sys, token, cause) {
   const item = resolveUuid(sys.item);
   const caster = item?.actor ?? null;
-  await ChatMessage.create({
-    speaker: ChatMessage.getSpeaker({ actor: caster ?? token.actor }),
-    content: bfCard({ img: item?.img ?? null, eyebrow: `${row.key} — the ban`, tone: "bad",
+  await postCard({
+    actor: caster ?? token.actor,
+    card: bfCard({ img: item?.img ?? null, eyebrow: `${row.key} — the ban`, tone: "bad",
       title: `${row.alert.label} — ${token.name} ${cause === "moveOut" ? "leaves" : "enters"} ${caster ? `${caster.name}'s ` : "the "}${row.key}`,
       subtitle: `${token.name} ${row.alert.says}`,
       lines: [ruleLine(row.rule), row.caveat ? `<span style="opacity:0.8;">${esc(row.caveat)}</span>` : null] }),
@@ -472,10 +472,10 @@ async function maybeMoveDamage(behType, token, movement) {
     const roll = await new Roll(payout.formula, casterActor?.getRollData?.() ?? {}).evaluate();
     const type = payout.type ?? "piercing";
     const actor = token.actor;
-    const card = await ChatMessage.create({
-      speaker: ChatMessage.getSpeaker({ actor: casterActor, token: source ?? undefined }),
+    const card = await postCard({
+      actor: casterActor, token: source ?? undefined,
       rolls: [roll],
-      content: bfCard({ img: item.img ?? null, eyebrow: "Emanation", tone: "bad",
+      card: bfCard({ img: item.img ?? null, eyebrow: "Emanation", tone: "bad",
         title: `${row.key} — ${actor.name} moved ${Math.round(feet)} feet through it: ${roll.total} ${type} damage`,
         subtitle: `${payout.why} · ${payout.formula}`,
         lines: [ruleLine(row.rule), row.caveat ? `<span style="opacity:0.8;">${esc(row.caveat)}</span>` : null] }),
@@ -516,9 +516,9 @@ async function maybeHeal(behType, token, cause) {
     const casterActor = item?.actor ?? null;
     const roll = await new Roll(raw, casterActor?.getRollData?.() ?? {}).evaluate();
     const type = [...(part.types ?? [])][0] ?? "healing";
-    const card = await ChatMessage.create({
-      speaker: ChatMessage.getSpeaker({ actor: casterActor, token: source ?? undefined }),
-      content: bfCard({ img: item?.img ?? null, eyebrow: "Emanation", tone: "good",
+    const card = await postCard({
+      actor: casterActor, token: source ?? undefined,
+      card: bfCard({ img: item?.img ?? null, eyebrow: "Emanation", tone: "good",
         title: `${row.key} — ${actor.name} regains ${roll.total} Hit Point${roll.total === 1 ? "" : "s"}`,
         subtitle: `${due.why} inside ${source?.name ?? "the caster"}'s ${row.key}`,
         lines: [ruleLine(row.rule)] }),
@@ -581,9 +581,9 @@ async function pickCard(region, row, token, combat) {
     const candidates = pickCandidates(inside, { sourceTokenId: token.id, sourceDisposition: token.disposition, reach: sys.reach });
     if ( !candidates.length ) return;
     const turn = combat ? `${combat.id}|${combat.round}|${combat.turn}` : null;
-    await ChatMessage.create({
-      speaker: ChatMessage.getSpeaker({ actor: bearer, token }),
-      content: bfCard({ img: item.img ?? null, eyebrow: "Emanation", tone: "pending",
+    await postCard({
+      actor: bearer, token,
+      card: bfCard({ img: item.img ?? null, eyebrow: "Emanation", tone: "pending",
         title: `${row.key} — ${bearer.name}'s turn: choose one creature inside`,
         subtitle: `inside: ${candidates.map(c => c.name).join(", ")} · once on each of your turns`,
         lines: [ruleLine(row.rule), row.caveat ? `<span style="opacity:0.8;">${esc(row.caveat)}</span>` : null] }),
@@ -629,7 +629,7 @@ async function choosePick(card, choice) {
     });
     return;
   }
-  await ChatMessage.create({ whisper: [game.user.id], speaker: { alias: TITLE }, content: `<p>${esc(choice.name)}</p>`,
+  await postAnswer("emanationPickChoice", { to: selfIds(), alias: TITLE, card: `<p>${esc(choice.name)}</p>`,
     flags: { [MODULE_ID]: { emanationPickChoice: { cardId: card.id, choice } } } });
 }
 
@@ -682,9 +682,9 @@ async function demandPick(card, p) {
     const effectNames = { fail: profiles.filter(e => !e.onSave).map(e => e.effect.name), always: profiles.filter(e => e.onSave).map(e => e.effect.name) };
     const window = decisionWindow();
     const abilityLabel = CONFIG.DND5E.abilities[abilities[0]]?.label ?? abilities[0];
-    const demand = await ChatMessage.create({
-      speaker: ChatMessage.getSpeaker({ actor: casterActor, token: source ?? undefined }),
-      content: bfCard({
+    const demand = await postCard({
+      actor: casterActor, token: source ?? undefined,
+      card: bfCard({
         img: item.img, eyebrow: "Emanation", tone: "bad",
         title: `${row.key} — ${p.picked.name} is chosen inside ${casterActor?.name ?? source?.name ?? "the bearer"}'s ${row.key}`,
         subtitle: `${abilityLabel} save DC ${dc} · once on each of your turns${hasDamage ? ` · ${onSave === "half" ? "half on a success" : "none on a success"}` : ""}`,
@@ -720,9 +720,9 @@ async function remind(region, row, token) {
   const activity = activityNamed(item, row.remind.activity);
   const caster = item?.actor ?? token.actor ?? null;
   const inside = [...(region.tokens ?? [])].filter(t => t.id !== token.id).map(t => t.name);
-  await ChatMessage.create({
-    speaker: ChatMessage.getSpeaker({ actor: caster, token }),
-    content: bfCard({ img: item?.img ?? null, eyebrow: "Emanation", tone: "pending",
+  await postCard({
+    actor: caster, token,
+    card: bfCard({ img: item?.img ?? null, eyebrow: "Emanation", tone: "pending",
       title: `${row.key} — ${caster?.name ?? token.name}'s turn: ${activity?.name ?? row.remind.activity} is yours to use`,
       subtitle: inside.length ? `inside the aura: ${inside.join(", ")}` : "nobody else stands inside the aura",
       lines: [ruleLine(row.rule), row.caveat ? `<span style="opacity:0.8;">${row.caveat}</span>` : null] }),
@@ -812,10 +812,10 @@ async function pulse(region, row, token, sys) {
     if ( !inside.length ) return;
     const roll = await new Roll(raw, bearer.getRollData()).evaluate();
     const names = inside.map(t => t.name).join(", ");
-    const card = await ChatMessage.create({
-      speaker: ChatMessage.getSpeaker({ actor: bearer, token }),
+    const card = await postCard({
+      actor: bearer, token,
       rolls: [roll],
-      content: bfCard({ img: item.img ?? null, eyebrow: "Emanation", tone: "bad",
+      card: bfCard({ img: item.img ?? null, eyebrow: "Emanation", tone: "bad",
         title: `${row.key} — ${roll.total} ${type ?? ""} damage at the end of ${token.name}'s turn`.replace(/\s+/g, " "),
         subtitle: `every creature within the aura: ${names}`,
         lines: [ruleLine(row.rule)] }),
@@ -1163,7 +1163,7 @@ async function answerPick(card, answer) {
     await card.setFlag(MODULE_ID, "emanationCard", next);
     return;
   }
-  await ChatMessage.create({ whisper: [game.user.id], speaker: { alias: TITLE }, content: `<p>${esc(answer.type ?? String(answer.side))}</p>`,
+  await postAnswer("emanationPickAnswer", { to: selfIds(), alias: TITLE, card: `<p>${esc(answer.type ?? String(answer.side))}</p>`,
     flags: { [MODULE_ID]: { emanationPickAnswer: { cardId: card.id, ...answer } } } });
 }
 
@@ -1419,9 +1419,9 @@ async function announce(row, actor, item, range, effect, verb, { activity = null
     const types = partTypesOf(activity);
     const alignment = actor?.system?.details?.alignment ?? null;
     const choice = (types.length > 1) ? { types, activityUuid: activity.uuid, alignment, ...damageTypeFor(types, alignment) } : null;
-    await ChatMessage.create({
-      speaker: ChatMessage.getSpeaker({ actor }),
-      content: bfCard({
+    await postCard({
+      actor,
+      card: bfCard({
         img: item?.img ?? null, eyebrow: "Emanation", tone: (row.reach === "helpful") ? "good" : "bad",
         title: `${row.key} — ${actor?.name ?? ""} — ${rangeText}`,
         subtitle: effect ? `${reach}: ${effect.name} — ${describeChanges(effect.changes)}${row.trigger ? " · a save on entering and on ending a turn inside" : ""}${row.heal ? " · an ally at 0 HP regains Hit Points at the start of its turn" : ""}` : (row.trigger ? "a save on entering and on ending a turn inside" : nothing),
@@ -1462,7 +1462,7 @@ async function chooseDamageType(card, type) {
     await card.setFlag(MODULE_ID, "emanationCard", { ...flag, damageType: type, damageWhy: "chosen", chosen: true });
     return;
   }
-  await ChatMessage.create({ whisper: [game.user.id], speaker: { alias: TITLE }, content: `<p>${type}</p>`,
+  await postAnswer("emanationTypeAnswer", { to: selfIds(), alias: TITLE, card: `<p>${type}</p>`,
     flags: { [MODULE_ID]: { emanationTypeAnswer: { cardId: card.id, type } } } });
 }
 

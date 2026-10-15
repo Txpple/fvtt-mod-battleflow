@@ -12,7 +12,7 @@ import { hitTargets, resolveAttackMessage, masteryMomentOf } from "./shared.js";
 import { bfCard, holdBarHTML, ruleLine, esc } from "./decide/present.js";
 import { SURFACES } from "./surfaces.js";
 import { CARD, isCard } from "./decide/card.js";
-import { openMomentPopup, armAskTimer, disarmAskTimer, electOwns, pendingRow, closePopup } from "./ui.js";
+import { openMomentPopup, armAskTimer, disarmAskTimer, electOwns, pendingRow, closePopup, postCard } from "./ui.js";
 import { listen } from "./dispatch.js";
 
 // The offer is stamped on the attacker's OWN attack message (the answer writes directly). Once per
@@ -240,9 +240,9 @@ async function resolveBashOffer(message) {
 async function announceShove(message, flag, attacker) {
   const targetUuid = flag.targetUuid ?? flag.targets?.[0]?.uuid ?? null;
   const target = (flag.targets ?? []).find(t => t.uuid === targetUuid) ?? flag.targets?.[0] ?? null;
-  await ChatMessage.create({
-    speaker: ChatMessage.getSpeaker({ actor: attacker }),
-    content: bfCard({ img: flag.itemImg, eyebrow: `Feat — ${flag.itemName}`, tone: "good",
+  await postCard({
+    actor: attacker,
+    card: bfCard({ img: flag.itemImg, eyebrow: `Feat — ${flag.itemName}`, tone: "good",
       title: `${attacker.name} pushes ${target?.name ?? "the target"} 5 feet`, subtitle: "Move the token by hand" }),
     flags: { [MODULE_ID]: { bashFor: message.id } }
   });

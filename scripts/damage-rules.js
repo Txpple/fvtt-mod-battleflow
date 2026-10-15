@@ -4,7 +4,7 @@
  * listed style, live or disabled off the EQUIPPED boxes; an ungated pack effect is off while the face
  * carries the rule. THE ROLL: bonuses join the parts; a die floor is a `minN` on the built rolls.
  */
-import { MODULE_ID, readFlag, TITLE, publish, drivesMomentFor, canApplyTo, canAnswerFor, keepsMessage, statContext, queueFlagWrite, decisionWindow } from "./core.js";
+import { MODULE_ID, readFlag, TITLE, publish, drivesMomentFor, canApplyTo, canAnswerFor, keepsMessage, statContext, queueFlagWrite, decisionWindow, ownersAndGmIds } from "./core.js";
 import { lower, featureNamed, resolveUuid, wieldsAs } from "./lookup.js";
 import { answers, damageRuleEntries, identifierOf, listedNames } from "./decide/registry.js";
 import { DAMAGE_RULES } from "./decide/registry.js";
@@ -17,7 +17,7 @@ import { riseDice, driftChip } from "./dice-rise.js";
 import { withTargets, resolveAttackMessage, turnChitStands, writeTurnChit } from "./shared.js";
 import { attackMessageForDamage } from "./auto-damage.js";
 import { grappledBy, tokenForUuid } from "./geometry.js";
-import { openMomentPopup, momentButton, armAskTimer, disarmAskTimer, keeperOwns, registerRelay, pendingRow, closePopup } from "./ui.js";
+import { openMomentPopup, momentButton, armAskTimer, disarmAskTimer, keeperOwns, registerRelay, pendingRow, closePopup, postCard, postAnswer } from "./ui.js";
 import { listen, listenOnce } from "./dispatch.js";
 
 const STYLE_FLAG = "fightingStyle";            // a damage message's record — and a face's own key
@@ -630,9 +630,9 @@ async function stampGrapple(actor, feature, activity, candidates) {
     clockDeals: certain.length === 1, answer: null, ...statContext(actor.uuid),
     ...(window ? { window, deadline: Date.now() + (window * 1000) } : {})
   };
-  const message = await ChatMessage.create({
-    speaker: ChatMessage.getSpeaker({ actor }),
-    content: bfCard({ img: feature.img, eyebrow: "Your turn — Unarmed Fighting", tone: "pending",
+  const message = await postCard({
+    actor,
+    card: bfCard({ img: feature.img, eyebrow: "Your turn — Unarmed Fighting", tone: "pending",
       title: `${actor.name} may deal 1d4 to ${candidates.map(c => c.name).join(" or ")}`,
       subtitle: "a creature you are grappling" }),
     flags: { [MODULE_ID]: { [GRAPPLE_FLAG]: flag } }
@@ -670,9 +670,9 @@ async function recordGrapple(message, { answer, pick, timedOut = false }) {
     await queueFlagWrite(message, GRAPPLE_FLAG, current => foldGrapple(current, { answer, pick, timedOut }));
     return;
   }
-  await ChatMessage.create({
-    speaker: ChatMessage.getSpeaker({ actor: resolveUuid(readFlag(message, GRAPPLE_FLAG)?.actorUuid) }),
-    content: `<p>Unarmed Fighting — ${answer === "deal" ? "dealt" : "skipped"}</p>`, whisper: game.users.filter(u => u.isGM).map(u => u.id),
+  await postAnswer("grappleDamageAnswer", {
+    actor: resolveUuid(readFlag(message, GRAPPLE_FLAG)?.actorUuid),
+    card: `<p>Unarmed Fighting — ${answer === "deal" ? "dealt" : "skipped"}</p>`, toElect: true,
     flags: { [MODULE_ID]: { grappleDamageAnswer: { messageId: message.id, answer, pick } } }
   });
 }
@@ -794,9 +794,8 @@ function typesLeftFor(actor, item, name, row) {
 async function postTypePick(actor, item, name, row) {
   const left = typesLeftFor(actor, item, name, row);
   if ( !left ) return;
-  const owners = game.users.filter(u => actor.testUserPermission(u, "OWNER")).map(u => u.id);
-  const message = await ChatMessage.implementation.create({
-    speaker: ChatMessage.implementation.getSpeaker({ actor }), content: "", whisper: owners,
+  const message = await postCard({
+    actor, card: "", to: ownersAndGmIds(actor),
     flags: { [MODULE_ID]: { [PICK_FLAG]: { ...statContext(actor.uuid), row: name, itemUuid: item.uuid, left, chosen: null } } }
   });
   if ( message ) await askTypePick(message);

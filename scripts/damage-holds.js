@@ -20,7 +20,7 @@ import { poolOf, poolUsesOf, reactionSpent, spendReaction, spendSuperiorityDie, 
   bystanderMuted, muteBystander, muteScopesFor, holdTargets } from "./shared.js";
 import { applyDamagesWithReceipt, registerDamageClaim } from "./auto-apply.js";
 import { bfCard, esc, holdBarHTML, ruleLine, tickRowsHTML } from "./decide/present.js";
-import { openMomentPopup, armAskTimer, disarmAskTimer, keeperOwns, registerRelay, registerResumable, pendingRow, closePopup } from "./ui.js";
+import { openMomentPopup, armAskTimer, disarmAskTimer, keeperOwns, registerRelay, registerResumable, pendingRow, closePopup, postCard, postAnswer } from "./ui.js";
 import { SURFACES } from "./surfaces.js";
 import { listen } from "./dispatch.js";
 
@@ -235,9 +235,9 @@ async function stampHold(receiptMessage, target, actor, damages, { multiplier, n
   // Each guard may answer with its own row's word ("intercept", "cut"); one that can keep the defender up says so.
   const guardWords = guarded ? found.guards.map(g => `${g.actorName} may ${rowOf(g.reaction ?? found.name)?.verb ?? "intercept"}`).join(", ") : null;
   const keepsUp = guarded && found.guards.some(g => g.keepsUp);
-  const message = await ChatMessage.create({
-    speaker: ChatMessage.getSpeaker({ actor }),
-    content: bfCard({ img: guarded ? (resolveUuid(found.guards[0].actorUuid)?.items?.get(found.guards[0].itemId)?.img ?? null) : found.item.img,
+  const message = await postCard({
+    actor,
+    card: bfCard({ img: guarded ? (resolveUuid(found.guards[0].actorUuid)?.items?.get(found.guards[0].itemId)?.img ?? null) : found.item.img,
       eyebrow: `Reaction — ${guarded ? [...new Set(found.guards.map(g => g.reaction ?? found.name))].join(" · ") : found.name}`, tone: "pending",
       title: `${target.name ?? actor.name} is about to take ${amount} damage`,
       subtitle: guarded ? `${guardWords}${source ? ` · from ${source.name}` : ""}` : (source ? `from ${source.name}` : "the damage waits for the answer"),
@@ -360,9 +360,9 @@ async function answerHold(message, answer, who = null) {
       return;
     }
     const name = mine.actorName ?? actor?.name ?? "";
-    await ChatMessage.create({
-      speaker: ChatMessage.getSpeaker({ actor }),
-      content: bfCard({ img: actor?.items.get(mine.itemId)?.img ?? null, eyebrow: `Reaction — ${flag.label ?? flag.reaction}`,
+    await postAnswer("damageHoldAnswer", {
+      actor,
+      card: bfCard({ img: actor?.items.get(mine.itemId)?.img ?? null, eyebrow: `Reaction — ${flag.label ?? flag.reaction}`,
         tone: (answer === "cast") ? "good" : "neutral",
         title: (answer === "cast") ? `${flag.label ?? flag.reaction} — ${name} reduces the damage${guard ? ` to ${flag.target?.name}` : ""} by ${reduceBy}${landedLine(flag.amount, reduceBy)}`
           : guard ? `${name} lets it land` : `${name} takes it` }),

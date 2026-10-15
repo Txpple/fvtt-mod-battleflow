@@ -15,7 +15,7 @@ import { USE_CHIPS, CARD_CHIPS, COATINGS, answers, tableIndex } from "./decide/r
 import { CHIP_FLAG, chipClock, cardChipRowKey, chipsLeft, coatSaveAbility, dosesLeft } from "./decide/chips.js";
 import { tokenForUuid } from "./geometry.js";
 import { attackMessageForDamage } from "./auto-damage.js";
-import { momentButton, openMomentPopup } from "./ui.js";
+import { momentButton, openMomentPopup, postCard } from "./ui.js";
 import { SURFACES } from "./surfaces.js";
 import { listen } from "./dispatch.js";
 
@@ -352,9 +352,9 @@ async function writeCoat(actor, activity, name, row) {
       : { time: game.time.worldTime },
     flags: { [MODULE_ID]: { [CHIP_FLAG]: "use", [COAT_FLAG]: row.key } }
   }]);
-  await ChatMessage.implementation.create({
-    speaker: ChatMessage.implementation.getSpeaker({ actor }),
-    content: "",
+  await postCard({
+    actor,
+    card: "",
     flags: { [MODULE_ID]: { [COAT_USE]: { ...statContext(actor.uuid), key: row.key, feature: name, chip: row.chip,
       effectId: effect?.id ?? null, left: left - row.dose, img: effect?.img ?? null } } }
   });

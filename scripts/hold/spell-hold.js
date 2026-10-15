@@ -11,7 +11,7 @@ import { reactionSpent, statSourceOf } from "../shared.js";
 import { CARD, isCard, itemUuidOf, targetsOf } from "../decide/card.js";
 import { SPELL_ROW_TYPES, usableReaction, reactionItemFor, reactionImg } from "./lookup.js";
 import { armHoldTimer, disarmHoldTimer } from "./clock.js";
-import { waitForWrite } from "../ui.js";
+import { waitForWrite, postCard } from "../ui.js";
 import { listen } from "../dispatch.js";
 
 
@@ -118,8 +118,8 @@ export async function continueSpellHold(message, hold) {
     wrote = true;
   });
   if ( !wrote ) return;
-  if ( announcements.length ) await ChatMessage.create({
-    content: announcements.join(`<div style="height:0.3rem;"></div>`),
-    speaker: { alias: TITLE }
+  if ( announcements.length ) await postCard({
+    card: announcements.join(`<div style="height:0.3rem;"></div>`),
+    alias: TITLE
   });
 }

@@ -16,6 +16,7 @@ import { bfCard, esc, ruleLine } from "./decide/present.js";
 import { applyEffectsWithReceipt } from "./effect-riders.js";
 import { SURFACES } from "./surfaces.js";
 import { listen } from "./dispatch.js";
+import { postCard } from "./ui.js";
 
 const DRAIN_FLAG = "drain";
 const { rowFor } = tableIndex(DRAINS);
@@ -67,9 +68,9 @@ async function drain({ row, activity, attacker, target, taken, origin }) {
     const total = before + verdict.amount;
     if ( prior ) await prior.delete();
     const template = new ActiveEffect.implementation(drainEffectData({ key: row.key, amount: total, img: item.img ?? null, moduleId: MODULE_ID }), { parent: item });
-    const card = await ChatMessage.create({
-      speaker: ChatMessage.getSpeaker({ actor: attacker }),
-      content: bfCard({ img: item.img ?? null, eyebrow: `${row.key} — the drain`, tone: "bad",
+    const card = await postCard({
+      actor: attacker,
+      card: bfCard({ img: item.img ?? null, eyebrow: `${row.key} — the drain`, tone: "bad",
         title: drainTitle({ key: row.key, target: target.name, what: "max", amount: verdict.amount, total }),
         subtitle: `${taken} damage landed · ${verdict.why}`,
         lines: [ruleLine(row.rule), row.caveat ? `<span style="opacity:0.8;">${esc(row.caveat)}</span>` : null] }),
@@ -103,10 +104,10 @@ async function drainScore({ row, item, attacker, target, origin }) {
   Object.assign(data, { transfer: false, disabled: false, flags: { ...(data.flags ?? {}), [MODULE_ID]: { ...(data.flags?.[MODULE_ID] ?? {}), [DRAIN_FLAG]: { key: row.key, amount: total } } } });
   const template = new ActiveEffect.implementation(data, { parent: item });
   const capped = pick.n < total;
-  const card = await ChatMessage.create({
-    speaker: ChatMessage.getSpeaker({ actor: attacker }),
+  const card = await postCard({
+    actor: attacker,
     rolls: [roll],
-    content: bfCard({ img: item.img ?? null, eyebrow: `${row.key} — the drain`, tone: "bad",
+    card: bfCard({ img: item.img ?? null, eyebrow: `${row.key} — the drain`, tone: "bad",
       title: drainTitle({ key: row.key, target: target.name, what: "ability", amount: roll.total, total, ability: CONFIG.DND5E.abilities[row.ability]?.label ?? ability }),
       subtitle: capped ? `the pack's deepest step is −${pick.n} — the rest by hand` : `${die} rolled on ${attacker.name}`,
       lines: [ruleLine(row.rule), row.caveat ? `<span style="opacity:0.8;">${esc(row.caveat)}</span>` : null] }),

@@ -13,7 +13,7 @@ import { INITIATIVE_GRANTS, initiativeGrantEntries, listedNames } from "./decide
 import { initiativeGrantDue, initiativeGrantLine } from "./decide/initiative-grants.js";
 import { riderPartFormula } from "./decide/clock.js";
 import { bfCard, esc, holdBarHTML, foldedRuleHTML } from "./decide/present.js";
-import { openMomentPopup, armAskTimer, disarmAskTimer, subjectOwns, registerRelay, registerResumable, pendingRow, closePopup } from "./ui.js";
+import { openMomentPopup, armAskTimer, disarmAskTimer, subjectOwns, registerRelay, registerResumable, pendingRow, closePopup, postCard, postAnswer } from "./ui.js";
 import { applyDamagesWithReceipt } from "./auto-apply.js";
 import { SURFACES } from "./surfaces.js";
 import { listen } from "./dispatch.js";
@@ -152,9 +152,9 @@ async function post(combat, combatant, actor, { name, row, item, regain, heal, g
     ...(give ? { give: true, reach: row.reach ?? 30, activityId: give.activity.id, poolId: give.pool.id, poolName: give.pool.name } : {}),
     ...(reroll ? { reroll: { face: reroll.face, under: Number(row.reroll), from: Number(combatant.initiative) } } : {}),
     ...(window ? { window, deadline: Date.now() + (window * 1000) } : {}) };
-  await ChatMessage.create({
-    speaker: ChatMessage.getSpeaker({ actor, token: combatant.token }),
-    content: bfCard({ img: item.img, eyebrow: "Initiative", tone: row.ask ? "pending" : "good",
+  await postCard({
+    actor, token: combatant.token,
+    card: bfCard({ img: item.img, eyebrow: "Initiative", tone: row.ask ? "pending" : "good",
       title: reroll ? `${row.rule?.benefit ?? name} — reroll the Initiative?` : row.ask ? `${name} — use it now?` : name,
       ...(reroll ? { subtitle: `the d20 shows ${reroll.face} (${reroll.face <= 9 ? "9 or lower" : "low"}) — the new roll stands` } : {}) }),
     flags: { [MODULE_ID]: { [INITIATIVE_GRANT_FLAG]: flag } }
@@ -176,13 +176,10 @@ async function answerGrant(message, answer, { timedOut = false } = {}) {
     await queueFlagWrite(message, INITIATIVE_GRANT_FLAG, current => settle(current, answer, timedOut));
     return;
   }
-  if ( !game.users.activeGM ) {
-    ui.notifications?.warn(`${flag.row}: a GM must be on — use it from the sheet by hand.`);
-    return;
-  }
-  await ChatMessage.create({
-    speaker: ChatMessage.getSpeaker({ actor: resolveUuid(flag.actorUuid) }),
-    content: "", whisper: game.users.filter(u => u.isGM).map(u => u.id),
+  await postAnswer("initiativeGrantAnswer", {
+    noGM: `${flag.row}: a GM must be on — use it from the sheet by hand.`,
+    actor: resolveUuid(flag.actorUuid),
+    card: "", toElect: true,
     flags: { [MODULE_ID]: { initiativeGrantAnswer: { messageId: message.id, answer } } }
   });
 }
@@ -336,8 +333,8 @@ listen("updateCombatant", "initiative-grants", (combatant, changes) => {
     void (async () => {
       await combat.update({ [`flags.${MODULE_ID}.${BONUS_DUE_FLAG}.-=${combatant.id}`]: null });
       await combatant.update({ initiative: from + Number(note.n) });
-      await ChatMessage.create({ speaker: ChatMessage.getSpeaker({ actor: combatant.actor, token: combatant.token }),
-        content: bfCard({ eyebrow: "Initiative", tone: "good", title: `${note.row} — +${note.n} Initiative for ${combatant.name} (${from} → ${from + Number(note.n)})`,
+      await postCard({ actor: combatant.actor, token: combatant.token,
+        card: bfCard({ eyebrow: "Initiative", tone: "good", title: `${note.row} — +${note.n} Initiative for ${combatant.name} (${from} → ${from + Number(note.n)})`,
           subtitle: `${note.from}'s gift, rolled before ${combatant.name}'s Initiative` }) });
     })().catch(err => console.error(`${TITLE} | ${note.row}'s late bonus could not land — add it by hand.`, err));
   } catch(err) { console.error(`${TITLE} | The Initiative bonus due could not be read.`, err); }

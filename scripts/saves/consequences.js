@@ -9,7 +9,7 @@ import { applicableProfiles, cardActivity, enchantedAs, featureNamed, lower, nam
 import { CARD, castLevelOn, isCard, onSaveOf, originIdOf } from "../decide/card.js";
 import { saveMultiplier } from "../decide/verdict.js";
 import { forceStatus, damagePartsOf, statSourceOf, attackIdOf } from "../shared.js";
-import { dramaticVerdictPause } from "../ui.js";
+import { dramaticVerdictPause, postCard } from "../ui.js";
 import { EFFECT_BENDS, EVASIONS, SAVE_PRESSES, tableIndex } from "../decide/registry.js";
 import { effectRecord, joinEffectReceipt } from "../decide/receipt.js";
 import { saveNoneOnSuccess } from "../decide/reminders.js";
@@ -147,8 +147,8 @@ async function applyFailDamage(card, flag, entry) {
   }
   const by = fd.by ?? flag.item?.name ?? "the reaction";
   if ( !(amount > 0) ) {
-    await ChatMessage.create({ speaker: card.speaker,
-      content: bfCard({ img: flag.item?.img ?? null, eyebrow: `Reaction — ${by}`, tone: "pending",
+    await postCard({ speaker: card.speaker,
+      card: bfCard({ img: flag.item?.img ?? null, eyebrow: `Reaction — ${by}`, tone: "pending",
         title: `${entry.name} failed: ${fd.type ?? "psychic"} damage equal to the damage taken`,
         subtitle: "the hit's damage has no receipt yet — apply it by hand from the damage card" }) });
     return;

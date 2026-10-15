@@ -24,7 +24,7 @@ import { DROP_TO_ONE } from "./decide/registry.js";
 import { dropSaveDc, dropSaveExempt, dropSaveTitle, diedTitle, downedOutcome } from "./decide/drop-to-one.js";
 import { saveDemandData, saveTargetEntry } from "./decide/demand.js";
 import { bfCard, esc, holdBarHTML, ruleLine } from "./decide/present.js";
-import { openMomentPopup, armAskTimer, disarmAskTimer, keeperOwns, registerRelay, registerResumable, pendingRow, closePopup } from "./ui.js";
+import { openMomentPopup, armAskTimer, disarmAskTimer, keeperOwns, registerRelay, registerResumable, pendingRow, closePopup, postCard, postAnswer } from "./ui.js";
 import { resolveAttackMessage } from "./shared.js";
 import { creaturesWithin, feetOf, tokenOfActor } from "./geometry.js";
 import { rollDamageForSave } from "./auto-damage.js";
@@ -253,9 +253,9 @@ async function settle(actor, found, { amount, source }) {
     await found.item.update({ [`system.activities.${found.activity.id}.uses.spent`]: Number(found.activity.uses?.spent ?? 0) + 1 })
       .catch(err => console.warn(`${TITLE} | ${found.name}'s use could not be spent — mark it by hand.`, err));
   }
-  await ChatMessage.create({
-    speaker: ChatMessage.getSpeaker({ actor }),
-    content: bfCard({ img: found.effect?.img ?? found.item?.img ?? null, eyebrow: found.name, tone: "good",
+  await postCard({
+    actor,
+    card: bfCard({ img: found.effect?.img ?? found.item?.img ?? null, eyebrow: found.name, tone: "good",
       title: `${actor.name} drops to 1 Hit Point instead`, subtitle: found.row.ends ? "the spell ends" : found.keeper ? `${found.keeper.name}'s ${found.name} — its name is on the page` : "",
       lines: [ruleLine(found.row.rule), found.row.caveat ? `<span style="opacity:0.8;">${found.row.caveat}</span>` : null] }),
     flags: { [MODULE_ID]: { [DROP_FLAG]: { status: "resolved", answer: "auto", row: found.name, actorUuid: actor.uuid,
@@ -268,9 +268,9 @@ async function settle(actor, found, { amount, source }) {
 /** The damage set the row aside (Radiant, a Critical Hit): the 0 lands, the card says why. */
 async function exemptCard(actor, found, why, { amount, source }) {
   try {
-    await ChatMessage.create({
-      speaker: ChatMessage.getSpeaker({ actor }),
-      content: bfCard({ img: found.item?.img ?? null, eyebrow: found.name, tone: "neutral",
+    await postCard({
+      actor,
+      card: bfCard({ img: found.item?.img ?? null, eyebrow: found.name, tone: "neutral",
         title: `${actor.name} drops to 0 — ${found.name} does not apply`, subtitle: `${why}: no save`,
         lines: [ruleLine(found.row.rule)] }),
       flags: { [MODULE_ID]: { [DROP_FLAG]: { status: "resolved", answer: "exempt", why, row: found.name, actorUuid: actor.uuid,
@@ -306,9 +306,9 @@ async function rollDropSave(actor, found, { amount, source, dc, saveAct = null }
   } finally {
     asking.delete(actor.uuid);
   }
-  const card = await ChatMessage.create({
-    speaker: ChatMessage.getSpeaker({ actor }),
-    content: bfCard({ img: found.item?.img ?? null, eyebrow: found.name, tone: saved ? "good" : "bad",
+  const card = await postCard({
+    actor,
+    card: bfCard({ img: found.item?.img ?? null, eyebrow: found.name, tone: saved ? "good" : "bad",
       title: dropSaveTitle({ name: actor.name, saved, total, dc }),
       subtitle: (found.row.save.dc === "activity") ? `${CONFIG.DND5E.abilities[ability]?.label ?? ability} save, DC ${dc} (rising 5 per use)` : `Constitution save, DC 5 + ${Number(amount)} damage`,
       lines: [ruleLine(found.row.rule)] }),
@@ -365,9 +365,9 @@ async function landedZero(actor, { source }) {
       const item = found.item;
       // A `notice` row: the death's side is the GM's move (the vampire's mist) — the card says what, nothing is used.
       if ( found.row.notice ) {
-        await ChatMessage.create({
-          speaker: ChatMessage.getSpeaker({ actor }),
-          content: bfCard({ img: item.img ?? null, eyebrow: found.name, tone: "neutral",
+        await postCard({
+          actor,
+          card: bfCard({ img: item.img ?? null, eyebrow: found.name, tone: "neutral",
             title: `${actor.name} drops to 0 — ${found.name}`, subtitle: found.row.notice,
             lines: [ruleLine(found.row.rule), found.row.caveat ? `<span style="opacity:0.8;">${found.row.caveat}</span>` : null] }),
           flags: { [MODULE_ID]: { deathThroes: { ...statContext(actor.uuid), key: found.name, actorUuid: actor.uuid, sourceUuid: source?.uuid ?? null, count: 0, feet: 0, notice: true } } }
@@ -394,12 +394,12 @@ async function landedZero(actor, { source }) {
         lines: [ruleLine(found.row.rule)] });
       const throes = { ...statContext(actor.uuid), key: found.name, actorUuid: actor.uuid, sourceUuid: source?.uuid ?? null, count: victims.length, feet };
       if ( !victims.length ) {
-        await ChatMessage.create({ speaker: ChatMessage.getSpeaker({ actor, token: corpse.document }), content, flags: { [MODULE_ID]: { deathThroes: throes } } });
+        await postCard({ actor, token: corpse.document, card: content, flags: { [MODULE_ID]: { deathThroes: throes } } });
         continue;
       }
-      const card = await ChatMessage.create({
-        speaker: ChatMessage.getSpeaker({ actor, token: corpse.document }),
-        content,
+      const card = await postCard({
+        actor, token: corpse.document,
+        card: content,
         flags: { [MODULE_ID]: {
           saves: saveDemandData({
             stat: statContext(actor.uuid),
@@ -436,9 +436,9 @@ async function stampAsk(actor, found, { amount, source }) {
     ...statContext(source?.uuid ?? null),
     ...(window ? { window, deadline: Date.now() + (window * 1000) } : {})
   };
-  const message = await ChatMessage.create({
-    speaker: ChatMessage.getSpeaker({ actor }),
-    content: bfCard({ img: found.item.img, eyebrow: found.name, tone: "pending",
+  const message = await postCard({
+    actor,
+    card: bfCard({ img: found.item.img, eyebrow: found.name, tone: "pending",
       title: `${actor.name} drops to 0 Hit Points`, subtitle: found.keeper ? `held at 1 until ${found.keeper.name} answers` : "held at 1 until the answer" }),
     flags: { [MODULE_ID]: { [DROP_FLAG]: flag } }
   });
@@ -470,9 +470,9 @@ async function answer(message, choice) {
       });
       return;
     }
-    await ChatMessage.create({
-      speaker: ChatMessage.getSpeaker({ actor: resolveUuid(flag.actorUuid) }),
-      content: bfCard({ eyebrow: flag.row, tone: (choice === "use") ? "good" : "neutral",
+    await postAnswer("dropToOneAnswer", {
+      actor: resolveUuid(flag.actorUuid),
+      card: bfCard({ eyebrow: flag.row, tone: (choice === "use") ? "good" : "neutral",
         title: (choice === "use") ? `${flag.actorName} drops to 1 Hit Point instead` : `${flag.actorName} drops to 0` }),
       flags: { [MODULE_ID]: { dropToOneAnswer: { messageId: message.id, answer: choice } } }
     });
@@ -672,9 +672,9 @@ async function stampDeathOffer(actor, found, rollMessage) {
     rollMessageId: rollMessage.id, feet: found.feet, answer: null, applied: false,
     ...statContext(found.keeper.uuid),
     ...(window ? { window, deadline: Date.now() + (window * 1000) } : {}) };
-  const message = await ChatMessage.create({
-    speaker: ChatMessage.getSpeaker({ actor: found.keeper }),
-    content: bfCard({ img: found.item.img, eyebrow: found.name, tone: "pending",
+  const message = await postCard({
+    actor: found.keeper,
+    card: bfCard({ img: found.item.img, eyebrow: found.name, tone: "pending",
       title: `${actor.name} rolls a Death Saving Throw`, subtitle: `${found.keeper.name} may answer${found.feet ? ` · ${found.feet} ft away` : ""}` }),
     flags: { [MODULE_ID]: { [DEATH_OFFER_FLAG]: flag } }
   });
@@ -701,9 +701,9 @@ async function answerOffer(message, choice) {
       });
       return;
     }
-    await ChatMessage.create({
-      speaker: ChatMessage.getSpeaker({ actor: resolveUuid(flag.keeperUuid) }),
-      content: bfCard({ eyebrow: flag.row, tone: (choice === "use") ? "good" : "neutral",
+    await postAnswer("deathSaveOfferAnswer", {
+      actor: resolveUuid(flag.keeperUuid),
+      card: bfCard({ eyebrow: flag.row, tone: (choice === "use") ? "good" : "neutral",
         title: (choice === "use") ? `${flag.keeperName} answers with ${flag.row}` : `${flag.keeperName} lets the save roll` }),
       flags: { [MODULE_ID]: { deathSaveOfferAnswer: { messageId: message.id, answer: choice } } }
     });

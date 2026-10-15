@@ -14,7 +14,7 @@ import { CARD, isCard, targetsOf } from "./decide/card.js";
 import { isActiveGM } from "./core.js";
 import { feetOf, nearestFeet, tokenForUuid } from "./geometry.js";
 import { bfCard, esc, holdBarHTML, ruleLine } from "./decide/present.js";
-import { openMomentPopup, momentButton, armAskTimer, disarmAskTimer, keeperOwns, registerRelay, pendingRow, closePopup } from "./ui.js";
+import { openMomentPopup, momentButton, armAskTimer, disarmAskTimer, keeperOwns, registerRelay, pendingRow, closePopup, postCard, postAnswer } from "./ui.js";
 import { SURFACES } from "./surfaces.js";
 import { listen } from "./dispatch.js";
 
@@ -184,9 +184,9 @@ async function stampRebuke(actor, source, amount, origin, { attackHit = false, h
     ...(window ? { window, deadline: Date.now() + (window * 1000) } : {})
   };
   const first = options[0];
-  const message = await ChatMessage.create({
-    speaker: ChatMessage.getSpeaker({ actor }),
-    content: bfCard({ img: first.img, eyebrow: `Reaction — ${options.map(o => o.name).join(" / ")}`, tone: "pending",
+  const message = await postCard({
+    actor,
+    card: bfCard({ img: first.img, eyebrow: `Reaction — ${options.map(o => o.name).join(" / ")}`, tone: "pending",
       title: watch ? `${source.name} is Bloodied` : ward ? `${source.name} hit ${ward.name}` : miss ? `${source.name} missed ${actor.name}` : onAttack ? `${source.name} attacked` : `${source.name} damaged ${actor.name}`,
       subtitle: watch ? `${actor.name}${(distance !== null) ? ` · ${distance} ft away` : ""}${dealerName ? ` · hurt by ${dealerName}` : ""}`
         : ward ? `${actor.name}${(distance !== null) ? ` · ${distance} ft from ${source.name}` : ""}`
@@ -301,9 +301,9 @@ async function answerRebuke(message, answer, index = null) {
   }
   // The relay carries the answer to the keeper; the drive runs here at once.
   const actor = resolveUuid(flag.actorUuid);
-  await ChatMessage.create({
-    speaker: ChatMessage.getSpeaker({ actor }),
-    content: bfCard({ img: option?.img ?? null, eyebrow: `Reaction — ${option?.name ?? "Rebuke"}`,
+  await postAnswer("rebukeAnswer", {
+    actor,
+    card: bfCard({ img: option?.img ?? null, eyebrow: `Reaction — ${option?.name ?? "Rebuke"}`,
       tone: option ? "good" : "neutral", title: rebukeLine({ ...flag, answer, choice: option?.name ?? null }) }),
     flags: { [MODULE_ID]: { rebukeAnswer: { messageId: message.id, answer, choice: option?.name ?? null } } }
   });

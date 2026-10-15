@@ -6,7 +6,7 @@
 import { MODULE_ID, readFlag, TITLE, activeCombatFor, canApplyTo, drivesMomentFor, queueFlagWrite, statContext, whisperNoGM } from "./core.js";
 import { ruleHTML } from "./rule-text.js";
 import { lower, itemNamed, activityNamed, activityOfType, resolveUuid } from "./lookup.js";
-import { registerResumable } from "./ui.js";
+import { registerResumable, postCard } from "./ui.js";
 import { damageShieldEntries, listedNames } from "./decide/registry.js";
 import { damagePartsOf, effectSourceOf, hitTargets, resolveAttackMessage, turnChitStands, writeTurnChit, holdOf, attackHoldClaims, attackHoldReleased } from "./shared.js";
 import { nearestFeet, tokenForUuid, tokenOfActor } from "./geometry.js";
@@ -198,8 +198,8 @@ async function pay({ damageMessage, attackMessage, attacker, defender, ward, jud
     why: judged.why, distanceFeet: distanceFeet ?? null, rule: row.rule, effectName: ward.effect?.name ?? key,
     ...(ward.also ? { also: ward.also } : {}) };
   if ( !rolls?.length ) {
-    await ChatMessage.create({ speaker: ChatMessage.getSpeaker({ actor: defender }),
-      content: bfCard({ img: source.item.img, eyebrow: "Damage shield", tone: "neutral",
+    await postCard({ actor: defender,
+      card: bfCard({ img: source.item.img, eyebrow: "Damage shield", tone: "neutral",
         title: `${key} — its dice could not be read`, subtitle: `${defender.name}'s ward, at ${attacker.name}`,
         lines: [ruleLine(row.rule)] }),
       flags: { [MODULE_ID]: { damageShield: { ...record, rolled: false } } } });
@@ -287,8 +287,8 @@ async function endMarks(actor, marks) {
   await actor.deleteEmbeddedDocuments("ActiveEffect", live);
   for ( const e of marks ) {
     const key = readFlag(e, "shield")?.key ?? e.name;
-    await ChatMessage.create({ speaker: ChatMessage.getSpeaker({ actor }),
-      content: bfCard({ img: e.img, eyebrow: "Damage shield", tone: "neutral",
+    await postCard({ actor,
+      card: bfCard({ img: e.img, eyebrow: "Damage shield", tone: "neutral",
         title: `${key} ends — ${actor.name} has no Temporary Hit Points left`,
         lines: [ruleLine(DAMAGE_SHIELDS[key]?.rule ?? "")] }),
       flags: { [MODULE_ID]: { shieldEnded: { ...statContext(actor.uuid), key } } } });

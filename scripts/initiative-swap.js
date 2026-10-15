@@ -10,7 +10,7 @@ import { initiativeSwapEntries, listedNames } from "./decide/registry.js";
 import { INITIATIVE_SWAPS } from "./decide/registry.js";
 import { bfCard, esc, holdBarHTML, foldedRuleHTML } from "./decide/present.js";
 import { dispositionStyle } from "./shared.js";
-import { openMomentPopup, armAskTimer, disarmAskTimer, subjectOwns, registerRelay, registerResumable, pendingRow, closePopup } from "./ui.js";
+import { openMomentPopup, armAskTimer, disarmAskTimer, subjectOwns, registerRelay, registerResumable, pendingRow, closePopup, postCard, postAnswer } from "./ui.js";
 import { SURFACES } from "./surfaces.js";
 import { listen, listenOnce } from "./dispatch.js";
 
@@ -97,9 +97,9 @@ async function askFor(combat) {
             : (o.token?.disposition === side) ? "incapacitated"
             : (o.token?.disposition === NEUTRAL) ? "neutral" : "enemy" }));
       const window = decisionWindow();
-      await ChatMessage.create({
-        speaker: ChatMessage.getSpeaker({ actor, token: c.token }),
-        content: bfCard({ img: found.item.img, eyebrow: `Feat — ${found.name}`, tone: "pending", title: `${found.name} — swap Initiative?` }),
+      await postCard({
+        actor, token: c.token,
+        card: bfCard({ img: found.item.img, eyebrow: `Feat — ${found.name}`, tone: "pending", title: `${found.name} — swap Initiative?` }),
         flags: { [MODULE_ID]: { [SWAP_FLAG]: {
           status: "pending", row: found.name, actorUuid: actor.uuid, actorName: c.name,
           combatId: combat.id, combatantId: c.id, initiative: c.initiative, allies, lineup, ...statContext(actor.uuid),
@@ -131,13 +131,10 @@ async function answerSwap(message, answer, pick = null, { timedOut = false } = {
     await queueFlagWrite(message, SWAP_FLAG, current => settle(current, answer, pick, timedOut));
     return;
   }
-  if ( !game.users.activeGM ) {
-    ui.notifications?.warn(`${flag.row}: a GM must be on to swap Initiative — swap it in the tracker by hand.`);
-    return;
-  }
-  await ChatMessage.create({
-    speaker: ChatMessage.getSpeaker({ actor: resolveUuid(flag.actorUuid) }),
-    content: "", whisper: game.users.filter(u => u.isGM).map(u => u.id),
+  await postAnswer("initiativeSwapAnswer", {
+    noGM: `${flag.row}: a GM must be on to swap Initiative — swap it in the tracker by hand.`,
+    actor: resolveUuid(flag.actorUuid),
+    card: "", toElect: true,
     flags: { [MODULE_ID]: { initiativeSwapAnswer: { messageId: message.id, answer, pick } } }
   });
 }

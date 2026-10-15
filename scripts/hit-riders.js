@@ -2,7 +2,7 @@
  * By the Books — hit riders: a mark on the target (Hunter's Mark, Hex) pays its die into the attack's own
  * damage roll, on the attacker's client, instead of a separate damage press after every hit.
  */
-import { TITLE } from "./core.js";
+import { TITLE, selfAndGmIds } from "./core.js";
 import { lower, resolveUuid } from "./lookup.js";
 import { MARK_USES, riderEntries, riderUpgradeEntries } from "./decide/registry.js";
 import { riderKey } from "./decide/eligible.js";
@@ -11,6 +11,7 @@ import { bfCard } from "./decide/present.js";
 import { CARD, isCard, originIdInData } from "./decide/card.js";
 import { listen } from "./dispatch.js";
 import { SURFACES } from "./surfaces.js";
+import { postCard } from "./ui.js";
 
 // The mark's owner is found by origin alone: mark → its source ITEM → that item's ACTOR (two rangers can
 // mark one creature). ⚠ Crit doubling is free: `preRollDamage` fires before `options.isCritical` is
@@ -92,15 +93,15 @@ listen("dnd5e.preRollDamage", "hit-riders", (config, _dialog, message) => {
   const dropped = new Set(per.flatMap(m => [...m.keys()]).filter(k => !per.every(m => m.has(k))));
   if ( dropped.size ) {
     const names = [...new Set([...dropped].map(k => k.split(":")[0]))].join(", ");
-    void ChatMessage.create({
-      content: bfCard({
+    void postCard({
+      card: bfCard({
         eyebrow: "Rider — not folded in", title: "One roll, mixed targets", tone: "neutral",
         lines: [`This damage roll serves targets that are not all marked, so `
           + `<strong>${names}</strong> was left out rather than over-applied. `
           + `Roll the bonus damage by hand for the marked target.`]
       }),
-      whisper: [...new Set([game.userId, ...game.users.filter(u => u.isGM).map(u => u.id)])],
-      speaker: { alias: TITLE }
+      to: selfAndGmIds(),
+      alias: TITLE
     });
     console.warn(`${TITLE} | Rider(s) ${[...dropped].join(", ")} not folded in: one damage roll `
       + "covers targets that are not all marked. Roll the bonus damage by hand for the marked one.");

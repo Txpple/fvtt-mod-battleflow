@@ -7,7 +7,7 @@ import { MODULE_ID, readFlag, TITLE, queueFlagWrite, drivesMomentFor, decisionWi
 import { applicableProfiles, cardActivity, equippedShield, foldEntryFor, resolveUuid } from "../lookup.js";
 import { forceStatus, reactionSpent, spendReaction } from "../shared.js";
 import { bfCard, esc, momentBarHTML, ruleLine } from "../decide/present.js";
-import { openMomentPopup, armAskTimer, disarmAskTimer, subjectOwns, registerRelay } from "../ui.js";
+import { openMomentPopup, armAskTimer, disarmAskTimer, subjectOwns, registerRelay, postAnswer, postCard } from "../ui.js";
 import { RULE_TEXT, SAVE_PRESSES, tableIndex } from "../decide/registry.js";
 import { maneuverFoldEntries } from "../decide/registry.js";
 
@@ -102,9 +102,9 @@ async function answerSaveChoice(card, uuid, answer) {
       prone: `${c.itemName} — ${c.attackerName ?? "the attacker"} chooses Prone`,
       push: `${c.itemName} — ${c.attackerName ?? "the attacker"} chooses the push`
     };
-    await ChatMessage.create({
-      speaker: (subject instanceof Actor) ? ChatMessage.getSpeaker({ actor: subject }) : undefined,
-      content: bfCard({
+    await postAnswer("saveChoiceAnswer", {
+      actor: (subject instanceof Actor) ? subject : undefined,
+      card: bfCard({
         img: c.itemImg, eyebrow: `Maneuver — ${c.itemName}`,
         tone: (answer === "pass") ? "neutral" : "good",
         title: labels[answer] ?? `${c.itemName} — ${answer}`,
@@ -252,9 +252,9 @@ export async function announceWordOutcome(card, _flag, entry) {
   const caster = card.getAssociatedActor?.() ?? null;
   const presses = c.statuses ? !!c.statuses[c.answer] : (c.answer === c.presses);
   const landed = c.statuses ? `is ${c.answer}` : "falls Prone";
-  await ChatMessage.create({
-    speaker: caster ? ChatMessage.getSpeaker({ actor: caster }) : card.speaker,
-    content: bfCard({
+  await postCard({
+    actor: caster || undefined, speaker: card.speaker,
+    card: bfCard({
       img: c.itemImg, eyebrow: `Cast — ${c.itemName}`, tone: "good",
       title: presses
         ? `${c.itemName} — "${c.answer}": ${entry.name} ${landed}`
@@ -283,9 +283,9 @@ export async function announceBashOutcome(card, _flag, entry) {
     const saver = (subject instanceof Actor) ? subject : (subject?.actor ?? null);
     if ( saver instanceof Actor ) await forceStatus(saver, "prone", { origin: attacker?.uuid ?? null });
   }
-  await ChatMessage.create({
-    speaker: attacker ? ChatMessage.getSpeaker({ actor: attacker }) : card.speaker,
-    content: bfCard({
+  await postCard({
+    actor: attacker || undefined, speaker: card.speaker,
+    card: bfCard({
       img: c.itemImg, eyebrow: `Maneuver — ${c.itemName}`, tone: "good",
       title: push
         ? `${c.itemName} — ${attacker?.name ?? "the attacker"} pushes ${entry.name} 5 feet`
@@ -311,9 +311,9 @@ export async function settleInterpose(card, flag, entry) {
   const subject = await fromUuid(entry.uuid).catch(() => null);
   const saver = (subject instanceof Actor) ? subject : (subject?.actor ?? null);
   if ( saver instanceof Actor ) void spendReaction(saver, { origin: null, what: `Interpose (${c.itemName})` });
-  await ChatMessage.create({
-    speaker: (saver instanceof Actor) ? ChatMessage.getSpeaker({ actor: saver }) : card.speaker,
-    content: bfCard({
+  await postCard({
+    actor: (saver instanceof Actor) ? saver : undefined, speaker: card.speaker,
+    card: bfCard({
       img: c.itemImg, eyebrow: `Maneuver — ${c.itemName}`, tone: "good",
       title: `${c.itemName} — ${entry.name} takes no damage`,
       subtitle: `${flag.item?.name ?? "The effect"}: the Reaction turns the half into none.`,

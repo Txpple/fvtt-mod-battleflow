@@ -17,7 +17,7 @@ import { poolOf, poolUsesOf, reactionSpent, spendReaction, spendPoolUses, bystan
 import { facesThatTurn, setOutcome } from "./decide/stored-dice.js";
 import { bendRise, foldRise } from "./decide/dice-chips.js";
 import { riseDice } from "./dice-rise.js";
-import { armAskTimer, cardRow, electOwns, flashBend, openMomentPopup, registerRelay, registerWithhold, resumeWithheld, pendingRow, closePopup } from "./ui.js";
+import { armAskTimer, cardRow, electOwns, flashBend, openMomentPopup, registerRelay, registerWithhold, resumeWithheld, pendingRow, closePopup, postAnswer } from "./ui.js";
 import { listen } from "./dispatch.js";
 
 const KEY = "bystanderRoll";
@@ -246,11 +246,11 @@ async function sendAnswer(message, envelope, actor) {
     return;
   }
   const bending = envelope.answer === "roll";
-  await ChatMessage.create({
-    content: bfCard({ img: actor?.items?.get?.(envelope.itemId)?.img ?? null, eyebrow: bending ? `Reaction — ${envelope.rescue}` : "Reaction — passed",
+  await postAnswer("bystanderRollAnswer", {
+    card: bfCard({ img: actor?.items?.get?.(envelope.itemId)?.img ?? null, eyebrow: bending ? `Reaction — ${envelope.rescue}` : "Reaction — passed",
       title: bending ? envelope.rescue : "Lets it stand", subtitle: `${actor?.name ?? "A bystander"} · ${envelope.rollerName ?? ""}`,
       tone: bending ? "good" : "neutral", lines: [] }),
-    speaker: ChatMessage.getSpeaker({ actor }),
+    actor,
     flags: { [MODULE_ID]: { bystanderRollAnswer: envelope } }
   });
 }

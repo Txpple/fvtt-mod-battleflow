@@ -291,11 +291,11 @@ const WORLD_WRITERS = {
 
 /**
  * A world write: a document's update/create/use, an embedded create or delete, a document's own
- * `.delete()` (a Map's `.delete(key)` takes an argument and is not one), a roll posted, and every
- * house service that performs one (the receipt appliers, the status forcer, the pool and reaction
- * spenders, the turn chit writer).
+ * `.delete()` (a Map's `.delete(key)` takes an argument and is not one), a roll or a card posted (ui.js
+ * `postCard`, `postAnswer`), and every house service that performs one (the receipt appliers, the status
+ * forcer, the pool and reaction spenders, the turn chit writer).
  */
-const WRITE_CALL = /\.(?:update|create|use|createEmbeddedDocuments|deleteEmbeddedDocuments|applyDamage|toggleStatusEffect|rollDamage|rollAttack|toMessage)\(|\.delete\(\)|\bChatMessage\.create\(|ActiveEffect\.implementation\.create\(|\b(?:applyDamagesWithReceipt|applyEffectsWithReceipt|applyEffectsTo|forceStatus|spendPoolUses|writeTurnChit|spendReaction|spendSuperiorityDie)\(/;
+const WRITE_CALL = /\.(?:update|create|use|createEmbeddedDocuments|deleteEmbeddedDocuments|applyDamage|toggleStatusEffect|rollDamage|rollAttack|toMessage)\(|\.delete\(\)|\bChatMessage\.create\(|\bpost(?:Card|Answer)\(|ActiveEffect\.implementation\.create\(|\b(?:applyDamagesWithReceipt|applyEffectsWithReceipt|applyEffectsTo|forceStatus|spendPoolUses|writeTurnChit|spendReaction|spendSuperiorityDie)\(/;
 const writers = files.filter(f => WRITE_CALL.test(f.src)).map(f => f.rel);
 
 /**

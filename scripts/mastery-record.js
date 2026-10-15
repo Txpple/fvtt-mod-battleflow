@@ -10,13 +10,13 @@
  * an over-long list is trimmed there first); the RECORD on the Weapon Mastery feature's card; the PARTY VIEW
  * in the group sheet's header controls. Nothing here decides who may use a mastery — the system does.
  */
-import { MODULE_ID, readFlag, TITLE, isActiveGM, queueFlagWrite, canAnswerFor, statContext } from "./core.js";
+import { MODULE_ID, readFlag, TITLE, isActiveGM, queueFlagWrite, canAnswerFor, statContext, gmIds } from "./core.js";
 import { cardItem, lower, resolveUuid } from "./lookup.js";
 import { allowanceOf, fillPicks, recordState, missingPick, restList, trimList } from "./decide/mastery-record.js";
 import { TONE, bfCard, esc, foldedRuleHTML } from "./decide/present.js";
 import { CARD, isCard, masteryOf } from "./decide/card.js";
 import { isPartyMember, masteryLabel } from "./shared.js";
-import { openMomentPopup, registerRelay, registerResumable, acknowledgeMoment, momentAcknowledged, pendingRow } from "./ui.js";
+import { openMomentPopup, registerRelay, registerResumable, acknowledgeMoment, momentAcknowledged, pendingRow, postCard, postAnswer } from "./ui.js";
 import { messageActivity } from "./effect-riders.js";
 import { SURFACES } from "./surfaces.js";
 import { listen } from "./dispatch.js";
@@ -123,10 +123,10 @@ export async function fillActors(actors, cause) {
   const lines = filled.map(f => `<b>${esc(f.name)}</b> — ${f.picks.map(p => `${esc(p.name)} (${esc(masteryLabel(p.mastery))})`).join(", ")} from what is equipped`
     + (f.open > 0 ? ` · <em>${f.open} of ${f.allowance} still open</em>` : ""));
   for ( const o of over ) lines.push(`<b>${esc(o.name)}</b> — ${o.chosen.length} chosen, ${o.allowance} allowed: the sheet's list is longer than the class allows; nothing was removed`);
-  return ChatMessage.create({
-    speaker: { alias: TITLE },
-    whisper: game.users.filter(u => u.isGM).map(u => u.id),
-    content: bfCard({
+  return postCard({
+    alias: TITLE,
+    to: gmIds(),
+    card: bfCard({
       eyebrow: "Weapon Mastery", tone: "pending",
       title: "Masteries filled",
       subtitle: `${filled.length} character${filled.length === 1 ? " had" : "s had"} fewer picks than the class allows`,
@@ -311,9 +311,9 @@ listen("dnd5e.restCompleted", "mastery-record", (actor, result, config) => {
     // Every Long Rest shows the list (the walk's ruling); with nothing to change the popup says so.
     const flag = { status: "pending", actorUuid: actor.uuid, actorName: actor.name, allowance: r.allowance, over, open: r.open,
       chosen: kindRows(r), pool, restAt: Date.now(), ...statContext(actor.uuid) };
-    void ChatMessage.create({
-      speaker: ChatMessage.getSpeaker({ actor }),
-      content: bfCard({ eyebrow: "Weapon Mastery", tone: "pending",
+    void postCard({
+      actor,
+      card: bfCard({ eyebrow: "Weapon Mastery", tone: "pending",
         title: over ? `${actor.name} — ${over} too many masteries` : r.open ? `${actor.name} — ${r.open} open mastery slot${r.open === 1 ? "" : "s"}` : pool.length ? `${actor.name} — swap a mastery?` : `${actor.name} — masteries`,
         subtitle: over ? "the list is put right at the Long Rest" : "chosen at the Long Rest" }),
       flags: { [MODULE_ID]: { [MASTERY_SWAP_FLAG]: flag } }
@@ -335,13 +335,10 @@ export async function answerSwap(message, { out = null, into = null, adds = null
     });
     return;
   }
-  if ( !game.users.activeGM ) {
-    ui.notifications?.warn("Weapon Mastery: a GM must be on to land the change — set it on the sheet by hand.");
-    return;
-  }
-  await ChatMessage.create({
-    speaker: ChatMessage.getSpeaker({ actor: resolveUuid(flag.actorUuid) }),
-    content: "", whisper: game.users.filter(u => u.isGM).map(u => u.id),
+  await postAnswer("masterySwapAnswer", {
+    noGM: "Weapon Mastery: a GM must be on to land the change — set it on the sheet by hand.",
+    actor: resolveUuid(flag.actorUuid),
+    card: "", toElect: true,
     flags: { [MODULE_ID]: { masterySwapAnswer: { messageId: message.id, ...answer } } }
   });
 }

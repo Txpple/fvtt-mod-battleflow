@@ -10,7 +10,7 @@ import { popupKey, bfCard, momentBarHTML, ruleLine } from "./decide/present.js";
 import { SURFACES } from "./surfaces.js";
 import { CARD, abilityOf, isCard, originData, originIdOf } from "./decide/card.js";
 import { DialogCarried, momentButton, armAskTimer, disarmAskTimer, subjectOwns, dramaticVerdictPause, registerDemand, demandAnsweredBy, pendingRow,
-  closePopup, frontPopup } from "./ui.js";
+  closePopup, frontPopup, postCard } from "./ui.js";
 import { listen } from "./dispatch.js";
 
 /* ⚠ The twin-ask supersede: `isActiveGM()` is per-USER, so two sessions on one account both stamp
@@ -178,9 +178,9 @@ async function applyToppleFailure(card, uuid) {
     return;
   }
   if ( actor instanceof Actor ) await forceStatus(actor, "prone", { origin: flag.attackerUuid ?? null });
-  await ChatMessage.create({
+  await postCard({
     speaker: card.speaker,
-    content: bfCard({
+    card: bfCard({
       img: flag.weapon?.img, eyebrow: "Weapon Mastery — Topple", tone: "good",
       title: `${entry.name} falls Prone`,
       subtitle: entry.autoFailed
@@ -247,9 +247,9 @@ async function foldToppleSave(saveMessage) {
         // A SUCCESS ANNOUNCES TOO: a public ask resolving in silence reads as a dropped machine.
         await dramaticVerdictPause(saveMessage);
         const stander = resolveUuid(entry.uuid);
-        await ChatMessage.create({
-          speaker: (stander instanceof Actor) ? ChatMessage.getSpeaker({ actor: stander }) : card.speaker,
-          content: bfCard({
+        await postCard({
+          actor: (stander instanceof Actor) ? stander : undefined, speaker: card.speaker,
+          card: bfCard({
             img: flag.weapon?.img, eyebrow: "Weapon Mastery — Topple", tone: "neutral",
             title: `Topple — ${entry.name} stays standing`,
             subtitle: `Constitution save ${total} vs DC ${flag.dc}`

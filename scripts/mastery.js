@@ -10,7 +10,7 @@ import { MASTERY_KINDS, MASTERY_NATIVE, MASTERY_RULES } from "./decide/registry.
 import { CHIP_FLAG, chipClock, chipIsDead } from "./decide/chips.js";
 import { chipData, chitStampOf, hitTargets, masteryLabel, placeOf, turnPlace } from "./shared.js";
 import { bfCard, holdBarHTML, momentBarHTML, ruleLine, foldedRuleHTML, esc } from "./decide/present.js";
-import { openMomentPopup, acknowledgeMoment, momentAcknowledged, armAskTimer, disarmAskTimer, electOwns, registerOfferPart, pendingRow, closePopup } from "./ui.js";
+import { openMomentPopup, acknowledgeMoment, momentAcknowledged, armAskTimer, disarmAskTimer, electOwns, registerOfferPart, pendingRow, closePopup, postCard } from "./ui.js";
 import { applyDamagesWithReceipt, receiptEntries } from "./auto-apply.js";
 import { messageActivity } from "./effect-riders.js";
 import { SURFACES } from "./surfaces.js";
@@ -276,9 +276,9 @@ async function toppleCard(ctx, targets, sourceMessage = null) {
   const names = targets.map(t => t.name).join(", ");
   // The SAVE timer: a demanded save is mandatory, so expiry rolls; 0 waits indefinitely.
   const window = decisionWindow();
-  await ChatMessage.create({
-    speaker: ChatMessage.getSpeaker({ actor: ctx.attacker }),
-    content: bfCard({
+  await postCard({
+    actor: ctx.attacker,
+    card: bfCard({
       img: ctx.weapon.img, eyebrow: "Weapon Mastery — Topple", tone: "good",
       title: `${names}: Constitution save, DC ${dc}`,
       subtitle: `${ctx.attacker.name} — ${ctx.weapon.name}`,
@@ -300,9 +300,9 @@ async function toppleCard(ctx, targets, sourceMessage = null) {
 /** Push: announce the option. Tokens are never moved — sliding one is free at the table. */
 async function pushCard(ctx, targets) {
   const names = targets.map(t => t.name).join(", ");
-  await ChatMessage.create({
-    speaker: ChatMessage.getSpeaker({ actor: ctx.attacker }),
-    content: bfCard({
+  await postCard({
+    actor: ctx.attacker,
+    card: bfCard({
       img: ctx.weapon.img, eyebrow: "Weapon Mastery — Push", tone: "good",
       title: `${ctx.attacker.name} can push ${names} 10 feet`,
       subtitle: `${ctx.weapon.name} — straight away, Large or smaller`,
@@ -355,9 +355,9 @@ async function postMasteryNotice(ctx, key, targets) {
   const subtitle = `${ctx.attacker.name} — ${ctx.weapon.name}`;
   // 0 stamps no window; the bar and the auto-close read a missing window as "until dismissed".
   const window = decisionWindow();
-  await ChatMessage.create({
-    speaker: ChatMessage.getSpeaker({ actor: ctx.attacker }),
-    content: bfCard({
+  await postCard({
+    actor: ctx.attacker,
+    card: bfCard({
       img: ctx.weapon.img, eyebrow: `Weapon Mastery — ${masteryLabel(key)}`, tone: "good",
       title, subtitle, lines
     }),

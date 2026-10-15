@@ -115,6 +115,29 @@ export function drivesMomentFor(subjectUuid) {
 /** May this client WRITE to that actor? Turns a silent permission failure into a spoken one. */
 export const canApplyTo = actor => !!actor?.isOwner;
 
+// THE RECIPIENTS (ARCHITECTURE §5): who a whispered card reaches, one named set each; ui.js `postCard`
+// takes one as `to`, and a card with none is public.
+
+/** Every GM's user id. */
+export function gmIds() {
+  return game.users.filter(u => u.isGM).map(u => u.id);
+}
+
+/** This client's user alone: a note to self, or an envelope only its fold reads. */
+export function selfIds() {
+  return [game.user.id];
+}
+
+/** This client's user and every GM. */
+export function selfAndGmIds() {
+  return [...new Set([game.userId, ...gmIds()])];
+}
+
+/** The actor's owners and every GM (a GM owns every actor). */
+export function ownersAndGmIds(actor) {
+  return [...new Set(game.users.filter(u => u.isGM || actor?.testUserPermission?.(u, "OWNER")).map(u => u.id))];
+}
+
 /**
  * Whisper to self what did NOT happen for lack of a GM, and what still stands.
  * @param {string} what
@@ -123,7 +146,7 @@ export const canApplyTo = actor => !!actor?.isOwner;
 export async function whisperNoGM(what, stands = null) {
   try {
     await ChatMessage.create({
-      whisper: [game.user.id],
+      whisper: selfIds(),
       speaker: { alias: TITLE },
       content: `<p><strong>No GM is connected</strong>, so ${what} was not applied.`
         + `${stands ? ` ${stands}` : ""}</p>`

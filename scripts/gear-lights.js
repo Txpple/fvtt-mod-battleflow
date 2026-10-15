@@ -11,7 +11,7 @@ import { GEAR_LIT, gearLightRow, gearLightOf, gearButtons, gearToggle, gearLight
   lightChanges } from "./decide/token-lights.js";
 import { bfCard, ruleLine, popupKey } from "./decide/present.js";
 import { effectRecord, joinEffectReceipt } from "./decide/receipt.js";
-import { openManagedPopup, frontPopup } from "./ui.js";
+import { openManagedPopup, frontPopup, postCard } from "./ui.js";
 import { listen } from "./dispatch.js";
 
 const GEAR_FLAG = "gearLight";
@@ -142,7 +142,7 @@ async function press(item, row, b) {
     } else if ( step.op === "delete" ) {
       await deleteQuietly(actor, [lit.id]);
     }
-    await postCard(actor, item, row, {
+    await postLightCard(actor, item, row, {
       op: step.op, state: step.state ?? GEAR_LIT, wentOut,
       effect: created ? { id: created.id, name: created.name, img: created.img ?? null, description } : null
     });
@@ -177,7 +177,7 @@ async function deleteQuietly(actor, ids) {
 }
 
 /** The public receipt; a newly lit item's card carries the effect receipt, whose revert puts it out. */
-async function postCard(actor, item, row, { op, state, wentOut = [], effect = null, reason = null }) {
+async function postLightCard(actor, item, row, { op, state, wentOut = [], effect = null, reason = null }) {
   const light = (op === "delete") ? null : gearLightOf(row, state);
   const flags = { [GEAR_FLAG]: { key: row.key, op, state, actorUuid: actor.uuid, itemId: item.id, itemName: item.name, reason } };
   if ( effect ) {
@@ -186,9 +186,9 @@ async function postCard(actor, item, row, { op, state, wentOut = [], effect = nu
       effects: [effectRecord(effect, statContext(actor.uuid))] });
     flags.effectReceipt = receipt;
   }
-  await ChatMessage.create({
-    speaker: ChatMessage.getSpeaker({ actor }),
-    content: bfCard({
+  await postCard({
+    actor,
+    card: bfCard({
       img: item.img, eyebrow: "Gear light", tone: (op === "delete") ? "neutral" : "good",
       title: gearCardTitle({ actor: actor.name, item: item.name, op, row, state, light, reason }),
       subtitle: [
@@ -236,6 +236,6 @@ async function putOutAll(actor, reason) {
     const row = GEAR_LIGHTS[f?.key] ? { key: f.key, ...GEAR_LIGHTS[f.key] } : null;
     if ( !row ) continue;
     const item = actor.items.get(f.itemId) ?? { id: f.itemId, name: f.itemName ?? f.key, img: null };
-    await postCard(actor, item, row, { op: "delete", state: f.state ?? GEAR_LIT, reason });
+    await postLightCard(actor, item, row, { op: "delete", state: f.state ?? GEAR_LIT, reason });
   }
 }

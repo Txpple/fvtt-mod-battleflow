@@ -10,6 +10,7 @@ import { bfCard } from "../decide/present.js";
 import { targetsOf } from "../decide/card.js";
 import { armHoldTimer } from "./clock.js";
 import { listen } from "../dispatch.js";
+import { postCard } from "../ui.js";
 
 // Any reaction use writes the reaction-spent chip (ARCHITECTURE.md §6); the reactor's own client
 // writes it when no GM is on.
@@ -152,9 +153,9 @@ export async function stampMissHoldIfBystanders(attackMessage, roll) {
 /** The line for an attacker the duplicates cannot fool (a status, a sense): no dice, and why. */
 async function seenThroughCard(defender, attacker, duplicates) {
   try {
-    await ChatMessage.create({
-      speaker: ChatMessage.getSpeaker({ actor: defender }),
-      content: bfCard({ img: duplicates.img, eyebrow: `${duplicates.key} — no roll`, tone: "neutral",
+    await postCard({
+      actor: defender,
+      card: bfCard({ img: duplicates.img, eyebrow: `${duplicates.key} — no roll`, tone: "neutral",
         title: `${attacker?.name ?? "The attacker"} sees through it`, subtitle: defender?.name ?? "",
         lines: [`${duplicates.seenThrough}: the duplicates don't fool it.`] }),
       flags: { [MODULE_ID]: { duplicatesSeen: { key: duplicates.key, defenderUuid: defender?.uuid ?? null, attackerUuid: attacker?.uuid ?? null, why: duplicates.seenThrough } } }

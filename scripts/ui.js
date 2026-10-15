@@ -4,7 +4,7 @@
  * ⚠ Imports NO machine (ARCHITECTURE §7).
  */
 import { MODULE_ID, readFlag, TITLE, S, setting, isActiveGM, deadlineIsLive, canAnswerFor, keepsMessage, queueFlagWrite, DICE_WAIT_SECONDS,
-  LEAD_FLAG, WINDOW_ID, drivesMomentFor, isContinuingClient } from "./core.js";
+  LEAD_FLAG, WINDOW_ID, drivesMomentFor, isContinuingClient, gmIds, selfIds } from "./core.js";
 import { TONE, popupKey, bfCard, momentBarHTML, holdBarHTML, nextCascadeSlot, cascadePosition,
   pileBackToFront, rescuePaneHTML, rescueRowsHTML, esc } from "./decide/present.js";
 import { pendingDemands, resolveDemand } from "./decide/demand.js";
@@ -281,9 +281,9 @@ export async function acknowledgeMoment(message, flagKey) {
   localAcks.add(`${message.id}|${flagKey}`);
   void Promise.resolve(ui.chat?.updateMessage?.(message)).catch(() => { /* row refreshes next render */ });
   try {
-    await ChatMessage.create({
-      whisper: [game.user.id],           // the fold deletes it; this only limits a brief flash
-      content: "",
+    await postAnswer("momentAck", {
+      to: selfIds(),           // the fold deletes it; this only limits a brief flash
+      card: "",
       flags: { [MODULE_ID]: { momentAck: { cardId: message.id, flagKey } } }
     });
   } catch(err) {
@@ -563,6 +563,46 @@ listen("updateChatMessage", "ui", (message, changed) => {
   if ( !changed?.flags?.[MODULE_ID] || !rendersAsSummary(message) ) return;
   ui.chat?.updateMessage(message.system.origin);
 });
+
+// THE CARD (ARCHITECTURE §5): every card the module posts goes out through here (tools/check-cards.mjs).
+
+/**
+ * Post a card. The speaker: the platform's own for `actor` / `token` when either is not undefined, a null actor
+ * included (getSpeaker's fallback: this client's controlled token or its character); else `alias` (`{ alias }`); else `speaker` as
+ * given (a stored one); else none. `card` is the content (HTML), `flags` the flags as written, `rolls` the rolls, `to` the
+ * recipients: one of core.js's sets (`gmIds()`, `selfIds()`, `selfAndGmIds()`, `ownersAndGmIds(actor)`), a
+ * card with none (or an empty list) public. Answers what `ChatMessage.create` answers.
+ * @param {{ actor?: any, token?: any, alias?: string, speaker?: any, card?: string, flags?: any, rolls?: any[], to?: string[]|null }} [opts]
+ */
+export function postCard({ actor, token, alias, speaker, card = "", flags, rolls, to = null } = {}) {
+  /** @type {Record<string, any>} */
+  const data = { content: card };
+  if ( (actor !== undefined) || (token !== undefined) ) data.speaker = ChatMessage.getSpeaker({ actor, token });
+  else if ( alias !== undefined ) data.speaker = { alias };
+  else if ( speaker !== undefined ) data.speaker = speaker;
+  if ( flags !== undefined ) data.flags = flags;
+  if ( rolls !== undefined ) data.rolls = rolls;
+  if ( to ) data.whisper = to;
+  return ChatMessage.create(data);
+}
+
+/**
+ * THE RELAY'S SENDING SIDE: an answer whose card this client cannot write travels as the answerer's own card,
+ * carrying the envelope under its key (`flags[MODULE_ID][envelope]`; the hold's `respondsTo` with its flat
+ * siblings), for the relay registered under that key to fold. `toElect`: the fold is the active GM's, so the card
+ * is whispered to the GMs; `noGM`: with no GM connected it is not sent, and `noGM` (what to do by hand) is said
+ * instead. The rest is `postCard`'s. Answers the card, or null when it was not sent.
+ * @param {string} envelope
+ * @param {{ toElect?: boolean, noGM?: string|null, actor?: any, token?: any, alias?: string, speaker?: any, card?: string, flags?: any, rolls?: any[], to?: string[]|null }} opts
+ */
+export async function postAnswer(envelope, { toElect = false, noGM = null, ...card }) {
+  if ( !card.flags?.[MODULE_ID]?.[envelope] ) console.warn(`${TITLE} | An answer posted without its envelope (${envelope}).`);
+  if ( noGM && !game.users.activeGM ) {
+    ui.notifications?.warn(noGM);
+    return null;
+  }
+  return postCard(toElect ? { ...card, to: gmIds() } : card);
+}
 
 // THE RELAY (ARCHITECTURE.md §4.1): an answer travels as its own message carrying an ENVELOPE;
 // the owning client folds it in. ⚠ An envelope's shape is wire format — answers in flight break.

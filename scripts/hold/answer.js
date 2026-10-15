@@ -16,7 +16,7 @@ import { riderPartFormula } from "../decide/clock.js";
 import { applyDamagesWithReceipt } from "../auto-apply.js";
 import { spendReaction, poolOf, spendSuperiorityDie, spendPoolUses, reactionSpent, muteBystander, withTargets, spendStoredFace } from "../shared.js";
 import { setOutcome } from "../decide/stored-dice.js";
-import { registerRelay, openMomentPopup } from "../ui.js";
+import { registerRelay, openMomentPopup, postAnswer } from "../ui.js";
 import { tokenForUuid } from "../geometry.js";
 import { originData } from "../decide/card.js";
 import { SPELL_ROW_TYPES, reactionItem, reactionItemFor, applyReactionEffect, reactionACArrived, reactionImg } from "./lookup.js";
@@ -72,8 +72,8 @@ export async function answerHold(attackMessage, uuid, answer, { appliedEffects =
     const guarding = answer === "roll";
     const entry = (target.guards ?? []).find(g => g.uuid === by);
     const verb = entry?.bystander ? "bends the roll against" : "protects";
-    await ChatMessage.create({
-      content: bfCard({
+    await postAnswer("respondsTo", {
+      card: bfCard({
         img: guard?.items?.get(entry?.itemId)?.img ?? null,
         eyebrow: guarding ? `Reaction — ${rescue}` : "Reaction — passed",
         title: guarding ? rescue : "Lets it land",
@@ -82,7 +82,7 @@ export async function answerHold(attackMessage, uuid, answer, { appliedEffects =
           : [`No reaction — ${guard?.name ?? "the guard"} lets it land.`],
         tone: guarding ? "good" : "neutral"
       }),
-      speaker: ChatMessage.getSpeaker({ actor: guard }),
+      actor: guard,
       flags: { [MODULE_ID]: { respondsTo: attackMessage.id, uuid, answer, by, ac,
         ...(Number(reduceBy) > 0 ? { reduceBy: Number(reduceBy) } : {}),
         ...(poolSpend ? { poolSpend } : {}),
@@ -103,8 +103,8 @@ export async function answerHold(attackMessage, uuid, answer, { appliedEffects =
         ? [effectLanded ? `AC is now <strong>${ac}</strong>.`
                         : `<em>Its AC has not landed yet — the verdict will use the real number.</em>`]
         : [`No reaction — the attack lands.`];
-    await ChatMessage.create({
-      content: bfCard({
+    await postAnswer("respondsTo", {
+      card: bfCard({
         img: bending ? reactionImg(actor, rescue, {}) : reactionImg(actor, target.reaction, target),
         eyebrow: bending ? `Reaction — ${rescue}` : cast ? "Reaction — cast" : "Reaction — passed",
         title: bending ? rescue : cast ? target.reaction : "Lets it land",
@@ -112,7 +112,7 @@ export async function answerHold(attackMessage, uuid, answer, { appliedEffects =
         lines,
         tone: (cast || bending) ? "good" : "neutral"
       }),
-      speaker: ChatMessage.getSpeaker({ actor }),
+      actor,
       // The receipt rides in the standard effectReceipt shape, so receipts.js renders it.
       flags: { [MODULE_ID]: { respondsTo: attackMessage.id, uuid, answer, ac, effectLanded,
         ...(Number(reduceBy) > 0 ? { reduceBy: Number(reduceBy) } : {}),

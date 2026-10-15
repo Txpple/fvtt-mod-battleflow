@@ -17,6 +17,7 @@ import { applyDamagesWithReceipt } from "./auto-apply.js";
 import { askHandOut } from "./rest-grants.js";
 import { SURFACES } from "./surfaces.js";
 import { listen } from "./dispatch.js";
+import { postCard } from "./ui.js";
 
 const HEAL_ON_HIT_FLAG = "healOnHit";
 const { rowFor } = tableIndex(HEAL_ON_HIT);
@@ -110,10 +111,10 @@ async function payHit({ activity, caster, origin, target }) {
           origin: feature.uuid, riderKey: chitKey }).catch(() => {});
       }
       if ( !canApplyTo(caster) ) { await whisperNoGM(`${row.activity ?? key} (${roll.total} to ${caster.name})`, "Heal by hand from the card."); continue; }
-      const card = await ChatMessage.create({
-        speaker: ChatMessage.getSpeaker({ actor: caster }),
+      const card = await postCard({
+        actor: caster,
         rolls: [roll],
-        content: bfCard({ img: feature.img ?? null, eyebrow: `${row.activity ?? key} — the hit on ${target.name}`, tone: "good",
+        card: bfCard({ img: feature.img ?? null, eyebrow: `${row.activity ?? key} — the hit on ${target.name}`, tone: "good",
           title: `${row.activity ?? key} — ${caster.name} regains ${roll.total} Hit Points`,
           subtitle: `${row.while ? `${row.while} stands` : ""}${row.bloodied ? " · Bloodied" : ""}${row.once === "turn" ? " · once per turn" : ""}`.replace(/^ · /, ""),
           lines: [ruleLine(row.rule)] }),
@@ -147,9 +148,9 @@ async function heal({ row, activity, caster, target, taken, origin }) {
     const verdict = healOnHitAmount(row, { taken, parts: damagePartsOf(origin.rolls ?? []) });
     if ( !verdict.heals ) return;
     if ( !canApplyTo(caster) ) { await whisperNoGM(`${row.key}'s heal (${verdict.amount} to ${caster.name})`, "Heal by hand from the card."); return; }
-    const card = await ChatMessage.create({
-      speaker: ChatMessage.getSpeaker({ actor: caster }),
-      content: bfCard({ img: activity.item.img ?? null, eyebrow: `${row.key} — the heal`, tone: "good",
+    const card = await postCard({
+      actor: caster,
+      card: bfCard({ img: activity.item.img ?? null, eyebrow: `${row.key} — the heal`, tone: "good",
         title: healOnHitTitle({ spell: row.key, caster: caster.name, amount: verdict.amount, target: target.name }),
         subtitle: `${taken} ${row.type ?? ""} damage landed · ${verdict.why}`.replace(/\s+/g, " "),
         lines: [ruleLine(row.rule)] }),
@@ -283,9 +284,9 @@ async function payKill(fallen, origin) {
         continue;
       }
       if ( !canApplyTo(b.bearer) ) { await whisperNoGM(`${b.key} (${amount} ${what} to ${b.bearer.name})`, "Apply it from the sheet."); continue; }
-      const card = await ChatMessage.create({
-        speaker: ChatMessage.getSpeaker({ actor: b.bearer }),
-        content: bfCard({ img: b.feature.img ?? null, eyebrow: `${b.key} — ${fallen.name} falls`, tone: "good",
+      const card = await postCard({
+        actor: b.bearer,
+        card: bfCard({ img: b.feature.img ?? null, eyebrow: `${b.key} — ${fallen.name} falls`, tone: "good",
           title: `${b.key} — ${b.bearer.name} gains ${amount} ${what}`,
           subtitle: b.why, lines: [ruleLine(b.row.rule)] }),
         flags: { [MODULE_ID]: { [HEAL_ON_HIT_FLAG]: { key: b.key, casterUuid: b.bearer.uuid, targetUuid: fallen.uuid, targetName: fallen.name,

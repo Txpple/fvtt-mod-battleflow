@@ -3,7 +3,7 @@
  * offered before the dice, grouped by the feature that pays; the die rides the roll, the pool is
  * spent, a save goes through the saves machine.
  */
-import { MODULE_ID, readFlag, TITLE, canAnswerFor, canApplyTo, drivesMomentFor, queueFlagWrite, statContext, decisionWindow } from "./core.js";
+import { MODULE_ID, readFlag, TITLE, canAnswerFor, canApplyTo, drivesMomentFor, queueFlagWrite, statContext, decisionWindow, selfIds } from "./core.js";
 import { ruleHTML } from "./rule-text.js";
 import { verdictsOn } from "./decide/demand.js";
 import { featureNamed, activityNamed, activityOfType, namesAnswering, profileEffects, resolveUuid, resolveDie, superiorityStandIn } from "./lookup.js";
@@ -21,7 +21,7 @@ import { nearestFeet, tokenForUuid, tokenOfActor } from "./geometry.js";
 import { attackMessageForDamage } from "./auto-damage.js";
 import { applyDamagesWithReceipt } from "./auto-apply.js";
 import { applyActivityEffectsOnHit, applyEffectsWithReceipt, messageActivity } from "./effect-riders.js";
-import { armAskTimer, subjectOwns, openMomentPopup, registerRelay, registerResumable, registerOfferPart, pendingRow } from "./ui.js";
+import { armAskTimer, subjectOwns, openMomentPopup, registerRelay, registerResumable, registerOfferPart, pendingRow, postCard, postAnswer } from "./ui.js";
 import { SURFACES } from "./surfaces.js";
 import { listen, listenOnce } from "./dispatch.js";
 
@@ -616,9 +616,9 @@ async function postSweepCard(damageMessage, hm, attackMessage, attacker, hits, i
   }
   // The hold family's window (the save choice's clock): 0 waits for a human.
   const window = candidates.length ? decisionWindow() : 0;
-  await ChatMessage.create({
-    speaker: ChatMessage.getSpeaker({ actor: attacker }),
-    content: `<p>${hm.feature} — ${candidates.length ? "pick the second creature" : "no creature within 5 feet of the target"}.</p>`,
+  await postCard({
+    actor: attacker,
+    card: `<p>${hm.feature} — ${candidates.length ? "pick the second creature" : "no creature within 5 feet of the target"}.</p>`,
     flags: { [MODULE_ID]: { sweepCard: { ...statContext(attacker.uuid), attackId: attackMessage.id, damageId: damageMessage.id,
       feature: hm.feature, rule: hm.rule, formula: hm.formula, type: hm.type, attackRoll: hm.attackRoll, itemImg: item?.img ?? null,
       targetName: hits[0]?.name ?? "the target", candidates, outOfReach, reach, chosen: null, resolved: null,
@@ -647,7 +647,7 @@ async function chooseSweep(card, uuid) {
     await queueFlagWrite(card, "sweepCard", current => { if ( current.chosen ) return false; current.chosen = uuid; current.answeredAt = Date.now(); });
     return;
   }
-  await ChatMessage.create({ whisper: [game.user.id], speaker: { alias: TITLE }, content: `<p>${uuid}</p>`,
+  await postAnswer("sweepAnswer", { to: selfIds(), alias: TITLE, card: `<p>${uuid}</p>`,
     flags: { [MODULE_ID]: { sweepAnswer: { cardId: card.id, uuid } } } });
 }
 

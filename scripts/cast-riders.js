@@ -18,7 +18,7 @@ import { poolOf, withTargets } from "./shared.js";
 import { askHandOut } from "./rest-grants.js";
 import { applyItemEffectOnHit } from "./effect-riders.js";
 import { tokenOfActor, tokensInRegions } from "./geometry.js";
-import { momentButton } from "./ui.js";
+import { momentButton, postCard } from "./ui.js";
 import { SURFACES } from "./surfaces.js";
 import { listen } from "./dispatch.js";
 
@@ -103,7 +103,7 @@ async function surge({ name, row, actor, message }) {
       ...(results ? { twice: row.twice, results, chosen: null } : {}),
       ...(tameOptions?.length ? { tamed: { feature: row.tamed, itemId: tamed.id, options: tameOptions, chosen: null } } : {}) };
     if ( message?.isOwner ) await message.setFlag(MODULE_ID, SURGE_FLAG, record);
-    else await ChatMessage.create({ speaker: ChatMessage.getSpeaker({ actor }), content: `<p>${esc(surgeLine(record))}</p>`,
+    else await postCard({ actor, card: `<p>${esc(surgeLine(record))}</p>`,
       flags: { [MODULE_ID]: { [SURGE_FLAG]: record } } });
   } catch(err) {
     console.error(`${TITLE} | ${name} failed — roll the d20 and the table by hand.`, err);
@@ -208,8 +208,8 @@ async function chooseTamed(message, text) {
   });
   if ( !won ) return;
   await item.update({ "system.uses.spent": (Number(item.system?.uses?.spent) || 0) + 1 });
-  await ChatMessage.create({ speaker: ChatMessage.getSpeaker({ actor }),
-    content: `<p><strong>${esc(r.tamed.feature)}</strong> — ${esc(text)}</p>` });
+  await postCard({ actor,
+    card: `<p><strong>${esc(r.tamed.feature)}</strong> — ${esc(text)}</p>` });
 }
 
 /* --- C1 — SMITE OF PROTECTION: the aura's members wear the effect until the caster's next turn start ---------- */

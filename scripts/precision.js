@@ -11,7 +11,7 @@ import { maneuverFoldEntries } from "./decide/registry.js";
 import { hitTargets } from "./shared.js";
 import { bfCard, holdBarHTML, spendPhrase, rescueView, rescueSourceFor, esc } from "./decide/present.js";
 import { ATTACK_FOLDS, foldsFrom, foldedRoll, foldedVerdict } from "./decide/verdict.js";
-import { armAskTimer, disarmAskTimer, electOwns, registerRescue, syncRescuePopup, pendingRow } from "./ui.js";
+import { armAskTimer, disarmAskTimer, electOwns, registerRescue, syncRescuePopup, pendingRow, postCard } from "./ui.js";
 import { offerDamageRoll, registerMissWait, rollDamageForAttack, settleMiss } from "./auto-damage.js";
 import { SURFACES } from "./surfaces.js";
 import { activityUuidOf, masteryOf, originData, targetsOf } from "./decide/card.js";
@@ -199,9 +199,9 @@ async function resolvePrecision(message) {
       && receiptEntries(message).length ) {
       lines.push("⚠ Graze already paid on the miss — revert its receipt if you rule it void.");
     }
-    await ChatMessage.create({
-      speaker: ChatMessage.getSpeaker({ actor: attacker }),
-      content: bfCard({
+    await postCard({
+      actor: attacker,
+      card: bfCard({
         img: flag.itemImg, eyebrow: `Maneuver — ${flag.itemName}`,
         tone: anyHit ? "good" : "neutral",
         title: anyHit ? `${flag.itemName} — the miss becomes a hit` : `${flag.itemName} — still a miss`,

@@ -10,7 +10,7 @@ import { hitTargets, reactionSpent, spendReaction } from "./shared.js";
 import { bfCard, holdBarHTML, ruleLine, esc } from "./decide/present.js";
 import { SURFACES } from "./surfaces.js";
 import { CARD, activityUuidOf, isCard, originData, originIdInData, targetsOf } from "./decide/card.js";
-import { openMomentPopup, scheduleBarSync, armAskTimer, disarmAskTimer, electOwns, registerRelay, pendingRow, closePopup } from "./ui.js";
+import { openMomentPopup, scheduleBarSync, armAskTimer, disarmAskTimer, electOwns, registerRelay, pendingRow, closePopup, postCard, postAnswer } from "./ui.js";
 import { listen } from "./dispatch.js";
 
 
@@ -105,9 +105,9 @@ async function answerRiposte(message, uuid, answer, { weaponId = null, weaponNam
     const reactor = live?.reactors?.find(x => x.uuid === uuid);
     if ( !reactor || reactor.answer || (live.status !== "pending") ) return;
     const actor = resolveUuid(uuid);
-    await ChatMessage.create({
-      speaker: ChatMessage.getSpeaker({ actor }),
-      content: bfCard({
+    await postAnswer("riposteAnswer", {
+      actor,
+      card: bfCard({
         img: reactor.itemImg, eyebrow: `Maneuver — ${reactor.itemName}`,
         tone: (answer === "riposte") ? "good" : "neutral",
         title: (answer === "riposte")
@@ -268,9 +268,9 @@ listen("dnd5e.rollAttack", "riposte", async rolls => {
     const reactor = message.getAssociatedActor?.();
     const held = readFlag(game.messages.get(riposteFor), "riposte");
     const r = held?.reactors?.find(x => x.uuid === readFlag(message, "riposteBy"));
-    await ChatMessage.create({
-      speaker: ChatMessage.getSpeaker({ actor: reactor }),
-      content: bfCard({
+    await postCard({
+      actor: reactor,
+      card: bfCard({
         img: r?.itemImg ?? null, eyebrow: `Maneuver — ${r?.itemName ?? "Riposte"}`,
         tone: "neutral",
         title: `${r?.itemName ?? "Riposte"} — the strike back misses`,

@@ -8,7 +8,7 @@ import { coatSaveAbility } from "./decide/chips.js";
 import { clockRiderEntries, listedNames } from "./decide/registry.js";
 import { forceStatus, grantingActor, hitTargets, poolOf, statSourceOf, turnChitStands, writeTurnChit, withTargets, attackIdOf, d20FoldSpends } from "./shared.js";
 import { applyActivityEffectsOnHit, applyItemEffectOnHit } from "./effect-riders.js";
-import { momentButton, registerResumable, registerOfferPart } from "./ui.js";
+import { momentButton, registerResumable, registerOfferPart, postCard } from "./ui.js";
 import { bfCard, optionAskHTML, riderMenuHTML, ruleLine, esc } from "./decide/present.js";
 import { CLOCK_RIDERS, answers } from "./decide/registry.js";
 import { riderDue, riderPartFormula, riderUsesFrom, standingForm, targetsAnswer } from "./decide/clock.js";
@@ -850,10 +850,10 @@ async function driveSpellRider(message) {
     if ( p.formula && !(value > 0) ) {
       try { roll = await new Roll(p.formula).evaluate(); value = Number(roll.total) || 0; } catch { roll = null; }
     }
-    const card = await ChatMessage.create({
-      speaker: ChatMessage.getSpeaker({ actor: caster ?? undefined }),
-      ...(roll ? { rolls: [roll] } : {}),
-      content: bfCard({ img: feature?.img ?? null, eyebrow: "Clock rider", tone: "good",
+    const card = await postCard({
+      actor: caster ?? undefined,
+      rolls: roll ? [roll] : undefined,
+      card: bfCard({ img: feature?.img ?? null, eyebrow: "Clock rider", tone: "good",
         title: `${p.label} — +${value}${p.type ? ` ${p.type}` : ""} to ${p.targetName}`,
         subtitle: `${p.why} · ${p.formula && roll ? `${p.formula} rolled` : "with the spell's damage"}`, lines: [ruleLine(p.rule)] }),
       flags: { [MODULE_ID]: { spellRiderCard: { ...statContext(p.sourceUuid ?? null), key: p.key, label: p.label,

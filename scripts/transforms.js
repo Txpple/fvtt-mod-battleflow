@@ -22,7 +22,7 @@ import { bfCard, esc } from "./decide/present.js";
 import { targetsOf } from "./decide/card.js";
 import { describeCreature, formArt, openPicker, poolFromPacks } from "./gallery.js";
 import { isPartyMember } from "./shared.js";
-import { momentButton, registerRelay, registerResumable, acknowledgeMoment, momentAcknowledged, pendingRow } from "./ui.js";
+import { momentButton, registerRelay, registerResumable, acknowledgeMoment, momentAcknowledged, pendingRow, postCard, postAnswer } from "./ui.js";
 import { SURFACES } from "./surfaces.js";
 import { listen } from "./dispatch.js";
 
@@ -535,9 +535,9 @@ async function revertForm(actor, ended, formFlag = null) {
         current.ended = { why: ended.why, word: ended.word, at: Date.now() };
       });
     }
-    await ChatMessage.create({
-      speaker: ChatMessage.getSpeaker({ actor: originalOf(actor) ?? actor }),
-      content: bfCard({ eyebrow: flag?.itemName ?? "Transform", tone: "neutral", title: formTitle({ who, form: formName, ended }),
+    await postCard({
+      actor: originalOf(actor) ?? actor,
+      card: bfCard({ eyebrow: flag?.itemName ?? "Transform", tone: "neutral", title: formTitle({ who, form: formName, ended }),
         subtitle: (ended.word === "revert") ? "reverted by choice" : "the form ends" }),
       flags: { [MODULE_ID]: { formEnd: { messageId: message?.id ?? null, actorUuid: actor.uuid, why: ended.why, word: ended.word, ...statContext(flag?.sourceUuid ?? null) } } }
     });
@@ -731,9 +731,9 @@ listen("dnd5e.restCompleted", "transforms", (actor, result, config) => {
         slots: h.slots, open: state.open, known,
         profile: profile ? { id: profile._id, cr: capOf(activity, profile), types: [...(profile.types ?? [])], sizes: [...(profile.sizes ?? [])], movement: [...(profile.movement ?? [])] } : null,
         restAt: Date.now(), ...statContext(actor.uuid) };
-      void ChatMessage.create({
-        speaker: ChatMessage.getSpeaker({ actor }),
-        content: bfCard({ eyebrow: h.item.name, tone: "pending",
+      void postCard({
+        actor,
+        card: bfCard({ eyebrow: h.item.name, tone: "pending",
           title: state.open ? `${actor.name} — ${state.open} open known form${state.open === 1 ? "" : "s"}` : `${actor.name} — swap a known form?`,
           subtitle: "chosen at the Long Rest · one swap" }),
         flags: { [MODULE_ID]: { [FORM_SWAP_FLAG]: flag } }
@@ -756,10 +756,10 @@ export async function answerFormSwap(message, { out = null, into = null, adds = 
     });
     return;
   }
-  if ( !game.users.activeGM ) { ui.notifications?.warn(`${TITLE}: a GM must be on to land the change.`); return; }
-  await ChatMessage.create({
-    speaker: ChatMessage.getSpeaker({ actor: resolveUuid(flag.actorUuid) }),
-    content: "", whisper: game.users.filter(u => u.isGM).map(u => u.id),
+  await postAnswer("formSwapAnswer", {
+    noGM: `${TITLE}: a GM must be on to land the change.`,
+    actor: resolveUuid(flag.actorUuid),
+    card: "", toElect: true,
     flags: { [MODULE_ID]: { formSwapAnswer: { messageId: message.id, ...answer } } }
   });
 }

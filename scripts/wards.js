@@ -18,6 +18,7 @@ import { bfCard, esc, ruleLine } from "./decide/present.js";
 import { tokenForUuid } from "./geometry.js";
 import { SURFACES } from "./surfaces.js";
 import { listen } from "./dispatch.js";
+import { postCard } from "./ui.js";
 
 const WARD_FLAG = "ward";
 /** A pass in hand: `attacker|ward|gate` → until; the next use of that shape goes through unasked. */
@@ -120,9 +121,9 @@ async function raiseWard({ row, effect, item, ward }, attacker, activity, gate, 
     const window = decisionWindow();
     const words = wardWords({ spell: row.key, attacker: attacker.name, ward: ward.name, gate, what: activity.item?.name ?? null });
     const abilityLabel = CONFIG.DND5E.abilities[abilities[0]]?.label ?? abilities[0];
-    await ChatMessage.create({
-      speaker: ChatMessage.getSpeaker({ actor: attacker }),
-      content: bfCard({
+    await postCard({
+      actor: attacker,
+      card: bfCard({
         img: item.img ?? null, eyebrow: `${row.key} — the ward`, tone: "pending",
         title: words.title, subtitle: `${words.subtitle} · ${abilityLabel} save DC ${dc}`,
         lines: [ruleLine(row.rule)]
@@ -244,9 +245,9 @@ async function endWards(actor, act, { ownItem = null } = {}) {
       const floats = needsFloat({ statuses: effect.statuses, changes: effect.changes ?? [] });
       await effect.delete();
       if ( floats ) floatEnd(actor, effect.name);
-      await ChatMessage.create({
-        speaker: ChatMessage.getSpeaker({ actor }),
-        content: bfCard({ img: item?.img ?? null, eyebrow: `${row.key} — ended`, tone: "neutral",
+      await postCard({
+        actor,
+        card: bfCard({ img: item?.img ?? null, eyebrow: `${row.key} — ended`, tone: "neutral",
           title: `${row.key} ended — ${actor.name} ${verdict.why}`,
           subtitle: "the ward ends when its bearer makes an attack roll, casts a spell, or deals damage",
           lines: [ruleLine(row.rule)] }),

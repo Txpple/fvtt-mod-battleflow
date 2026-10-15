@@ -12,7 +12,7 @@ import { hitTargets, withTargets } from "./shared.js";
 import { bfCard, momentBarHTML, ruleLine, esc } from "./decide/present.js";
 import { SURFACES } from "./surfaces.js";
 import { CARD, activityUuidOf, isCard, originIdOf, originData, targetsOf } from "./decide/card.js";
-import { openMomentPopup, acknowledgeMoment, momentAcknowledged, pendingRow, closePopup } from "./ui.js";
+import { openMomentPopup, acknowledgeMoment, momentAcknowledged, pendingRow, closePopup, postCard } from "./ui.js";
 import { listen } from "./dispatch.js";
 import { hasReceipt, receiptEntries } from "./auto-apply.js";
 
@@ -30,9 +30,9 @@ async function postHewReminder(attacker, featItem, weapon, why, row = null, offe
   const label = row?.label ?? "Hew";
   // The card is the record; the popup the moment (OK-only, drain bar, auto-close).
   const window = decisionWindow();
-  await ChatMessage.create({
-    speaker: ChatMessage.getSpeaker({ actor: attacker }),
-    content: bfCard({
+  await postCard({
+    actor: attacker,
+    card: bfCard({
       img: featItem.img, eyebrow: `Feat — ${featItem.name}`, tone: "good",
       title: `${label} — ${attacker.name} can attack again`,
       subtitle: why,

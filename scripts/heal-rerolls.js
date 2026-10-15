@@ -14,7 +14,7 @@ import { HEAL_REROLLS } from "./decide/registry.js";
 import { healDiceOf, slotBonus, stripRerollOnes, rerollFaces } from "./decide/damage-dice.js";
 import { rerollRise } from "./decide/dice-chips.js";
 import { bfCard, esc, ruleLine } from "./decide/present.js";
-import { dramaticVerdictPause, momentButton, openMomentPopup, registerResumable, pendingRow } from "./ui.js";
+import { dramaticVerdictPause, momentButton, openMomentPopup, registerResumable, pendingRow, postCard } from "./ui.js";
 import { moveAppliedDamage } from "./auto-apply.js";
 import { SURFACES } from "./surfaces.js";
 import { listen } from "./dispatch.js";
@@ -123,9 +123,9 @@ async function selfHeals(message, rolls) {
       const amount = slotBonus(row.self, slot);
       if ( !(amount > 0) ) continue;
       const feature = featureNamed(actor, name);
-      const card = await ChatMessage.create({
-        speaker: ChatMessage.getSpeaker({ actor }),
-        content: bfCard({ img: feature?.img ?? null, eyebrow: name, tone: "good",
+      const card = await postCard({
+        actor,
+        card: bfCard({ img: feature?.img ?? null, eyebrow: name, tone: "good",
           title: `${name} — ${actor.name} regains ${amount} Hit Points`,
           subtitle: `${item.name} at level ${slot} healed ${others.map(t => t.name).join(", ")}`,
           lines: [ruleLine(row.rule)] }),
@@ -202,10 +202,10 @@ async function reroll(message, keys) {
     const total = healTotal(rebuilt);
     const delta = total - (Number(flag.total) || 0);
     const rise = rerollRise({ done, on: actor?.uuid });   // the 1s turn over on the canvas, over the healer
-    const announce = await ChatMessage.create({
-      speaker: ChatMessage.getSpeaker({ actor }),
+    const announce = await postCard({
+      actor,
       rolls: [fresh],
-      content: bfCard({ img: featureNamed(actor, flag.feature)?.img ?? null,
+      card: bfCard({ img: featureNamed(actor, flag.feature)?.img ?? null,
         eyebrow: `${flag.feature} — Healing Rerolls`, tone: "good",
         title: `${flag.feature} — ${done.length === 1 ? "the 1" : `${done.length} ones`} rerolled → ${done.map(p => p.new).join(", ")}`,
         subtitle: `${flag.source ?? "the healing"} heals ${total} now`, lines: [] }),

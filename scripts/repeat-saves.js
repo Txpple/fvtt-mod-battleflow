@@ -13,7 +13,7 @@ import { REPEAT_SAVES, repeatSaveEntries, listedNames } from "./decide/registry.
 import { repeatRowFor, repeatDue, repeatBend, repeatVerdict, needsFloat, repeatTitle, repeatEnds, repeatLift, repeatEndWords } from "./decide/repeat-saves.js";
 import { saveDemandData, saveTargetEntry } from "./decide/demand.js";
 import { bfCard, esc, ruleLine } from "./decide/present.js";
-import { momentButton } from "./ui.js";
+import { momentButton, postCard } from "./ui.js";
 import { rollDamageForSave } from "./auto-damage.js";
 import { revertEffect } from "./effect-riders.js";
 import { SURFACES } from "./surfaces.js";
@@ -115,9 +115,9 @@ async function endOutright(effect, row, cause) {
     const says = repeatEndWords({ effectName: effect.name, bearer: token?.name ?? actor.name, cause, spell: row.key, lifted });
     await endEffect({ castCard: effect.system?.origin?.message ?? null }, actor, effect);
     const item = row.item;
-    await ChatMessage.create({
-      speaker: ChatMessage.getSpeaker({ actor: item?.actor ?? actor }),
-      content: bfCard({ img: item?.img ?? null, eyebrow: "Repeated save", tone: "neutral", title: says, lines: [ruleLine(row.rule)] }),
+    await postCard({
+      actor: item?.actor ?? actor,
+      card: bfCard({ img: item?.img ?? null, eyebrow: "Repeated save", tone: "neutral", title: says, lines: [ruleLine(row.rule)] }),
       flags: { [MODULE_ID]: { [REPEAT_FLAG]: { ...statContext(item?.actor?.uuid ?? null), key: row.key, cause, why: CAUSE_END,
         effectUuid: effect.uuid, effectId: effect.id, effectName: effect.name, actorUuid: actor.uuid, settled: true, ended: true, outcome: null, says } } }
     });
@@ -144,9 +144,9 @@ async function raiseRepeat(effect, row, cause, why) {
     const window = decisionWindow();
     const bend = repeatBend(row, cause, row.key);
     const abilityLabel = CONFIG.DND5E.abilities[abilities[0]]?.label ?? abilities[0];
-    const card = await ChatMessage.create({
-      speaker: ChatMessage.getSpeaker({ actor: caster ?? actor }),
-      content: bfCard({
+    const card = await postCard({
+      actor: caster ?? actor,
+      card: bfCard({
         img: item.img ?? null, eyebrow: "Repeated save", tone: "pending",
         title: repeatTitle({ effectName: effect.name, bearer: token?.name ?? actor.name, cause, spell: row.key }),
         subtitle: `${abilityLabel} save DC ${dc} · a success ends ${effect.name}`
@@ -185,9 +185,9 @@ async function offerRepeat(effect, row, combat) {
     const actor = effect.parent;
     const item = row.item;
     if ( !(actor instanceof Actor) ) return;
-    await ChatMessage.create({
-      speaker: ChatMessage.getSpeaker({ actor }),
-      content: bfCard({
+    await postCard({
+      actor,
+      card: bfCard({
         img: item.img ?? null, eyebrow: "Repeated save", tone: "pending",
         title: repeatTitle({ effectName: effect.name, bearer: actor.name, cause: "action", spell: row.key }),
         subtitle: `${effect.name} stands — the save costs the action; a success ends it`,

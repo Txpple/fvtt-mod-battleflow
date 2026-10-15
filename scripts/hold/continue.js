@@ -14,7 +14,7 @@ import { rescueSpendText } from "../decide/rescue-hit.js";
 import { damageAfterHold } from "../auto-damage.js";
 import { joinEffectReceipt } from "../decide/receipt.js";
 import { bfCard, spendPhrase, esc } from "../decide/present.js";
-import { flashBend, waitForWrite, closePopup } from "../ui.js";
+import { flashBend, waitForWrite, closePopup, postCard } from "../ui.js";
 import { reactionItem, hasReactionEffect, applyReactionEffect, reactionACArrived, reactionImg, duplicatesOf, attackFactsOf, recoilKey } from "./lookup.js";
 import { duplicateOutcome, duplicateWords } from "../decide/duplicates.js";
 import { disarmHoldTimer } from "./clock.js";
@@ -191,9 +191,9 @@ async function driveHoldContinuation(attackMessage, hold) {
   // The verdicts, through the serializer: a fold still queued on this client lands first, and a
   // hold another client resolved meanwhile is not re-announced.
   if ( !await writeResolvedHold(attackMessage, hold) ) return;
-  if ( announcements.length ) await ChatMessage.create({
-    content: announcements.join(`<div style="height:0.3rem;"></div>`),
-    speaker: { alias: TITLE }
+  if ( announcements.length ) await postCard({
+    card: announcements.join(`<div style="height:0.3rem;"></div>`),
+    alias: TITLE
   });
 
   // Release the dice rolled at attack time; the applier's hitTargets drops every flipped target.

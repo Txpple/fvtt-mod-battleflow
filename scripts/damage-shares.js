@@ -15,6 +15,7 @@ import { bfCard, esc, ruleLine } from "./decide/present.js";
 import { applyDamagesWithReceipt } from "./auto-apply.js";
 import { SURFACES } from "./surfaces.js";
 import { listen } from "./dispatch.js";
+import { postCard } from "./ui.js";
 
 const SHARE_FLAG = "damageShare";
 
@@ -73,9 +74,9 @@ async function share({ row, effect, item, caster }, bearer, amount, origin) {
     const distanceFeet = nearestDistance(bearer, caster);
     const casterHp = Number(caster.system?.attributes?.hp?.value ?? 0);
     const verdict = shareVerdict(row, { amount, distanceFeet, casterHp });
-    const card = await ChatMessage.create({
-      speaker: ChatMessage.getSpeaker({ actor: caster }),
-      content: bfCard({
+    const card = await postCard({
+      actor: caster,
+      card: bfCard({
         img: item?.img ?? null, eyebrow: `${row.key} — the bond`, tone: verdict.shares ? "bad" : "neutral",
         title: verdict.shares ? shareTitle({ spell: row.key, bearer: bearer.name, caster: caster.name, amount: verdict.amount })
           : `${row.key} — ${caster.name} takes nothing: ${verdict.why}`,

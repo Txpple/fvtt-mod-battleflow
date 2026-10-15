@@ -18,7 +18,7 @@ import { ADVANTAGE_BUYS, D20_FLOORS, REROLLS, SAVE_SUCCEEDS, SUPERIORITY_FOLDS, 
 import { CHIP_FLAG } from "./decide/chips.js";
 import { foldRise } from "./decide/dice-chips.js";
 import { cardRow, armAskTimer, disarmAskTimer, electOwns, openMomentPopup, acknowledgeMoment, momentAcknowledged, registerRescue, syncRescuePopup,
-  pendingDemandsFor, registerWithhold, resumeWithheld, dramaticVerdictPause, pendingRow } from "./ui.js";
+  pendingDemandsFor, registerWithhold, resumeWithheld, dramaticVerdictPause, pendingRow, postCard } from "./ui.js";
 import { offerDamageRoll, registerMissWait, rollDamageForAttack } from "./auto-damage.js";
 import { activityUuidOf, originData, targetsOf } from "./decide/card.js";
 import { listen } from "./dispatch.js";
@@ -858,9 +858,9 @@ const sumText = (flag, composed) => composed.replaced
   : `${flag.baseTotal} + ${composed.added} = ${composed.total}`;
 
 async function announce(_message, actor, name, testKind, anyHit, lines, marker) {
-  await ChatMessage.create({
-    speaker: ChatMessage.getSpeaker({ actor }),
-    content: bfCard({
+  await postCard({
+    actor,
+    card: bfCard({
       img: marker?.item?.img ?? marker?.effect?.img ?? null,
       eyebrow: ((marker?.kind === "tactical") && !tacticalRowOf({ kind: "tactical", name })) ? `Maneuver — ${name}` : `D20 Fold — ${name}`,
       tone: (testKind === "attack") ? (anyHit ? "good" : "neutral") : "good",
@@ -880,9 +880,9 @@ async function announceIfNeeded(_message, flag) {
   if ( !flag?.resume ) return;
   const actor = resolveUuid(flag.actorUuid);
   if ( !actor ) return;
-  await ChatMessage.create({
-    speaker: ChatMessage.getSpeaker({ actor }),
-    content: bfCard({
+  await postCard({
+    actor,
+    card: bfCard({
       eyebrow: "D20 Fold", tone: "neutral", title: "Passed — the save stands",
       subtitle: actor.name,
       lines: [`${flag.baseTotal} vs DC ${flag.dc} — nothing spent.`]
@@ -1369,9 +1369,9 @@ async function answerRefund(message, choice) {
     const spent = Number(pool.system?.uses?.spent ?? 0);
     if ( spent > 0 ) await pool.update({ "system.uses.spent": spent - 1 });
     const uses = pool.system?.uses ?? {};
-    await ChatMessage.create({
-      speaker: ChatMessage.getSpeaker({ actor }),
-      content: bfCard({
+    await postCard({
+      actor,
+      card: bfCard({
         img: r.itemImg, eyebrow: `D20 Fold — ${r.label}`, tone: "good",
         title: `${r.label} — the use is refunded`,
         subtitle: `${actor?.name ?? ""} · the check still failed`,
