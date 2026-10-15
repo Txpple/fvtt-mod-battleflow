@@ -16,26 +16,30 @@ const isUuid = s => s.includes(".");
 
 /**
  * The token document a subject stands as, or null. An actor: its own token when it is a token's synthetic actor;
- * else its token this client controls; else its first token drawn on the viewed scene; else its first linked token
- * there — dnd5e's own usage token (`Activity#getUsageToken`), a synthetic actor's own token ahead of it. A uuid
- * answers for the document behind it, a token's id for that token on the viewed scene, a token on the canvas for
- * its document; a token document is itself.
+ * else, for a use (`activity`), the token dnd5e's own `Activity#getUsageToken` answers; else its token this client
+ * controls; else its first linked token drawn on the viewed scene; else its first linked token there. ⚠ A world
+ * actor's UNLINKED token is another creature (its own synthetic actor), never this actor's token. A uuid answers
+ * for the document behind it, a token's id for that token on the viewed scene, a token on the canvas for its
+ * document; a token document is itself.
  * @param {any} subject
+ * @param {{ activity?: any }} [opts]
  * @returns {any}
  */
-export function tokenDocOf(subject) {
+export function tokenDocOf(subject, { activity = null } = {}) {
   if ( !subject ) return null;
   if ( typeof subject === "string" ) {
-    return isUuid(subject) ? tokenDocOf(resolveUuid(subject)) : (canvas?.tokens?.get?.(subject)?.document ?? null);
+    return isUuid(subject) ? tokenDocOf(resolveUuid(subject), { activity }) : (canvas?.tokens?.get?.(subject)?.document ?? null);
   }
   if ( subject.documentName === "Token" ) return subject;
   if ( subject.document?.documentName === "Token" ) return subject.document;
   if ( subject.documentName !== "Actor" ) return null;
   if ( subject.token ) return subject.token;
   try {
+    const used = activity?.getUsageToken?.() ?? null;
+    if ( used ) return used;
     const controlled = canvas?.tokens?.controlled?.find(t => t.actor?.uuid === subject.uuid);
     if ( controlled ) return controlled.document;
-    return subject.getActiveTokens?.()?.[0]?.document ?? subject.getActiveTokens?.(true, true)?.[0] ?? null;
+    return subject.getActiveTokens?.(true)?.[0]?.document ?? subject.getActiveTokens?.(true, true)?.[0] ?? null;
   } catch { return null; }
 }
 
@@ -43,13 +47,14 @@ export function tokenDocOf(subject) {
  * The token on the canvas a subject stands as (tokenDocOf's rule), or null when it is not drawn; a token on the
  * canvas is itself, a token's id the viewed scene's token of that id.
  * @param {any} subject
+ * @param {{ activity?: any }} [opts]
  * @returns {any}
  */
-export function tokenOf(subject) {
+export function tokenOf(subject, opts = {}) {
   if ( !subject ) return null;
   if ( (typeof subject === "string") && !isUuid(subject) ) return canvas?.tokens?.get?.(subject) ?? null;
   if ( subject.document?.documentName === "Token" ) return subject;
-  return tokenDocOf(subject)?.object ?? null;
+  return tokenDocOf(subject, opts)?.object ?? null;
 }
 
 /**

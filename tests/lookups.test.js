@@ -86,8 +86,14 @@ const pcSecond = token("p2", pc, viewed);
 const pcElsewhere = token("p3", pc, other);
 viewed.tokens = [gob, pcFirst, pcSecond];
 other.tokens = [pcElsewhere];
-pc.getActiveTokens = (_linked = false, document = false) => {
-  const on = [pcFirst, pcSecond];
+// An unlinked token of the world actor is another creature: the platform lists it ahead when linked is false.
+const pcUnlinked = token(
+  "pu",
+  { documentName: "Actor", uuid: "Scene.viewed.Token.pu.Actor.pc" },
+  viewed
+);
+pc.getActiveTokens = (linked = false, document = false) => {
+  const on = linked ? [pcFirst, pcSecond] : [pcUnlinked, pcFirst, pcSecond];
   return document ? on : on.filter(d => d.object).map(d => d.object);
 };
 
@@ -108,15 +114,24 @@ describe("tokenDocOf — the token document a subject stands as", () => {
     expect(tokenDocOf(goblin)).toBe(gob);
   });
 
-  it("an actor of the world: the token this client controls, else the first drawn, else the first linked", () => {
+  it("an actor of the world: the token this client controls, else its first linked token drawn, else the first linked", () => {
     installCanvas({ controlled: [pcSecond.object] });
     expect(tokenDocOf(pc)).toBe(pcSecond);
     installCanvas();
     expect(tokenDocOf(pc)).toBe(pcFirst);
+    expect(tokenOf(pc)).toBe(pcFirst.object);
     const undrawn = { documentName: "Actor", uuid: "Actor.undrawn", token: null };
     const linked = token("u1", undrawn, viewed, { drawn: false });
     undrawn.getActiveTokens = (_linked, document) => (document ? [linked] : []);
     expect(tokenDocOf(undrawn)).toBe(linked);
+  });
+
+  it("a use: dnd5e's own usage token leads, after a synthetic actor's own", () => {
+    installCanvas({ controlled: [pcSecond.object] });
+    const activity = { getUsageToken: () => pcUnlinked };
+    expect(tokenDocOf(pc, { activity })).toBe(pcUnlinked);
+    expect(tokenDocOf(goblin, { activity })).toBe(gob);
+    expect(tokenDocOf(pc, { activity: { getUsageToken: () => undefined } })).toBe(pcSecond);
   });
 
   it("a uuid, a token's id, a token on the canvas, a token document; anything else is null", () => {

@@ -54,7 +54,7 @@ listen("dnd5e.postUseActivity", "token-lights", (activity, usageConfig, results)
       return;
     }
     const message = (results?.message instanceof ChatMessage) ? results.message : null;
-    const tok = tokenDocOf(actor);
+    const tok = tokenDocOf(actor, { activity });
     const snapshot = message ? targetsOf(message) : [];
     const live = [...game.user.targets].filter(t => t.actor).map(t => ({ uuid: t.actor.uuid, name: t.name }));
     const targets = lightTargets(row, { self: { uuid: actor.uuid, name: tok?.name ?? actor.name },

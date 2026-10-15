@@ -96,7 +96,7 @@ function capFromTarget(target) {
 
 async function stampRecord(activity, usageConfig, message, row) {
   const actor = activity.actor;
-  const tok = tokenDocOf(actor);   // the owner's token, for the card's name and the record's scene
+  const tok = tokenDocOf(actor, { activity });   // the owner's token, for the card's name and the record's scene
   const profileId = stashed.get(usageConfig) ?? null;
   const profile = activity.profiles.find(p => p._id === profileId) ?? activity.availableProfiles?.[0] ?? activity.profiles[0] ?? null;
   const self = row.self === true;

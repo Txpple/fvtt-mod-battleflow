@@ -1252,7 +1252,7 @@ listen("dnd5e.postUseActivity", "emanations", (activity, _usageConfig, results) 
 
 async function placeSelfArea(activity, row, message) {
   const actor = activity.actor;
-  const tok = tokenDocOf(actor);
+  const tok = tokenDocOf(actor, { activity });
   const scene = tok?.parent;
   if ( !tok || !scene ) return;
   const tpl = activity.target.template;

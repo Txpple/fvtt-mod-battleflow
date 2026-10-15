@@ -358,7 +358,7 @@ async function stampEmpower(activity, message, answer) {
     ui.notifications?.error(`${TITLE}: the ${lower(companionOf(erow?.companion ?? "")?.noun ?? "companion")} is no longer on the table — ${activity.item.name} could not empower it.`);
     return;
   }
-  const tok = tokenDocOf(actor);
+  const tok = tokenDocOf(actor, { activity });
   const record = transformRecord({
     key: erow.transform, sourceUuid: actor.uuid, sourceName: tok?.name ?? actor.name,
     itemUuid: activity.item.uuid, itemName: activity.item.name, itemType: activity.item.type, activityUuid: activity.uuid,
@@ -497,7 +497,7 @@ const sizesOf = activity => sizesInOrder([...(activity.creatureSizes ?? [])], Ob
 /** What the record and the menu share, read off the activity at a level. */
 async function castFacts(activity, level) {
   const actor = activity.actor;
-  const tok = tokenDocOf(actor);
+  const tok = tokenDocOf(actor, { activity });
   return {
     sourceUuid: actor.uuid, sourceName: tok?.name ?? actor.name,
     itemUuid: activity.item.uuid, itemName: activity.item.name, activityUuid: activity.uuid,
