@@ -15,8 +15,15 @@ browser (`fvtt-mcp-dnd5e/client` — a `file:../fvtt-mcp-dnd5e` dependency: `npm
 | `BTB_HOST` (alias `BF_HOST`) · `BTB_DND5E_DIR` (alias `BF_DND5E_DIR`) | the preset a suite targets (the local sandbox by default) · the installed dnd5e system `check-hook-dispatch` and `check-surfaces` read (else the default Foundry data path) |
 | `FOUNDRY_USER` (+ password) | the MCP bridge's GM user (the preflight names it when it blocks) |
 | `FOUNDRY_PLAYER_USER` (+ password) | a player-role user: the two-client suites and the player-owned fixtures |
+| `FOUNDRY_GM2_USER` / `FOUNDRY_GM2_PASSWORD` (or `BTB_GM2_USER` / `BTB_GM2_PASSWORD`; `FOUNDRY_*` wins) | the `gm2` identity: a second GM user with the **Gamemaster** role (4), for a run that declares it in `GM_CLIENTS` |
+| `FOUNDRY_ASSISTANT_USER` / `FOUNDRY_ASSISTANT_PASSWORD` (or `BTB_ASSISTANT_*`; `FOUNDRY_*` wins) | the `assistant` identity: a GM user with the **Assistant GM** role (3), for a run that declares it in `GM_CLIENTS` |
 
 Every `BF_*` name above still works, so an `.env` written before 3.0.0 needs no edit. The three users must exist in the world. Everything else a suite needs, `fixture-suite.mjs` builds from the compendia.
+The suite, bridge and player users come down with every prod mirror (`pull-prod-to-local.mjs` copies prod's users over
+the sandbox's). The two multi-GM identities exist on the sandbox alone, so **a mirror drops them**: `node
+tools/seed-gm-identities.mjs` creates them again, once per mirror, from the `.env`'s names and passwords (`--check`
+reports only). Foundry lets a user create users of its own role or below, so a suite identity with the Assistant GM
+role creates the Assistant and names the Gamemaster it cannot create; that one is made from a Gamemaster's window.
 
 ```bash
 node tools/battery.mjs                     # build the fixtures, every suite in order (each captured to a file), tear down
@@ -166,6 +173,25 @@ Why the sole-GM preflight cannot do this: NOTES §5.
 ⚠ **The preflight checks the package too** (3.0.0): every asserting suite refuses unless By the
 Books is active and Battle Flow is not, and names which. `job.mjs --read-only`, the fixture
 builders and the probes are exempt and work in either state.
+
+**Several GM clients at once is declared, never assumed.** A script that holds more than one GM-capable client
+names the identities beside its `SECTIONS` / `COVERS`: `export const GM_CLIENTS = ["suite", "gm2", "assistant"]`
+(the keys of `GM_IDENTITIES` in `target.mjs`; the users are the `.env`'s, table above). The preflight then allows
+exactly those users, any number of them connected, and still refuses every other GM-capable user (the bridge, a GM
+window) by name; with no declaration it refuses everything but the one client, as it always has. `connectSuite({
+identity })` joins the harness's own client as a declared identity, `gmConfig(env, key)` builds another one's
+config. The harness reads the declaration from the script's text (a suite runs on import, so it is parsed, never
+imported); an undeclared identity or an unknown key refuses the run before anything connects.
+
+**The connect race is measured, not argued: `probe-multi-gm.mjs`** (suite issue #8; the note is
+[audits/plans/multi-gm-measurement.md](../audits/plans/multi-gm-measurement.md)). One GM client on, a Find Familiar
+record armed on its card, a second GM client connecting, and the record answered at an offset from the moment the first
+client hears the second arrive (before it, through the newcomer's load, after it is ready); then what landed per record
+(claims by user, tokens, companion effects, moments, cards) and how long both clients held the elect at once and how
+long neither did, each page sampling `isActiveGM` every 5 ms. Four orderings by role and id (`--list`): the elect stays
+on the client already on, or moves to the newcomer. Fixtures from `fixture-suite.mjs`; teardown per cycle and at the
+end; about 11 s a cycle on the sandbox. `--aim=<ms>` fires every cycle at one offset, to sample a narrow window
+densely. A probe, not a battery suite: no `COVERS`, not in ORDER.
 
 ⚠ **A slow run and a hung run must not look the same** (2026-10-10, issue #12: a harness script
 outlived its 400 s watchdog by an hour, and another printed nothing for five minutes). The harness
@@ -321,6 +347,7 @@ ships, never from what the party owns (DESIGN N1). Re-run after adding content.
 | `verify-settings.mjs` | diffs the world's By the Books settings against a reference it does not hold: `--against <snapshot>` (the battery records the world's own values before it runs, `--snapshot <file>`), else the registered defaults plus a git-ignored `tools/settings.local.json`. `--fix` restores drift. Run after every battery. |
 | `fixture-suite.mjs` | **builds every fixture from the COMPENDIA** (2026-10-07: no campaign character, scene or item is read — NOTES §5 *The world is a blank slate*). The battery runs it FIRST and a failed build stops the run; run it by hand before a single suite. The test range scene, the two goblins and the bare monster and dummy NPCs (imported by shape or created bare), the player-owned PC attacker, and the `BUILT` PCs from the PHB (a class item at a level resolves its scale values): the Shielder and the player-owned Mage (Sorcerer 6, a real Shield), the d20-fold Fighter (Fighter 5 at Strength 14 — the +5 band `smoke-d20-folds` states) and Bard (Bard 8 — the 1d8 inspiration die), the Vanguard (Paladin 6, an attuned Cloak of Protection, Shield Master, the longsword mastery), and the Paladin, Cleric, Rogue, Ranger, Sorcerer, Goliath and Halfling. All under `Test Suite` folders, idempotent, ownership and abilities re-seeded every run. Every token it places carries the `fixtureHome` stamp `reset-fixture-state` spares, and the base goblins go back to their statblock every run (2026-09-24). Pair with `fixture-d20-folds.mjs`, which runs second. |
 | `teardown-fixtures.mjs` | **removes every fixture** — the `Test Suite` folders and what is in them, any `BTB …` / `By the Books …` actor or scene (the range is "By the Books Test Range", the walks' scene "By the Books Walk"), the `BF …` / `Battle Flow …` residue a 2.x run left, and any combat they stand in. The battery runs it LAST unless `--keep`, so the sandbox is left as it was found; `--list` says what would go. |
+| `seed-gm-identities.mjs` | **creates the multi-GM identities** (`gm2`, a Gamemaster; `assistant`, an Assistant GM) as world users from the `.env`'s names and passwords, joining as the suite identity; reports each one's role and id, the suite identity's role and the world's settings roles. Once per prod mirror (the mirror drops them); `--check` creates nothing. |
 | `reset-fixture-state.mjs` | shared fixtures back to a known state (conditions off, pools full), and **every LINKED `BTB Test` token on the range without the `fixtureHome` stamp swept** — a killed suite's leftovers (2026-09-24). The battery's first row; run it by hand after any killed run outside the battery. |
 | `scrub-fixture-residue.mjs` | clears what a suite's 5.x restore no longer clears at dnd5e 6.0 — the AC `override` and the per-ability `save.roll.bonus` — on every BTB Test actor (`--check` reports only). Run it whenever a suite reports an AC or a save that cannot be (the dnd5e 6.0 pass, 2026-09-16). |
 | `reload-clients.mjs` | refresh every other connected client after a hot-deploy. |
