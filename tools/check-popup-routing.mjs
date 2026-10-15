@@ -7,6 +7,7 @@
 // Victim; the card is deleted before the buzzer, so nothing rolls. Read-only enough to run beside
 // a live session (the mutating cross-client scenarios live in `smoke-twoclient.mjs`).
 import { connectSuite, disposeSafely, loadEnv } from './harness.mjs';
+import { installPrelude } from './prelude.mjs';
 import { playerConfig } from './target.mjs';
 import { Foundry } from 'fvtt-mcp-dnd5e/client';
 
@@ -119,6 +120,7 @@ console.log(`[topo] victim token ready (${fixture.tokenId})`);
 console.log('[topo] player connecting…');
 const player = new Foundry(playerConfig(env));
 await player.connect();
+await installPrelude(player);
 
 // The player builds a zero-consequence save spell and casts it at the victim: the stamp runs on the player client.
 const cast = await player.evaluate(async () => {
@@ -126,11 +128,11 @@ const cast = await player.evaluate(async () => {
   const attacker = game.actors.getName('BTB Test PC Attacker');
   const victim = game.actors.getName('BTB Test Victim');
   if (!scene || !attacker || !victim) return { fatal: 'fixtures missing' };
+  const { until, tokenOn } = window.__btb;
   if (canvas.scene?.id !== scene.id) await scene.view();
   const tok = scene.tokens.find(t => t.actorId === victim.id);
   if (!tok) return { fatal: 'no victim token (run smoke-bythebooks first)' };
-  await new Promise(r => { const i = setInterval(() => {
-    if (canvas.ready && canvas.tokens.get(tok.id)) { clearInterval(i); r(); } }, 200); });
+  if (!(await tokenOn(tok.id, { timeout: 15000 }).catch(() => null))) return { fatal: 'the victim token never reached the player\'s canvas' };
 
   const [spell] = await attacker.createEmbeddedDocuments('Item', [{
     name: 'BTB Topology Probe Save', type: 'spell',
@@ -152,20 +154,43 @@ const cast = await player.evaluate(async () => {
   }]);
   const activity = spell.system.activities?.contents?.[0];
   if (!activity) return { fatal: 'no activity on probe spell' };
-  canvas.tokens.get(tok.id).setTarget(true, { releaseOthers: true });
-  await new Promise(r => setTimeout(r, 150));
+  const victimToken = canvas.tokens.get(tok.id);
+  victimToken.setTarget(true, { releaseOthers: true });
+  await until(() => (game.user.targets.size === 1) && game.user.targets.has(victimToken), { label: 'the victim targeted' });
   const usage = await activity.use({}, { configure: false }, {});
   const msg = usage?.message ?? null;
-  await new Promise(r => setTimeout(r, 500));
-  const flag = msg ? game.messages.get(msg.id)?.getFlag('fvtt-mod-bythebooks', 'saves') : null;
+  // The stamp, on the player client; one that never lands is reported (`stamped`).
+  const flag = msg ? await until(() => game.messages.get(msg.id)?.getFlag('fvtt-mod-bythebooks', 'saves'), { timeout: 4000 }).catch(() => null) : null;
   return { spellId: spell.id, messageId: msg?.id ?? null,
     stamped: !!flag, status: flag?.status ?? null, user: game.user.name };
 }, null);
 if (cast.fatal) { console.error(`[topo] FATAL: ${cast.fatal}`); process.exit(2); }
 console.log(`[topo] player "${cast.user}" cast: message ${cast.messageId}, stamped=${cast.stamped} (${cast.status})`);
 
-// Let the GM client digest for 8 seconds (well inside the 15s window), then read the ledger.
-await new Promise(r => setTimeout(r, 8000));
+// The GM page waits for what the assertions read off it (the flag replicated with the decision claimed, the popup,
+// the row and its draining bar) while the player's page watches the same 8 seconds for the popup it must NOT open;
+// both pages are read after, well inside the 15 s window.
+const [gmSettled, playerPopup] = await Promise.all([
+  gm.evaluate(async ({ messageId }) => {
+    const { until } = window.__btb;
+    const ready = () => {
+      const ledger = globalThis.__bfTopo.ledger;
+      const flagged = ledger.filter(e => (e.id === messageId) && e.flag);
+      const claimed = flagged.flatMap(e => e.targets ?? []).some(t => t.canAnswer === true);
+      const titles = Array.from(document.querySelectorAll('.application.dialog, dialog.application'))
+        .map(d => d.querySelector('.window-title')?.textContent?.trim() ?? d.id);
+      const popup = titles.some(x => /sav|BTB Topology/i.test(x ?? '')) || ledger.some(e => e.kind === 'dialogRender');
+      const row = !!document.querySelector(`[data-message-id="${messageId}"] .bythebooks-saves`);
+      const bars = document.querySelectorAll(`[data-message-id="${messageId}"] [data-bf-deadline]`).length;
+      return (flagged.length > 0) && claimed && popup && row && (bars > 0);
+    };
+    return until(ready, { timeout: 8000, label: 'the GM side settled' }).then(() => true, () => false);
+  }, { messageId: cast.messageId }),
+  player.evaluate(async () => window.__btb.watch(() => Array.from(document.querySelectorAll('.application.dialog, dialog.application'))
+    .map(d => d.querySelector('.window-title')?.textContent?.trim() ?? d.id)
+    .find(x => /sav|BTB Topology/i.test(x ?? '')) ?? null, { ms: 8000 }), null)
+]);
+console.log(`[topo] GM side settled: ${gmSettled}; a popup on the player's page in the window: ${JSON.stringify(playerPopup)}`);
 
 // ⚠ The player's DOM is read too: "the GM got the popup" means something only beside "and the player did not".
 const playerSide = await player.evaluate(async ({ messageId }) => {
@@ -228,8 +253,8 @@ report('the popup opened on the GM client — the one that owns the decision',
   saveDialogOn(result.domDialogs) || ledger.some(e => e.kind === 'dialogRender'),
   `dom=${JSON.stringify(result.domDialogs)} renders=${ledger.filter(e => e.kind === 'dialogRender').length}`);
 report('the popup did NOT open on the player client — it owns neither the target nor the call',
-  !saveDialogOn(playerSide.domDialogs),
-  `player "${playerSide.user}" dialogs=${JSON.stringify(playerSide.domDialogs)}`);
+  !playerPopup && !saveDialogOn(playerSide.domDialogs),
+  `player "${playerSide.user}" dialogs=${JSON.stringify(playerSide.domDialogs)} seen=${JSON.stringify(playerPopup)}`);
 report('the public row rendered on the GM client, with a draining bar',
   result.rowInDOM && (result.barsInDOM > 0),
   `row=${result.rowInDOM} bars=${result.barsInDOM}`);
