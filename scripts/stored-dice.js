@@ -11,9 +11,9 @@ import { MODULE_ID, readFlag, TITLE, canAnswerFor, decisionWindow } from "./core
 import { featureNamed, lower, resolveUuid } from "./lookup.js";
 import { STORED_DICE, listedNames, storedDiceEntries } from "./decide/registry.js";
 import { storedChipName } from "./decide/stored-dice.js";
-import { bfCard, esc, holdBarHTML, ruleLine } from "./decide/present.js";
+import { bfCard, esc, holdBarHTML, ruleLine, pickInputHTML } from "./decide/present.js";
 import { STORED_FLAG, spendStoredFace, storedChipOf, storedFacesUsable } from "./shared.js";
-import { DialogCarried, armDeadline, disarmDeadline, momentButton, openMomentPopup, registerResumable, closePopup } from "./ui.js";
+import { DialogCarried, armDeadline, disarmDeadline, momentButton, openMomentPopup, registerResumable, closePopup, pickInputs } from "./ui.js";
 import { SURFACES } from "./surfaces.js";
 import { listen } from "./dispatch.js";
 
@@ -207,7 +207,7 @@ function drawStored(app) {
   box.style.cssText = "margin:0.4rem 0;padding:0.3rem 0.5rem;";
   box.innerHTML = `<legend>By the Books — before the roll</legend>` + stored.faces.map((f, i) => `
     <label style="display:flex;align-items:center;gap:0.4rem;margin:0.15rem 0;cursor:pointer;">
-      <input type="checkbox" name="bf-stored" value="${i}" ${stored.armed === i ? "checked" : ""} style="margin:0;">
+      ${pickInputHTML({ name: "bf-stored", value: i, checked: stored.armed === i, style: "margin:0;" })}
       <span><strong>${esc(f.key)}</strong> — use the ${f.face}</span>
       <span style="margin-left:auto;opacity:0.7;font-size:var(--font-size-11,11px);">no die rolled · a stored die</span></label>`).join("");
   const anchor = element.querySelector("[data-bf-reminder]") ?? element.querySelector(SURFACES.dialogConfiguration);
@@ -215,7 +215,7 @@ function drawStored(app) {
   if ( anchor ) anchor.insertAdjacentElement("afterend", box);
   else if ( buttons ) buttons.insertAdjacentElement("beforebegin", box);
   else element.querySelector("form")?.appendChild(box);
-  for ( const input of box.querySelectorAll('input[name="bf-stored"]') ) input.addEventListener("change", ev => {
+  for ( const input of pickInputs(box, "bf-stored") ) input.addEventListener("change", ev => {
     stored.armed = ev.target.checked ? Number(ev.target.value) : null;
     drawStored(app);
   });

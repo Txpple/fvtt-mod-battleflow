@@ -10,14 +10,14 @@
 import { MODULE_ID, readFlag, TITLE, queueFlagWrite, canAnswerFor, keepsMessage, statContext, decisionWindow } from "./core.js";
 import { INTERRUPT_ROLLS, STORED_DICE } from "./decide/registry.js";
 import { bystanderMatters, dieMaxOf, dieOutcome, guardSign, neededOnDieLine, neutraliseOutcome, rerollOutcome, signFor } from "./decide/rescue-hit.js";
-import { bfCard, esc, holdBarHTML, tickRowsHTML } from "./decide/present.js";
+import { bfCard, esc, holdBarHTML } from "./decide/present.js";
 import { activityNamed, featureNamed, resolveUuid, bystanderRows, bystanderDie, d20FactsOf, rerollD20 } from "./lookup.js";
 import { nearestFeet, tokenForUuid } from "./geometry.js";
 import { poolOf, poolUsesOf, reactionSpent, spendReaction, spendPoolUses, bystanderMuted, muteBystander, muteScopesFor, spendStoredFace, storedChipOf, storedFacesUsable, withTargets, saveDemandOf, storedFacesOf } from "./shared.js";
 import { facesThatTurn, setOutcome } from "./decide/stored-dice.js";
 import { bendRise, foldRise } from "./decide/dice-chips.js";
 import { riseDice } from "./dice-rise.js";
-import { armAskTimer, cardRow, electOwns, flashBend, openMomentPopup, registerRelay, registerWithhold, resumeWithheld, pendingRow, closePopup, postAnswer } from "./ui.js";
+import { armAskTimer, cardRow, electOwns, flashBend, registerRelay, registerWithhold, resumeWithheld, pendingRow, closePopup, postAnswer, choicePopup } from "./ui.js";
 import { listen } from "./dispatch.js";
 
 const KEY = "bystanderRoll";
@@ -458,27 +458,21 @@ async function showPopup(message, flag, guard) {
     ? (guard.faces ?? []).map(face => ({ key: `${guard.row}|${face}`, name: `Use the ${face}`,
         dice: `${face + modifier}${Number.isFinite(dc) ? ` vs DC ${dc} — ${((face + modifier) >= dc) ? "SUCCESS" : "FAILURE"}` : ""}`, tag: "", off: null, rule: row?.rule ?? "" }))
     : [{ key: guard.row, name: guard.row, dice, tag, off: null, rule: row?.rule ?? "" }];
-  const rows = [...bendRows, { key: "pass", name: "Pass just this time", dice: "", tag: "", off: null, rule: "", checked: true },
-    ...muteScopesFor(actor).map(scope => ({ key: `mute-${scope.until}`, name: scope.label, dice: "", tag: "", off: null, rule: "" }))];
   const failed = Number.isFinite(dc) && (Number(roll?.total) < dc);
   const said = situation(flag, message.rolls?.[0], guard, row);
-  const dialog = await openMomentPopup(message, `${KEY}|${guard.uuid}`, actor, {
+  await choicePopup(message, `${KEY}|${guard.uuid}`, actor, {
     title: `${guard.row} — ${self ? "your" : `${flag.rollerName}'s`} ${test}`, icon: "fa-solid fa-comment-dots", width: 460,
     content: bfCard({ img: item?.img ?? actor?.img ?? null, eyebrow: stored ? `${guard.row} — no Reaction` : `Reaction — ${guard.row}`, tone: "pending",
       title: (row?.bend === "twist") ? `${self ? "You" : flag.rollerName} succeeded on a ${test}`
         : stored ? `${self ? "You" : flag.rollerName} ${failed ? "failed" : "succeeded on"} a ${test}` : `${self ? "You rolled" : `${flag.rollerName} rolled`} a ${test}`,
       subtitle: stored ? `${roll?.total}${Number.isFinite(dc) ? ` vs DC ${dc}` : ""}` : (row?.bystander === "sight") ? "on the scene" : `within ${row?.bystander ?? "?"} ft of you` })
-      + holdBarHTML(flag) + (said ? `<div style="padding:0.4rem 0.1rem;">${said}</div>` : "")
-      + tickRowsHTML({ name: "bf-bystander-roll", rows, kind: "radio" }),
-    buttons: [
-      { action: "answer", label: "Apply", default: true, callback: (_event, button) => {
-        const picked = String(button?.form?.querySelector?.('input[name="bf-bystander-roll"]:checked')?.value ?? "pass");
-        if ( (picked === "pass") || picked.startsWith("mute-") ) { void bystanderAnswer(message, guard, picked); return; }
-        void bystanderAnswer(message, guard, "roll", (row?.bend === "set") ? Number(picked.split("|")[1]) : null);
-      } }
-    ]
+      + holdBarHTML(flag) + (said ? `<div style="padding:0.4rem 0.1rem;">${said}</div>` : ""),
+    name: "bf-bystander-roll", rows: bendRows, mutes: muteScopesFor(actor),
+    answer: choice => {
+      if ( (choice === "pass") || choice.startsWith("mute-") ) { void bystanderAnswer(message, guard, choice); return; }
+      void bystanderAnswer(message, guard, "roll", (row?.bend === "set") ? Number(choice.split("|")[1]) : null);
+    }
   });
-  void dialog;
 }
 
 /** The line a bent check or save carries: who bent it, and the arithmetic (a check's verdict is the DM's). */

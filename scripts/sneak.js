@@ -5,7 +5,7 @@
 import { MODULE_ID, readFlag, TITLE, activeCombatFor, drivesMomentFor, queueFlagWrite, statContext } from "./core.js";
 import { verdictsOn } from "./decide/demand.js";
 import { lower, featureNamed, namesAnswering } from "./lookup.js";
-import { registerResumable, registerOfferPart } from "./ui.js";
+import { registerResumable, registerOfferPart, pickInputs } from "./ui.js";
 import { damagePartsOf, hitTargets, statSourceOf, withTargets, writeTurnChit, savesOf, saveSourceOf } from "./shared.js";
 import { bfCard, cunningMenuHTML, ruleLine, esc } from "./decide/present.js";
 import { CUNNING_OPTIONS, DEATH_STRIKE } from "./decide/registry.js";
@@ -78,7 +78,7 @@ function sneakOfferParts(attackMessage, activity) {
     html: cunningMenuHTML({ rows, max, dc, dice: sneak.dice }),
     /** Keep the pick legal and the button honest, live. */
     wire(element) {
-      const boxes = [...(element?.querySelectorAll('input[name="bf-cunning"]') ?? [])];
+      const boxes = pickInputs(element, "bf-cunning");
       const button = element?.querySelector(SURFACES.dialogRoll);
       const baseLabel = button?.textContent?.trim() ?? "Roll Damage";
       const relabel = () => { if ( button ) button.innerHTML = `<i class="fa-solid fa-dice-d6" inert></i> ${esc(baseLabel)} — ${formulaLabel()}`; };

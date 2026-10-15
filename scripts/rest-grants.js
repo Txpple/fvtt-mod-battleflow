@@ -7,7 +7,7 @@
 import { MODULE_ID, readFlag, TITLE, isActiveGM, queueFlagWrite, canAnswerFor, statContext } from "./core.js";
 import { lower, activityNamed, asiAssigned, featureNamed, resolveUuid } from "./lookup.js";
 import { answers, listedNames, restGrantEntries } from "./decide/registry.js";
-import { bfCard, esc, holdBarHTML, foldedRuleHTML } from "./decide/present.js";
+import { bfCard, esc, holdBarHTML, foldedRuleHTML, pickInputHTML } from "./decide/present.js";
 import { CAST_RIDERS, REST_GRANTS, TURN_GRANTS } from "./decide/registry.js";
 import { distribution } from "./decide/cast-riders.js";
 import { coatSaveAbility } from "./decide/chips.js";
@@ -16,7 +16,7 @@ import { holdsTemp, mealStanding, restEnds } from "./decide/rest-grants.js";
 import { SURFACES } from "./surfaces.js";
 import { nearestFeet, tokenOfActor } from "./geometry.js";
 import { effectSourceOf, isPartyMember } from "./shared.js";
-import { openMomentPopup, registerRelay, registerResumable, armAskTimer, disarmAskTimer, subjectOwns, pendingRow, closePopup, postCard, postAnswer } from "./ui.js";
+import { openMomentPopup, registerRelay, registerResumable, armAskTimer, disarmAskTimer, subjectOwns, pendingRow, closePopup, postCard, postAnswer, pickInputs, pickedAll, pickInputAt } from "./ui.js";
 import { listen, listenOnce } from "./dispatch.js";
 
 /** What a grant writes, by its `grant` word — the sheet facts the table knows how to set. */
@@ -587,7 +587,7 @@ async function showSongPopup(message) {
   const ticked = new Set(flag.candidates.filter(c => !c.has).slice(0, flag.cap).map(c => c.uuid));
   const note = c => c.note ?? (c.has ? "has it" : "");
   const rowOf = c => `<label style="display:flex;align-items:center;gap:0.4rem;margin:0.2rem 0;${c.has ? "opacity:0.5;" : "cursor:pointer;"}">
-      <input type="checkbox" name="bf-rest-song" value="${esc(c.uuid)}" data-token="${esc(c.tokenId ?? "")}" ${c.has ? "data-has=\"1\" disabled" : ""} ${ticked.has(c.uuid) ? "checked" : ""} style="margin:0;">
+      ${pickInputHTML({ name: "bf-rest-song", value: c.uuid, data: { token: c.tokenId ?? "", ...(c.has ? { has: "1" } : {}) }, disabled: !!c.has, checked: ticked.has(c.uuid), style: "margin:0;" })}
       <span>${esc(c.name)}${note(c) ? ` <span style="opacity:0.8">(${esc(note(c))})</span>` : ""}</span>
       <span style="margin-left:auto;font-size:var(--font-size-11,11px);opacity:0.7;">${c.self ? "you" : `${c.feet} ft`}</span></label>`;
   const group = (title, list) => list.length ? `<div style="margin:0.3rem 0;"><div style="font-size:var(--font-size-11,11px);letter-spacing:0.08em;text-transform:uppercase;opacity:0.7;margin:0.2rem 0;">${title}</div>${list.map(rowOf).join("")}</div>` : "";
@@ -604,7 +604,7 @@ async function showSongPopup(message) {
       + `<div data-bf-rest-song data-cap="${flag.cap}" style="margin:0.4rem 0;">${group("Party", party)}${group("Non-Party", others)}</div>`,
     buttons: [
       { action: "ok", label: "OK", default: true, callback: (_event, button) => {
-        const picks = [...button.form.querySelectorAll('input[name="bf-rest-song"]:checked')].map(i => i.value);
+        const picks = pickedAll(button.form, "bf-rest-song");
         void answerSong(message, picks);
       } }
     ]
@@ -629,7 +629,7 @@ async function showDividePopup(message, flag, actor, row) {
       + holdBarHTML(flag, "to answer"),
     buttons: [
       { action: "ok", label: "OK", default: true, callback: (_event, button) => {
-        const picks = [...button.form.querySelectorAll('input[name="bf-rest-song-n"]')].map(i => ({ uuid: i.dataset.uuid, n: Number(i.value) || 0 }));
+        const picks = pickInputs(button.form, "bf-rest-song-n").map(i => ({ uuid: i.dataset.uuid, n: Number(i.value) || 0 }));
         void answerSong(message, picks);
       } },
       { action: "no", label: "No", callback: () => { void answerSong(message, [], { declined: true }); } }
@@ -639,11 +639,11 @@ async function showDividePopup(message, flag, actor, row) {
 
 // A number typed: what is left counted, the over-giving box trimmed.
 listenOnce("ready", "rest-grants", () => document.addEventListener("input", ev => {
-  const input = ev.target?.closest?.('input[name="bf-rest-song-n"]');
+  const input = pickInputAt(ev.target, "bf-rest-song-n");
   const box = input?.closest?.("[data-bf-divide]");
   if ( !box ) return;
   const total = Number(box.dataset.total) || 0;
-  const inputs = [...box.querySelectorAll('input[name="bf-rest-song-n"]')];
+  const inputs = pickInputs(box, "bf-rest-song-n");
   const others = inputs.filter(i => i !== input).reduce((n, i) => n + Math.max(0, Number(i.value) || 0), 0);
   if ( (Number(input.value) || 0) > (total - others) ) input.value = String(Math.max(0, total - others));
   const given = others + Math.max(0, Number(input.value) || 0);
@@ -665,14 +665,14 @@ function armSongTimer(message) {
 function syncSongCap(box) {
   if ( !box ) return;
   const cap = Number(box.dataset.cap) || 99;
-  const boxes = [...box.querySelectorAll('input[name="bf-rest-song"]')].filter(b => !b.dataset.has);
+  const boxes = pickInputs(box, "bf-rest-song").filter(b => !b.dataset.has);
   const on = boxes.filter(b => b.checked).length;
   for ( const b of boxes ) if ( !b.checked ) b.disabled = on >= cap;
 }
 
 // A tick pings its creature's token and keeps the cap (Careful's picker, one listener for every popup).
 listenOnce("ready", "rest-grants", () => document.addEventListener("change", ev => {
-  const input = ev.target?.closest?.('input[name="bf-rest-song"]');
+  const input = pickInputAt(ev.target, "bf-rest-song");
   if ( !input ) return;
   const tok = input.dataset.token ? canvas?.tokens?.get(input.dataset.token) : null;
   if ( input.checked && tok ) { try { canvas.ping(tok.center); } catch { /* no canvas to ping */ } }

@@ -15,7 +15,7 @@ import { applyEffectRiders, applyItemEffectOnHit } from "./effect-riders.js";
 import { resolveHitMastery } from "./mastery.js";
 import { sequenceBashOffer } from "./bash-offer.js";
 
-/* --- The receipt's readers (ARCHITECTURE §4) ----------------------------- */
+/* --- The receipt's readers (ARCHITECTURE §4 *Who reads a record*) ------------------------------ */
 
 /**
  * Does the card carry a damage receipt: its damage landed (or was reverted since)?

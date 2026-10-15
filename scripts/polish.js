@@ -2,7 +2,7 @@
  * By the Books — Table polish: the no-target gate, the drinker default, the cast birth stamps, hidden
  * card buttons, the dialog target block and centering. EDGE layer (ARCHITECTURE.md §7, §8).
  */
-import { MODULE_ID, } from "./core.js";
+import { MODULE_ID } from "./core.js";
 import { blockEntries, effectChoiceEntries, interruptEntries } from "./decide/registry.js";
 import { EFFECT_CHOICES, answers, tableIndex } from "./decide/registry.js";
 import { effectChoiceFor } from "./decide/choices.js";

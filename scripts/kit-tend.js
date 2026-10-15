@@ -12,7 +12,7 @@ import { bfCard, esc, holdBarHTML, foldedRuleHTML, tickRowsHTML } from "./decide
 import { targetsOf } from "./decide/card.js";
 import { nearestFeet, tokenForUuid, tokenOfActor } from "./geometry.js";
 import { withTargets } from "./shared.js";
-import { openMomentPopup, armAskTimer, disarmAskTimer, subjectOwns, registerRelay, registerResumable, pendingRow, closePopup, postAnswer } from "./ui.js";
+import { openMomentPopup, armAskTimer, disarmAskTimer, subjectOwns, registerRelay, registerResumable, pendingRow, closePopup, postAnswer, picked, pickInputs } from "./ui.js";
 import { SURFACES } from "./surfaces.js";
 import { listen } from "./dispatch.js";
 
@@ -196,7 +196,7 @@ async function showTendPopup(message) {
       + tickRowsHTML({ name: "bf-kit-tend", rows }) + holdBarHTML(flag, "to answer"),
     buttons: [
       { action: "tend", label: "Tend", callback: (_event, button) => {
-        const pick = button.form.querySelector('input[name="bf-kit-tend"]:checked')?.value ?? null;
+        const pick = picked(button.form, "bf-kit-tend");
         void answerTend(message, pick ? "tend" : "pass", pick);
       } },
       { action: "pass", label: "Pass", callback: () => { void answerTend(message, "pass"); } }
@@ -205,7 +205,7 @@ async function showTendPopup(message) {
   // Tend is live once a size is ticked; the largest die with one left starts ticked.
   const form = dialog?.element?.querySelector?.("form") ?? dialog?.element ?? null;
   const tend = form?.querySelector?.('button[data-action="tend"]');
-  const boxes = [...(form?.querySelectorAll?.('input[name="bf-kit-tend"]') ?? [])];
+  const boxes = pickInputs(form, "bf-kit-tend");
   if ( !tend ) return;
   const best = [...(flag.pools ?? [])].filter(p => p.value > 0).sort((a, b) => b.faces - a.faces)[0];
   for ( const b of boxes ) b.checked = (b.value === best?.key);

@@ -12,7 +12,7 @@ import { bfCard, holdBarHTML, riderMenuHTML, ruleLine, spendPhrase, esc } from "
 import { MANEUVER_FEATURE_NAMES, SUPERIORITY_USES, answers, tableIndex } from "./decide/registry.js";
 import { CHIP_FLAG, chipClock } from "./decide/chips.js";
 import { riderPartFormula } from "./decide/clock.js";
-import { armAskTimer, subjectOwns, openMomentPopup, registerResumable, registerOfferPart, pendingRow } from "./ui.js";
+import { armAskTimer, subjectOwns, openMomentPopup, registerResumable, registerOfferPart, pendingRow, pickInputs } from "./ui.js";
 import { attackMessageForDamage } from "./auto-damage.js";
 import { applyEffectsWithReceipt } from "./effect-riders.js";
 import { SURFACES } from "./surfaces.js";
@@ -240,7 +240,7 @@ registerOfferPart({
       html: l.die ? riderMenuHTML([{ key: "lunge", label: l.row.key, formula: l.die, type: l.type, why: l.row.rider.caveat, rule: l.row.rule }]) : "",
       lines: l.die ? [] : [`<strong>${l.row.key}</strong> stands, but its die could not be read off the sheet — add it by hand.`],
       wire(element) {
-        const box = element?.querySelector('input[name="bf-rider"][value="lunge"]');
+        const box = pickInputs(element, "bf-rider", "lunge")[0] ?? null;
         if ( box ) box.addEventListener("change", () => { ticked = box.checked; });
       },
       async commit() {

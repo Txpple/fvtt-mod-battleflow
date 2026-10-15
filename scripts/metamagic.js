@@ -9,7 +9,7 @@ import { cardActivity, featureNamed, lower, namesAnswering, resolveUuid } from "
 import { metamagicEntries, listedNames, chosenAreaListed } from "./decide/registry.js";
 import { poolOf, spendPoolUses, isPartyMember } from "./shared.js";
 import { feetOf, tokenOfActor, tokensInRegions } from "./geometry.js";
-import { bfCard, foldedRuleHTML, esc } from "./decide/present.js";
+import { bfCard, foldedRuleHTML, esc, pickInputHTML } from "./decide/present.js";
 import { METAMAGIC, TRANSMUTED_TYPES, TWINNED_EXCEPTIONS, tableIndex } from "./decide/registry.js";
 import { METAMAGIC_FLAG, metamagicMenu, metamagicPick, metamagicRuleText, metamagicCardLine, distantRange, scalesTargetsFrom, carefulKind } from "./decide/metamagic.js";
 import { AREA_ASK_FLAG, AREA_CHOICE_FLAG, askWords, heightenedMark, choiceCapFrom, choiceRuleFrom, choiceNeedsAsk } from "./decide/area-ask.js";
@@ -18,7 +18,7 @@ import { raiseHold, releaseHold, isHeld } from "./holds.js";
 import { SURFACES } from "./surfaces.js";
 import { CARD, activityUuidOf, isCard, originIdInData } from "./decide/card.js";
 import { listen } from "./dispatch.js";
-import { postCard } from "./ui.js";
+import { postCard, pickInputs } from "./ui.js";
 
 const INDEX = tableIndex(METAMAGIC);
 /** The name the record shows for Font of Magic's uses — what the table calls them. */
@@ -171,9 +171,9 @@ listen("renderActivityUsageDialog", "metamagic", (app, element) => {
         <span>${esc(actor.name)}</span><span><strong>${POOL_NAME}: ${points} of ${max}</strong>${first ? "" : " — no pool found"}</span></div>` : ""}
       ${menu.map(row => rowHTML(row, known.get(row.feature), row.free ? (currentFree.has(row.key) ? row.key : null) : current, { facts, currentType, mark })).join("")}
       ${(paid && (points === 0)) ? `<p class="hint" style="margin:0.25rem 0 0;">No ${POOL_NAME} — the rows stay so the sheet is not the only place that says so.</p>` : ""}`;
-    const boxes = fs.querySelectorAll('input[name="bf-metamagic"]');
+    const boxes = pickInputs(fs, "bf-metamagic");
     // The free rows' ticks stand apart from the one-per-cast pick.
-    const freeBoxes = fs.querySelectorAll('input[name="bf-metamagic-free"]');
+    const freeBoxes = pickInputs(fs, "bf-metamagic-free");
     const syncFree = () => {
       const ticked = [...freeBoxes].filter(b => b.checked && !b.disabled)
         .map(b => menu.find(r => r.key === b.value)).filter(r => r?.eligible)
@@ -202,15 +202,15 @@ listen("renderActivityUsageDialog", "metamagic", (app, element) => {
       // Heightened's and Transmuted's radios are inert until their option is ticked.
       for ( const [key, sub, name] of [["heightened", "mark", "bf-metamagic-mark"], ["transmuted", "type", "bf-metamagic-type"]] ) {
         const on = picked === key;
-        for ( const r of fs.querySelectorAll(`[data-bf-metamagic-row="${key}"] input[name="${name}"]`) ) r.disabled = !on;
+        for ( const r of pickInputs(fs.querySelector(`[data-bf-metamagic-row="${key}"]`), name) ) r.disabled = !on;
         const box = fs.querySelector(`[data-bf-metamagic-row="${key}"] [data-bf-metamagic-sub="${sub}"]`);
         if ( box ) box.style.opacity = on ? "1" : "0.45";
       }
       const pick = metamagicPick({ menu, chosen: picked });
       if ( pick ) {
         const item = known.get(pick.feature);
-        const typeBox = fs.querySelector(`[data-bf-metamagic-row="transmuted"] input[name="bf-metamagic-type"]:checked`);
-        const markBox = fs.querySelector(`[data-bf-metamagic-row="heightened"] input[name="bf-metamagic-mark"]:checked`);
+        const typeBox = pickInputs(fs.querySelector('[data-bf-metamagic-row="transmuted"]'), "bf-metamagic-type").find(i => i.checked) ?? null;
+        const markBox = pickInputs(fs.querySelector('[data-bf-metamagic-row="heightened"]'), "bf-metamagic-mark").find(i => i.checked) ?? null;
         pending.set(activity.uuid, { key: pick.key, feature: pick.feature, cost: pick.cost, itemUuid: item?.uuid ?? null, actorUuid: actor.uuid, at: Date.now(),
           spellUuid: activity.item?.uuid ?? null, activityUuid: activity.uuid, spellName: activity.item?.name ?? null,
           // The rule rides the record for the concentration gate to quote.
@@ -225,7 +225,7 @@ listen("renderActivityUsageDialog", "metamagic", (app, element) => {
       } else pending.delete(activity.uuid);
     };
     for ( const b of boxes ) b.addEventListener("change", sync);
-    for ( const r of fs.querySelectorAll('input[name="bf-metamagic-type"], input[name="bf-metamagic-mark"]') ) r.addEventListener("change", sync);
+    for ( const r of [...pickInputs(fs, "bf-metamagic-type"), ...pickInputs(fs, "bf-metamagic-mark")] ) r.addEventListener("change", sync);
     sync();
     const footer = element.querySelector(SURFACES.dialogFooter);
     if ( footer ) footer.before(fs); else (element.querySelector("form") ?? element).appendChild(fs);
@@ -256,17 +256,17 @@ function rowHTML(row, item, current, { facts = null, currentType = null, mark = 
     const picked = currentType ?? options[0] ?? null;
     const cap = s => `${s.charAt(0).toUpperCase()}${s.slice(1)}`;
     sub = `<div data-bf-metamagic-sub="type" style="grid-column:2 / -1;display:flex;flex-wrap:wrap;gap:0.3rem 0.75rem;font-size:var(--font-size-12,12px);">
-      ${options.map(t => `<label style="display:flex;align-items:center;gap:0.3rem;cursor:pointer;"><input type="radio" name="bf-metamagic-type" value="${t}" ${t === picked ? "checked" : ""} style="margin:0;"> ${cap(t)}</label>`).join("")}</div>`;
+      ${options.map(t => `<label style="display:flex;align-items:center;gap:0.3rem;cursor:pointer;">${pickInputHTML({ kind: "radio", name: "bf-metamagic-type", value: t, checked: t === picked, style: "margin:0;" })} ${cap(t)}</label>`).join("")}</div>`;
   }
   if ( (row.key === "heightened") && !off && mark?.targets?.length ) {
     const picked = heightenedMark({ contained: mark.targets, casterUuid: mark.casterUuid, casterDisposition: mark.casterDisposition, chosen: mark.chosen })?.uuid ?? null;
     sub = `<div data-bf-metamagic-sub="mark" style="grid-column:2 / -1;display:flex;flex-wrap:wrap;gap:0.3rem 0.75rem;font-size:var(--font-size-12,12px);">
-      ${mark.targets.map(t => `<label style="display:flex;align-items:center;gap:0.3rem;cursor:pointer;"><input type="radio" name="bf-metamagic-mark" value="${esc(t.uuid)}" data-name="${esc(t.name)}" ${t.uuid === picked ? "checked" : ""} style="margin:0;"> ${esc(t.name)}</label>`).join("")}</div>`;
+      ${mark.targets.map(t => `<label style="display:flex;align-items:center;gap:0.3rem;cursor:pointer;">${pickInputHTML({ kind: "radio", name: "bf-metamagic-mark", value: t.uuid, data: { name: t.name }, checked: t.uuid === picked, style: "margin:0;" })} ${esc(t.name)}</label>`).join("")}</div>`;
   }
   return `<div data-bf-metamagic-row="${esc(row.key)}" data-bf-off="${off ? 1 : 0}"
       style="display:grid;grid-template-columns:auto 1fr auto;gap:0.2rem 0.6rem;align-items:center;margin:0.3rem 0;padding:0.4rem 0.6rem;border-radius:4px;
              background:rgba(0,0,0,0.25);border:1px solid var(--color-border-dark,rgba(0,0,0,0.4));border-left:3px solid ${off ? "rgb(120,120,120)" : "rgb(222,120,40)"};${off ? "opacity:0.55;" : ""}">
-      <input type="checkbox" name="${row.free ? "bf-metamagic-free" : "bf-metamagic"}" value="${esc(row.key)}" ${current === row.key ? "checked" : ""} ${off ? "disabled" : ""} style="margin:0;">
+      ${pickInputHTML({ name: row.free ? "bf-metamagic-free" : "bf-metamagic", value: row.key, checked: current === row.key, disabled: !!off, style: "margin:0;" })}
       <label style="font-weight:bold;cursor:pointer;">${esc(row.feature)}</label>
       <span style="font-size:var(--font-size-11,11px);letter-spacing:0.04em;text-transform:uppercase;white-space:nowrap;opacity:0.8;">${esc(row.tag)}</span>
       ${sub}

@@ -19,8 +19,8 @@ import { reductionRise } from "./decide/dice-chips.js";
 import { poolOf, poolUsesOf, reactionSpent, spendReaction, spendSuperiorityDie, spendPoolUses, resolveAttackMessage,
   bystanderMuted, muteBystander, muteScopesFor, holdTargets } from "./shared.js";
 import { applyDamagesWithReceipt, registerDamageClaim } from "./auto-apply.js";
-import { bfCard, esc, holdBarHTML, ruleLine, tickRowsHTML } from "./decide/present.js";
-import { openMomentPopup, armAskTimer, disarmAskTimer, keeperOwns, registerRelay, registerResumable, pendingRow, closePopup, postCard, postAnswer } from "./ui.js";
+import { bfCard, esc, holdBarHTML, ruleLine } from "./decide/present.js";
+import { openMomentPopup, armAskTimer, disarmAskTimer, keeperOwns, registerRelay, registerResumable, pendingRow, closePopup, postCard, postAnswer, choicePopup } from "./ui.js";
 import { SURFACES } from "./surfaces.js";
 import { listen } from "./dispatch.js";
 
@@ -445,24 +445,20 @@ async function showCutterPopup(message, guard, flag, actor, key, row) {
     void answerHold(message, "pass", guard.actorUuid);
   };
   // THE CHOICES AS RADIOS (RULINGS *The asks widened*): cut, "Pass just this time" checked, the mutes (none on a down-saver); Apply.
-  const rows = [{ key: "cast", name: `${verbLabel(row)} the damage`, dice: `−${guard.formula}`, tag: "", off: null, rule: row?.rule ?? "" },
-    { key: "pass", name: "Pass just this time", dice: "", tag: "", off: null, rule: "", checked: true },
-    ...(guard.keepsUp ? [] : muteScopesFor(actor).map(scope => ({ key: `mute-${scope.until}`, name: scope.label, dice: "", tag: "", off: null, rule: "" })))];
-  await openMomentPopup(message, `${HOLD_FLAG}|${guard.actorUuid}`, actor, {
+  const rows = [{ key: "cast", name: `${verbLabel(row)} the damage`, dice: `−${guard.formula}`, tag: "", off: null, rule: row?.rule ?? "" }];
+  await choicePopup(message, `${HOLD_FLAG}|${guard.actorUuid}`, actor, {
     title: `${key} — ${flag.sourceName ?? "the attacker"}'s hit on ${target}`, icon: "fa-solid fa-comment-dots", width: 460,
     content: bfCard({ img: item?.img ?? actor?.img ?? null, eyebrow: `Reaction — ${key}`, tone: "pending",
       title: `${flag.sourceName ?? "The attacker"} hits ${target} for ${flag.amount} — ${row?.verb ?? "cut"} the damage?`,
       subtitle: `within ${row?.bystander ?? "?"} ft of ${flag.sourceName ?? "the attacker"}${tag ? ` · ${tag}` : ""}`,
       lines: guard.keepsUp ? [`<strong>You can keep ${esc(target)} from hitting 0 Hit Points.</strong>`] : [] })
-      + holdBarHTML(flag, "to answer") + tickRowsHTML({ name: "bf-cutter", rows, kind: "radio" }),
-    buttons: [
-      { action: "answer", label: "Apply", default: true, callback: (_event, button) => {
-        const picked = String(button?.form?.querySelector?.('input[name="bf-cutter"]:checked')?.value ?? "pass");
-        if ( picked === "cast" ) { void answerHold(message, "cast", guard.actorUuid); return; }
-        if ( picked.startsWith("mute-") ) { void mute((picked === "mute-turn") ? "turn" : "combat"); return; }
-        void answerHold(message, "pass", guard.actorUuid);
-      } }
-    ]
+      + holdBarHTML(flag, "to answer"),
+    name: "bf-cutter", rows, mutes: guard.keepsUp ? [] : muteScopesFor(actor),
+    answer: choice => {
+      if ( choice === "cast" ) { void answerHold(message, "cast", guard.actorUuid); return; }
+      if ( choice.startsWith("mute-") ) { void mute((choice === "mute-turn") ? "turn" : "combat"); return; }
+      void answerHold(message, "pass", guard.actorUuid);
+    }
   });
 }
 

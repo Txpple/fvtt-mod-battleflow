@@ -17,7 +17,7 @@ import { DICE_CHANGE_FLAG, orderRows, birthStatus, diceChipsOf, answerPlan, butt
 import { empoweredReaches, empoweredOutcome } from "./decide/metamagic.js";
 import { bfCard, esc, holdBarHTML, tickRowsHTML, dieMeterHTML, spendPhrase } from "./decide/present.js";
 import { eitherRise, rerollRise } from "./decide/dice-chips.js";
-import { openMomentPopup, armAskTimer, disarmAskTimer, subjectOwns, dramaticVerdictPause, registerResumable, paintDieChip, pendingRow, closePopup, postCard } from "./ui.js";
+import { openMomentPopup, armAskTimer, disarmAskTimer, subjectOwns, dramaticVerdictPause, registerResumable, paintDieChip, pendingRow, closePopup, postCard, pickInputs, pickedAll, pickInputAt } from "./ui.js";
 import { attackMessageForDamage, weaponRollsOf } from "./auto-damage.js";
 import { moveAppliedDamage } from "./auto-apply.js";
 import { empoweredOffer, SORCERY_POINTS } from "./metamagic.js";
@@ -174,7 +174,7 @@ function armTimer(message) {
 /* --- the popup ---------------------------------------------------------------------------------- */
 
 /** The ticked rows and the picked chips in a popup's form, the chips in the order they were ticked. */
-const ticksIn = form => [...(form?.querySelectorAll?.('input[name="bf-dice"]:checked') ?? [])].map(b => b.value);
+const ticksIn = form => pickedAll(form, "bf-dice");
 const picksIn = form => [...(form?.querySelectorAll?.('[data-bf-die][data-picked="1"]') ?? [])]
   .sort((a, b) => Number(a.dataset.order) - Number(b.dataset.order)).map(b => b.dataset.bfDie);
 
@@ -223,11 +223,11 @@ async function showPopup(message) {
   if ( !form ) return;
   // A roll-again row starts ticked under the average; the pick row follows its chips.
   for ( const row of asking ) {
-    const box = form.querySelector(`input[name="bf-dice"][value="${row.key}"]`);
+    const box = pickInputs(form, "bf-dice", row.key)[0] ?? null;
     if ( box ) box.checked = (row.kind !== "pick") && (row.odds?.low !== false);
   }
   form.addEventListener("change", ev => {
-    const box = ev.target?.closest?.('input[name="bf-dice"]');
+    const box = pickInputAt(ev.target, "bf-dice");
     if ( !box ) return;
     if ( !box.checked && (asking.find(r => r.key === box.value)?.kind === "pick") ) {
       for ( const chip of form.querySelectorAll('[data-bf-die][data-picked="1"]') ) paintDieChip(chip, false);
@@ -263,7 +263,7 @@ listenOnce("ready", "dice-changers", () => document.addEventListener("click", ev
   if ( chip.dataset.picked === "1" ) paintDieChip(chip, false);
   else if ( picked.length < cap ) { chip.dataset.order = String(Date.now()); paintDieChip(chip, true); }
   const form = box.closest("form") ?? box.parentElement;
-  const tick = [...(form?.querySelectorAll?.('input[name="bf-dice"]') ?? [])]
+  const tick = pickInputs(form, "bf-dice")
     .find(b => b.closest("[data-bf-tick-row]")?.dataset?.bfTickRow === "empowered");
   if ( tick ) tick.checked = !!box.querySelector('[data-picked="1"]');
   syncButtons(form);

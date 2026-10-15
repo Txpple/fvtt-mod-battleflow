@@ -11,13 +11,13 @@ import { DAMAGE_RULES } from "./decide/registry.js";
 import { heldOf, faceState, rollFits, raisedOf, styleLine, diceOf, chipsOf, blockDamages,
   typesInNames, typedFace, ignoredResistances, typeChoicesLeft, spellRuleFits } from "./decide/damage-rules.js";
 import { isCard, CARD, originIdInData } from "./decide/card.js";
-import { bfCard, esc, holdBarHTML, ruleLine } from "./decide/present.js";
+import { bfCard, esc, holdBarHTML, ruleLine, pickInputHTML } from "./decide/present.js";
 import { SURFACES } from "./surfaces.js";
 import { riseDice, driftChip } from "./dice-rise.js";
 import { withTargets, resolveAttackMessage, turnChitStands, writeTurnChit } from "./shared.js";
 import { attackMessageForDamage } from "./auto-damage.js";
 import { grappledBy, tokenForUuid } from "./geometry.js";
-import { openMomentPopup, momentButton, armAskTimer, disarmAskTimer, keeperOwns, registerRelay, pendingRow, closePopup, postCard, postAnswer } from "./ui.js";
+import { openMomentPopup, momentButton, armAskTimer, disarmAskTimer, keeperOwns, registerRelay, pendingRow, closePopup, postCard, postAnswer, picked } from "./ui.js";
 import { listen, listenOnce } from "./dispatch.js";
 
 const STYLE_FLAG = "fightingStyle";            // a damage message's record — and a face's own key
@@ -696,7 +696,7 @@ async function showGrapplePopup(message) {
   const actor = resolveUuid(flag.actorUuid);
   const feature = actor?.items?.get(flag.itemId);
   const radios = (flag.candidates.length > 1)
-    ? flag.candidates.map(c => `<label style="display:block;margin:0.2rem 0;"><input type="radio" name="bf-grapple" value="${esc(c.uuid)}" ${c.uuid === flag.pick ? "checked" : ""}> ${esc(c.name)}</label>`).join("")
+    ? flag.candidates.map(c => `<label style="display:block;margin:0.2rem 0;">${pickInputHTML({ kind: "radio", name: "bf-grapple", value: c.uuid, checked: c.uuid === flag.pick })} ${esc(c.name)}</label>`).join("")
     : "";
   await openMomentPopup(message, GRAPPLE_FLAG, actor, {
     title: `Unarmed Fighting — ${actor?.name ?? ""}`, icon: "fa-solid fa-hand-fist",
@@ -706,8 +706,8 @@ async function showGrapplePopup(message) {
       lines: [ruleLine(DAMAGE_RULES["Unarmed Fighting"].rule)] }) + radios + holdBarHTML(flag, "to answer"),
     buttons: [
       { action: "deal", label: "Deal it", default: true, callback: (_event, button) => {
-        const picked = button?.form?.querySelector?.('input[name="bf-grapple"]:checked')?.value ?? flag.pick ?? flag.candidates[0]?.uuid;
-        void dealGrapple(message, picked);
+        const pick = picked(button?.form, "bf-grapple") ?? flag.pick ?? flag.candidates[0]?.uuid;
+        void dealGrapple(message, pick);
       } },
       { action: "skip", label: "Skip", callback: () => { void recordGrapple(message, { answer: "skip", pick: null }); } }
     ]

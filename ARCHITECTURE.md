@@ -237,6 +237,33 @@ carry them, so they keep the old short form.
    from the same message (a reroll moving applied damage) FOLDS into the entry, `prior` kept
    (`joinDamageReceipt`), so one revert undoes the whole story.
 
+### Who reads a record — a key another unit reads has its owner's reader
+
+A unit reads its own flags by key (`readFlag(doc, "k")`); a key another unit reads is read through a reader
+named for what it answers (a presence, the entries, one field, one entry), and no other file names the key. A
+machine reading another machine's flag by its literal key is a coupling `npm run layers` cannot see: a renamed
+field breaks a reader nobody can find. This is not the flag accessor layer D4 dropped (Appendix *Decided against*):
+a unit's own keys stay read by key, and a reader exists only for a key that crosses a unit.
+
+**The reader sits with the writer when the writer is below every reader; else it goes down to the spine**, where
+the services, the spine and every machine can import it (§7: a shared reader goes down, never sideways):
+
+| Readers | Keys |
+| --- | --- |
+| [auto-apply.js](scripts/auto-apply.js) | `hasReceipt`, `receiptEntries` (the receipt); `notAppliedOf` |
+| [effect-riders.js](scripts/effect-riders.js) · [area-ask.js](scripts/area-ask.js) · [auto-damage.js](scripts/auto-damage.js) | `effectReceiptOf` · `areaAskOf` (the ask at the area, `metamagicAsk`) · `weaponRollsOf` |
+| [shared.js](scripts/shared.js) — a machine's record a service or the spine reads | `holdOf`, `holdTargets`; `savesOf`, `saveSourceOf`, `saveDemandOf`, `saveEntryFor` (beside decide/demand.js's constructors and `verdictsOn`); `attackIdOf`, `attackHoldClaims`, `attackHoldReleased`; `chipKindOf` (the chip's `mastery` fingerprint), `masteryMomentOf`; `metamagicOf`; `d20FoldSpends`; `styleFaceOf`, `styleTookOver`; `storedFacesOf`, `bystanderMuteOf`, `chipSpendsOn`, `poolSpendsOn`; `effectSourceUuid` |
+| [core.js](scripts/core.js) | `stampedSourceOf` (the data plane's `sourceUuid`, beside `statContext`); `leadsWindow` (`leadWindow`) |
+| [ui.js](scripts/ui.js) · [dice-rise.js](scripts/dice-rise.js) | the relay's envelopes and the demand registry (`respondsTo`, `saveFor`) · the one renderer (`diceRise`) |
+
+**The static proof is `npm run flagedges`** ([tools/check-flag-edges.mjs](tools/check-flag-edges.mjs)): every read
+of a module flag in every form (`readFlag`, `getFlag`, `flags[MODULE_ID].k`, a `flags.${MODULE_ID}.k` path),
+constants resolved per file; a key's owner is every unit that writes it (`hold/` and `saves/` one unit each), its
+`OWNERS` row names where its readers live and why, and any other read by name fails unless pinned in `ALLOW` by
+file and key with what it reads and why it stands. A key three units read outside its owner gets readers, not a
+third pin. A read with a variable key (a registry, a fold's getter) or of the whole scope is listed, not judged.
+`--list` prints every outside read, every unjudged read and the keys no file reads by name.
+
 ### The leading window — one client per user, not per user name
 
 A GM with the game open in two windows is two clients, and `game.users.activeGM.isSelf` is true in both:
@@ -284,10 +311,14 @@ unknown demand — the gate moves INSIDE, after the lookup.
 
 A player cannot write someone else's message, so when the answerer is not the client that owns
 the flag, the answer travels as **its own public message carrying an envelope**, and the owning
-client folds it in. Three machines need that: the hold's answer (`respondsTo`), a save's choice
-(`saveChoiceAnswer`), a riposte's (`riposteAnswer`). Each declares itself to **one registry in
+client folds it in. The hold's answer (`respondsTo`), a save's choice (`saveChoiceAnswer`) and a
+riposte's (`riposteAnswer`) are the shape every relayed answer takes. Each declares itself to **one registry in
 the spine** — `registerRelay(envelopeKey, { flagKey, targetOf, owns, fold })` in
-[ui.js](scripts/ui.js) — served by a single `createChatMessage` registration.
+[ui.js](scripts/ui.js) — served by a single `createChatMessage` registration. **The sending side is one
+call beside it**, `postAnswer(envelopeKey, { …postCard's, toElect, noGM })` (§5 *The card*): the answerer's own
+card carrying the envelope under its key; `toElect` whispers it to the GMs when the fold is the elect's, and
+`noGM` is the sentence said instead of sending when no GM is connected. `npm run cards` fails an envelope posted
+through a plain `postCard` and a `postAnswer` naming a key no relay registers.
 
 **`owns` is why this is a registry and not a merge.** The hold's fold is owned by the
 **continuing client**; the other two by the **elect**. `owns` receives the target's live flag
@@ -571,6 +602,44 @@ DialogV2's own lifecycle stands pinned there with its reason (the damage offer's
 the dialog they just rendered is the one registered, the offer's buzzer closing its own dialog) until
 `openMomentPopup` can fire on dismiss and carry a buzzer. `--list` prints every row and every pin.
 
+### The card — one envelope, the recipients named
+
+The card is the bus (§7): every card the module posts goes out through `postCard({ actor, token, alias, speaker,
+card, flags, rolls, to })` in [ui.js](scripts/ui.js), beside the relay whose answers ride cards. It builds the
+envelope in one order: the speaker (the platform's `getSpeaker` for an `actor` or a `token`, a null actor
+included; else an `alias`, the module speaking as `TITLE`; else a stored `speaker`; else none), the content, the
+flags as written, the rolls, and `to`, the recipients. A relay's answer is `postAnswer` (§4 *The relay*).
+
+**The recipients are named sets, in [core.js](scripts/core.js)** — the leaf where who-does-what lives and the
+one file every other file can import (its own no-GM notice, which cannot import the spine, uses them too):
+`gmIds()`, `selfIds()` (a note to self, or an envelope only its fold reads), `selfAndGmIds()`,
+`ownersAndGmIds(actor)`. A card with none is public.
+
+**The static proof is `npm run cards`** ([tools/check-cards.mjs](tools/check-cards.mjs)): `ChatMessage.create` only
+inside `postCard`, else pinned in `RAW` by file and function with its reason (core.js's no-GM notice; the deferred
+usage card, which is dnd5e's own card data held whole); a `whisper` property only in ui.js; no
+`game.users.filter(…).map(u => u.id)` and no `[game.user.id]` outside core.js; every `postAnswer` names an envelope a
+relay registers and posts it; a `postCard` carrying a registered envelope fails (`respondsTo` aside: on a changed
+roll's card it points at the roll it changed). `--list` prints every site.
+
+### The pick — one input, one reader, one choice
+
+A pick's radio or checkbox is drawn by `pickInputHTML({ kind, name, value, checked, disabled, data, style })` in
+[decide/present.js](scripts/decide/present.js), and every pick row and box there is built on it (`tickRowsHTML`,
+the Sneak Attack and buy boxes, the offer's menus). Its inputs are read in [ui.js](scripts/ui.js), by name:
+`picked(root, name)` (the checked radio's value), `pickedAll(root, name)` (the ticks), `pickInputs(root, name,
+value?)` (the inputs, to wire or to cap), `pickInputAt(target, name)` (the input an event landed on).
+
+**A bystander's choice is `choicePopup(message, sub, subject, { name, rows, mutes, answer, … })`** (ui.js): the rows
+as radios, "Pass just this time" checked, the mutes after it (`choiceRows`, decide/present.js), one button,
+Apply; `answer` hears the checked row's key (`pass`, `mute-<until>`, or a row's own). A creature pick is gallery.js
+`openPicker`'s (RULINGS *Summons*).
+
+**The static proof is `npm run pickers`** ([tools/check-pickers.mjs](tools/check-pickers.mjs)), over every file: no
+`<input type="radio|checkbox">` outside decide/present.js, no `input[name=…]` selector and no `:checked` outside
+ui.js, no radio tick rows built into a popup by hand and the pass row's words nowhere but `choiceRows`; and in
+the creature-picker machines, no popup and no reach into gallery.js's rows.
+
 ---
 
 ## 6. The registry model (R4)
@@ -811,7 +880,7 @@ there needs `game` or `canvas`, it is EDGE and belongs one layer up (§2 rule 1)
 | [decide/verdict.js](scripts/decide/verdict.js) | `hitsAmong`, `modeAdmits`, `saveOutcome`, `saveMultiplier`, `reduceDamages` (Parry's subtraction), `verdictText`, and the fold layer (`ATTACK_FOLDS`, `SAVE_FOLDS`, `foldsFrom`, `foldedRoll`, `foldedVerdict`, `foldedSave`) |
 | [decide/eligible.js](scripts/decide/eligible.js) | `isDeadForSaves`, `limitedUses`, `isReactionItem`, `castLevelOf`, `clampVolleyCount`, `riderKey` |
 | [decide/receipt.js](scripts/decide/receipt.js) | `traitOutcome`, `hpDelta`, `receiptEntry`, `joinDamageReceipt`, `joinEffectReceipt`, `takenOf`, `receiptAmounts`, `revertPlan`, `revertableEffect` |
-| [decide/present.js](scripts/decide/present.js) | `popupKey`, `POPUP_RANK`, `TONE`, `bfCard`, `ruleLine`, `momentBarHTML`, `holdBarHTML`, `nextCascadeSlot`, `cascadePosition`; `situationalBonusHTML`, `modeButtons` — the controls every popup that stands in for a roll dialog carries; `modeTone`, `modeTagHTML` — the one mode tag, one meaning per hue (`fails` is the save gate's fourth answer, red); `reminderSectionHTML` / `reminderFieldsetHTML` / `reminderDetailsHTML` — the gate's section bare, inside the system's own roll dialog, and folded to its header line for a volley's ray rows; `sneakBoxHTML` (the Sneak Attack choice under the sources) and `cunningMenuHTML` (the Cunning Strike menu on the damage offer); the rescue view's row model and markup; `tickRowsHTML` (2026-09-24 — the ticked offer row, one per source: the popup that rescues a hit and Savage Attacker's) |
+| [decide/present.js](scripts/decide/present.js) | `popupKey`, `POPUP_RANK`, `TONE`, `bfCard`, `ruleLine`, `momentBarHTML`, `holdBarHTML`, `nextCascadeSlot`, `cascadePosition`; `situationalBonusHTML`, `modeButtons` — the controls every popup that stands in for a roll dialog carries; `modeTone`, `modeTagHTML` — the one mode tag, one meaning per hue (`fails` is the save gate's fourth answer, red); `reminderSectionHTML` / `reminderFieldsetHTML` / `reminderDetailsHTML` — the gate's section bare, inside the system's own roll dialog, and folded to its header line for a volley's ray rows; `sneakBoxHTML` (the Sneak Attack choice under the sources) and `cunningMenuHTML` (the Cunning Strike menu on the damage offer); the rescue view's row model and markup; `tickRowsHTML` (2026-09-24 — the ticked offer row, one per source: the popup that rescues a hit and Savage Attacker's); `pickInputHTML` (the one pick input, every row and box built on it) and `choiceRows` (a bystander's choice: the rows, Pass checked, the mutes) — §5 *The pick* |
 | [decide/card.js](scripts/decide/card.js) | THE CARD SEAM: `CARD`, `cardKind`, `isCard`, `rollKindOf` / `rollKindInData`, `subKindOf` (a death or concentration save is a `save` told apart by `system.type`); `targetsOf` (6.0's token-keyed `system.targets` in the house shape — `uuid` is the target ACTOR, one row per actor, the token beside it), `describeTarget`, `TARGETS_KEY`; `originIdOf` / `originIdInData` / `originData` / `ORIGIN_KEY` (`system.origin` — the key the platform's registry indexes; every roll the module drives writes it); `activityRefOf` / `activityUuidOf` / `activityTypeOf`, `itemRefOf` / `itemUuidOf` / `itemNameOf`; `abilityOf`, `castLevelOn` (`system.level`), `scalingOf`, `concentrationIdOf` — what kind of card a message is, whose, from which, read off `type` and `system.*` ONLY. Every read of a card's system data goes through here, and a reader joins WITH its customer |
 
 ⚠ **`receiptAmounts` returns the row's TEXT as well as its figures, deliberately.** The two bugs
@@ -1226,6 +1295,10 @@ something structural is genuinely failing a rule, with the rule and the evidence
    Classify, do not curate — whether the moment gets a picture is the consumer's.
 2. A new WORD is a contract change: `MOMENT_WORDS`, the version in events.js, §7 *The moment
    events*, and FX Studio's ARCHITECTURE §2 — in the same commit.
+3. Another unit reads it? Its owner exports a reader (§4 *Who reads a record*) and `OWNERS` in
+   [tools/check-flag-edges.mjs](tools/check-flag-edges.mjs) names where it sits; `npm run flagedges` fails a read of the
+   key by name anywhere else. A written key the scan cannot see (a constant the file does not declare or
+   import, a flag object it cannot follow to its literal) fails `npm run moments`.
 
 **Adding a FOLD** (anything that changes an already-rolled outcome after the fact — a reroll,
 an added die, a reaction that moves AC):
@@ -1256,7 +1329,10 @@ an added die, a reaction that moves AC):
 1. Compose the spine (§5). Do not write a clock, a latch, a bar or a popup. The card's pending row is
    `pendingRow` (bar, latch, answer, arm), a withdrawn question closes through `closePopup`, and an opener
    of its own dialog asks `frontPopup` first (§5 *The pending row*); `npm run popups` fails a latch, an
-   Answer button, a `livePopups` read or a close the machine draws itself.
+   Answer button, a `livePopups` read or a close the machine draws itself. Its card goes out through `postCard`
+   and a relayed answer through `postAnswer`, the recipients one of core.js's sets (§5 *The card*; `npm run
+   cards`); its pick is drawn by `pickInputHTML` and read by `picked` / `pickedAll` / `pickInputs`, a bystander's
+   choice is `choicePopup` (§5 *The pick*; `npm run pickers`).
 2. Walk the six steps and the twelve laws explicitly; each is a review checkbox.
 3. Name its answer channels — a moment with one channel is usually missing the AFK fallback.
 4. Add its receipt and its expiry default. A moment with no default outcome is not finished.

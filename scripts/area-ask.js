@@ -9,11 +9,11 @@ import { MODULE_ID, readFlag, TITLE, publish, statContext, queueFlagWrite, canAn
 import { itemNamed, resolveUuid } from "./lookup.js";
 import { isPartyMember } from "./shared.js";
 import { tokenForUuid } from "./geometry.js";
-import { bfCard, esc, holdBarHTML, ruleLine } from "./decide/present.js";
+import { bfCard, esc, holdBarHTML, ruleLine, pickInputHTML } from "./decide/present.js";
 import { AREA_ASK_FLAG, AREA_CHOICE_FLAG, askDefaults, askMark, askOutcome, askTicks, askWords } from "./decide/area-ask.js";
 import { saveTargetEntry } from "./decide/demand.js";
 import { activityUuidOf } from "./decide/card.js";
-import { openMomentPopup, armAskTimer, disarmAskTimer, electOwns, pendingRow, closePopup } from "./ui.js";
+import { openMomentPopup, armAskTimer, disarmAskTimer, electOwns, pendingRow, closePopup, pickInputs, picked, pickedAll, pickInputAt } from "./ui.js";
 import { releaseHold } from "./holds.js";
 import { SURFACES } from "./surfaces.js";
 import { listen, listenOnce } from "./dispatch.js";
@@ -113,10 +113,10 @@ export async function showAreaAsk(message) {
   const merged = (ask.kind === "choose") && !!ask.heightened;
   const markDefault = merged ? (askMark(ask, [...defaults])?.uuid ?? null) : null;
   const markOf = c => merged ? `<label style="display:flex;align-items:center;gap:0.25rem;margin-left:auto;font-size:var(--font-size-11,11px);opacity:0.85;cursor:pointer;">
-      <input type="radio" name="bf-metamagic-ask-mark" value="${esc(c.uuid)}" data-mark-for="${esc(c.uuid)}" ${c.uuid === markDefault ? "checked" : ""} ${defaults.has(c.uuid) ? "" : "disabled"} style="margin:0;"> Disadvantage</label>` : "";
+      ${pickInputHTML({ kind: "radio", name: "bf-metamagic-ask-mark", value: c.uuid, data: { "mark-for": c.uuid }, checked: c.uuid === markDefault, disabled: !defaults.has(c.uuid), style: "margin:0;" })} Disadvantage</label>` : "";
   const side = c => (c.disposition === ask.casterDisposition) ? "" : (c.disposition === 0 ? " <span style='opacity:0.7'>(neutral)</span>" : " <span style='opacity:0.7'>(hostile)</span>");
   const rowOf = c => `<div style="display:flex;align-items:center;gap:0.4rem;margin:0.2rem 0;"><label style="display:flex;align-items:center;gap:0.4rem;cursor:pointer;">
-      <input type="${ticks ? "checkbox" : "radio"}" name="bf-metamagic-ask" value="${esc(c.uuid)}" data-name="${esc(c.name)}" data-token="${esc(c.tokenId ?? "")}" ${defaults.has(c.uuid) ? "checked" : ""} style="margin:0;"> ${esc(c.name)}${side(c)}</label>${markOf(c)}</div>`;
+      ${pickInputHTML({ kind: ticks ? "checkbox" : "radio", name: "bf-metamagic-ask", value: c.uuid, data: { name: c.name, token: c.tokenId ?? "" }, checked: defaults.has(c.uuid), style: "margin:0;" })} ${esc(c.name)}${side(c)}</label>${markOf(c)}</div>`;
   const party = ask.candidates.filter(c => c.party), others = ask.candidates.filter(c => !c.party);
   const group = (title, list) => list.length ? `<div data-bf-ask-group="${title}" style="margin:0.3rem 0;"><div style="font-size:var(--font-size-11,11px);letter-spacing:0.08em;text-transform:uppercase;opacity:0.7;margin:0.2rem 0;">${title}</div>${list.map(rowOf).join("")}</div>` : "";
   const words = askWords(ask);
@@ -127,15 +127,15 @@ export async function showAreaAsk(message) {
       + `<div data-bf-metamagic-ask="${esc(ask.kind)}" data-cap="${ask.cap ?? ""}" style="margin:0.4rem 0;">${group("Party", party)}${group("Non-Party", others)}</div>` + holdBarHTML(ask, "to answer"),
     buttons: [
       { action: "ok", label: "OK", default: true, callback: (_event, button) => answerAsk(message,
-        [...button.form.querySelectorAll('input[name="bf-metamagic-ask"]:checked')].map(i => i.value),
-        { mark: button.form.querySelector('input[name="bf-metamagic-ask-mark"]:checked')?.value ?? null }) }
+        pickedAll(button.form, "bf-metamagic-ask"),
+        { mark: picked(button.form, "bf-metamagic-ask-mark") }) }
     ]
   });
 }
 
 // A tick pings the creature's token, and the cap holds as ticks are made.
 listenOnce("ready", "area-ask", () => document.addEventListener("change", ev => {
-  const any = ev.target?.closest?.('input[name="bf-metamagic-ask"]');
+  const any = pickInputAt(ev.target, "bf-metamagic-ask");
   if ( !any ) return;
   if ( any.checked && any.dataset.token ) {
     const tok = canvas.tokens?.get(any.dataset.token);
@@ -144,12 +144,12 @@ listenOnce("ready", "area-ask", () => document.addEventListener("change", ev => 
   if ( any.type !== "checkbox" ) return;
   const holder = any.closest("[data-bf-metamagic-ask]");
   const cap = Number(holder?.dataset?.cap) || 99;
-  const on = [...(holder?.querySelectorAll('input[name="bf-metamagic-ask"]:checked') ?? [])];
+  const on = pickInputs(holder, "bf-metamagic-ask").filter(b => b.checked);
   if ( on.length > cap ) { any.checked = false; return; }
-  for ( const b of holder?.querySelectorAll('input[name="bf-metamagic-ask"]') ?? [] ) if ( !b.checked ) b.disabled = on.length >= cap;
+  for ( const b of pickInputs(holder, "bf-metamagic-ask") ) if ( !b.checked ) b.disabled = on.length >= cap;
   // The merged ask: the radio follows its row's tick (only an affected creature saves at
   // Disadvantage); a mark lost with its tick moves to the first still ticked.
-  const marks = [...(holder?.querySelectorAll('input[name="bf-metamagic-ask-mark"]') ?? [])];
+  const marks = pickInputs(holder, "bf-metamagic-ask-mark");
   if ( !marks.length ) return;
   const ticked = new Set(on.map(b => b.value));
   for ( const r of marks ) { r.disabled = !ticked.has(r.dataset.markFor); if ( r.disabled ) r.checked = false; }

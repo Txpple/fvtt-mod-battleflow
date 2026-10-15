@@ -6,7 +6,7 @@
 import { MODULE_ID, readFlag, TITLE, S, setting, isActiveGM, deadlineIsLive, canAnswerFor, keepsMessage, queueFlagWrite, DICE_WAIT_SECONDS,
   LEAD_FLAG, WINDOW_ID, drivesMomentFor, isContinuingClient, gmIds, selfIds } from "./core.js";
 import { TONE, popupKey, bfCard, momentBarHTML, holdBarHTML, nextCascadeSlot, cascadePosition,
-  pileBackToFront, rescuePaneHTML, rescueRowsHTML, esc } from "./decide/present.js";
+  pileBackToFront, rescuePaneHTML, rescueRowsHTML, esc, tickRowsHTML, choiceRows } from "./decide/present.js";
 import { pendingDemands, resolveDemand } from "./decide/demand.js";
 import { abilityOf, originIdOf, rollKindOf, subKindOf } from "./decide/card.js";
 import { SURFACES } from "./surfaces.js";
@@ -207,6 +207,56 @@ export async function openMomentPopup(message, sub, subject, {
   }, Math.max(0, autoCloseAt - Date.now()));
   await openManagedPopup(key, message, dialog);
   return dialog;
+}
+
+// THE PICK (ARCHITECTURE §5 *The pick*): a pick's inputs are drawn by decide/present.js `pickInputHTML` (or a
+// row builder on it) and read here, by their name; tools/check-pickers.mjs holds every machine to both.
+
+/**
+ * The inputs of a pick in `root` (a form, a dialog's element, a fieldset), by `name`, in document order; one
+ * `value` alone when given. [] when `root` has none.
+ * @param {any} root
+ * @param {string} name
+ * @param {string|null} [value]
+ * @returns {any[]}
+ */
+export function pickInputs(root, name, value = null) {
+  return [...(root?.querySelectorAll?.(`input[name="${name}"]${(value === null) ? "" : `[value="${value}"]`}`) ?? [])];
+}
+
+/** The value of the pick's checked input (a radio's choice), or null. */
+export function picked(root, name) {
+  return pickInputs(root, name).find(i => i.checked)?.value ?? null;
+}
+
+/** The values of every checked input of the pick (its ticks), in document order. */
+export function pickedAll(root, name) {
+  return pickInputs(root, name).filter(i => i.checked).map(i => i.value);
+}
+
+/** The pick's input an event landed on (`ev.target` or inside it), or null. */
+export function pickInputAt(target, name) {
+  return target?.closest?.(`input[name="${name}"]`) ?? null;
+}
+
+/**
+ * A bystander's choice (RULINGS *The asks widened*): the rows as radios, "Pass just this time" checked, the
+ * mutes after it (decide/present.js `choiceRows`), one button, Apply. `answer` hears the checked row's key:
+ * "pass", "mute-<until>", or one of `rows`. The rest is `openMomentPopup`'s.
+ * @param {any} message
+ * @param {string} sub
+ * @param {any} subject
+ * @param {{name: string, rows: object[], mutes?: {until: string, label: string}[], answer: (key: string) => any,
+ *   title?: string, icon?: string, width?: number, content?: string}} choice
+ */
+export function choicePopup(message, sub, subject, { name, rows, mutes = [], answer, content = "", ...popup }) {
+  return openMomentPopup(message, sub, subject, {
+    ...popup,
+    content: content + tickRowsHTML({ name, rows: choiceRows(rows, mutes), kind: "radio" }),
+    buttons: [
+      { action: "answer", label: "Apply", default: true, callback: (_event, button) => answer(String(picked(button?.form, name) ?? "pass")) }
+    ]
+  });
 }
 
 // THE CLOSE (ARCHITECTURE §5 law 4, *The pending row*): a popup whose question is withdrawn closes on every

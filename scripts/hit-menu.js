@@ -21,7 +21,7 @@ import { nearestFeet, tokenForUuid, tokenOfActor } from "./geometry.js";
 import { attackMessageForDamage } from "./auto-damage.js";
 import { applyDamagesWithReceipt } from "./auto-apply.js";
 import { applyActivityEffectsOnHit, applyEffectsWithReceipt, messageActivity } from "./effect-riders.js";
-import { armAskTimer, subjectOwns, openMomentPopup, registerRelay, registerResumable, registerOfferPart, pendingRow, postCard, postAnswer } from "./ui.js";
+import { armAskTimer, subjectOwns, openMomentPopup, registerRelay, registerResumable, registerOfferPart, pendingRow, postCard, postAnswer, pickInputs } from "./ui.js";
 import { SURFACES } from "./surfaces.js";
 import { listen, listenOnce } from "./dispatch.js";
 
@@ -287,7 +287,7 @@ registerOfferPart({
       html: hitMenuHTML({ groups: groupsView }),
       lines: [`<strong>${heading}</strong> — ${summary}`],
       wire(element) {
-        const boxes = [...(element?.querySelectorAll('input[name="bf-hit"]') ?? [])];
+        const boxes = pickInputs(element, "bf-hit");
         for ( const box of boxes ) {
           box.addEventListener("change", () => {
             if ( box.checked ) {

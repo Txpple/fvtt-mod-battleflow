@@ -14,13 +14,13 @@ import { riderPartFormula } from "./decide/clock.js";
 import { tokensInRegions } from "./geometry.js";
 import { emanationShapeData } from "./decide/geometry.js";
 import { castLevelOn } from "./decide/card.js";
-import { bfCard, ruleLine, esc } from "./decide/present.js";
+import { bfCard, ruleLine, esc, pickInputHTML } from "./decide/present.js";
 import { EMANATIONS, tableIndex } from "./decide/registry.js";
 import { pulseFormKey, reachAdmits, resolveChanges, emanationRange, triggerDue, healTriggerDue, memberEffectData, damageTypeFor, appliesOnScene, liveScenes, emanationGroup, groupMembers,
   awaySide, bandShape, bandOptions, askDefaults, creatureTypeOf, typeAdmits, movePayout, alertPhrase, alertKeysOnTurn, pickCandidates } from "./decide/emanations.js";
 import { feetOf } from "./geometry.js";
 import { canAnswerFor } from "./core.js";
-import { momentButton, registerRelay, waitForWrite, postCard, postAnswer } from "./ui.js";
+import { momentButton, registerRelay, waitForWrite, postCard, postAnswer, pickInputs } from "./ui.js";
 import { rollDamageForSave } from "./auto-damage.js";
 import { applyDamagesWithReceipt } from "./auto-apply.js";
 import { SURFACES } from "./surfaces.js";
@@ -1296,9 +1296,9 @@ listen("renderActivityUsageDialog", "emanations", (app, element) => {
     fs.dataset.bfEmanationTypeField = "";
     fs.innerHTML = `<legend>By the Books — damage type</legend>
       <div class="form-group"><label>${esc(activity.item.name)} deals</label>
-        <div class="form-fields" style="gap:0.75rem;">${types.map(t => `<label style="display:flex;align-items:center;gap:0.3rem;"><input type="radio" name="bf-emanation-type" value="${t}" ${t === current ? "checked" : ""}> ${cap(t)}</label>`).join("")}</div>
+        <div class="form-fields" style="gap:0.75rem;">${types.map(t => `<label style="display:flex;align-items:center;gap:0.3rem;">${pickInputHTML({ kind: "radio", name: "bf-emanation-type", value: t, checked: t === current })} ${cap(t)}</label>`).join("")}</div>
         <p class="hint">${cap(current)} is the default — ${why}. The pick applies to every roll of this cast; the spell's card can change it later.</p></div>`;
-    for ( const r of fs.querySelectorAll('input[name="bf-emanation-type"]') ) r.addEventListener("change", () => { if ( r.checked ) pendingTypes.set(activity.uuid, r.value); });
+    for ( const r of pickInputs(fs, "bf-emanation-type") ) r.addEventListener("change", () => { if ( r.checked ) pendingTypes.set(activity.uuid, r.value); });
     const footer = element.querySelector(SURFACES.dialogFooter);
     if ( footer ) footer.before(fs); else (element.querySelector("form") ?? element).appendChild(fs);
   } catch(err) { console.warn(`${TITLE} | Could not add the damage-type fieldset.`, err); }

@@ -10,7 +10,7 @@ import { MODULE_ID, readFlag, TITLE, statContext } from "./core.js";
 import { itemsNamed, standingCompanion } from "./lookup.js";
 import { nearestFeet, tokenOfActor } from "./geometry.js";
 import { reminderEntries } from "./decide/registry.js";
-import { DialogCarried, markDefaultButton } from "./ui.js";
+import { DialogCarried, markDefaultButton, pickInputs } from "./ui.js";
 import { bfCard, buyBoxHTML, forgoBoxHTML, modeTagHTML, reminderFieldsetHTML } from "./decide/present.js";
 import { ADVANTAGE_BUYS } from "./decide/registry.js";
 import { rollModeOf } from "./decide/chips.js";
@@ -159,7 +159,7 @@ function drawBuy(app) {
     fieldset.appendChild(box.firstElementChild);
   }
   // One tick at a time — Advantage does not stack, so a second buy would only spend twice.
-  fieldset.querySelectorAll('input[name="bf-buy"]').forEach(input => { input.addEventListener("change", ev => {
+  pickInputs(fieldset, "bf-buy").forEach(input => { input.addEventListener("change", ev => {
     buy.armed = ev.target.checked ? ev.target.dataset.bfBuyName : false;
     drawBuy(app);
   }); });

@@ -8,7 +8,7 @@ import { featureNamed, isWorn, lower, namesAnswering, resolveUuid } from "./look
 import { damagedSince } from "./decide/turn-grants.js";
 import { conditionEntries, effectEntries, reminderEntries } from "./decide/registry.js";
 import { chipSpentOnRecord, grantingActor, turnChitStands, chipKindOf, effectSourceUuid, metamagicOf, savesOf } from "./shared.js";
-import { DialogCarried, cardRow, markDefaultButton, pendingDemandsFor, postCard } from "./ui.js";
+import { DialogCarried, cardRow, markDefaultButton, pendingDemandsFor, postCard, pickInputs } from "./ui.js";
 import { bfCard, reminderFieldsetHTML, ruleLine, sneakBoxHTML, TONE, esc } from "./decide/present.js";
 import { chipIsDead, chipOwnedBy, rollModeOf } from "./decide/chips.js";
 import { CHECK_BENDS, CONDITION_BENDS, CROSSBOWS, EFFECT_BENDS, EMANATIONS, MASTERY_RULES, RANGE_FEATS, RANGE_RULES, SAVE_BENDS, SNEAK_ATTACK, tableIndex } from "./decide/registry.js";
@@ -303,7 +303,7 @@ function drawGate(app, { force = false } = {}) {
       box.innerHTML = sneakBoxHTML({ dice: next.sneak.dice, rule: next.sneak.rule,
         checked: gate.sneakArmed, used: next.sneak.used });
       fieldset.appendChild(box.firstElementChild);
-      fieldset.querySelector('input[name="bf-sneak"]')?.addEventListener("change", ev => { gate.sneakArmed = !!ev.target.checked; });
+      pickInputs(fieldset, "bf-sneak")[0]?.addEventListener("change", ev => { gate.sneakArmed = !!ev.target.checked; });
     }
     const configuration = element.querySelector(SURFACES.dialogConfiguration);
     const buttons = element.querySelector(SURFACES.dialogButtons);

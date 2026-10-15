@@ -11,8 +11,8 @@
  * window's table) is read here, so the row, the ghost and the landing show the same picture.
  */
 import { S, TITLE, answersHere, setting } from "./core.js";
-import { artTag, bfCard, esc, ruleLine } from "./decide/present.js";
-import { openMomentPopup } from "./ui.js";
+import { artTag, bfCard, esc, ruleLine, pickInputHTML } from "./decide/present.js";
+import { openMomentPopup, pickInputs, picked, pickedAll } from "./ui.js";
 import { galleryRows, crLabel } from "./decide/gallery.js";
 import { footprintsOverlap, spotVerdict } from "./decide/summons.js";
 import { artFor } from "./decide/summon-art.js";
@@ -201,7 +201,7 @@ function rowHTML(row, { field, multi = false }) {
   const line = [s.size, s.speed, ...(s.attacks ?? [])].filter(Boolean).join(" · ");
   const art = row.img ? artTag(row.img, `width:${ART}px;height:${ART}px;object-fit:cover;border-radius:3px;border:1px solid var(--color-border-dark,#0006);`)
     : `<span style="display:inline-block;width:${ART}px;height:${ART}px;border-radius:3px;background:rgba(0,0,0,0.15);"></span>`;
-  const pick = field ? `<input type="${multi ? "checkbox" : "radio"}" name="${esc(field)}" value="${esc(row.value)}" ${row.checked ? "checked" : ""} ${row.locked ? "disabled" : ""} style="margin:0;">` : "<span></span>";
+  const pick = field ? pickInputHTML({ kind: multi ? "checkbox" : "radio", name: field, value: row.value, checked: !!row.checked, disabled: !!row.locked, style: "margin:0;" }) : "<span></span>";
   return `<label data-bf-form style="display:grid;grid-template-columns:auto ${ART}px minmax(0,1fr) auto;gap:0.5rem;align-items:center;padding:0.3rem 0.45rem;border:1px solid var(--color-border-dark,#0006);border-radius:3px;margin-bottom:0.25rem;${field && !row.locked ? "cursor:pointer;" : ""}${row.checked ? `background:${PICKED};` : ""}${row.locked ? "opacity:0.45;" : ""}">
     ${pick}
     ${art}
@@ -243,7 +243,7 @@ function sectionHTML(sec) {
   if ( sec.note ) return `<div style="opacity:0.75;font-size:var(--font-size-11,11px);margin:0.2rem 0;">${esc(sec.note)}</div>`;
   if ( sec.rule ) return ruleLine(sec.rule);
   if ( sec.pills ) return `${headHTML(sec.head)}<div style="${sec.columns ? `display:grid;grid-template-columns:repeat(${Number(sec.columns) || 1},1fr);` : "display:flex;flex-wrap:wrap;"}gap:0.3rem;margin:0.3rem 0;">${sec.pills.map(o =>
-    `<label style="display:inline-flex;align-items:center;gap:0.3rem;padding:0.15rem 0.5rem;${sec.columns ? "justify-content:flex-start;" : ""}border:1px solid var(--color-border-dark,#0006);border-radius:12px;${o.locked ? "opacity:0.45;cursor:not-allowed;" : "cursor:pointer;"}"><input type="radio" name="${esc(sec.field)}" value="${esc(o.value)}" ${(o.checked && !o.locked) ? "checked" : ""} ${o.locked ? "disabled" : ""} style="margin:0;">${esc(o.label)}</label>`).join("")}</div>`;
+    `<label style="display:inline-flex;align-items:center;gap:0.3rem;padding:0.15rem 0.5rem;${sec.columns ? "justify-content:flex-start;" : ""}border:1px solid var(--color-border-dark,#0006);border-radius:12px;${o.locked ? "opacity:0.45;cursor:not-allowed;" : "cursor:pointer;"}">${pickInputHTML({ kind: "radio", name: sec.field, value: o.value, checked: !!(o.checked && !o.locked), disabled: !!o.locked, style: "margin:0;" })}${esc(o.label)}</label>`).join("")}</div>`;
   if ( sec.pool ) {
     const rows = sec.pool.map(r => rowHTML(poolRow({ ...r, locked: r.locked || !!sec.locked }), { field: sec.field, multi: sec.multi }));
     const list = `<input type="search" name="bf-gallery-search" placeholder="Search by name" style="width:100%;margin:0.3rem 0;">
@@ -276,7 +276,7 @@ const flatSections = sections => sections.flatMap(s => s.tabs ? s.tabs.flatMap(t
  * @param {HTMLFormElement|null} form
  */
 function readPicks(form) {
-  const all = field => [...(form?.querySelectorAll?.(`input[name="${field}"]:checked`) ?? [])].map(i => i.value);
+  const all = field => pickedAll(form, field);
   return { one: field => all(field)[0] ?? null, all, form };
 }
 
@@ -296,12 +296,12 @@ function wirePicker(root, sections) {
     const picks = readPicks(root.querySelector("form") ?? root);
     for ( const s of capped ) {
       const n = Math.max(0, Number((typeof s.max === "function") ? s.max(picks) : s.max) || 0);
-      const ticked = [...root.querySelectorAll(`input[name="${s.field}"]:checked`)];
+      const ticked = pickInputs(root, s.field).filter(i => i.checked);
       for ( const input of ticked.filter(i => i !== event?.target).slice(0, Math.max(0, ticked.length - n)) ) input.checked = false;
       if ( ticked.length > n && ticked.includes(event?.target) && n === 0 ) event.target.checked = false;
     }
   };
-  for ( const search of root.querySelectorAll('input[name="bf-gallery-search"]') ) {
+  for ( const search of pickInputs(root, "bf-gallery-search") ) {
     const list = search.nextElementSibling;
     search.addEventListener("input", () => {
       const q = search.value.trim().toLowerCase();
@@ -321,7 +321,7 @@ function wirePicker(root, sections) {
   // first, when none is) as they come back
   const gate = () => {
     for ( const box of root.querySelectorAll("[data-bf-only-field]") ) {
-      const on = root.querySelector(`input[name="${box.dataset.bfOnlyField}"]:checked`)?.value === box.dataset.bfOnlyValue;
+      const on = picked(root, box.dataset.bfOnlyField) === box.dataset.bfOnlyValue;
       const inputs = [...box.querySelectorAll("[data-bf-form] input")];
       for ( const input of inputs ) {
         input.disabled = !on;

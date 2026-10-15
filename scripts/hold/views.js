@@ -9,7 +9,7 @@ import { bfCard, holdBarHTML, ruleLine, spendLine, spendPhrase, tickRowsHTML, es
 import { bentLines, d20ModeOf, dieMaxOf, futileGuardLine, guardRow, guardSign, liveRows, neededOnDieLine, neutraliseOutcome, rescueTitle } from "../decide/rescue-hit.js";
 import { duplicateWords } from "../decide/duplicates.js";
 import { muteScopesFor, poolOf, resolveAttackMessage } from "../shared.js";
-import { openMomentPopup, momentButton, pendingRow, forgetShown } from "../ui.js";
+import { openMomentPopup, momentButton, pendingRow, forgetShown, choicePopup, pickInputs, picked } from "../ui.js";
 import { reactionItem, reactionImg, reactionACBonus, rescueRowsNow } from "./lookup.js";
 import { armHoldTimer } from "./clock.js";
 import { answerHold, castReaction, rescueReaction, protectReaction, bystanderReaction, muteAndPass, useAtZero } from "./answer.js";
@@ -303,32 +303,26 @@ async function showBystanderPopup(attackMessage, target, guard, byActor, hold, r
   const bendRows = stored
     ? (guard.faces ?? []).map(face => ({ key: `${guard.row}|${face}`, name: `Use the ${face}`, dice: verdictOf(face), tag: "", off: null, rule: row?.rule ?? "" }))
     : [{ key: guard.row, name: guard.row, dice, tag, off: null, rule: row?.rule ?? "" }];
-  const rows = [...bendRows, { key: "pass", name: "Pass just this time", dice: "", tag: "", off: null, rule: "", checked: true },
-    ...muteScopesFor(byActor).map(scope => ({ key: `mute-${scope.until}`, name: scope.label, dice: "", tag: "", off: null, rule: "" }))];
   const self = miss ? !!guard.self : (guard.uuid === target.uuid);
   const whose = (miss && self) ? "your" : `${attacker}'s`;
   const at = (!miss && self) ? "you" : target.name;
   const rolled = roll?.isCritical ? "natural 20 — a critical hit" : `${roll?.total}${reveal ? ` vs AC ${ac}` : ""} — a ${miss ? "miss" : "hit"}`;
   const situation = bystanderSituation(row, roll, ac, guard, miss);
-  const dialog = await openMomentPopup(attackMessage, `${target.uuid}|${guard.uuid}`, byActor, {
+  await choicePopup(attackMessage, `${target.uuid}|${guard.uuid}`, byActor, {
     title: `${guard.row} — ${whose} attack at ${at}`, icon: "fa-solid fa-comment-dots", width: 460,
     content: bfCard({ img: item?.img ?? byActor?.img ?? null, eyebrow: stored ? `${guard.row} — no Reaction` : `${(row?.reaction && (!guard.self || guard.hitSelf)) ? "Reaction" : "No Reaction"} — ${guard.row}`, tone: "pending",
       title: `${(miss && self) ? "You" : attacker} ${miss ? "missed" : "hits"} ${at}`,
       subtitle: stored ? rolled : `${weapon}${self ? "" : (row?.bystander === "sight") ? " · on the scene" : ` · within ${row?.bystander ?? "?"} ft of ${(row?.reach === "target") ? target.name : "you"}`}${guard.inspired ? ` · ${guard.inspired.bard}'s Inspired die` : ""}` })
-      + holdBarHTML(hold) + (situation ? `<div style="padding:0.4rem 0.1rem;">${situation}</div>` : "")
-      + tickRowsHTML({ name: "bf-bystander", rows, kind: "radio" }),
-    buttons: [
-      { action: "answer", label: "Apply", default: true, callback: (_event, button) => {
-        const picked = String(button?.form?.querySelector?.('input[name="bf-bystander"]:checked')?.value ?? "pass");
-        if ( picked === "pass" ) { void answerHold(attackMessage, target.uuid, "pass", { by: guard.uuid }); return; }
-        // The mutes (RULINGS *The asks widened*): until the bystander's next turn, or the combat's end; out of one, until the next.
-        if ( picked.startsWith("mute-") ) { void muteAndPass(attackMessage, target, guard, (picked === "mute-turn") ? "turn" : "combat"); return; }
-        const face = (row?.bend === "set") ? Number(picked.split("|")[1]) : null;
-        void bystanderReaction(attackMessage, target, guard, { face });
-      } }
-    ]
+      + holdBarHTML(hold) + (situation ? `<div style="padding:0.4rem 0.1rem;">${situation}</div>` : ""),
+    name: "bf-bystander", rows: bendRows, mutes: muteScopesFor(byActor),
+    answer: choice => {
+      if ( choice === "pass" ) { void answerHold(attackMessage, target.uuid, "pass", { by: guard.uuid }); return; }
+      // The mutes (RULINGS *The asks widened*): until the bystander's next turn, or the combat's end; out of one, until the next.
+      if ( choice.startsWith("mute-") ) { void muteAndPass(attackMessage, target, guard, (choice === "mute-turn") ? "turn" : "combat"); return; }
+      const face = (row?.bend === "set") ? Number(choice.split("|")[1]) : null;
+      void bystanderReaction(attackMessage, target, guard, { face });
+    }
   });
-  void dialog;
 }
 
 /** A maneuver reaction's popup (Parry): Riposte's shape — the card, the cost, the rule, the clock. */
@@ -456,7 +450,7 @@ async function showGuardPopup(attackMessage, target, guard, guardActor, hold, ro
       + tickRowsHTML({ name: "bf-guard", rows }),
     buttons: [
       { action: "answer", label: "Answer", default: !futile, callback: (_event, button) => {
-        if ( futile || !button?.form?.querySelector?.('input[name="bf-guard"]:checked') ) return;
+        if ( futile || !pickInputs(button?.form, "bf-guard").some(b => b.checked) ) return;
         void protectReaction(attackMessage, target, guard);
       } },
       { action: "pass", label: futile ? "Keep my Reaction" : "Pass", default: futile,
@@ -465,7 +459,7 @@ async function showGuardPopup(attackMessage, target, guard, guardActor, hold, ro
   });
   // The tick stays even on one row; a futile row starts unticked with Answer off.
   const form = dialog?.element?.querySelector?.("form") ?? dialog?.element ?? null;
-  const box = form?.querySelector?.('input[name="bf-guard"]') ?? null;
+  const box = pickInputs(form, "bf-guard")[0] ?? null;
   const answer = form?.querySelector?.('button[data-action="answer"]') ?? null;
   if ( futile ) { if ( box ) { box.checked = false; box.disabled = true; } if ( answer ) answer.disabled = true; return; }
   if ( box ) box.checked = true;
@@ -494,7 +488,7 @@ async function showRescuePopup(attackMessage, target, actor, hold, roll) {
     buttons: [
       // The window goes at the click: the answer is fired, not awaited.
       { action: "answer", label: "Answer", default: true, callback: (_event, button) => {
-        const pick = button?.form?.querySelector?.('input[name="bf-rescue"]:checked')?.value ?? null;
+        const pick = picked(button?.form, "bf-rescue");
         const row = rows.find(r => (r.key === pick) && !r.off);
         if ( !row ) return;
         if ( row.kind === "roll" ) void rescueReaction(attackMessage, target, row.key);
@@ -506,7 +500,7 @@ async function showRescuePopup(attackMessage, target, actor, hold, roll) {
   // One tick at a time; Answer live only while one is ticked.
   const form = dialog?.element?.querySelector?.("form") ?? dialog?.element ?? null;
   const answer = form?.querySelector?.('button[data-action="answer"]') ?? null;
-  const boxes = [...(form?.querySelectorAll?.('input[name="bf-rescue"]') ?? [])];
+  const boxes = pickInputs(form, "bf-rescue");
   if ( answer ) answer.disabled = true;
   for ( const box of boxes ) box.addEventListener("change", () => {
     if ( box.checked ) for ( const other of boxes ) if ( other !== box ) other.checked = false;

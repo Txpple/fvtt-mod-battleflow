@@ -197,7 +197,7 @@ export function reminderFieldsetHTML({ head, boxes, legend = "Before you roll" }
  */
 export function sneakBoxHTML({ dice, rule, checked = false, used = null }) {
   const control = used ? "" : `<label style="display:flex;align-items:center;gap:0.4rem;white-space:nowrap;cursor:pointer;">
-        <input type="checkbox" name="bf-sneak" ${checked ? "checked" : ""} style="margin:0;"> <span>Sneak Attack</span></label>`;
+        ${pickInputHTML({ name: "bf-sneak", checked, style: "margin:0;" })} <span>Sneak Attack</span></label>`;
   return `
       <div data-bf-sneak style="display:grid;grid-template-columns:1fr auto;gap:0.2rem 0.6rem;align-items:center;
                   margin:0.4rem 0;padding:0.45rem 0.6rem;border-radius:4px;${used ? "opacity:0.6;" : ""}
@@ -221,7 +221,7 @@ export function buyBoxHTML({ name, point, left, rule, checked = false, free = fa
   const out = !!off || (!free && !(Number(left) > 0));
   const why = off ?? `no ${point}s left`;
   const control = out ? "" : `<label style="display:flex;align-items:center;gap:0.4rem;white-space:nowrap;cursor:pointer;">
-        <input type="checkbox" name="bf-buy" data-bf-buy-name="${attr(name)}" ${free ? "data-bf-free" : ""} ${checked ? "checked" : ""} style="margin:0;"> <span>Advantage</span></label>`;
+        ${pickInputHTML({ name: "bf-buy", data: { "bf-buy-name": name, ...(free ? { "bf-free": "" } : {}) }, checked, style: "margin:0;" })} <span>Advantage</span></label>`;
   return `
       <div data-bf-buy style="display:grid;grid-template-columns:1fr auto;gap:0.2rem 0.6rem;align-items:center;
                   margin:0.4rem 0;padding:0.45rem 0.6rem;border-radius:4px;${out ? "opacity:0.6;" : ""}
@@ -240,7 +240,7 @@ export function buyBoxHTML({ name, point, left, rule, checked = false, free = fa
  */
 export function forgoBoxHTML({ name, rule, checked = false, off = null, says = "", struck = [] }) {
   const control = off ? "" : `<label style="display:flex;align-items:center;gap:0.4rem;white-space:nowrap;cursor:pointer;">
-        <input type="checkbox" name="bf-buy" data-bf-buy-name="${attr(name)}" data-bf-forgo ${checked ? "checked" : ""} style="margin:0;"> <span>Forgo the Advantage</span></label>`;
+        ${pickInputHTML({ name: "bf-buy", data: { "bf-buy-name": name, "bf-forgo": "" }, checked, style: "margin:0;" })} <span>Forgo the Advantage</span></label>`;
   return `
       <div data-bf-buy data-bf-forgo-box style="display:grid;grid-template-columns:1fr auto;gap:0.2rem 0.6rem;align-items:center;
                   margin:0.4rem 0;padding:0.45rem 0.6rem;border-radius:4px;${off ? "opacity:0.6;" : ""}
@@ -272,7 +272,7 @@ export function cunningMenuHTML({ rows, max, dc, dice, chosen = [] }) {
       <label data-bf-cunning-row="${attr(r.key)}" style="display:grid;grid-template-columns:auto 1fr auto;gap:0.2rem 0.5rem;align-items:center;
              margin:0.3rem 0;padding:0.35rem 0.5rem;border-radius:4px;background:rgba(0,0,0,0.06);
              border:1px solid var(--color-border-light,rgba(0,0,0,0.2));${r.affordable ? "cursor:pointer;" : "opacity:0.5;"}">
-        <input type="checkbox" name="bf-cunning" value="${attr(r.key)}" ${picked.has(r.key) ? "checked" : ""} ${r.affordable ? "" : "disabled"} style="margin:0;">
+        ${pickInputHTML({ name: "bf-cunning", value: r.key, checked: picked.has(r.key), disabled: !r.affordable, style: "margin:0;" })}
         <span style="font-weight:bold;">${attr(r.label)}</span>
         <span style="font-size:var(--font-size-10,10px);letter-spacing:0.06em;text-transform:uppercase;white-space:nowrap;opacity:0.85;">${r.cost ? `${r.cost}d forgone` : "no cost"}</span>
         ${foldedRuleHTML(r.rule).replace("grid-column:1 / -1", "grid-column:2 / -1")}
@@ -301,7 +301,7 @@ export function riderMenuHTML(riders) {
       <label data-bf-rider-row="${attr(r.key)}" style="display:grid;grid-template-columns:auto 1fr auto;gap:0.2rem 0.5rem;align-items:center;
              margin:0.3rem 0;padding:0.35rem 0.5rem;border-radius:4px;background:rgba(0,0,0,0.06);
              border:1px solid var(--color-border-light,rgba(0,0,0,0.2));cursor:pointer;">
-        <input type="checkbox" name="bf-rider" value="${attr(r.key)}" ${r.unticked ? "" : "checked"} style="margin:0;">
+        ${pickInputHTML({ name: "bf-rider", value: r.key, checked: !r.unticked, style: "margin:0;" })}
         <span style="font-weight:bold;">${attr(r.label)} — ${r.formula ? `${attr(r.formula)}${r.type ? ` ${attr(r.type)}` : ""}` : attr(r.says)}</span>
         <span style="font-size:var(--font-size-10,10px);letter-spacing:0.06em;text-transform:uppercase;white-space:nowrap;opacity:0.85;">${(r.usesLeft === null) || (r.usesLeft === undefined) ? "" : `${Math.max(0, r.usesLeft - 1)} use${(r.usesLeft - 1) === 1 ? "" : "s"} left after`}</span>
         ${foldedRuleHTML(r.rule).replace("grid-column:1 / -1", "grid-column:2 / -1")}
@@ -328,7 +328,7 @@ export function optionAskHTML(asks) {
       ${a.options.map(o => `
       <label style="display:flex;gap:0.5rem;align-items:center;margin:0.3rem 0;padding:0.35rem 0.5rem;border-radius:4px;background:rgba(0,0,0,0.06);
              border:1px solid var(--color-border-light,rgba(0,0,0,0.2));cursor:pointer;">
-        <input type="radio" name="bf-option-${attr(a.featureId)}" value="${attr(o.value)}" style="margin:0;">
+        ${pickInputHTML({ kind: "radio", name: `bf-option-${a.featureId}`, value: o.value, style: "margin:0;" })}
         <span style="font-weight:bold;">${attr(o.value)}</span>
         <span style="font-size:var(--font-size-11,11px);opacity:0.8;">${attr(o.note)}</span>
       </label>`).join("")}
@@ -349,7 +349,7 @@ export function hitMenuHTML({ groups }) {
       <label data-bf-hit-row="${attr(r.key)}" style="display:grid;grid-template-columns:auto 1fr auto;gap:0.2rem 0.5rem;align-items:center;
              margin:0.3rem 0;padding:0.35rem 0.5rem;border-radius:4px;background:rgba(0,0,0,0.06);
              border:1px solid var(--color-border-light,rgba(0,0,0,0.2));${r.affordable ? "cursor:pointer;" : "opacity:0.5;"}">
-        <input type="checkbox" name="bf-hit" value="${attr(r.key)}" data-bf-hit-group="${attr(g.key)}" ${r.affordable ? "" : "disabled"} style="margin:0;">
+        ${pickInputHTML({ name: "bf-hit", value: r.key, data: { "bf-hit-group": g.key }, disabled: !r.affordable, style: "margin:0;" })}
         <span style="font-weight:bold;">${attr(r.label)}</span>
         <span style="font-size:var(--font-size-10,10px);letter-spacing:0.06em;text-transform:uppercase;white-space:nowrap;opacity:0.85;">${attr(r.cost)}</span>
         ${foldedRuleHTML(r.rule).replace("grid-column:1 / -1", "grid-column:2 / -1")}
@@ -786,6 +786,30 @@ export function dieMeterHTML({ value, min, max, avg, beat, gain, low }) {
 }
 
 /**
+ * THE PICK INPUT: the one radio or checkbox the module draws (tools/check-pickers.mjs), every pick row and box
+ * built on it. No `value` leaves the platform's own (`on`); `data` sets `data-*` attributes (`""` a bare mark);
+ * `style` is the input's own, none when empty.
+ * @param {{kind?: string, name: string, value?: string|number|null, checked?: boolean, disabled?: boolean,
+ *          data?: Record<string, string|number>|null, style?: string}} input
+ */
+export function pickInputHTML({ kind = "checkbox", name, value, checked = false, disabled = false, data = null, style = "" }) {
+  const marks = Object.entries(data ?? {}).map(([k, v]) => ` data-${k}="${attr(v)}"`).join("");
+  return `<input type="${kind === "radio" ? "radio" : "checkbox"}" name="${attr(name)}"${(value === undefined) ? "" : ` value="${attr(value)}"`}`
+    + `${marks}${checked ? " checked" : ""}${disabled ? " disabled" : ""}${style ? ` style="${style}"` : ""}>`;
+}
+
+/**
+ * THE CHOICE'S ROWS (RULINGS *The asks widened*): a bystander's own rows, then "Pass just this time", ticked, then
+ * one row per mute scope (`mute-<until>`, shared.js `muteScopesFor`'s label); ui.js `choicePopup` draws them as radios.
+ * @param {{key: string, name: string, dice?: string|null, tag?: string|null, off?: string|null, rule?: object|string|null}[]} rows
+ * @param {{until: string, label: string}[]} [mutes]
+ */
+export function choiceRows(rows, mutes = []) {
+  return [...rows, { key: "pass", name: "Pass just this time", dice: "", tag: "", off: null, rule: "", checked: true },
+    ...mutes.map(scope => ({ key: `mute-${scope.until}`, name: scope.label, dice: "", tag: "", off: null, rule: "" }))];
+}
+
+/**
  * THE OFFER ROW, TICKED (RULINGS *Rescuing the hit*): name and dice, a fact as the tag, the rule
  * folded. ⚠ Never a caveat line. One tick at a time (the EDGE unticks the sibling); `kind: "radio"` makes
  * the browser keep it so, and a row `checked` starts ticked (the bystander popups, RULINGS *The asks widened*).
@@ -797,7 +821,7 @@ export function tickRowsHTML({ name, rows, kind = "checkbox" }) {
       <label data-bf-tick-row="${attr(r.key)}" style="display:grid;grid-template-columns:auto 1fr auto;gap:0.2rem 0.5rem;align-items:center;
              margin:0.3rem 0;padding:0.35rem 0.5rem;border-radius:4px;background:rgba(0,0,0,0.06);
              border:1px solid var(--color-border-light,rgba(0,0,0,0.2));${r.off ? "opacity:0.5;" : "cursor:pointer;"}">
-        <input type="${kind === "radio" ? "radio" : "checkbox"}" name="${attr(name)}" value="${attr(r.key)}" ${r.off ? "disabled" : ""}${r.checked ? " checked" : ""} style="margin:0;">
+        ${pickInputHTML({ kind, name, value: r.key, disabled: !!r.off, checked: !!r.checked, style: "margin:0;" })}
         <span style="font-weight:bold;">${esc(r.name)}${r.dice ? ` <span style="font-weight:normal;opacity:0.8;">${esc(r.dice)}</span>` : ""}</span>
         <span style="font-size:var(--font-size-10,10px);letter-spacing:0.06em;text-transform:uppercase;white-space:nowrap;opacity:0.85;${r.off ? "color:var(--color-level-error,#b44);" : ""}">${esc(r.off ?? r.tag ?? "")}</span>
         ${foldedRuleHTML(r.rule ?? "").replace("grid-column:1 / -1", "grid-column:2 / -1")}

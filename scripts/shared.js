@@ -64,7 +64,7 @@ export function effectSourceUuid(effect) {
   return stampedSourceOf(effect) ?? grantingActor(effect)?.uuid ?? null;
 }
 
-/* --- THE RECORDS ANOTHER UNIT READS (ARCHITECTURE §4) ---------------------------- */
+/* --- THE RECORDS ANOTHER UNIT READS (ARCHITECTURE §4 *Who reads a record*) ------------------- */
 // Each key's readers, here where the services, the spine and every machine can import them: the writer
 // sits above one of its readers, or beside it. `npm run flagedges` holds every other read to them.
 

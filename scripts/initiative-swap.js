@@ -8,9 +8,9 @@ import { MODULE_ID, readFlag, TITLE, isActiveGM, queueFlagWrite, canAnswerFor, s
 import { featureNamed, itemNamed, lower, resolveUuid } from "./lookup.js";
 import { initiativeSwapEntries, listedNames } from "./decide/registry.js";
 import { INITIATIVE_SWAPS } from "./decide/registry.js";
-import { bfCard, esc, holdBarHTML, foldedRuleHTML } from "./decide/present.js";
+import { bfCard, esc, holdBarHTML, foldedRuleHTML, pickInputHTML } from "./decide/present.js";
 import { dispositionStyle } from "./shared.js";
-import { openMomentPopup, armAskTimer, disarmAskTimer, subjectOwns, registerRelay, registerResumable, pendingRow, closePopup, postCard, postAnswer } from "./ui.js";
+import { openMomentPopup, armAskTimer, disarmAskTimer, subjectOwns, registerRelay, registerResumable, pendingRow, closePopup, postCard, postAnswer, picked, pickInputAt } from "./ui.js";
 import { SURFACES } from "./surfaces.js";
 import { listen, listenOnce } from "./dispatch.js";
 
@@ -208,7 +208,7 @@ async function showSwapPopup(message) {
       + "margin:2px 0;padding:0.2rem 0.4rem;border-radius:4px;"
       + (pick ? "cursor:pointer;background:rgba(0,0,0,0.06);" : "") + ((a.role === "incapacitated") ? "opacity:0.55;" : "");
     const radio = pick
-      ? `<input type="radio" name="bf-initiative-swap" value="${esc(a.combatantId)}" data-token="${esc(a.tokenId ?? "")}" style="margin:0;justify-self:center;">`
+      ? pickInputHTML({ kind: "radio", name: "bf-initiative-swap", value: a.combatantId, data: { token: a.tokenId ?? "" }, style: "margin:0;justify-self:center;" })
       : "<span></span>";
     const portrait = a.img
       ? `<img src="${esc(a.img)}" alt="${esc(cue.label)}" class="gold-icon" style="width:32px;height:32px;object-fit:cover;border-radius:4px;border:2px solid ${cue.color};box-sizing:border-box;">`
@@ -230,7 +230,7 @@ async function showSwapPopup(message) {
       + `<div data-bf-initiative-swap style="margin:0.4rem 0;">${rows}</div>` + holdBarHTML(flag, "to answer"),
     buttons: [
       { action: "swap", label: "Swap", default: true, callback: (_event, button) => {
-        const pick = button.form.querySelector('input[name="bf-initiative-swap"]:checked')?.value ?? null;
+        const pick = picked(button.form, "bf-initiative-swap");
         void answerSwap(message, pick ? "swap" : "no", pick);
       } },
       { action: "no", label: "No", callback: () => { void answerSwap(message, "no"); } }
@@ -243,7 +243,7 @@ async function showSwapPopup(message) {
 
 // A pick pings its creature's token and lights Swap (one listener for every popup).
 listenOnce("ready", "initiative-swap", () => document.addEventListener("change", ev => {
-  const input = ev.target?.closest?.('input[name="bf-initiative-swap"]');
+  const input = pickInputAt(ev.target, "bf-initiative-swap");
   if ( !input ) return;
   const tok = input.dataset.token ? canvas?.tokens?.get(input.dataset.token) : null;
   if ( tok ) { try { canvas.ping(tok.center); } catch { /* no canvas to ping */ } }

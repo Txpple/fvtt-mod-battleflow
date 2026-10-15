@@ -13,10 +13,10 @@
 import { MODULE_ID, readFlag, TITLE, isActiveGM, queueFlagWrite, canAnswerFor, statContext, gmIds } from "./core.js";
 import { cardItem, lower, resolveUuid } from "./lookup.js";
 import { allowanceOf, fillPicks, recordState, missingPick, restList, trimList } from "./decide/mastery-record.js";
-import { TONE, bfCard, esc, foldedRuleHTML } from "./decide/present.js";
+import { TONE, bfCard, esc, foldedRuleHTML, pickInputHTML } from "./decide/present.js";
 import { CARD, isCard, masteryOf } from "./decide/card.js";
 import { isPartyMember, masteryLabel } from "./shared.js";
-import { openMomentPopup, registerRelay, registerResumable, acknowledgeMoment, momentAcknowledged, pendingRow, postCard, postAnswer } from "./ui.js";
+import { openMomentPopup, registerRelay, registerResumable, acknowledgeMoment, momentAcknowledged, pendingRow, postCard, postAnswer, pickInputs, picked, pickedAll } from "./ui.js";
 import { messageActivity } from "./effect-riders.js";
 import { SURFACES } from "./surfaces.js";
 import { listen } from "./dispatch.js";
@@ -396,7 +396,7 @@ registerResumable(MASTERY_SWAP_FLAG, {
 });
 
 const box = (field, value, { checked = false, disabled = false } = {}) =>
-  `<input type="checkbox" name="${field}" value="${esc(value)}" ${checked ? "checked" : ""} ${disabled ? "disabled" : ""} style="margin:0;flex:0 0 auto;">`;
+  pickInputHTML({ name: field, value, checked, disabled, style: "margin:0;flex:0 0 auto;" });
 
 /**
  * The rest grid's rule, wired live: at most ONE "remove" box (the one swap per Long Rest); the
@@ -405,9 +405,9 @@ const box = (field, value, { checked = false, disabled = false } = {}) =>
  */
 function syncRestGrid(root, { open, over }) {
   if ( !root?.querySelectorAll ) return;
-  const drops = [...root.querySelectorAll('input[name="bf-mastery-drop"]')];
-  const removes = [...root.querySelectorAll('input[name="bf-mastery-remove"]')];
-  const picks = [...root.querySelectorAll('input[name="bf-mastery-pick"]')];
+  const drops = pickInputs(root, "bf-mastery-drop");
+  const removes = pickInputs(root, "bf-mastery-remove");
+  const picks = pickInputs(root, "bf-mastery-pick");
   const ok = root.querySelector('button[data-action="ok"]');
   const sync = () => {
     if ( drops.length ) { if ( ok ) ok.disabled = drops.filter(d => d.checked).length !== over; return; }
@@ -453,7 +453,7 @@ async function showSwapPopup(message) {
         ]
       }),
       buttons: [{ action: "ok", label: "OK", default: true, callback: (_event, button) => {
-        const drop = [...button.form.querySelectorAll('input[name="bf-mastery-drop"]:checked')].map(i => i.value);
+        const drop = pickedAll(button.form, "bf-mastery-drop");
         void answerSwap(message, { drop });
       } }]
     });
@@ -478,8 +478,8 @@ async function showSwapPopup(message) {
     }),
     buttons: [
       { action: "ok", label: "OK", default: true, callback: (_event, button) => {
-        const out = button.form.querySelector('input[name="bf-mastery-remove"]:checked')?.value || null;
-        const picks = [...button.form.querySelectorAll('input[name="bf-mastery-pick"]:checked')].map(i => i.value);
+        const out = picked(button.form, "bf-mastery-remove") || null;
+        const picks = pickedAll(button.form, "bf-mastery-pick");
         if ( !picks.length ) { void answerSwap(message, { declined: true }); return; }
         // A removal takes the first pick as its replacement; the rest fill open slots.
         const into = out ? (picks.shift() ?? null) : null;

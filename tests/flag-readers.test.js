@@ -26,7 +26,7 @@ function doc(flags = {}, legacy = {}) {
 }
 
 /**
- * THE RECORDS ANOTHER UNIT READS (ARCHITECTURE §4): each reader answers one question
+ * THE RECORDS ANOTHER UNIT READS (ARCHITECTURE §4 *Who reads a record*): each reader answers one question
  * of a key it does not leave to its callers, and answers the empty shape for a document without the key.
  */
 describe("the receipt's readers (auto-apply.js)", () => {

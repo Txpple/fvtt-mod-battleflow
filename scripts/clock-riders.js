@@ -8,7 +8,7 @@ import { coatSaveAbility } from "./decide/chips.js";
 import { clockRiderEntries, listedNames } from "./decide/registry.js";
 import { forceStatus, grantingActor, hitTargets, poolOf, statSourceOf, turnChitStands, writeTurnChit, withTargets, attackIdOf, d20FoldSpends } from "./shared.js";
 import { applyActivityEffectsOnHit, applyItemEffectOnHit } from "./effect-riders.js";
-import { momentButton, registerResumable, registerOfferPart, postCard } from "./ui.js";
+import { momentButton, registerResumable, registerOfferPart, postCard, pickInputs } from "./ui.js";
 import { bfCard, optionAskHTML, riderMenuHTML, ruleLine, esc } from "./decide/present.js";
 import { CLOCK_RIDERS, answers } from "./decide/registry.js";
 import { riderDue, riderPartFormula, riderUsesFrom, standingForm, targetsAnswer } from "./decide/clock.js";
@@ -316,11 +316,11 @@ function clockRiderOfferParts(attackMessage, activity) {
       + riderMenuHTML(due.map(r => ({ key: r.key, label: r.label, formula: r.formula, says: r.says, type: r.type, why: r.why, rule: r.row.rule,
         usesLeft: r.usesLeft, caveat: r.row.caveat, unticked: !!r.row.unticked }))),
     wire(element) {
-      for ( const box of (element?.querySelectorAll('input[name="bf-rider"]') ?? []) ) {
+      for ( const box of pickInputs(element, "bf-rider") ) {
         box.addEventListener("change", () => { if ( box.checked ) chosen.add(box.value); else chosen.delete(box.value); });
       }
       for ( const a of asks ) {
-        for ( const radio of (element?.querySelectorAll(`input[name="bf-option-${a.featureId}"]`) ?? []) ) {
+        for ( const radio of pickInputs(element, `bf-option-${a.featureId}`) ) {
           radio.addEventListener("change", () => { if ( radio.checked ) options.set(a.featureId, radio.value); });
         }
       }
