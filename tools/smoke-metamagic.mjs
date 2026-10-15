@@ -343,11 +343,14 @@ const out = await f.evaluate(async ({ sections, titles, extra }) => {
         flags: { dnd5e: { activity: card.getFlag(MOD, 'saves')?.activityUuid ?? spellAct('Fireball').uuid } }
       }]);
       templates.push(tpl.id);
-      // The createRegion hook has already run when the create resolves; the re-render is the second road in.
-      try { ui.chat?.updateMessage?.(card); } catch { /* the next render adopts */ }
-      // The ask at the area lists everyone inside; the demand waits until OK. Soft: no popup is the `why`.
-      const askPopup = await until(() => { const d = popupFor(card.id, 'metamagicAsk'); return (d?.rendered && d.element?.querySelector?.('[data-bf-metamagic-ask]')) ? d : null; },
-        { timeout: 8000, label: 'the ask at the area' }).catch(() => null);
+      // The ask at the area lists everyone inside; the demand waits until OK. The createRegion hook is the first road
+      // to it; when it has not opened within a second, the card's re-render is the second. Soft: no popup is the `why`.
+      const askOpen = () => { const d = popupFor(card.id, 'metamagicAsk'); return (d?.rendered && d.element?.querySelector?.('[data-bf-metamagic-ask]')) ? d : null; };
+      let askPopup = await until(askOpen, { timeout: 1000 }).catch(() => null);
+      if (!askPopup) {
+        try { ui.chat?.updateMessage?.(card); } catch { /* the next render adopts */ }
+        askPopup = await until(askOpen, { timeout: 8000, label: 'the ask at the area' }).catch(() => null);
+      }
       const askRows = [...(askPopup?.element?.querySelectorAll('input[name="bf-metamagic-ask"]') ?? [])].map(i => ({ name: i.dataset.name, uuid: i.value, checked: i.checked, el: i, group: i.closest('[data-bf-ask-group]')?.dataset?.bfAskGroup ?? null, token: i.dataset.token }));
       const heldEmpty = !(card.getFlag(MOD, 'saves')?.targets?.length);
       // Everything waits on the answer: no damage dice, no damage popup, while the ask stands.

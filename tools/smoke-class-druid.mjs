@@ -71,6 +71,8 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
           const dragonForm = () => forms().some(n => /^Dragon Form/.test(n));
           const shape = async pick => {
             await clearForm(); await hgClose(/^Starry Form —/);
+            // The last pick's popup closes through a transition and carries the same labels the next pick looks for.
+            await until(() => !document.querySelector('.application.dialog input[name="bf-effect-pick"]'), { timeout: 3000, label: 'the last pick popup gone' }).catch(() => null);
             clericToken.control({ releaseOthers: true });
             game.user.targets.forEach(t => { t.setTarget(false, { releaseOthers: true }); });
             let res = await consumeAct().use({ subsequentActions: false }, { configure: false }, {});

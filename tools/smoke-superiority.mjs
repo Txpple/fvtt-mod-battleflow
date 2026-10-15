@@ -227,7 +227,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     const attackOf = item => item.system.activities.find(a => a.type === 'attack');
     const damageFor = originId => game.messages.contents.find(m => (m.type === 'damage')
       && (m._source.system?.origin === originId));
-    const offerEl = () => [...foundry.applications.instances.values()].map(a => a.element)
+    // ⚠ Rendered only: a closing offer stays registered, and on the page, through its close transition.
+    const offerEl = () => [...foundry.applications.instances.values()].filter(a => a.rendered).map(a => a.element)
       .find(el => (el?.innerHTML ?? '').includes('Damage — your roll')) ?? null;
     const rollDialog = () => [...foundry.applications.instances.values()]
       .find(app => /RollConfigurationDialog/.test(app.constructor?.name ?? '') && app.rendered && app.element && !app.element.querySelector('[data-bf-save-demand]')) ?? null;

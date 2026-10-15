@@ -387,7 +387,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       await set('holdTimer', 2);
       try {
         const s = await swing({ d20: 15, die: 3 });
-        await until(eitherPopup, { timeout: 6000 });
+        // The popup is the step before the clock, not what 8a asserts: its absence shows in 8a's record.
+        await until(eitherPopup, { timeout: 6000 }).catch(() => null);
         // The Decision Timer's buzzer is the clock here: its end is the record turning kept.
         const kept = await until(() => either(game.messages.get(s.dmg.id))?.status === 'kept', { timeout: 8000 });
         const receipt = await until(() => receiptOf(game.messages.get(s.dmg.id)), { timeout: 8000 });

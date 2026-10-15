@@ -240,8 +240,9 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
           faces([[1, 20], [1, 20]]);
           [...(row2?.querySelectorAll?.('button') ?? [])].find(b => textOf(b) === 'Mass Fear')?.click();
           const demand = await until(() => game.messages.contents.find(m => (m.timestamp >= t2) && m.getFlag(MOD, 'saves') && (m.id !== d2?.id) && (m.getFlag(MOD, 'saves')?.item?.name === "Stalker's Flurry")) ?? null, { timeout: 10000, label: 'Mass Fear\'s save demand' });
-          // The saves roll themselves on the pinned 1s and their Frightened lands before the dice go back.
-          await until(() => (demand.getFlag(MOD, 'saves')?.targets ?? []).every(t => t.applied), { timeout: 10000, label: 'Mass Fear\'s saves rolled and applied' });
+          // The saves roll themselves on the pinned 1s before the dice go back. The emanation asks everyone inside, an ally
+          // prompted too, and 72d reads only who was asked: an ask left open is tolerated.
+          await until(() => (demand.getFlag(MOD, 'saves')?.targets ?? []).every(t => t.applied), { timeout: 3000, label: 'Mass Fear\'s saves rolled and applied' }).catch(() => null);
           unrig();
           const targets = (demand?.getFlag(MOD, 'saves')?.targets ?? []).map(t => t.uuid);
           const since = game.messages.contents.filter(m => m.timestamp >= t2).map(m => [m.type, m.getFlag('dnd5e', 'item')?.type ?? null, Object.keys(m.flags?.[MOD] ?? {}).join('+'), (m.content ?? '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').slice(0, 60)]);
