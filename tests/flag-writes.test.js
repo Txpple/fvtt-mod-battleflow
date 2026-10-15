@@ -52,3 +52,82 @@ describe("markDeletions — a deleted key reaches the store", () => {
     expect(core.markDeletions({ a: 1 }, "x")).toBe("x");
   });
 });
+
+/** A document as the serializer sees it: the module's flags, read and written by scope and key. */
+function doc(id, flags = {}) {
+  const d = {
+    id,
+    flags: { [core.MODULE_ID]: flags },
+    writes: [],
+    getFlag: (scope, key) => d.flags[scope]?.[key],
+    setFlag: async (scope, key, value) => {
+      d.writes.push(value);
+      d.flags[scope] = { ...d.flags[scope], [key]: value };
+    }
+  };
+  return d;
+}
+
+/**
+ * THE SERIALIZER'S INITIAL SHAPE (core.js `queueFlagWrite`, ARCHITECTURE §11 *Converting a write to
+ * the serializer* rule 6): a list or a map on an effect or a region starts from `[]` or `{}`, not
+ * from the per-target default.
+ */
+describe("queueFlagWrite — the flag's shape when the document has none", () => {
+  beforeAll(() => {
+    globalThis.foundry = { utils: { deepClone: v => structuredClone(v) } };
+  });
+
+  it("starts a per-target flag from { targets: [] } by default", async () => {
+    const d = doc("a");
+    await core.queueFlagWrite(d, "hold", current => {
+      current.targets.push({ uuid: "x" });
+    });
+    expect(d.writes).toEqual([{ targets: [{ uuid: "x" }] }]);
+  });
+
+  it("starts a list from [] and appends to what is stored next time", async () => {
+    const d = doc("b");
+    await core.queueFlagWrite(
+      d,
+      "rerollUsed",
+      used => {
+        used.push("k1");
+      },
+      { initial: [] }
+    );
+    await core.queueFlagWrite(
+      d,
+      "rerollUsed",
+      used => {
+        used.push("k2");
+      },
+      { initial: [] }
+    );
+    expect(d.writes).toEqual([["k1"], ["k1", "k2"]]);
+  });
+
+  it("starts a map from {} and keeps the keys already stored", async () => {
+    const d = doc("c", { recoiled: { a: 1 } });
+    await core.queueFlagWrite(
+      d,
+      "recoiled",
+      m => {
+        m.b = 2;
+      },
+      { initial: {} }
+    );
+    expect(d.writes).toEqual([{ a: 1, b: 2 }]);
+  });
+
+  it("skips the write when the callback returns false", async () => {
+    const d = doc("d", { areas: ["r1"] });
+    await core.queueFlagWrite(
+      d,
+      "areas",
+      areas => (areas.includes("r1") ? false : areas.push("r1")),
+      { initial: [] }
+    );
+    expect(d.writes).toEqual([]);
+  });
+});

@@ -219,7 +219,12 @@ carry them, so they keep the old short form.
    Read-modify-write on a shared flag is only correct when writes are sequential, and
    per-target independence makes them overlap by design. A lost merge entry is two faults at
    once: the card under-reports, *and* the receipt is the idempotence guard, so the consequence
-   applies a second time.
+   applies a second time. The same holds off chat — a map or a list on an effect or a region
+   (`recoiled`, `rerollUsed`, `areas`, the region's `initial`) is edited under the serializer, with
+   `initial` naming its empty shape. **The static proof is `npm run serializer`**
+   ([tools/check-serializer.mjs](tools/check-serializer.mjs)): a raw `setFlag` of a module flag is a
+   birth stamp, or it fails — outright when the flag is also written through the serializer, else
+   unless pinned as a one-writer flag (§11 rule 3) with its reason.
 3. **The flag is the state; the popup and the card row are views.** Any view must be
    reconstructable from the flag alone after a reload, on any client.
 4. **Every write that changes the world stamps a receipt** carrying prior values, so revert is
@@ -349,6 +354,7 @@ to §10 only if the reason stops being true.
 | **A revert restores the receipt's recorded prior HP**, not a delta. Healing that landed on that target AFTER the receipt is lost on revert. | Prior values are exact; a delta is not once resistances, temp HP and a 0-HP floor are in play (`takenOf`). The reroll case folds into the entry (law 4). |
 | **Damage lands before its receipt.** `applyDamagesWithReceipt` applies per target, then writes the receipt once. A GM client that dies inside that gap re-applies on resume. | The gap is milliseconds on one client; closing it costs a second DB write per target on every hit. The in-memory `claimedShares` and the `attackDamage` latch cover the live cases. |
 | **Two short in-memory windows exist** despite "no session state": Riposte's armed die (60 s, riposte.js) and the concentration cause for Mage Slayer's Disadvantage (3 s, concentration.js). | Each is a reminder-grade fact, never HP or a resource. A reload inside the window drops one hint. Persisting them would be a flag write per hit for nothing a table has noticed. |
+| **The metamagic pick lives in memory between the dialog and the card** (metamagic.js `pending` and `freePending`, keyed by the activity): the tick in the Cast dialog waits for the usage card to be born, and the dialog's close sweeps an unborn pick after 3 s. | The card does not exist while the dialog is open, so there is nothing to write the pick on; the stamp refuses a pick older than five minutes, and a cancelled dialog's pick must not land on the next cast. A reload between Cast and the card loses the tick, and the menu asks again. |
 | **Deadlines are stamped and judged with each client's own clock** (`Date.now()`, never `game.time.serverTime`). A skew of ten minutes or more between machines disables a timer through `deadlineIsLive` rather than misfiring it. | The ceiling was chosen so a wrong clock fails SAFE (no buzzer) instead of rolling dice for a fight that ended. Server time would buy accuracy under skew nobody has measured at the table. |
 | **Some reads scan the whole chat log** (`demandCards`, `holdPendingFor`, `answerHoldsFor`, the riposte and bash-offer lookups). Work grows with the age of a world. | A tail misses: one round can emit dozens of messages (answer.js). Parked in BACKLOG with the un-parking condition. |
 | **The dispatcher catches synchronous errors only.** An async handler that rejects logs its own error. | Every async handler owns its try/catch by convention; awaiting them in the dispatcher would serialize hooks the platform fires synchronously. |
@@ -1146,7 +1152,7 @@ ids stay because code comments cite them.
 | **D6** | the `ui.js` ↔ `hold.js` cycle | closed 2026-08-23 — the view rule, §7; the two remaining cycles are permanent (*Decided against*, below) |
 | **D7** | no static gate | closed 2026-08-23 — `npm run verify`, the type checker over `decide/` and, since 2026-09-28, the damage chain |
 | **D8** | post-roll folds as one feature's special case | closed 2026-08-23 — `ATTACK_FOLDS` / `SAVE_FOLDS`; §11 *Adding a FOLD* |
-| **D9** | machine → machine import edges | (a) (b) repaid 2026-08-23, (c) (d) 2026-09-05, (f) 2026-09-04 (§7 *The offer's contributions*); what stands is parked — BACKLOG *The two sideways edges*, *Two clock residues*; `npm run layers` is the evidence |
+| **D9** | machine → machine import edges | (a) (b) repaid 2026-08-23, (c) (d) 2026-09-05, (f) 2026-09-04 (§7 *The offer's contributions*); what stands is parked — BACKLOG *The two sideways edges*, *Two clock residues*; `npm run layers` reports the one surviving edge (`saves/verdict.js → receipts.js`) as PARKED, not OPEN, since 2026-10-15 |
 | **D10** | a hook name the system never dispatches | closed 2026-08-23 — `npm run dispatch`, §9 *The API-drift rule* |
 | **D11** | nothing proved a registered handler ever ran | measured, not a gate — `hook-coverage.mjs` + `claim-proof.mjs`; reading them is the standing obligation, §11 *Adding a TEST* rule 6 |
 | **D12** | Foundry 14 never dispatches the `*MeasuredTemplate` hooks | closed 2026-09-16 — the 6.0 pass made every area a Region and the registrations left with the pin (515379f); §9, the Regions row |
@@ -1176,7 +1182,11 @@ something structural is genuinely failing a rule, with the rule and the evidence
    stored flag and writes the platform's `"-=x": null` for every key that went missing
    (`markDeletions`). Objects recurse; an array is replaced whole.
 5. `hold`, `receipt` and `effectReceipt` have ONE write path: `npm run writers` fails a
-   `setFlag` of any of them that is not a stamp (a fresh object literal).
+   `setFlag` of any of them that is not a stamp (a fresh object literal). Every other flag:
+   `npm run serializer` fails a raw `setFlag` built on what was read (§4 law 2); a one-writer
+   flag that stays raw (rule 3) is pinned there, by file, function and flag, with its reason.
+6. A flag that is a list or a map (an effect's `rerollUsed`, a region's `initial`) passes
+   `initial` — `[]` or `{}` — so the first write starts from the right shape.
 
 **Adding a RECORD** (a new flag key the module writes — a moment's state, a resolve, a fingerprint):
 1. `npm run moments` fails until the key is classified in [decide/moments.js](scripts/decide/moments.js):

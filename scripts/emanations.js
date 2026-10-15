@@ -217,8 +217,11 @@ async function reconcileAuraNow(group, gone) {
       if ( have.length > 1 ) await actor.deleteEmbeddedDocuments("ActiveEffect", have.slice(1).map(e => e.id));
       if ( have.length ) {
         // A copy missing its group or row key learns them, so it outlives the region it names.
-        const f = readFlag(have[0], FLAG);
-        if ( (f.group !== group) || (f.key !== row.key) ) await have[0].setFlag(MODULE_ID, FLAG, { ...f, group, key: row.key });
+        await queueFlagWrite(have[0], FLAG, current => {
+          if ( (current.group === group) && (current.key === row.key) ) return false;
+          current.group = group;
+          current.key = row.key;
+        });
         continue;
       }
       await actor.createEmbeddedDocuments("ActiveEffect", [memberEffectData(row, sys.effect,
@@ -620,7 +623,10 @@ async function choosePick(card, choice) {
   const flag = readFlag(card, "emanationPick");
   if ( !flag || flag.picked || !flag.candidates?.some(c => c.tokenId === choice.tokenId) ) return;
   if ( card.canUserModify?.(game.user, "update") ) {
-    await card.setFlag(MODULE_ID, "emanationPick", { ...flag, picked: choice });
+    await queueFlagWrite(card, "emanationPick", current => {
+      if ( current.picked || !current.candidates?.some(c => c.tokenId === choice.tokenId) ) return false;
+      current.picked = choice;
+    });
     return;
   }
   await ChatMessage.create({ whisper: [game.user.id], speaker: { alias: TITLE }, content: `<p>${esc(choice.name)}</p>`,
@@ -825,9 +831,11 @@ async function pulse(region, row, token, sys) {
 
 /** Drop a token from the region's "asked at the cast" record. */
 async function forgetInitial(region, token) {
-  const f = flagOf(region);
-  if ( !token || !f?.initial?.includes(token.id) ) return;
-  await region.setFlag(MODULE_ID, FLAG, { ...f, initial: f.initial.filter(id => id !== token.id) }).catch(() => {});
+  if ( !token || !flagOf(region)?.initial?.includes(token.id) ) return;
+  await queueFlagWrite(region, FLAG, current => {
+    if ( !current.initial?.includes(token.id) ) return false;
+    current.initial = current.initial.filter(id => id !== token.id);
+  }).catch(() => {});
 }
 
 /** Make a Region this module's emanation: flagged (with who stood inside), given the behaviour, attached. */
@@ -1359,8 +1367,11 @@ listen("dnd5e.postUseActivity", "emanations", async (activity, _usageConfig, res
       ?? actor.effects.filter(e => e.statuses?.has?.("concentrating") && (e.flags?.dnd5e?.activity?.uuid === activity.uuid)).at(-1)
       ?? null;
     if ( !effect ) return;
-    const prior = readFlag(effect, AREAS_FLAG) ?? [];
-    await effect.setFlag(MODULE_ID, AREAS_FLAG, [...new Set([...prior, ...regions.map(r => r.uuid)])]);
+    await queueFlagWrite(effect, AREAS_FLAG, areas => {
+      const added = regions.map(r => r.uuid).filter(uuid => !areas.includes(uuid));
+      if ( !added.length ) return false;
+      areas.push(...added);
+    }, { initial: [] });
   } catch(err) {
     console.warn(`${TITLE} | Could not tie a cast's area to its concentration — the area may outlive the spell.`, err);
   }

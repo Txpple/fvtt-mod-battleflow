@@ -219,9 +219,11 @@ export function momentAcknowledged(message, flagKey) {
 export async function acknowledgeMoment(message, flagKey) {
   if ( momentAcknowledged(message, flagKey) ) return;
   if ( message.isOwner ) {
-    const flag = foundry.utils.deepClone(readFlag(message, flagKey) ?? {});
-    flag.acknowledged = true;
-    await message.setFlag(MODULE_ID, flagKey, flag);   // the update re-renders every client
+    // The update re-renders every client.
+    await queueFlagWrite(message, flagKey, current => {
+      if ( current.acknowledged ) return false;
+      current.acknowledged = true;
+    }, { initial: {} });
     return;
   }
   // ⚠ The ack must TRAVEL, or the elect's card drains to timeout.

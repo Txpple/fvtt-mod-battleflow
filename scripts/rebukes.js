@@ -420,7 +420,7 @@ listen("dnd5e.renderChatMessage", "rebukes", (message, html) => {
           if ( !act ) continue;
           row.appendChild(momentButton(name, () => void (async () => {
             await act.use({}, { configure: false }, {});
-            if ( message.canUserModify?.(game.user, "update") ) await message.setFlag(MODULE_ID, REBUKE_FLAG, { ...readFlag(message, REBUKE_FLAG), followed: name });
+            if ( message.canUserModify?.(game.user, "update") ) await queueFlagWrite(message, REBUKE_FLAG, current => { current.followed = name; });
           })().catch(err => console.error(`${TITLE} | ${name} could not be used — use it from the sheet.`, err))));
         }
         div.appendChild(row);

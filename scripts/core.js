@@ -258,13 +258,18 @@ export function markDeletions(before, after) {
 const flagWrites = new Map();
 
 /**
- * Edit `message`'s `key` flag in place (deep clone, default `{ targets: [] }`) under a lock.
- * ⚠ Return `false` to SKIP the write, or a render-hook writer loops.
+ * Edit `message`'s `key` flag in place (deep clone) under a lock; any document with flags will do.
+ * `initial` is the flag's shape when the document has none yet (default `{ targets: [] }`; `[]` for
+ * a list, `{}` for a map). ⚠ Return `false` to SKIP the write, or a render-hook writer loops.
+ * @param {any} message
+ * @param {string} key
+ * @param {(current: any) => (void|boolean)} mutate
+ * @param {{ initial?: any }} [opts]
  */
-export function queueFlagWrite(message, key, mutate) {
+export function queueFlagWrite(message, key, mutate, { initial = { targets: [] } } = {}) {
   const lock = `${message.id}|${key}`;
   const run = async () => {
-    const before = readFlag(message, key) ?? { targets: [] };
+    const before = readFlag(message, key) ?? initial;
     const current = foundry.utils.deepClone(before);
     if ( mutate(current) === false ) return;
     await message.setFlag(MODULE_ID, key, markDeletions(before, current));

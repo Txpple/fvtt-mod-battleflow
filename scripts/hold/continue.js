@@ -232,7 +232,9 @@ async function rollDuplicates(attackMessage, target) {
       const absorbed = (total !== null) && (total < s.dc);
       const effect = actor.effects.get(s.effectId);
       // ⚠ A uuid's dots would expand into nested keys on the flag: the stamp is keyed by the uuid with its dots folded.
-      if ( effect && s.turn && attacker?.uuid ) await effect.setFlag(MODULE_ID, "recoiled", { ...(readFlag(effect, "recoiled") ?? {}), [recoilKey(attacker.uuid)]: s.turn }).catch(() => {});
+      if ( effect && s.turn && attacker?.uuid ) {
+        await queueFlagWrite(effect, "recoiled", current => { current[recoilKey(attacker.uuid)] = s.turn; }, { initial: {} }).catch(() => {});
+      }
       target.duplicates = { ...d, faces: [], winner: null, absorbed, took: null, left: 1, of: 1, at: null, die: null, feature: true,
         save: { ability: s.ability, dc: s.dc, total } };
       if ( absorbed ) target.verdict = "absorbed";

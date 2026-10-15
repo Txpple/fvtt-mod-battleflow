@@ -433,8 +433,11 @@ async function runConsequences(damageMessage, record) {
       if ( !item ) continue;
       await consequencesOf(damageMessage, hm, { attackMessage, attacker, hits, tokens, item, notes });
     }
-    await damageMessage.setFlag(MODULE_ID, "hitManeuver", { ...record, done: true, ...(notes.length ? { notes: [...(record.notes ?? []), ...notes] } : {}) })
-      .catch(() => { /* the latch above holds for this session */ });
+    await queueFlagWrite(damageMessage, "hitManeuver", current => {
+      if ( current.done ) return false;
+      current.done = true;
+      if ( notes.length ) current.notes = [...(current.notes ?? []), ...notes];
+    }).catch(() => { /* the latch above holds for this session */ });
   } catch(err) {
     console.error(`${TITLE} | The maneuver's consequences failed — use the feature's activity by hand.`, err);
   }

@@ -282,8 +282,10 @@ const REROLL = {
       if ( message ) await message.setFlag(MODULE_ID, "poolSpend", record);
     }
     if ( (marker.row.once === "rage") && marker.rage ) {
-      const used = readFlag(marker.rage, "rerollUsed") ?? [];
-      await marker.rage.setFlag(MODULE_ID, "rerollUsed", [...used, marker.key]);
+      await queueFlagWrite(marker.rage, "rerollUsed", used => {
+        if ( used.includes(marker.key) ) return false;
+        used.push(marker.key);
+      }, { initial: [] });
     }
     return true;
   }

@@ -810,9 +810,12 @@ listen("dnd5e.renderChatMessage", "clock-riders", (message, html) => {
       row.appendChild(momentButton("Use it", () => void (async () => {
         const token = attacker.getActiveTokens?.()?.[0] ?? null;
         await withTargets(token ? [token] : [], () => act.use({}, { configure: false }, {}));
-        const current = readFlag(message, "clockRiders");
-        if ( current && message.canUserModify?.(game.user, "update") ) {
-          await message.setFlag(MODULE_ID, "clockRiders", { ...current, riders: current.riders.map(x => (x.key === r.key) ? { ...x, offerUsed: true } : x) });
+        if ( message.canUserModify?.(game.user, "update") ) {
+          await queueFlagWrite(message, "clockRiders", current => {
+            const rider = current.riders?.find(x => x.key === r.key);
+            if ( !rider || rider.offerUsed ) return false;
+            rider.offerUsed = true;
+          });
         }
       })().catch(err => console.error(`${TITLE} | ${r.offers.activity} could not be used — use it from the sheet.`, err))));
       content.appendChild(row);

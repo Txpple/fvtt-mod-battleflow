@@ -201,7 +201,8 @@ export const groupOf = rel => (rel.includes("/") && GROUPS[rel.split("/")[0]]) ?
 /* ---------------------------------------------------------------------------------------------
  * The allowlist: every edge that is not strictly downward, and why. ⚠ A row is a decision:
  *   PERMANENT — ruled permanent (ARCHITECTURE *Decided against, and why*). Do not "fix" these.
- *   OPEN      — real debt (ARCHITECTURE §10 D9).
+ *   OPEN      — real debt: an ARCHITECTURE §10 row names it.
+ *   PARKED    — a sideways edge kept on purpose until a named condition (BACKLOG *The two sideways edges*; §10 D9).
  *   BY DESIGN — correct at this layering, nothing to repay.
  * ------------------------------------------------------------------------------------------- */
 
@@ -269,9 +270,10 @@ const ALLOW = [
       + "cannot live in decide/; a third surface reading it is the argument for a spine home"
   },
   {
-    from: "saves/verdict.js", to: "receipts.js", disposition: "OPEN (D9)",
+    from: "saves/verdict.js", to: "receipts.js", disposition: "PARKED (D9)",
     why: "revertTarget, for the legendary-resistance unwind. receipts.js is classed a machine "
-      + "because revertTarget has exactly one importer; a second one makes it a service"
+      + "because revertTarget has exactly one importer; a second one makes it a service "
+      + "(BACKLOG *The two sideways edges*: un-parked by that second importer)"
   },
 ];
 
@@ -419,6 +421,7 @@ function main() {
       + `${sites.length}× ${forms}`);
   }
   const open = ALLOW.filter(a => a.disposition.startsWith("OPEN")).length;
+  const parked = ALLOW.filter(a => a.disposition.startsWith("PARKED")).length;
   console.log(`\nPASS every edge is downward or pinned (${files.length} files, ${edges.length} edges, `
-    + `${ALLOW.length} pinned pairs, ${open} of them OPEN debt — ARCHITECTURE §10 D9).`);
+    + `${ALLOW.length} pinned pairs, ${open} of them OPEN debt, ${parked} parked in BACKLOG — ARCHITECTURE §10 D9).`);
 }
