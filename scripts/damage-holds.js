@@ -20,8 +20,7 @@ import { poolOf, poolUsesOf, reactionSpent, spendReaction, spendSuperiorityDie, 
   bystanderMuted, muteBystander, muteScopesFor } from "./shared.js";
 import { applyDamagesWithReceipt, registerDamageClaim } from "./auto-apply.js";
 import { bfCard, esc, holdBarHTML, popupKey, ruleLine, tickRowsHTML } from "./decide/present.js";
-import { livePopups, openMomentPopup, momentButton, scheduleBarSync, shownMoments,
-  armAskTimer, disarmAskTimer, keeperOwns, registerRelay, registerResumable } from "./ui.js";
+import { livePopups, openMomentPopup, armAskTimer, disarmAskTimer, keeperOwns, registerRelay, registerResumable, pendingRow } from "./ui.js";
 import { SURFACES } from "./surfaces.js";
 import { listen } from "./dispatch.js";
 
@@ -535,17 +534,15 @@ listen("dnd5e.renderChatMessage", "damage-holds", (message, html) => {
     div.style.cssText = "margin:0.25rem 0;font-size:var(--font-size-11,11px);opacity:0.85;";
     div.innerHTML = `<i class="fa-solid fa-shield-halved" data-tooltip="${esc(flag.label ?? flag.reaction)}"></i> ${esc(holdLine(flag))}`;
     if ( flag.status === "pending" ) {
-      div.insertAdjacentHTML("beforeend", ` ${holdBarHTML(flag, "to answer")}`);
       const actor = resolveUuid(flag.actorUuid);
       const mayAnswer = flag.guards?.length
         ? flag.guards.some(g => !g.passed && canAnswerFor(resolveUuid(g.actorUuid))) : canAnswerFor(actor);
-      if ( mayAnswer ) {
-        const shown = popupKey(message.id, HOLD_FLAG);
-        if ( !shownMoments.has(shown) ) { shownMoments.add(shown); void showPopup(message); }
-        div.appendChild(momentButton("Answer", () => { void showPopup(message); }));
-      }
-      scheduleBarSync(div);
-      armTimer(message);
+      pendingRow(message, div, {
+        bar: holdBarHTML(flag, "to answer"),
+        latch: mayAnswer && { sub: HOLD_FLAG, show: () => showPopup(message) },
+        answer: mayAnswer && "Answer",
+        arm: armTimer
+      });
     }
     content.appendChild(div);
   } catch(err) { console.warn(`${TITLE} | The damage hold's line could not render.`, err); }

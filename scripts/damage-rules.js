@@ -17,8 +17,7 @@ import { riseDice, driftChip } from "./dice-rise.js";
 import { withTargets, resolveAttackMessage, turnChitStands, writeTurnChit } from "./shared.js";
 import { attackMessageForDamage } from "./auto-damage.js";
 import { grappledBy, tokenForUuid } from "./geometry.js";
-import { openMomentPopup, momentButton, armAskTimer, disarmAskTimer, keeperOwns, livePopups, shownMoments, scheduleBarSync,
-  registerRelay } from "./ui.js";
+import { openMomentPopup, momentButton, armAskTimer, disarmAskTimer, keeperOwns, livePopups, registerRelay, pendingRow } from "./ui.js";
 import { listen, listenOnce } from "./dispatch.js";
 
 const STYLE_FLAG = "fightingStyle";            // a damage message's record — and a face's own key
@@ -729,14 +728,13 @@ listen("dnd5e.renderChatMessage", "damage-rules", (message, html) => {
       ? ((flag.answer === "deal") ? `Unarmed Fighting — 1d4 to ${pickName}${flag.timedOut ? " (timer)" : ""}` : `Unarmed Fighting — skipped${flag.timedOut ? " (timer)" : ""}`)
       : "Unarmed Fighting — waiting for the answer");
     if ( flag.status === "pending" ) {
-      div.insertAdjacentHTML("beforeend", ` ${holdBarHTML(flag, "to answer")}`);
-      if ( canAnswerFor(resolveUuid(flag.actorUuid)) ) {
-        const shown = popupKey(message.id, GRAPPLE_FLAG);
-        if ( !shownMoments.has(shown) ) { shownMoments.add(shown); void showGrapplePopup(message); }
-        div.appendChild(momentButton("Answer", () => { void showGrapplePopup(message); }));
-      }
-      scheduleBarSync(div);
-      armGrappleTimer(message);
+      const may = canAnswerFor(resolveUuid(flag.actorUuid));
+      pendingRow(message, div, {
+        bar: holdBarHTML(flag, "to answer"),
+        latch: may && { sub: GRAPPLE_FLAG, show: () => showGrapplePopup(message) },
+        answer: may && "Answer",
+        arm: armGrappleTimer
+      });
     }
     content.appendChild(div);
   } catch(err) { console.warn(`${TITLE} | Unarmed Fighting's line could not render.`, err); }

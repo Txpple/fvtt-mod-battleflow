@@ -13,10 +13,10 @@
 import { MODULE_ID, readFlag, TITLE, isActiveGM, queueFlagWrite, canAnswerFor, statContext } from "./core.js";
 import { cardItem, lower, resolveUuid } from "./lookup.js";
 import { allowanceOf, fillPicks, recordState, missingPick, restList, trimList } from "./decide/mastery-record.js";
-import { TONE, bfCard, esc, foldedRuleHTML, popupKey } from "./decide/present.js";
+import { TONE, bfCard, esc, foldedRuleHTML } from "./decide/present.js";
 import { CARD, isCard, masteryOf } from "./decide/card.js";
 import { isPartyMember, masteryLabel } from "./shared.js";
-import { openMomentPopup, momentButton, shownMoments, registerRelay, registerResumable, acknowledgeMoment, momentAcknowledged } from "./ui.js";
+import { openMomentPopup, registerRelay, registerResumable, acknowledgeMoment, momentAcknowledged, pendingRow } from "./ui.js";
 import { messageActivity } from "./effect-riders.js";
 import { SURFACES } from "./surfaces.js";
 import { listen } from "./dispatch.js";
@@ -285,10 +285,7 @@ function drawFeature(message, html) {
   const row = document.createElement("div");
   row.className = "bythebooks-mastery-record";
   row.innerHTML = bfCard({ img: item.img, eyebrow: "Weapon Mastery", tone: "neutral", title: `${actor.name} has these masteries`, subtitle: standingLine(r), lines: [allowanceHTML(actor), slotListHTML(kindRows(r), r.allowance)] });
-  if ( canAnswerFor(actor) ) {
-    const shownKey = popupKey(message.id, "masteryShow");
-    if ( !shownMoments.has(shownKey) ) { shownMoments.add(shownKey); void showRecordPopup(message, actor, item.img); }
-  }
+  pendingRow(message, row, { latch: canAnswerFor(actor) && { sub: "masteryShow", show: () => showRecordPopup(message, actor, item.img) } });
   html.querySelector(SURFACES.messageContent)?.appendChild(row);
 }
 
@@ -533,9 +530,7 @@ function drawSwap(message, html, flag) {
   const actor = resolveUuid(flag.actorUuid);
   if ( flag.status === "pending" ) {
     if ( !canAnswerFor(actor) ) return;
-    const shownKey = popupKey(message.id, MASTERY_SWAP_FLAG);
-    if ( !shownMoments.has(shownKey) ) { shownMoments.add(shownKey); void showSwapPopup(message); }
-    row.appendChild(momentButton("Answer", () => { void showSwapPopup(message); }, { margin: "0.25rem 0 0" }));
+    pendingRow(message, row, { latch: { sub: MASTERY_SWAP_FLAG, show: () => showSwapPopup(message) }, answer: { style: { margin: "0.25rem 0 0" } } });
     html.querySelector(SURFACES.messageContent)?.appendChild(row);
     return;
   }
@@ -548,9 +543,7 @@ function drawSwap(message, html, flag) {
   html.querySelector(SURFACES.messageContent)?.appendChild(row);
   // The owner acknowledges the change once (ARCHITECTURE.md §5 law 3); the card recalls a dismissed popup.
   if ( canAnswerFor(actor) && !momentAcknowledged(message, MASTERY_SWAP_FLAG) ) {
-    const shownKey = popupKey(message.id, "masteryDone");
-    if ( !shownMoments.has(shownKey) ) { shownMoments.add(shownKey); void showSwapDone(message, flag); }
-    row.appendChild(momentButton("OK", () => { void showSwapDone(message, flag); }, { margin: "0.25rem 0 0" }));
+    pendingRow(message, row, { latch: { sub: "masteryDone", show: () => showSwapDone(message, flag) }, answer: { label: "OK", style: { margin: "0.25rem 0 0" } } });
   }
 }
 

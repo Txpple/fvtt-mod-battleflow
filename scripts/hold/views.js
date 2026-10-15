@@ -5,11 +5,11 @@
  */
 import { readFlag, TITLE, S, setting, canAnswerFor, isContinuingClient } from "../core.js";
 import { INTERRUPT_REDUCTIONS, INTERRUPT_ROLLS } from "../decide/registry.js";
-import { bfCard, popupKey, holdBarHTML, ruleLine, spendLine, spendPhrase, tickRowsHTML, esc } from "../decide/present.js";
+import { bfCard, holdBarHTML, ruleLine, spendLine, spendPhrase, tickRowsHTML, esc } from "../decide/present.js";
 import { bentLines, d20ModeOf, dieMaxOf, futileGuardLine, guardRow, guardSign, liveRows, neededOnDieLine, neutraliseOutcome, rescueTitle } from "../decide/rescue-hit.js";
 import { duplicateWords } from "../decide/duplicates.js";
 import { muteScopesFor, poolOf, resolveAttackMessage } from "../shared.js";
-import { openMomentPopup, momentButton, scheduleBarSync, shownMoments } from "../ui.js";
+import { openMomentPopup, momentButton, pendingRow, forgetShown } from "../ui.js";
 import { reactionItem, reactionImg, reactionACBonus, rescueRowsNow } from "./lookup.js";
 import { armHoldTimer } from "./clock.js";
 import { answerHold, castReaction, rescueReaction, protectReaction, bystanderReaction, muteAndPass, useAtZero } from "./answer.js";
@@ -185,12 +185,11 @@ listen("dnd5e.renderChatMessage", "hold/views", (message, html) => {
       block.innerHTML = bfCard({
         img: reactionImg(actor, target.reaction, target),
         eyebrow, title, subtitle, lines, tone
-      }) + holdBarHTML(hold);
-      scheduleBarSync(block);
+      });
+      // A reload lands here with the hold open: re-arm the buzzer from the flag's deadline.
+      pendingRow(message, block, { bar: holdBarHTML(hold), arm: (hold.status === "pending") && armHoldTimer });
 
       if ( hold.status !== "pending" ) return;
-      // A reload lands here with the hold open: re-arm the buzzer from the flag's deadline.
-      armHoldTimer(message);
       if ( !target.answer ) appendBystanderRows(block, message, target);
       const selfOpen = (target.selfAsk !== false) && !target.selfPassed && canAnswerFor(actor);
       const guardOpen = (target.guards ?? []).some(g => !g.passed && canAnswerFor(resolveUuid(g.uuid)));
@@ -201,10 +200,10 @@ listen("dnd5e.renderChatMessage", "hold/views", (message, html) => {
       Object.assign(controls.style, {
         display: "flex", gap: "0.3rem", marginTop: "0.4rem", justifyContent: "flex-end"
       });
-      controls.append(momentButton("Answer", () => {
-        shownMoments.delete(popupKey(message.id, "hold"));
-        void showHoldPopup(message, readFlag(message, "hold"));
-      }, { flex: "0 0 auto", margin: "0", padding: "0 0.4rem", fontSize: "inherit", lineHeight: "1.4" }));
+      pendingRow(message, controls, { answer: {
+        style: { flex: "0 0 auto", margin: "0", padding: "0 0.4rem", fontSize: "inherit", lineHeight: "1.4" },
+        show: () => { forgetShown(message, "hold"); return showHoldPopup(message, readFlag(message, "hold")); }
+      } });
       block.append(controls);
     });
   }
@@ -216,11 +215,7 @@ listen("dnd5e.renderChatMessage", "hold/views", (message, html) => {
     && isContinuingClient(hold) ) void continueHold(message);
 
   // Closing the popup is not an answer; the row is the durable state.
-  const shownKey = popupKey(message.id, "hold");
-  if ( (hold.status === "pending") && !shownMoments.has(shownKey) ) {
-    shownMoments.add(shownKey);
-    void showHoldPopup(message, hold);
-  }
+  pendingRow(message, row, { latch: (hold.status === "pending") && { sub: "hold", show: () => showHoldPopup(message, hold) } });
 });
 
 /**

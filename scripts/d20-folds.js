@@ -12,13 +12,13 @@ import { ruleHTML } from "./rule-text.js";
 import { answers, d20FoldEntries, metamagicEntries, listedNames } from "./decide/registry.js";
 import { activityNamed, cardActivity, featureNamed, itemNamed, itemsNamed, lower, resolveUuid, resolveDie, rerollD20, wieldedNamed, wornNamed } from "./lookup.js";
 import { grantingActor, hitTargets, poolSpendsOn, poolOf, spendPoolUses, turnChitStands, writeTurnChit } from "./shared.js";
-import { bfCard, holdBarHTML, momentBarHTML, popupKey, ruleLine, spendPhrase, RESCUE_KINDS, rescueLabel, rescueView, rescueSourceFor }
-  from "./decide/present.js";
+import { bfCard, holdBarHTML, momentBarHTML, ruleLine, spendPhrase, RESCUE_KINDS, rescueLabel, rescueView, rescueSourceFor } from "./decide/present.js";
 import { ATTACK_FOLDS, SAVE_FOLDS, foldsFrom, foldedRoll, foldedVerdict } from "./decide/verdict.js";
 import { ADVANTAGE_BUYS, D20_FLOORS, REROLLS, SAVE_SUCCEEDS, SUPERIORITY_FOLDS, TACTICAL_FOLDS, d20FloorEntries } from "./decide/registry.js";
 import { CHIP_FLAG } from "./decide/chips.js";
 import { foldRise } from "./decide/dice-chips.js";
-import { cardRow, momentButton, scheduleBarSync, armAskTimer, disarmAskTimer, electOwns, openMomentPopup, shownMoments, acknowledgeMoment, momentAcknowledged, registerRescue, syncRescuePopup, pendingDemandsFor, registerWithhold, resumeWithheld, dramaticVerdictPause } from "./ui.js";
+import { cardRow, armAskTimer, disarmAskTimer, electOwns, openMomentPopup, acknowledgeMoment, momentAcknowledged, registerRescue, syncRescuePopup,
+  pendingDemandsFor, registerWithhold, resumeWithheld, dramaticVerdictPause, pendingRow } from "./ui.js";
 import { offerDamageRoll, registerMissWait, rollDamageForAttack } from "./auto-damage.js";
 import { activityUuidOf, originData, targetsOf } from "./decide/card.js";
 import { listen } from "./dispatch.js";
@@ -935,22 +935,20 @@ listen("dnd5e.renderChatMessage", "d20-folds", cardRow((message, host) => {
         subtitle: `${actor?.name ?? ""} · ${testKindPhrase(flag)}`,
         tone: "pending",
         lines: offerLines(flag, offers)
-      }) + holdBarHTML(flag, "to answer");
-      scheduleBarSync(block);
+      });
       host.append(block);
 
       // ⚠ The elect arms HERE too: a player's stamp runs where `armAskTimer` is a no-op, so this
       // render is the clock owner's first sight (and the re-arm after a reload).
-      armFoldTimer(message);
+      pendingRow(message, block, { bar: holdBarHTML(flag, "to answer"), arm: armFoldTimer });
 
       if ( !canAnswerFor(actor) ) return;      // spectators get the card, not the controls
       const controls = document.createElement("div");
       Object.assign(controls.style, {
         display: "flex", gap: "0.3rem", marginTop: "0.4rem", justifyContent: "flex-end"
       });
-      controls.append(momentButton("Answer", () => {
-        syncRescuePopup(message, { recall: true });
-      }, { flex: "0 0 auto", margin: "0", padding: "0 0.4rem", fontSize: "inherit", lineHeight: "1.4" }));
+      pendingRow(message, controls, { answer: { show: () => syncRescuePopup(message, { recall: true }),
+        style: { flex: "0 0 auto", margin: "0", padding: "0 0.4rem", fontSize: "inherit", lineHeight: "1.4" } } });
       block.append(controls);
 
       // EVERY offer pops, timed or not; an untimed one has no bar.
@@ -1283,14 +1281,14 @@ listen("dnd5e.renderChatMessage", "d20-folds", cardRow((message, host) => {
   line.innerHTML = bfCard({ img: t.itemImg, eyebrow: `Maneuver — ${t.name}`, tone: t.spent ? "good" : "pending",
     title: t.spent ? `${t.name} — +${t.total} added: ${t.spent.base} + ${t.total} = ${t.spent.total}`
       : `${t.name} — the die rolled ${t.total}; pick the check (${article(t.what)} ${t.what})`,
-    subtitle: spendPhrase(poolSpendsOn(message)), lines: [ruleLine(t.rule)] }) + (live ? momentBarHTML(t, "reminder") : "");
+    subtitle: spendPhrase(poolSpendsOn(message)), lines: [ruleLine(t.rule)] });
   host.appendChild(line);
-  const actor = resolveUuid(t.sourceUuid);
-  if ( live && canAnswerFor(actor) ) {
-    const shownKey = popupKey(message.id, "armed");
-    if ( !shownMoments.has(shownKey) ) { shownMoments.add(shownKey); void showArmedNotice(message); }
-    line.appendChild(momentButton(`Answer — ${t.name}`, () => void showArmedNotice(message)));
-  }
+  const may = live && canAnswerFor(resolveUuid(t.sourceUuid));
+  pendingRow(message, line, {
+    bar: live && momentBarHTML(t, "reminder"),
+    latch: may && { sub: "armed", show: () => showArmedNotice(message) },
+    answer: may && `Answer — ${t.name}`
+  });
 }));
 
 // THE REFUND ASK: Tactical Mind's use is not expended if the check still fails. A raw check has no
@@ -1415,14 +1413,13 @@ listen("dnd5e.renderChatMessage", "d20-folds", cardRow((message, host) => {
     // Both names: a card posted before 3.0.0 (formerly Battle Flow) may carry the old class in its stored HTML.
     const block = host.querySelector(".bythebooks-d20fold, .battleflow-d20fold") ?? host;
     const line = document.createElement("div");
-    line.innerHTML = momentBarHTML(r, "to answer");
     block.appendChild(line);
-    scheduleBarSync(line);
-    const actor = resolveUuid(r.actorUuid);
-    if ( !canAnswerFor(actor) ) return;
-    const shownKey = popupKey(message.id, "refund");
-    if ( !shownMoments.has(shownKey) ) { shownMoments.add(shownKey); void showRefundNotice(message); }
-    line.appendChild(momentButton(`Answer — ${r.label}`, () => void showRefundNotice(message)));
+    const may = canAnswerFor(resolveUuid(r.actorUuid));
+    pendingRow(message, line, {
+      bar: momentBarHTML(r, "to answer"),
+      latch: may && { sub: "refund", show: () => showRefundNotice(message) },
+      answer: may && `Answer — ${r.label}`
+    });
   } catch(err) {
     console.error(`${TITLE} | The refund ask failed to render.`, err);
   }

@@ -16,7 +16,7 @@ import { holdsTemp, mealStanding, restEnds } from "./decide/rest-grants.js";
 import { SURFACES } from "./surfaces.js";
 import { nearestFeet, tokenOfActor } from "./geometry.js";
 import { effectSourceOf, isPartyMember } from "./shared.js";
-import { livePopups, openMomentPopup, momentButton, shownMoments, registerRelay, registerResumable, armAskTimer, disarmAskTimer, subjectOwns, scheduleBarSync } from "./ui.js";
+import { livePopups, openMomentPopup, registerRelay, registerResumable, armAskTimer, disarmAskTimer, subjectOwns, pendingRow } from "./ui.js";
 import { listen, listenOnce } from "./dispatch.js";
 
 /** What a grant writes, by its `grant` word — the sheet facts the table knows how to set. */
@@ -712,13 +712,13 @@ listen("dnd5e.renderChatMessage", "rest-grants", (message, html) => {
     div.style.cssText = "margin:0.25rem 0;font-size:var(--font-size-11,11px);opacity:0.85;";
     div.innerHTML = `<i class="${(flag.grant === "inspiration") ? "fa-solid fa-music" : "fa-solid fa-heart"}" data-tooltip="${esc(flag.row)}"></i> ${esc(songLine(flag))}`;
     if ( flag.status === "pending" ) {
-      const actor = resolveUuid(flag.actorUuid);
-      if ( canAnswerFor(actor) ) {
-        const shown = popupKey(message.id, SONG_FLAG);
-        if ( !shownMoments.has(shown) ) { shownMoments.add(shown); void showSongPopup(message); }
-        div.appendChild(momentButton("Answer", () => { void showSongPopup(message); }));
-      }
-      if ( flag.deadline ) { div.insertAdjacentHTML("beforeend", ` ${holdBarHTML(flag, "to answer")}`); scheduleBarSync(div); armSongTimer(message); }
+      const may = canAnswerFor(resolveUuid(flag.actorUuid));
+      pendingRow(message, div, {
+        bar: !!flag.deadline && holdBarHTML(flag, "to answer"),
+        latch: may && { sub: SONG_FLAG, show: () => showSongPopup(message) },
+        answer: may && "Answer",
+        arm: !!flag.deadline && armSongTimer
+      });
     }
     content.appendChild(div);
   } catch(err) { console.warn(`${TITLE} | The rest song line could not render.`, err); }

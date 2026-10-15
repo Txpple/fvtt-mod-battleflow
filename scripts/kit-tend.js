@@ -12,8 +12,7 @@ import { bfCard, esc, holdBarHTML, popupKey, foldedRuleHTML, tickRowsHTML } from
 import { targetsOf } from "./decide/card.js";
 import { nearestFeet, tokenForUuid, tokenOfActor } from "./geometry.js";
 import { withTargets } from "./shared.js";
-import { livePopups, openMomentPopup, momentButton, shownMoments, scheduleBarSync, armAskTimer, disarmAskTimer, subjectOwns,
-  registerRelay, registerResumable } from "./ui.js";
+import { livePopups, openMomentPopup, armAskTimer, disarmAskTimer, subjectOwns, registerRelay, registerResumable, pendingRow } from "./ui.js";
 import { SURFACES } from "./surfaces.js";
 import { listen } from "./dispatch.js";
 
@@ -237,17 +236,15 @@ listen("dnd5e.renderChatMessage", "kit-tend", (message, html) => {
     const div = document.createElement("div");
     div.className = "bf-kit-tend-line";
     div.style.cssText = "margin:0.25rem 0;font-size:var(--font-size-11,11px);opacity:0.85;";
-    div.innerHTML = `<i class="fa-solid fa-kit-medical"></i> ${esc(tendLine(flag))}`
-      + ((flag.status === "pending") ? ` ${holdBarHTML(flag, "to answer")}` : "");
+    div.innerHTML = `<i class="fa-solid fa-kit-medical"></i> ${esc(tendLine(flag))}`;
     if ( flag.status === "pending" ) {
-      const actor = resolveUuid(flag.actorUuid);
-      if ( canAnswerFor(actor) ) {
-        const shown = popupKey(message.id, TEND_FLAG);
-        if ( !shownMoments.has(shown) ) { shownMoments.add(shown); void showTendPopup(message); }
-        div.appendChild(momentButton("Answer", () => { void showTendPopup(message); }));
-      }
-      scheduleBarSync(div);
-      armTimer(message);
+      const may = canAnswerFor(resolveUuid(flag.actorUuid));
+      pendingRow(message, div, {
+        bar: holdBarHTML(flag, "to answer"),
+        latch: may && { sub: TEND_FLAG, show: () => showTendPopup(message) },
+        answer: may && "Answer",
+        arm: armTimer
+      });
     }
     content.appendChild(div);
   } catch(err) { console.warn(`${TITLE} | The kit-tend line could not render.`, err); }

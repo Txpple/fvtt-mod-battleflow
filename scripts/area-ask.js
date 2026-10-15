@@ -13,7 +13,7 @@ import { bfCard, esc, holdBarHTML, popupKey, ruleLine } from "./decide/present.j
 import { AREA_ASK_FLAG, AREA_CHOICE_FLAG, askDefaults, askMark, askOutcome, askTicks, askWords } from "./decide/area-ask.js";
 import { saveTargetEntry } from "./decide/demand.js";
 import { activityUuidOf } from "./decide/card.js";
-import { openMomentPopup, momentButton, armAskTimer, disarmAskTimer, electOwns, livePopups, scheduleBarSync } from "./ui.js";
+import { openMomentPopup, armAskTimer, disarmAskTimer, electOwns, livePopups, pendingRow } from "./ui.js";
 import { releaseHold } from "./holds.js";
 import { SURFACES } from "./surfaces.js";
 import { listen, listenOnce } from "./dispatch.js";
@@ -71,6 +71,11 @@ export function registerAskAnswerPart(part) { answerParts.push(part); }
 
 const askTimers = new Map();
 
+/** The ask's clock: the elect passes it at the deadline. */
+function armAsk(message) {
+  armAskTimer(askTimers, message, AREA_ASK_FLAG, live => answerAsk(live, null, { timedOut: true }), { owns: electOwns });
+}
+
 listen("dnd5e.renderChatMessage", "area-ask", (message, html) => {
   try {
     const ask = readFlag(message, AREA_ASK_FLAG);
@@ -82,13 +87,12 @@ listen("dnd5e.renderChatMessage", "area-ask", (message, html) => {
     const div = document.createElement("div");
     div.className = "bf-metamagic-ask";
     div.style.cssText = "margin:0.25rem 0;font-size:var(--font-size-11,11px);opacity:0.85;";
-    div.innerHTML = `<i class="${words.icon}" data-tooltip="${esc(words.iconTip)}"></i> ${esc(ask.feature)} — ${words.question} ${holdBarHTML(ask, "to answer")}`;
+    div.innerHTML = `<i class="${words.icon}" data-tooltip="${esc(words.iconTip)}"></i> ${esc(ask.feature)} — ${words.question}`;
     const caster = resolveUuid(ask.casterUuid);
-    if ( caster && canAnswerFor(caster) ) div.appendChild(momentButton("Answer", () => { void showAreaAsk(message); }));
-    scheduleBarSync(div);
+    const may = !!caster && canAnswerFor(caster);
+    pendingRow(message, div, { bar: holdBarHTML(ask, "to answer"), answer: may && { show: () => showAreaAsk(message) }, arm: armAsk });
     content.appendChild(div);
-    armAskTimer(askTimers, message, AREA_ASK_FLAG, live => answerAsk(live, null, { timedOut: true }), { owns: electOwns });
-    if ( caster && canAnswerFor(caster) ) void showAreaAsk(message);
+    if ( may ) void showAreaAsk(message);
   } catch(err) { console.warn(`${TITLE} | The ask at the area could not render.`, err); }
 });
 

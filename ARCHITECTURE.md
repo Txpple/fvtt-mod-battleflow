@@ -541,6 +541,21 @@ the module polls on a timer. A clock is armed through `armAskTimer` with its own
 clocks*; `npm run clocks`); `armDeadline` beneath it is the one `setTimeout` on a deadline, and it refuses
 one past `deadlineIsLive`'s roof.
 
+### The pending row
+
+A pending moment's card row is drawn by one helper, `pendingRow(message, row, { bar, latch, answer, arm })`
+in [ui.js](scripts/ui.js), always in one order: the **bar** off the flag's deadline (law 2's card half,
+synced, so it drains), the **latch** — the popup shown once per client, `{ sub, show }` latched on its popup
+key, so a re-render never reopens a popup the player closed (several for a row that asks several deciders) —
+the **answer**, the button that calls a closed popup back ("Answer", or the row's own words: "Roll",
+"Pick the form"), and the **arm**, the machine's own clock function, whose `armAskTimer` call names its
+owner (§3 *The clocks*). The machine says which parts its row has and who may answer (a falsy part is
+not drawn: `may && …`); how they look and when they run is the spine's. `forgetShown(message, sub)`
+releases a latch where a machine means the popup to come back: the next queued concentration ask, a save
+entry dropped from the demand, a recall that re-arms it. **The static proof is `npm run popups`**
+([tools/check-popups.mjs](tools/check-popups.mjs)): outside ui.js nothing touches the latch set, no
+`momentButton` is labelled "Answer", and every row's `arm` arms through `armAskTimer`.
+
 ---
 
 ## 6. The registry model (R4)

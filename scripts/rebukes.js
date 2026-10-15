@@ -14,8 +14,7 @@ import { CARD, isCard, targetsOf } from "./decide/card.js";
 import { isActiveGM } from "./core.js";
 import { feetOf, nearestFeet, tokenForUuid } from "./geometry.js";
 import { bfCard, esc, holdBarHTML, popupKey, ruleLine } from "./decide/present.js";
-import { livePopups, openMomentPopup, momentButton, scheduleBarSync, shownMoments,
-  armAskTimer, disarmAskTimer, keeperOwns, registerRelay } from "./ui.js";
+import { livePopups, openMomentPopup, momentButton, armAskTimer, disarmAskTimer, keeperOwns, registerRelay, pendingRow } from "./ui.js";
 import { SURFACES } from "./surfaces.js";
 import { listen } from "./dispatch.js";
 
@@ -429,15 +428,13 @@ listen("dnd5e.renderChatMessage", "rebukes", (message, html) => {
       div.insertAdjacentHTML("beforeend", ` · ${esc(flag.followed)}`);
     }
     if ( flag.status === "pending" ) {
-      div.insertAdjacentHTML("beforeend", ` ${holdBarHTML(flag, "to answer")}`);
-      const actor = resolveUuid(flag.actorUuid);
-      if ( canAnswerFor(actor) ) {
-        const shown = popupKey(message.id, REBUKE_FLAG);
-        if ( !shownMoments.has(shown) ) { shownMoments.add(shown); void showPopup(message); }
-        div.appendChild(momentButton("Answer", () => { void showPopup(message); }));
-      }
-      scheduleBarSync(div);
-      armTimer(message);
+      const may = canAnswerFor(resolveUuid(flag.actorUuid));
+      pendingRow(message, div, {
+        bar: holdBarHTML(flag, "to answer"),
+        latch: may && { sub: REBUKE_FLAG, show: () => showPopup(message) },
+        answer: may && "Answer",
+        arm: armTimer
+      });
     }
     content.appendChild(div);
   } catch(err) { console.warn(`${TITLE} | The rebuke line could not render.`, err); }

@@ -17,7 +17,7 @@ import { poolOf, poolUsesOf, reactionSpent, spendReaction, spendPoolUses, bystan
 import { facesThatTurn, setOutcome } from "./decide/stored-dice.js";
 import { bendRise, foldRise } from "./decide/dice-chips.js";
 import { riseDice } from "./dice-rise.js";
-import { armAskTimer, cardRow, electOwns, flashBend, livePopups, openMomentPopup, registerRelay, registerWithhold, resumeWithheld, shownMoments } from "./ui.js";
+import { armAskTimer, cardRow, electOwns, flashBend, livePopups, openMomentPopup, registerRelay, registerWithhold, resumeWithheld, pendingRow } from "./ui.js";
 import { listen } from "./dispatch.js";
 
 const KEY = "bystanderRoll";
@@ -506,15 +506,13 @@ listen("dnd5e.renderChatMessage", "bystanders", cardRow((message, host) => {
   line.style.margin = "0.3rem 0 0";
   if ( flag.status === "pending" ) {
     const waiting = (flag.guards ?? []).filter(g => !g.passed).map(g => `${g.row} (${g.name})`).join(", ");
-    line.innerHTML = bfCard({ eyebrow: "Reaction — held", tone: "pending", title: `Waiting on ${waiting}`, subtitle: flag.rollerName ?? "", lines: [] }) + holdBarHTML(flag);
-    armTimer(message);
-    for ( const guard of (flag.guards ?? []) ) {
-      if ( guard.passed || !canAnswerFor(resolveUuid(guard.uuid)) ) continue;
-      const shown = popupKey(message.id, `${KEY}|${guard.uuid}`);
-      if ( shownMoments.has(shown) ) continue;
-      shownMoments.add(shown);
-      void showPopup(message, flag, guard);
-    }
+    line.innerHTML = bfCard({ eyebrow: "Reaction — held", tone: "pending", title: `Waiting on ${waiting}`, subtitle: flag.rollerName ?? "", lines: [] });
+    pendingRow(message, line, {
+      bar: holdBarHTML(flag),
+      latch: (flag.guards ?? []).filter(g => !g.passed && canAnswerFor(resolveUuid(g.uuid)))
+        .map(guard => ({ sub: `${KEY}|${guard.uuid}`, show: () => showPopup(message, flag, guard) })),
+      arm: armTimer
+    });
   } else if ( flag.answer === "roll" ) {
     line.innerHTML = bfCard({ eyebrow: `Reaction — ${esc(flag.rescue)}`, tone: "good", title: esc(flag.rescue), subtitle: flag.rollerName ?? "", lines: [bentLine(flag)] });
   } else return;

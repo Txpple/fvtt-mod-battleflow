@@ -18,7 +18,7 @@ import { activityNamed, activityOfType, cardActivity, featureNamed, lower, resol
 import { chitStampOf, effectSourceOf, poolOf } from "./shared.js";
 import { endOptionsOf } from "./decide/turn-grants.js";
 import { holdBarHTML, popupKey, esc } from "./decide/present.js";
-import { livePopups, openMomentPopup, momentButton, shownMoments, scheduleBarSync, armAskTimer, disarmAskTimer, subjectOwns, registerRelay, registerResumable } from "./ui.js";
+import { livePopups, openMomentPopup, armAskTimer, disarmAskTimer, subjectOwns, registerRelay, registerResumable, pendingRow } from "./ui.js";
 import { SURFACES } from "./surfaces.js";
 import { CARD, isCard, targetsOf } from "./decide/card.js";
 import { extendedThisTurn } from "./decide/turn-grants.js";
@@ -380,17 +380,15 @@ listen("dnd5e.renderChatMessage", "turn-grants", (message, html) => {
     const div = document.createElement("div");
     div.className = "bf-condition-end-line";
     div.style.cssText = "margin:0.25rem 0;font-size:var(--font-size-11,11px);opacity:0.85;";
-    div.innerHTML = `<i class="fa-solid fa-hand-sparkles" data-tooltip="${esc(flag.row)}"></i> ${esc(endLine(flag))}`
-      + ((flag.status === "pending") ? ` ${holdBarHTML(flag, "to answer")}` : "");
+    div.innerHTML = `<i class="fa-solid fa-hand-sparkles" data-tooltip="${esc(flag.row)}"></i> ${esc(endLine(flag))}`;
     if ( flag.status === "pending" ) {
-      const actor = resolveUuid(flag.actorUuid);
-      if ( canAnswerFor(actor) ) {
-        const shown = popupKey(message.id, END_FLAG);
-        if ( !shownMoments.has(shown) ) { shownMoments.add(shown); void showEndPopup(message); }
-        div.appendChild(momentButton("Answer", () => { void showEndPopup(message); }));
-      }
-      scheduleBarSync(div);
-      armEndTimer(message);
+      const may = canAnswerFor(resolveUuid(flag.actorUuid));
+      pendingRow(message, div, {
+        bar: holdBarHTML(flag, "to answer"),
+        latch: may && { sub: END_FLAG, show: () => showEndPopup(message) },
+        answer: may && "Answer",
+        arm: armEndTimer
+      });
     }
     content.appendChild(div);
   } catch(err) { console.warn(`${TITLE} | The condition-end line could not render.`, err); }

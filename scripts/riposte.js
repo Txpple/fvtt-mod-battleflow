@@ -10,8 +10,7 @@ import { hitTargets, reactionSpent, spendReaction } from "./shared.js";
 import { popupKey, bfCard, holdBarHTML, ruleLine, esc } from "./decide/present.js";
 import { SURFACES } from "./surfaces.js";
 import { CARD, activityUuidOf, isCard, originData, originIdInData, targetsOf } from "./decide/card.js";
-import { livePopups, openMomentPopup, momentButton, scheduleBarSync, shownMoments,
-  armAskTimer, disarmAskTimer, electOwns, registerRelay } from "./ui.js";
+import { livePopups, openMomentPopup, scheduleBarSync, armAskTimer, disarmAskTimer, electOwns, registerRelay, pendingRow } from "./ui.js";
 import { listen } from "./dispatch.js";
 
 
@@ -352,19 +351,15 @@ listen("dnd5e.renderChatMessage", "riposte", (message, html) => {
         const bar = document.createElement("div");
         bar.innerHTML = holdBarHTML(r, "to answer");
         row.appendChild(bar);
-        const actor = resolveUuid(reactor.uuid);
-        if ( canAnswerFor(actor) ) {
-          const shownKey = popupKey(message.id, `riposte:${reactor.uuid}`);
-          if ( !shownMoments.has(shownKey) ) {
-            shownMoments.add(shownKey);
-            void showRipostePopup(message, r, reactor);
-          }
-          row.appendChild(momentButton(`Answer — ${reactor.name}`, () => {
+        const may = canAnswerFor(resolveUuid(reactor.uuid));
+        pendingRow(message, row, {
+          latch: may && { sub: `riposte:${reactor.uuid}`, show: () => showRipostePopup(message, r, reactor) },
+          answer: may && { label: `Answer — ${reactor.name}`, show: () => {
             const live = readFlag(message, "riposte");
             const lr = live?.reactors?.find(x => x.uuid === reactor.uuid);
             if ( live && lr && !lr.answer ) void showRipostePopup(message, live, lr);
-          }));
-        }
+          } }
+        });
       }
     }
     if ( pending ) { scheduleBarSync(row); armRiposteTimer(message); }

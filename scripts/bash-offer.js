@@ -12,8 +12,7 @@ import { hitTargets, resolveAttackMessage } from "./shared.js";
 import { popupKey, bfCard, holdBarHTML, ruleLine, esc } from "./decide/present.js";
 import { SURFACES } from "./surfaces.js";
 import { CARD, isCard } from "./decide/card.js";
-import { livePopups, openMomentPopup, momentButton, scheduleBarSync, shownMoments,
-  armAskTimer, disarmAskTimer, electOwns } from "./ui.js";
+import { livePopups, openMomentPopup, armAskTimer, disarmAskTimer, electOwns, pendingRow } from "./ui.js";
 import { listen } from "./dispatch.js";
 
 // The offer is stamped on the attacker's OWN attack message (the answer writes directly). Once per
@@ -306,24 +305,18 @@ listen("dnd5e.renderChatMessage", "bash-offer", (message, html) => {
       tone: (pending || queued) ? "pending" : (b.answer === "use" ? "good" : "neutral"),
       title,
       subtitle: (b.targets ?? []).map(t => t.name).join(", ")
-    }) + (pending ? holdBarHTML(b, "to answer") : "");
+    });
     html.querySelector(SURFACES.messageContent)?.appendChild(row);
     // Resume: a queued offer whose damage landed while nobody was driving.
     if ( queued && drivesMomentFor(b.attackerUuid) ) void sequenceBashOffer(message);
     if ( pending ) {
-      scheduleBarSync(row);
-      armBashOfferTimer(message);
-      const attacker = resolveUuid(b.attackerUuid);
-      if ( canAnswerFor(attacker) && !b.answer ) {
-        const shownKey = popupKey(message.id, "bashoffer");
-        if ( !shownMoments.has(shownKey) ) {
-          shownMoments.add(shownKey);
-          void showBashOfferPopup(message, b);
-        }
-        row.appendChild(momentButton("Answer", () => {
-          void showBashOfferPopup(message, readFlag(message, "bashOffer"));
-        }, { margin: "0.25rem 0 0" }));
-      }
+      const may = canAnswerFor(resolveUuid(b.attackerUuid)) && !b.answer;
+      pendingRow(message, row, {
+        bar: holdBarHTML(b, "to answer"),
+        latch: may && { sub: "bashoffer", show: () => showBashOfferPopup(message, b) },
+        answer: may && { show: () => showBashOfferPopup(message, readFlag(message, "bashOffer")), style: { margin: "0.25rem 0 0" } },
+        arm: armBashOfferTimer
+      });
     }
     // Crash-resume on the GM: accepted 20s ago with no driven usage in the log.
     if ( (b.answer === "use") && isActiveGM() && b.answeredAt
