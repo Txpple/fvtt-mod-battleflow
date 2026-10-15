@@ -37,21 +37,15 @@ const f = await connectSuite({ tag: 'class-barbarian', watchdogMs: 900_000 });
 announcePlan('class-barbarian', plan, pulled);
 
 const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ sections, titles }) => {
-  const results = [];
-  const skips = [];
-  const ok = (name, pass, detail = '') => results.push({ name, pass, detail });
-  const want = id => {
-    if (!sections || sections.includes(String(id))) return true;
-    skips.push(`§${id} ${titles?.[id] ?? ''}`);
-    return false;
-  };
+  const { sleep, until, viewScene, faces, unrig } = window.__btb;
+  const { results, skips, ok, want, section } = window.__btb.begin({ sections, titles });
   const KIT = window.__btbClasses;
-  const { MOD, RAGE_FX, a1Damage, a1Formula, a1Hit, a1Roll, a1Victim, actNamed, activateRange, attackOf, backToRange, cardEl, cardText, clearDown, clearTargets, cleric, clericToken, clericWeapon, closeA1, closeDialogs, closeOffers, created, dropCards, dropEffects, dropFx, dropHalfling, dropVictimFx, faces, fxNamed, gateFor, grantCards, grantLine, halfling, halflingToken, healFull, hgClose, hgKeep, hgLend, hgPickButton, hitBox, hitRow, hitRows, hp, lend, log, markOn, offerApp, pcAttacker, pcToken, pcWeapon, pinHeal, pinPart, popups, reEsc, realPRNG, regionKeyed, riderBox, riderChits, riderRow, ridersOf, rollDialog, scene, set, sleep, sorcerer, spendLuck, spendLuckC, suiteStart, swingAt, textOf, tick, titled, unlend, useFeature, victim, victimFx, victimPrior, victimToken, waitFor, weaponOf } = KIT;
+  const { MOD, RAGE_FX, a1Damage, a1Formula, a1Hit, a1Roll, a1Victim, actNamed, activateRange, attackOf, backToRange, cardEl, cardText, clearDown, clearTargets, cleric, clericToken, clericWeapon, closeA1, closeDialogs, closeOffers, created, dropCards, dropEffects, dropFx, dropHalfling, dropVictimFx, fxNamed, gateFor, grantCards, grantLine, halfling, halflingToken, healFull, hgClose, hgKeep, hgLend, hgPickButton, hitBox, hitRow, hitRows, hp, lend, log, markOn, offerApp, pcAttacker, pcToken, pcWeapon, pinHeal, pinPart, popups, reEsc, regionKeyed, riderBox, riderChits, riderRow, ridersOf, rollDialog, scene, set, sorcerer, spendLuck, spendLuckC, suiteStart, swingAt, textOf, tick, titled, unlend, useFeature, victim, victimFx, victimPrior, victimToken, weaponOf } = KIT;
   try {
     await KIT.leaveA3();
 
     // ---- 17. Frenzy: raging AND Reckless, once per turn
-    if (want(17)) {
+    if (want(17)) await section(17, async () => {
       await closeDialogs(); await a1Victim();
       if (!pcWeapon) log.push('§17 skipped: BTB Test PC Attacker has no weapon');
       else {
@@ -91,7 +85,7 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
             `raw=${raw} formula=${formula} type=${wType} offer=${!!offer} checked=${box?.checked} row="${row}" turn=${combat17.combatant?.actor?.name}`);
           const dmg = await a1Roll(msg, offer);
           const r = ridersOf(dmg).find(x => x.key === 'frenzy');
-          const chit = await waitFor(() => pcAttacker.effects.find(e => (e.getFlag(MOD, 'mastery') === 'rider') && (e.getFlag(MOD, 'riderKey') === 'frenzy')), 6000);
+          const chit = await until(() => pcAttacker.effects.find(e => (e.getFlag(MOD, 'mastery') === 'rider') && (e.getFlag(MOD, 'riderKey') === 'frenzy')), { timeout: 6000 }).catch(() => null);
           ok('17b. it rides as its own part of the weapon\'s type ("raging and reckless — once this turn") and writes the once-per-turn chit',
             !!r && (r.formula === formula) && (!wType || (r.type === wType)) && /raging and reckless — once this turn/.test(r.why ?? '') && !!chit,
             `rider=${JSON.stringify(r)} chit=${chit?.name ?? null}`);
@@ -113,10 +107,10 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
           await unlend(pcAttacker, frenzy);
         }
       }
-    }
+    });
 
     // ---- 24. the Rage's turn-end reminder (TURN_GRANTS remind: "extend")
-    if (want(24)) {
+    if (want(24)) await section(24, async () => {
       await closeA1();
       await dropFx(pcAttacker, RAGE_FX);   // a killed run's leftovers: the fixture carries no Rage of its own
       const rage = await lend(pcAttacker, 'Rage');
@@ -139,7 +133,7 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
         const r1 = combat.round;
         // Round r1, the barbarian's turn: it enters Rage (the pack's own activity; cast.js lands the effect).
         const card = await useFeature(pcToken, rage);
-        const rageFx = await waitFor(() => fxNamed(pcAttacker, ['Rage'])[0] ?? null, 6000);
+        const rageFx = await until(() => fxNamed(pcAttacker, ['Rage'])[0] ?? null, { timeout: 6000 }).catch(() => null);
         // UNSURE: the Rage's activity is a self-aimed utility carrying the "Rage" effect (castApply stamps it) — if it
         // never lands, the whole section is diagnosed here, not guessed around.
         ok('24a. the Rage entered on the barbarian\'s turn lands "Rage" on it (the usage card stamped castApply)',
@@ -155,8 +149,8 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
         const r2 = combat.round;
         await sleep(300);
         await combat.nextTurn();                       // a turn with no attack roll and no save forced ends
-        const quiet = await waitFor(() => reminderFor(r2), 6000);
-        await waitFor(() => cardEl(quiet?.id), 3000);
+        const quiet = await until(() => reminderFor(r2), { timeout: 6000 }).catch(() => null);
+        await until(() => cardEl(quiet?.id), { timeout: 3000 }).catch(() => null);
         ok('24c. a turn with no attack roll and no save forced: the card "Rage — it ends now unless you extended it", nothing is removed',
           !!quiet && /Rage — it ends now unless you extended it/.test(cardText(quiet?.id)) && /nothing is removed/.test(cardText(quiet?.id))
             && (quiet?.getFlag(MOD, 'turnGrant')?.key === 'Rage') && !!fxNamed(pcAttacker, ['Rage'])[0],
@@ -181,10 +175,10 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
         await unlend(pcAttacker, rage);
         clearTargets();
       }
-    }
+    });
 
     // ---- 25. Rage of the Wilds: the pick at the Rage, the Wolf's ring, the gate
-    if (want(25)) {
+    if (want(25)) await section(25, async () => {
       await closeA1();
       await dropFx(pcAttacker, RAGE_FX);
       // UNSURE: a ring stands only on a LIVE scene (emanations.js liveNow) — the active scene, or one a connected
@@ -201,18 +195,18 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
       try {
         const card = await useFeature(pcToken, rage);
         const choice = card?.getFlag(MOD, 'castApply')?.choice ?? null;
-        const rageFx = await waitFor(() => fxNamed(pcAttacker, ['Rage'])[0] ?? null, 6000);
+        const rageFx = await until(() => fxNamed(pcAttacker, ['Rage'])[0] ?? null, { timeout: 6000 }).catch(() => null);
         ok('25a. the Rage\'s card asks "Rage of the Wilds — Bear, Eagle or Wolf?" (a free pick), and the Rage lands at once, before any pick',
           (choice?.key === 'Rage of the Wilds') && (JSON.stringify(choice?.options) === JSON.stringify(['Bear', 'Eagle', 'Wolf'])) && (choice?.free === true)
             && !choice?.chosen && !!rageFx,
           `choice=${JSON.stringify(choice)} rage=${!!rageFx}`);
-        const wolf = await waitFor(() => pickButton('Wolf'), 6000);
-        await waitFor(() => cardEl(card?.id), 3000);
+        const wolf = await until(() => pickButton('Wolf'), { timeout: 6000 }).catch(() => null);
+        await until(() => cardEl(card?.id), { timeout: 3000 }).catch(() => null);
         ok('25b. the popup on the barbarian\'s client: a button each for Bear, Eagle and Wolf; the card says "pick one"',
           !!wolf && !!pickButton('Bear') && !!pickButton('Eagle') && /Rage of the Wilds — Bear, Eagle or Wolf\?/.test(cardText(card?.id)) && /pick one/.test(cardText(card?.id)),
           `wolf=${!!wolf} bear=${!!pickButton('Bear')} card=${cardText(card?.id).slice(0, 200)}`);
         wolf?.click();
-        const wolfFx = await waitFor(() => fxNamed(pcAttacker, ['Rage of the Wolf']).find(e => !e.getFlag(MOD, 'emanation')) ?? null, 8000);
+        const wolfFx = await until(() => fxNamed(pcAttacker, ['Rage of the Wolf']).find(e => !e.getFlag(MOD, 'emanation')) ?? null, { timeout: 8000 }).catch(() => null);
         const wolfCard = game.messages.contents.find(m => (m.timestamp >= t0) && (m.id !== card?.id) && (m.getAssociatedItem?.()?.id === wilds.id)) ?? null;
         ok('25c. Wolf chosen: the feature\'s own Wolf activity used (its card), "Rage of the Wolf" on the barbarian',
           (card?.getFlag(MOD, 'castApply')?.choice?.chosen === 'Wolf') && !!wolfCard && !!wolfFx,
@@ -224,8 +218,8 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
         ok('25d. the Wolf\'s own card asks nothing more (no second pick, no popup)', !wolfCard?.getFlag(MOD, 'castApply')?.choice && !pickButton('Wolf'),
           `wolfChoice=${JSON.stringify(wolfCard?.getFlag(MOD, 'castApply')?.choice ?? null)} popup=${!!pickButton('Wolf')}`);
         await closeA1();
-        const region = await waitFor(wolfRegion, 10000);
-        const member = await waitFor(() => memberOn(victim), 8000);
+        const region = await until(wolfRegion, { timeout: 10000 }).catch(() => null);
+        const member = await until(() => memberOn(victim), { timeout: 8000 }).catch(() => null);
         ok('25e. the quiet ring: a region attached to the barbarian\'s token, the Victim within 5 ft wears the member copy; no emanation card; the Cleric (an ally) wears none',
           !!region && (region.attachment?.token?.id === pcToken.document.id) && !!member && !memberOn(cleric)
             && !game.messages.contents.some(m => (m.timestamp >= t0) && (m.getFlag(MOD, 'emanationCard')?.key === 'Rage of the Wolf')),
@@ -244,7 +238,7 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
         await dropFx(pcAttacker, RAGE_FX);
         await unlend(pcAttacker, wilds);
         await unlend(pcAttacker, rage);
-        const gone = await waitFor(() => !wolfRegion() && !memberOn(victim), 8000);
+        const gone = await until(() => !wolfRegion() && !memberOn(victim), { timeout: 8000 }).catch(() => null);
         if (!gone) {
           log.push('§25 cleanup: the Wolf ring outlived its lends — deleted by hand');
           const r = wolfRegion(); if (r) await r.delete().catch(() => {});
@@ -252,13 +246,13 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
         }
         clearTargets();
         // The prior active scene comes back in the TEARDOWN (see priorActiveScene): a switch here kills the placeables.
-        if (canvas.scene?.id !== scene.id) { await scene.view(); for (let i = 0; i < 40 && !(canvas.ready && canvas.scene?.id === scene.id); i++) await sleep(250); await sleep(500); }
+        await viewScene(scene);
       }
-    }
+    });
     KIT.markA2();
 
     // ---- 37. the Initiative grants: Persistent Rage (automatic), Uncanny Metabolism (offered); the Rage reminder silenced
-    if (want(37)) {
+    if (want(37)) await section(37, async () => {
       await closeA1();
       await dropFx(pcAttacker, RAGE_FX);
       const hMax = halfling.system._source.attributes.hp.max;   // restored at this section's end: §41's swing heals to 400
@@ -285,21 +279,21 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
           const hC = combat.combatants.find(c => c.actorId === halfling.id);
           // a. Persistent Rage: automatic — the Rage uses back, its own use spent, the card
           await combat.setInitiative(pcC.id, 18);
-          const pr = await waitFor(() => { const m = grantCards(pcAttacker, 'Persistent Rage')[0]; return m?.getFlag(MOD, 'initiativeGrant')?.applied ? m : null; }, 8000);
+          const pr = await until(() => { const m = grantCards(pcAttacker, 'Persistent Rage')[0]; return m?.getFlag(MOD, 'initiativeGrant')?.applied ? m : null; }, { timeout: 8000 }).catch(() => null);
           ok('37a. Persistent Rage at Initiative: Rage 3 of 3, its own use spent, the card "Persistent Rage — Rage uses regained (3 of 3)"',
             !!pr && (spentOf(pcAttacker, rage) === 0) && (spentOf(pcAttacker, persistent) === 1) && /Persistent Rage — Rage uses regained \(3 of 3\)/.test(await grantLine(pr)),
             `card=${!!pr} rageSpent=${spentOf(pcAttacker, rage)} own=${spentOf(pcAttacker, persistent)} line="${await grantLine(pr)}" all=${JSON.stringify(grantCards(pcAttacker, 'Persistent Rage').map(m => m.getFlag(MOD, 'initiativeGrant')))} read=${JSON.stringify(combat.getFlag(MOD, 'initiativeGrantRead') ?? null)} rages=${JSON.stringify(pcAttacker.items.filter(i => /rage/i.test(i.name)).map(i => [i.name, i.system.uses?.max, i.system.uses?.spent]))} init=${pcC.initiative}`);
           // b. Uncanny Metabolism: offered; Yes — the Focus Points back, the heal rolled and landed, its use spent
           faces([[4, 8]]);
           await combat.setInitiative(hC.id, 12);
-          const um = await waitFor(() => grantCards(halfling, 'Uncanny Metabolism')[0] ?? null, 8000);
-          const pop = await waitFor(() => titled(/^Uncanny Metabolism — /), 6000);
+          const um = await until(() => grantCards(halfling, 'Uncanny Metabolism')[0] ?? null, { timeout: 8000 }).catch(() => null);
+          const pop = await until(() => titled(/^Uncanny Metabolism — /), { timeout: 6000 }).catch(() => null);
           ok('37b. Uncanny Metabolism at Initiative asks: "regain 3 Focus Points and 1d8 + 5 Hit Points? (once per Long Rest)"',
             !!pop && /regain 3 Focus Points and 1d8 \+ 5 Hit Points\? \(once per Long Rest\)/.test(textOf(pop?.element)),
             `card=${!!um} popup=${!!pop} text="${textOf(pop?.element).slice(0, 200)}"`);
           pop?.element?.querySelector('button[data-action="yes"]')?.click();
-          const done = await waitFor(() => um?.getFlag(MOD, 'initiativeGrant')?.applied ? um : null, 8000);
-          CONFIG.Dice.randomUniform = realPRNG;
+          const done = await until(() => um?.getFlag(MOD, 'initiativeGrant')?.applied ? um : null, { timeout: 8000 }).catch(() => null);
+          unrig();
           const healed = Number(done?.getFlag(MOD, 'initiativeGrant')?.healed ?? NaN);
           ok('37c. Yes: Focus 3 of 3, the heal (4 + 5 = 9) lands, its use spent; the line says both',
             (spentOf(halfling, focus) === 0) && (spentOf(halfling, uncanny) === 1) && (healed === 9) && (hhp() === 39)
@@ -321,9 +315,9 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
           await combat.resetAll();
           await sleep(600);
           await combat.setInitiative(hC.id, 10);
-          const pop2 = await waitFor(() => titled(/^Uncanny Metabolism — /), 6000);
+          const pop2 = await until(() => titled(/^Uncanny Metabolism — /), { timeout: 6000 }).catch(() => null);
           pop2?.element?.querySelector('button[data-action="no"]')?.click();
-          const um2 = await waitFor(() => grantCards(halfling, 'Uncanny Metabolism').find(m => m.getFlag(MOD, 'initiativeGrant')?.answer === 'no') ?? null, 6000);
+          const um2 = await until(() => grantCards(halfling, 'Uncanny Metabolism').find(m => m.getFlag(MOD, 'initiativeGrant')?.answer === 'no') ?? null, { timeout: 6000 }).catch(() => null);
           await sleep(600);
           ok('37e. No: the use kept, Focus untouched, the line "Uncanny Metabolism — kept for later"',
             !!um2 && (spentOf(halfling, uncanny) === 0) && (spentOf(halfling, focus) === 2) && /Uncanny Metabolism — kept for later/.test(await grantLine(um2)),
@@ -335,7 +329,7 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
           const toTurnOf = async actor => { for (let i = 0; (i < 4) && (combat.combatant?.actorId !== actor.id); i++) { await combat.nextTurn(); await sleep(300); } };
           await toTurnOf(pcAttacker);
           await useFeature(pcToken, rage);
-          await waitFor(() => fxNamed(pcAttacker, ['Rage'])[0] ?? null, 6000);
+          await until(() => fxNamed(pcAttacker, ['Rage'])[0] ?? null, { timeout: 6000 }).catch(() => null);
           await combat.nextTurn();
           await toTurnOf(pcAttacker);
           const r2 = combat.round;
@@ -353,13 +347,13 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
         await dropFx(pcAttacker, RAGE_FX);
         await halfling.update({ 'system.attributes.hp.max': hMax });
         for (const [actor, it] of [[pcAttacker, rage], [pcAttacker, persistent], [halfling, focus], [halfling, uncanny]]) if (it) await unlend(actor, it);
-        CONFIG.Dice.randomUniform = realPRNG;
+        unrig();
         clearTargets();
       }
-    }
+    });
 
     // ---- 38. Vitality of the Tree: Vitality Surge at the Rage; Life-Giving Force at a raging turn start
-    if (want(38)) {
+    if (want(38)) await section(38, async () => {
       await closeA1();
       await dropFx(pcAttacker, RAGE_FX);
       hgKeep(pcAttacker, { 'system.attributes.hp.temp': pcAttacker.system._source.attributes.hp.temp ?? 0 });
@@ -379,13 +373,13 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
           // a. the Rage used: Vitality Surge's 7 temp HP, a card
           const since = Date.now();
           await useFeature(pcToken, rage);
-          const surge = await waitFor(() => game.messages.contents.find(m => (m.timestamp >= since) && (m.getFlag(MOD, 'turnGrant')?.key === 'Vitality Surge')) ?? null, 6000);
-          await waitFor(() => temp(pcAttacker) === 7, 4000);
+          const surge = await until(() => game.messages.contents.find(m => (m.timestamp >= since) && (m.getFlag(MOD, 'turnGrant')?.key === 'Vitality Surge')) ?? null, { timeout: 6000 }).catch(() => null);
+          await until(() => temp(pcAttacker) === 7, { timeout: 4000 }).catch(() => null);
           ok('38a. the Rage used: "Vitality Surge — BTB Test PC Attacker gains 7 Temporary Hit Points", temp 7',
             !!surge && (temp(pcAttacker) === 7) && /Vitality Surge — .+ gains 7 Temporary Hit Points/.test(cardText(surge?.id)),
             `card=${cardText(surge?.id).slice(0, 160)} temp=${temp(pcAttacker)}`);
           // b. a raging turn start: the gift is asked — one creature within 10 ft; OK gives it
-          await waitFor(() => fxNamed(pcAttacker, ['Rage'])[0] ?? null, 6000);
+          await until(() => fxNamed(pcAttacker, ['Rage'])[0] ?? null, { timeout: 6000 }).catch(() => null);
           [combat] = await Combat.createDocuments([{ scene: scene.id, active: true }]);
           created.combats.push(combat.id);
           faces([[3, 6], [4, 6]]);
@@ -393,10 +387,10 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
             { tokenId: pcToken.document.id, sceneId: scene.id, actorId: pcAttacker.id, initiative: 20 },
             { tokenId: victimToken.document.id, sceneId: scene.id, actorId: victim.id, initiative: 10 }]);
           await combat.startCombat();
-          const ask = await waitFor(() => songs()[0] ?? null, 8000);
-          CONFIG.Dice.randomUniform = realPRNG;
+          const ask = await until(() => songs()[0] ?? null, { timeout: 8000 }).catch(() => null);
+          unrig();
           const flag = ask?.getFlag(MOD, 'restSong');
-          const pop = await waitFor(() => titled(/^Life-Giving Force — /), 6000);
+          const pop = await until(() => titled(/^Life-Giving Force — /), { timeout: 6000 }).catch(() => null);
           const names = (flag?.candidates ?? []).map(c => c.name);
           ok('38b. the raging turn start asks "Who gets 7 Temporary Hit Points?" — creatures on its side within 10 ft, never itself or the enemy',
             !!pop && (flag?.amount === 7) && (flag?.cap === 1) && /Who gets 7 Temporary Hit Points\?/.test(textOf(pop?.element))
@@ -404,7 +398,7 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
             `amount=${flag?.amount} cap=${flag?.cap} candidates=${JSON.stringify(names)} popup=${!!pop}`);
           const picked = pop?.element?.querySelector('input[name="bf-rest-song"]:checked')?.value ?? null;
           pop?.element?.querySelector('button[data-action="ok"]')?.click();
-          const landed = await waitFor(() => ask?.getFlag(MOD, 'restSong')?.applied ? ask : null, 8000);
+          const landed = await until(() => ask?.getFlag(MOD, 'restSong')?.applied ? ask : null, { timeout: 8000 }).catch(() => null);
           const target = picked ? fromUuidSync(picked) : null;
           ok('38c. OK: the one ticked creature gains the 7 temp HP; the card names it', !!landed && !!target && (temp(target) === 7)
             && (landed.getFlag(MOD, 'restSong')?.given ?? []).length === 1,
@@ -423,14 +417,14 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
         if (combat && game.combats.get(combat.id)) await combat.delete();
         await dropFx(pcAttacker, RAGE_FX);
         for (const it of [rage, vitality]) if (it) await unlend(pcAttacker, it);
-        CONFIG.Dice.randomUniform = realPRNG;
+        unrig();
         clearTargets();
       }
-    }
+    });
 
     // ================================================ §B3 — Brutal Strike and the Fighter's rows (RULINGS *The PHB classes — B3*)
     // ---- 46. Brutal Strike: the forgo box in the attack dialog; the forgone hit's group; Hamstring Blow lands; no forgo, no group
-    if (want(46)) {
+    if (want(46)) await section(46, async () => {
       await closeA1(); await a1Victim(); await dropVictimFx(); await spendLuck();
       const bs = await hgLend(pcAttacker, 'Brutal Strike', 'feat');
       const ibs = await hgLend(pcAttacker, 'Improved Brutal Strike', 'feat');
@@ -451,7 +445,7 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
           const before = new Set(popups());
           faces([[19, 20], [19, 20], [3, 6], [3, 6], [7, 10], [7, 10]]);
           const p = wAct.rollAttack({}, {}, {});
-          const dlg = await waitFor(rollDialog, 6000);
+          const dlg = await until(rollDialog, { timeout: 6000 }).catch(() => null);
           await sleep(400);
           const box = () => dlg?.element?.querySelector('input[name="bf-buy"][data-bf-buy-name="Brutal Strike"]') ?? null;
           const head = () => textOf(dlg?.element?.querySelector('[data-bf-reminder-head]'));
@@ -470,7 +464,7 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
           ok('46c. the roll\'s record: forgo "Brutal Strike", the Reckless source struck, rolled Normal',
             (rec?.forgo === 'Brutal Strike') && (rec?.sources ?? []).some(x => x.forgone && /Reckless/.test(x.label)) && (rec?.mode === 'normal'),
             `rec=${JSON.stringify(rec && { forgo: rec.forgo, net: rec.net, mode: rec.mode, sources: rec.sources })}`);
-          const offer = await waitFor(() => offerApp(before), 6000);
+          const offer = await until(() => offerApp(before), { timeout: 6000 }).catch(() => null);
           const rows = hitRows(offer);
           ok('46d. the damage offer\'s group "Brutal Strike": Forceful, Hamstring, Staggering and Sundering Blow, each "1d10 · free"',
             !!offer && ['forceful-blow', 'hamstring-blow', 'staggering-blow', 'sundering-blow'].every(k => rows.includes(k)) && /1d10 · free/i.test(hitRow(offer, 'hamstring-blow')),
@@ -478,7 +472,7 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
           await tick(offer, 'hamstring-blow');
           const d = await a1Roll(msg, offer);
           const pick = d?.getFlag(MOD, 'hitManeuver')?.picks?.[0] ?? null;
-          const hamstrung = await waitFor(() => victimFx().find(e => e.name === 'Hamstrung') ?? null, 8000);
+          const hamstrung = await until(() => victimFx().find(e => e.name === 'Hamstrung') ?? null, { timeout: 8000 }).catch(() => null);
           ok('46e. Hamstring Blow: the 1d10 rode the damage, Hamstrung landed on the Victim',
             (pick?.key === 'hamstring-blow') && (pick?.formula === '1d10') && (pick?.rides === true) && !!hamstrung,
             `pick=${JSON.stringify(pick && { key: pick.key, formula: pick.formula, type: pick.type, rides: pick.rides })} hamstrung=${!!hamstrung}`);
@@ -492,12 +486,12 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
         if (reckless) await reckless.delete().catch(() => {});
         await dropEffects(pcAttacker, riderChits(pcAttacker));
         for (const it of [bs, ibs]) if (it) await unlend(pcAttacker, it);
-        CONFIG.Dice.randomUniform = realPRNG; clearTargets();
+        unrig(); clearTargets();
       }
-    }
+    });
 
     // ---- 64. Relentless Rage: the save at the climbing DC, the heal on a success, the 0 on a failure
-    if (want(64)) {
+    if (want(64)) await section(64, async () => {
       await closeA1(); await spendLuckC();
       const barb = await hgLend(halfling, 'Barbarian', 'class', { 'system.levels': 11 });
       const rr = await hgLend(halfling, 'Relentless Rage', 'feat', { 'system.uses.max': '20', 'system.uses.spent': 0 });
@@ -509,19 +503,19 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
           const spent = () => Number(halfling.items.get(rr.id)?.system?.uses?.spent ?? NaN);
           const t0 = Date.now();
           await dropHalfling(5, [[20, 20]]);   // the Constitution save's d20 a 20
-          const card = await waitFor(() => dropCards(t0, 'Relentless Rage').find(m => m.getFlag(MOD, 'dropToOne')?.answer) ?? null, 10000);
-          await waitFor(() => hp() > 1, 8000);
+          const card = await until(() => dropCards(t0, 'Relentless Rage').find(m => m.getFlag(MOD, 'dropToOne')?.answer) ?? null, { timeout: 10000 }).catch(() => null);
+          await until(() => hp() > 1, { timeout: 8000 }).catch(() => null);
           await sleep(400);
-          CONFIG.Dice.randomUniform = realPRNG;
+          unrig();
           const f = card?.getFlag(MOD, 'dropToOne');
           ok('64a. raging, dropped to 0: held at 1, the Constitution save at DC 10 rolled and SAVED, a use spent, 22 healed on top (1 + 2 × 11 = 23)',
             (f?.answer === 'saved') && (f?.save?.dc === 10) && (spent() === 1) && (hp() === 23),
             `flag=${JSON.stringify(f && { answer: f.answer, save: f.save })} spent=${spent()} hp=${hp()} card="${cardText(card?.id).slice(0, 160)}"`);
           const t1 = Date.now();
           await dropHalfling(5, [[1, 20]]);   // the second save's d20 a 1: DC 15 fails
-          const card2 = await waitFor(() => dropCards(t1, 'Relentless Rage').find(m => m.getFlag(MOD, 'dropToOne')?.answer) ?? null, 10000);
+          const card2 = await until(() => dropCards(t1, 'Relentless Rage').find(m => m.getFlag(MOD, 'dropToOne')?.answer) ?? null, { timeout: 10000 }).catch(() => null);
           await sleep(600);
-          CONFIG.Dice.randomUniform = realPRNG;
+          unrig();
           const f2 = card2?.getFlag(MOD, 'dropToOne');
           ok('64b. the next drop: the DC climbed to 15 (a use spent), the save FAILS, 0 lands', (f2?.answer === 'failed') && (f2?.save?.dc === 15) && (hp() === 0) && (spent() === 2),
             `flag=${JSON.stringify(f2 && { answer: f2.answer, save: f2.save })} hp=${hp()} spent=${spent()}`);
@@ -532,12 +526,12 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
         if (rage) await rage.delete().catch(() => {});
         for (const it of [rr, barb]) if (it) await unlend(halfling, it);
         await healFull();
-        CONFIG.Dice.randomUniform = realPRNG; clearTargets();
+        unrig(); clearTargets();
       }
-    }
+    });
 
     // ---- 66. Rage of the Gods: the Zealot within 30 ft keeps an ally's drop
-    if (want(66)) {
+    if (want(66)) await section(66, async () => {
       await closeA1(); await spendLuckC();
       const barb = await hgLend(sorcerer, 'Barbarian', 'class', { 'system.levels': 14 });
       const rage = await hgLend(sorcerer, 'Rage', 'feat', { 'system.uses.max': '3', 'system.uses.spent': 0 });
@@ -549,15 +543,15 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
           await sleep(300);
           const t0 = Date.now();
           await dropHalfling(5);
-          const pop = await waitFor(() => titled(/^Rage of the Gods — /), 8000);
+          const pop = await until(() => titled(/^Rage of the Gods — /), { timeout: 8000 }).catch(() => null);
           const popText = textOf(pop?.element);
           const card0 = dropCards(t0, 'Rage of the Gods')[0] ?? null;
           ok('66a. the Halfling\'s drop asks the ZEALOT (15 ft away): "drop to @classes.barbarian.levels Hit Points instead?", the Rage use named, the card "held at 1 until BTB Test Sorcerer answers"',
             !!pop && /drop to @classes\.barbarian\.levels Hit Points instead\?/.test(popText) && /Rage/.test(popText) && (card0?.getFlag(MOD, 'dropToOne')?.keeperUuid === sorcerer.uuid) && (hp() === 1),
             `pop="${popText.slice(0, 220)}" keeper=${card0?.getFlag(MOD, 'dropToOne')?.keeperName ?? null} hp=${hp()}`);
           pop?.element?.querySelector('button[data-action="use"]')?.click();
-          const card = await waitFor(() => dropCards(t0, 'Rage of the Gods').find(m => m.getFlag(MOD, 'dropToOne')?.applied) ?? null, 10000);
-          await waitFor(() => hp() > 1, 8000);
+          const card = await until(() => dropCards(t0, 'Rage of the Gods').find(m => m.getFlag(MOD, 'dropToOne')?.applied) ?? null, { timeout: 10000 }).catch(() => null);
+          await until(() => hp() > 1, { timeout: 8000 }).catch(() => null);
           await sleep(400);
           ok('66b. Yes: the Halfling at 14 Hit Points (the barbarian\'s level), a Rage use spent, the line names the keeper',
             (hp() === 14) && (Number(sorcerer.items.get(rage.id)?.system?.uses?.spent) === 1) && /Rage of the Gods \(BTB Test Sorcerer's\)/.test(cardText(card?.id)) && /drops to 14 Hit Points instead/.test(cardText(card?.id)),
@@ -569,12 +563,12 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
         if (raging) await raging.delete().catch(() => {});
         for (const it of [rog, rage, barb]) if (it) await unlend(sorcerer, it);
         await healFull();
-        CONFIG.Dice.randomUniform = realPRNG; clearTargets();
+        unrig(); clearTargets();
       }
-    }
+    });
 
     // ---- 68. Power of the Wilds: the pick at the Rage; Lion's ring; Ram's press
-    if (want(68)) {
+    if (want(68)) await section(68, async () => {
       await closeA1(); await a1Victim(); await dropVictimFx();
       await dropFx(pcAttacker, RAGE_FX);
       await activateRange();
@@ -587,13 +581,13 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
         if (!rage || !wilds || !pcWeapon || !victimWeapon) log.push(`§68 skipped: rage=${!!rage} wilds=${!!wilds} weapon=${!!pcWeapon} victimWeapon=${!!victimWeapon}`);
         else {
           const card = await useFeature(pcToken, rage);
-          const lion = await waitFor(() => hgPickButton('Lion'), 6000);
+          const lion = await until(() => hgPickButton('Lion'), { timeout: 6000 }).catch(() => null);
           ok('68a. the Rage asks "Power of the Wilds — Falcon, Lion or Ram?"', !!lion && !!hgPickButton('Falcon') && !!hgPickButton('Ram') && (card?.getFlag(MOD, 'castApply')?.choice?.key === 'Power of the Wilds'),
             `choice=${JSON.stringify(card?.getFlag(MOD, 'castApply')?.choice ?? null)}`);
           lion?.click();
-          const chip = await waitFor(chipOn, 6000);
-          const region = await waitFor(() => regionKeyed('Power of the Wilds', pcToken.document.id), 10000);
-          const member = await waitFor(() => memberOn(victim), 8000);
+          const chip = await until(chipOn, { timeout: 6000 }).catch(() => null);
+          const region = await until(() => regionKeyed('Power of the Wilds', pcToken.document.id), { timeout: 10000 }).catch(() => null);
+          const member = await until(() => memberOn(victim), { timeout: 8000 }).catch(() => null);
           ok('68b. Lion: the chip "Power of the Wilds: Lion" on the barbarian, the quiet ring, the Victim within 5 ft wears the made member copy',
             (chip?.name === 'Power of the Wilds: Lion') && !!region && !!member && (member.changes?.length === 0),
             `chip=${chip?.name ?? null} region=${!!region} member=${member?.name ?? null}`);
@@ -607,16 +601,16 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
           await chip?.delete().catch(() => {});
           await dropFx(pcAttacker, RAGE_FX);
           const card2 = await useFeature(pcToken, rage);
-          const ram = await waitFor(() => hgPickButton('Ram'), 6000);
+          const ram = await until(() => hgPickButton('Ram'), { timeout: 6000 }).catch(() => null);
           ram?.click();
-          await waitFor(() => chipOn()?.name === 'Power of the Wilds: Ram', 6000);
-          await waitFor(() => fxNamed(pcAttacker, ['Rage'])[0] ?? null, 6000);
+          await until(() => chipOn()?.name === 'Power of the Wilds: Ram', { timeout: 6000 }).catch(() => null);
+          await until(() => fxNamed(pcAttacker, ['Rage'])[0] ?? null, { timeout: 6000 }).catch(() => null);
           await closeA1();
           const r1 = await a1Hit(pcAttacker, pcToken, attackOf(pcAttacker, pcWeapon));
           ok('68d. Ram, raging: a melee hit offers the rider "Power of the Wilds — Ram" (it is knocked Prone)', !!riderBox(r1.offer, 'power-of-the-wilds-ram') && /knocked Prone/.test(riderRow(r1.offer, 'power-of-the-wilds-ram')),
             `card2=${!!card2} chip=${chipOn()?.name ?? null} row="${riderRow(r1.offer, 'power-of-the-wilds-ram').slice(0, 140)}"`);
           await a1Roll(r1.msg, r1.offer);
-          const landed = await waitFor(() => victimFx().find(e => e.name === 'Power of the Wilds: Ram') ?? null, 8000);
+          const landed = await until(() => victimFx().find(e => e.name === 'Power of the Wilds: Ram') ?? null, { timeout: 8000 }).catch(() => null);
           ok('68e. it rode: the pack\'s "Power of the Wilds: Ram" (Prone) lands on the Victim', !!landed && landed.statuses?.has?.('prone'), `fx=${JSON.stringify(victimFx().map(e => e.name))}`);
         }
       } finally {
@@ -625,15 +619,15 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
         const c = chipOn(); if (c) await c.delete().catch(() => {});
         await dropVictimFx(); await dropEffects(pcAttacker, riderChits(pcAttacker));
         for (const it of [wilds, rage]) if (it) await unlend(pcAttacker, it);
-        const gone = await waitFor(() => !regionKeyed('Power of the Wilds', pcToken.document.id) && !memberOn(victim), 8000);
+        const gone = await until(() => !regionKeyed('Power of the Wilds', pcToken.document.id) && !memberOn(victim), { timeout: 8000 }).catch(() => null);
         if (!gone) { const r = regionKeyed('Power of the Wilds', pcToken.document.id); if (r) await r.delete().catch(() => {}); const m = memberOn(victim); if (m) await m.delete().catch(() => {}); }
-        CONFIG.Dice.randomUniform = realPRNG; clearTargets();
+        unrig(); clearTargets();
         await backToRange();
       }
-    }
+    });
 
     // ---- 92. Improved Brutal Strike at Barbarian 17: two different effects on one hit
-    if (want(92)) {
+    if (want(92)) await section(92, async () => {
       await closeA1(); await a1Victim(); await dropVictimFx(); await spendLuck();
       const barb = await hgLend(pcAttacker, 'Barbarian', 'class', { 'system.levels': 17 });
       const bs = await hgLend(pcAttacker, 'Brutal Strike', 'feat');
@@ -653,14 +647,14 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
           const before = new Set(popups());
           faces([[19, 20], [19, 20], [3, 6], [3, 6], [7, 10], [7, 10], [7, 10], [7, 10]]);
           const p = wAct.rollAttack({}, {}, {});
-          const dlg = await waitFor(rollDialog, 6000);
+          const dlg = await until(rollDialog, { timeout: 6000 }).catch(() => null);
           await sleep(400);
           dlg?.element?.querySelector('input[name="bf-buy"][data-bf-buy-name="Brutal Strike"]')?.click();
           await sleep(350);
           dlg?.element?.querySelector('button[data-action="normal"]')?.click();
           const rolls = await p.catch(() => null);
           const msg = rolls?.[0]?.parent ?? null;
-          const offer = await waitFor(() => offerApp(before), 6000);
+          const offer = await until(() => offerApp(before), { timeout: 6000 }).catch(() => null);
           await tick(offer, 'hamstring-blow', 'staggering-blow');
           await sleep(200);
           const both = !!hitBox(offer, 'hamstring-blow')?.checked && !!hitBox(offer, 'staggering-blow')?.checked;
@@ -677,9 +671,9 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
         if (reckless) await reckless.delete().catch(() => {});
         await dropEffects(pcAttacker, riderChits(pcAttacker));
         for (const it of [ibs, bs, barb]) if (it) await unlend(pcAttacker, it);
-        CONFIG.Dice.randomUniform = realPRNG; clearTargets();
+        unrig(); clearTargets();
       }
-    }
+    });
     return { log, results, skips };
   } catch (err) {
     return { fatal: `${err?.message || err}\n${err?.stack ?? ''}`, results, log, skips };

@@ -37,22 +37,16 @@ const f = await connectSuite({ tag: 'class-wizard', watchdogMs: 900_000 });
 announcePlan('class-wizard', plan, pulled);
 
 const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ sections, titles }) => {
-  const results = [];
-  const skips = [];
-  const ok = (name, pass, detail = '') => results.push({ name, pass, detail });
-  const want = id => {
-    if (!sections || sections.includes(String(id))) return true;
-    skips.push(`§${id} ${titles?.[id] ?? ''}`);
-    return false;
-  };
+  const { sleep, until, faces, unrig } = window.__btb;
+  const { results, skips, ok, want, section } = window.__btb.begin({ sections, titles });
   const KIT = window.__btbClasses;
-  const { MOD, a1Victim, a4Card, act, attacker, attackerToken, cardEl, cardText, clearTargets, closeA1, closeDialogs, damageFor, faces, findPHB, halfling, halflingToken, healFull, hgClose, hgKeep, hgLend, holdOf, hp, lentBy, log, pcAttacker, pcToken, pickApply, popups, realPRNG, resolvedTarget, rollDialog, rollPopup, rollStoredAsk, set, sleep, sorcTokC, sorcerer, spendLuck, swing, textOf, unlend, victim, victimToken, waitFor } = KIT;
+  const { MOD, a1Victim, a4Card, act, attacker, attackerToken, cardEl, cardText, clearTargets, closeA1, closeDialogs, damageFor, findPHB, halfling, halflingToken, healFull, hgClose, hgKeep, hgLend, holdOf, hp, lentBy, log, pcAttacker, pcToken, pickApply, popups, resolvedTarget, rollDialog, rollPopup, rollStoredAsk, set, sorcTokC, sorcerer, spendLuck, swing, textOf, unlend, victim, victimToken } = KIT;
   try {
     await KIT.leaveA3();
     KIT.markA2();
 
     // ---- 32. Potent Cantrip: the caster's mirror of Evasion
-    if (want(32)) {
+    if (want(32)) await section(32, async () => {
       await closeDialogs(); await set('saveRolls', 'auto');
       const potent = await hgLend(attacker, 'Potent Cantrip', 'feat');
       let flameId = attacker.items.find(i => (i.name === 'Sacred Flame') && (i.type === 'spell'))?.id;
@@ -71,10 +65,10 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
         faces([[20, 20]]);
         const use = await flameAct().use({ consume: { spellSlot: false } }, { configure: false }, {});
         const card = use?.message ?? null;
-        const entry = await waitFor(() => { const e = card?.getFlag(MOD, 'saves')?.targets?.find(x => x.uuid === halfling.uuid); return e?.done ? e : null; }, 12000);
-        const dmg = await waitFor(() => a4Card(t0, m => (m.type === 'damage') && (m.system?.origin === card?.id || m._source?.system?.origin === card?.id)), 8000);
+        const entry = await until(() => { const e = card?.getFlag(MOD, 'saves')?.targets?.find(x => x.uuid === halfling.uuid); return e?.done ? e : null; }, { timeout: 12000 }).catch(() => null);
+        const dmg = await until(() => a4Card(t0, m => (m.type === 'damage') && (m.system?.origin === card?.id || m._source?.system?.origin === card?.id)), { timeout: 8000 }).catch(() => null);
         // A success with no share writes no receipt (the multiplier is null): the wait runs out, then the HP are read.
-        await waitFor(() => dmg?.getFlag(MOD, 'receipt'), 6000);
+        await until(() => dmg?.getFlag(MOD, 'receipt'), { timeout: 6000 }).catch(() => null);
         await sleep(500);
         clearTargets();
         return { card, entry, dmg, total: Number(dmg?.rolls?.reduce((n, r) => n + (Number(r.total) || 0), 0)), lost: 400 - hp() };
@@ -95,12 +89,12 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
       } finally {
         if (potent) await unlend(attacker, potent);
         await healFull();
-        CONFIG.Dice.randomUniform = realPRNG;
+        unrig();
       }
-    }
+    });
 
     // ---- 35. Potent Cantrip on a miss: rolled once the miss is final, half landed
-    if (want(35)) {
+    if (want(35)) await section(35, async () => {
       await closeDialogs(); await a1Victim();
       const potent = await hgLend(pcAttacker, 'Potent Cantrip', 'feat');
       const bolt = await hgLend(pcAttacker, 'Fire Bolt', 'spell', { 'system.prepared': 1, 'system.method': 'atwill' });
@@ -131,44 +125,44 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
           await victim.update({ 'system.attributes.ac.override': 20 });
           // a. the clean miss, no rescue: the share rolls and lands
           const m1 = await boltMiss();
-          const d1 = await waitFor(() => { const d = damagesFor(m1?.id)[0]; return d?.getFlag(MOD, 'receipt') ? d : null; }, 10000);
+          const d1 = await until(() => { const d = damagesFor(m1?.id)[0]; return d?.getFlag(MOD, 'receipt') ? d : null; }, { timeout: 10000 }).catch(() => null);
           const note1 = JSON.stringify(d1?.getFlag(MOD, 'receipt') ?? null);
           ok('35a. a missed Fire Bolt: its damage rolls and half lands, the receipt says "missed — Potent Cantrip, half damage"',
             (totalOf(d1) > 1) && ((400 - vhp()) === Math.floor(totalOf(d1) / 2)) && /missed — Potent Cantrip, half damage/.test(note1),
             `total=${totalOf(d1)} lost=${400 - vhp()} receipt=${note1.slice(0, 160)}`);
-          CONFIG.Dice.randomUniform = realPRNG;
+          unrig();
           // b. without the feature: nothing rolls
           await unlend(pcAttacker, potent);
           const m2 = await boltMiss();
           await sleep(2500);
           ok('35b. without Potent Cantrip a miss rolls nothing', !damagesFor(m2?.id).length && (vhp() === 400), `damages=${damagesFor(m2?.id).length} hp=${vhp()}`);
-          CONFIG.Dice.randomUniform = realPRNG;
+          unrig();
           const potent2 = await hgLend(pcAttacker, 'Potent Cantrip', 'feat');
           // c. a rescue window first (Heroic Inspiration): nothing rolls while it stands; Pass → the share
           await pcAttacker.update({ 'system.attributes.inspiration': true });
           const prior3 = appsNow();
           const m3 = await boltMiss();
-          const win3 = await waitFor(() => rescueWindow(prior3), 8000);
+          const win3 = await until(() => rescueWindow(prior3), { timeout: 8000 }).catch(() => null);
           await sleep(1200);
           const early = damagesFor(m3?.id).length;
           ok('35c. with Heroic Inspiration the rescue window opens and NOTHING rolls while it stands', !!win3 && (early === 0) && (m3?.getFlag(MOD, 'd20fold')?.status === 'pending'),
             `window=${!!win3} damages=${early} fold=${m3?.getFlag(MOD, 'd20fold')?.status}`);
           faces([[8, 10]]);
           win3?.querySelector('button[data-action="pass"]')?.click();
-          const d3 = await waitFor(() => { const d = damagesFor(m3?.id)[0]; return d?.getFlag(MOD, 'receipt') ? d : null; }, 10000);
+          const d3 = await until(() => { const d = damagesFor(m3?.id)[0]; return d?.getFlag(MOD, 'receipt') ? d : null; }, { timeout: 10000 }).catch(() => null);
           await sleep(800);
           ok('35d. Pass: the miss stands — the share rolls and half lands, once', (damagesFor(m3?.id).length === 1) && (totalOf(d3) > 1) && ((400 - vhp()) === Math.floor(totalOf(d3) / 2)),
             `damages=${damagesFor(m3?.id).length} total=${totalOf(d3)} lost=${400 - vhp()}`);
-          CONFIG.Dice.randomUniform = realPRNG;
+          unrig();
           // e. the Heroic reroll turns it: the FULL roll, one damage message, no share
           await pcAttacker.update({ 'system.attributes.inspiration': true });
           await victim.update({ 'system.attributes.ac.override': 12 });
           const prior4 = appsNow();
           const m4 = await boltMiss();
-          const win4 = await waitFor(() => rescueWindow(prior4), 8000);
+          const win4 = await until(() => rescueWindow(prior4), { timeout: 8000 }).catch(() => null);
           faces([[20, 20], [8, 10]]);
           win4?.querySelector('[data-bf-rescue-action="heroic"]')?.click();
-          const d4 = await waitFor(() => { const d = damagesFor(m4?.id)[0]; return d?.getFlag(MOD, 'receipt') ? d : null; }, 12000);
+          const d4 = await until(() => { const d = damagesFor(m4?.id)[0]; return d?.getFlag(MOD, 'receipt') ? d : null; }, { timeout: 12000 }).catch(() => null);
           await sleep(1500);
           ok('35e. the Heroic reroll turns the miss: ONE damage roll, the full total lands (never a share beside it)',
             (damagesFor(m4?.id).length === 1) && (totalOf(d4) > 0) && ((400 - vhp()) === totalOf(d4)),
@@ -179,13 +173,13 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
         await closeDialogs();
         for (const it of pcAttacker.items.filter(i => ['Potent Cantrip', 'Fire Bolt'].includes(i.name) && (lentBy.get(pcAttacker) ?? []).includes(i.id))) await unlend(pcAttacker, it);
         await victim.update({ 'system.attributes.hp.value': 400 });
-        CONFIG.Dice.randomUniform = realPRNG;
+        unrig();
         clearTargets();
       }
-    }
+    });
 
     // ---- 36. Arcane Ward: the ward pool
-    if (want(36)) {
+    if (want(36)) await section(36, async () => {
       await closeDialogs();
       const ward = await hgLend(sorcerer, 'Arcane Ward', 'feat', { 'system.uses.max': '12', 'system.uses.spent': 12 });
       const armor = await hgLend(sorcerer, 'Mage Armor', 'spell', { 'system.prepared': 1, 'system.method': 'spell' });
@@ -201,14 +195,14 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
       const shp = () => Number(sorcerer.system.attributes.hp.value);
       const setWard = n => sorcerer.items.get(ward.id).update({ 'system.uses.spent': 12 - n });
       const armorAct = () => sorcerer.items.get(armor?.id)?.system?.activities?.contents?.[0] ?? null;
-      const lineOf = async card => (await waitFor(() => cardEl(card?.id)?.querySelector('.bf-ward-line'), 5000))?.textContent?.trim() ?? '';
+      const lineOf = async card => (await until(() => cardEl(card?.id)?.querySelector('.bf-ward-line'), { timeout: 5000 }).catch(() => null))?.textContent?.trim() ?? '';
       const cast = async (level = 1) => {
         sorcTok?.setTarget(true, { releaseOthers: true });
         await sleep(80);
         const r = await armorAct()?.use({ spell: { slot: `spell${level}` }, subsequentActions: false }, { configure: false }, {});
         clearTargets();
         const card = r?.message ?? null;
-        await waitFor(() => card?.getFlag(MOD, 'wardRefill'), 6000);
+        await until(() => card?.getFlag(MOD, 'wardRefill'), { timeout: 6000 }).catch(() => null);
         return card;
       };
       try {
@@ -233,8 +227,8 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
           const usage = await act().use({ subsequentActions: false }, { configure: false }, {});
           const rolls = await act().rollAttack({}, { configure: false }, usage?.message?.id ? { data: { 'system.origin': usage.message.id } } : {});
           const atk = rolls?.[0]?.parent ?? null;
-          const dmg = await waitFor(() => { const d = damageFor(atk?.id); return d?.getFlag(MOD, 'receipt') ? d : null; }, 12000);
-          CONFIG.Dice.randomUniform = realPRNG;
+          const dmg = await until(() => { const d = damageFor(atk?.id); return d?.getFlag(MOD, 'receipt') ? d : null; }, { timeout: 12000 }).catch(() => null);
+          unrig();
           clearTargets();
           const total = Number(dmg?.rolls?.reduce((n, r) => n + (Number(r.total) || 0), 0));
           const entry = dmg?.getFlag(MOD, 'receipt')?.targets?.find(t => t.uuid === sorcerer.uuid);
@@ -259,13 +253,13 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
       } finally {
         if (armor) await unlend(sorcerer, armor);
         if (ward) await unlend(sorcerer, ward);
-        CONFIG.Dice.randomUniform = realPRNG;
+        unrig();
         clearTargets();
       }
-    }
+    });
 
     // ---- 41. Portent: the rest's dice, the own roll's tick, an ally's demanded save, an enemy's critical hit
-    if (want(41)) {
+    if (want(41)) await section(41, async () => {
       await closeA1(); await spendLuck();
       hgKeep(sorcerer, { 'system.spells': foundry.utils.deepClone(sorcerer.system._source.spells),
         'system.attributes.hp.value': sorcerer.system._source.attributes.hp.value });
@@ -281,17 +275,17 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
           faces([[17, 20], [3, 20]]);
           await sorcerer.longRest({ dialog: false, chat: true, newDay: false });
           const askedA = await rollStoredAsk();
-          await waitFor(() => chip(), 8000);
-          CONFIG.Dice.randomUniform = realPRNG;
-          const restCard = await waitFor(() => game.messages.contents.find(m => (m.timestamp >= t0) && m.getFlag(MOD, 'storedRolled')) ?? null, 6000);
-          const restLine = (await waitFor(() => cardEl(restCard?.id)?.querySelector('.bf-stored-line'), 4000))?.textContent?.trim() ?? '';
+          await until(() => chip(), { timeout: 8000 }).catch(() => null);
+          unrig();
+          const restCard = await until(() => game.messages.contents.find(m => (m.timestamp >= t0) && m.getFlag(MOD, 'storedRolled')) ?? null, { timeout: 6000 }).catch(() => null);
+          const restLine = (await until(() => cardEl(restCard?.id)?.querySelector('.bf-stored-line'), { timeout: 4000 }).catch(() => null))?.textContent?.trim() ?? '';
           ok('41a. the Long Rest asks the Sorcerer to roll; Roll: the chip "Portent — 17 · 3", the roll\'s card "Portent — 17 and 3 kept"',
             askedA && (chip()?.name === 'Portent — 17 · 3') && /Portent — 17 and 3 kept/.test(restLine) && !!restCard?.getFlag(MOD, 'storedFor'),
             `asked=${askedA} chip=${chip()?.name ?? null} line="${restLine}" for=${restCard?.getFlag(MOD, 'storedFor') ?? null}`);
           // b. its own save, the dialog: "use the 17" ticked — the d20 IS the 17, the face gone
           const p = sorcerer.rollSavingThrow({ ability: 'wis' }, {}, {});
-          const dlg = await waitFor(rollDialog, 6000);
-          await waitFor(() => dlg?.element?.querySelector('[data-bf-stored]'), 3000);
+          const dlg = await until(rollDialog, { timeout: 6000 }).catch(() => null);
+          await until(() => dlg?.element?.querySelector('[data-bf-stored]'), { timeout: 3000 }).catch(() => null);
           const tick = [...(dlg?.element?.querySelectorAll('input[name="bf-stored"]') ?? [])].find(i => /use the 17/.test(textOf(i.closest('label'))));
           const boxText = textOf(dlg?.element?.querySelector('[data-bf-stored]'));
           if (tick) { tick.checked = true; tick.dispatchEvent(new Event('change', { bubbles: true })); }
@@ -299,8 +293,8 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
           dlg?.element?.querySelector('button[data-action="normal"]')?.click();
           const rolls = await p;
           const r0 = rolls?.[0];
-          const lineB = (await waitFor(() => cardEl(r0?.parent?.id)?.querySelector('.bf-stored-line'), 4000))?.textContent?.trim() ?? '';
-          await waitFor(() => facesNow().length === 1, 4000);
+          const lineB = (await until(() => cardEl(r0?.parent?.id)?.querySelector('.bf-stored-line'), { timeout: 4000 }).catch(() => null))?.textContent?.trim() ?? '';
+          await until(() => facesNow().length === 1, { timeout: 4000 }).catch(() => null);
           ok('41b. its own save: the dialog offers "use the 17" / "use the 3"; ticked, the d20 is the 17, the chip "Portent — 3", the card says so',
             /use the 17/.test(boxText) && /use the 3/.test(boxText) && (Number(r0?.d20?.total) === 17) && (chip()?.name === 'Portent — 3') && /Portent — the d20 is the 17/.test(lineB),
             `box="${boxText.slice(0, 120)}" d20=${r0?.d20?.total} formula=${r0?.formula} chip=${chip()?.name ?? null} line="${lineB}"`);
@@ -324,7 +318,7 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
             const tFlame = Date.now();
             const use = await flameAct.use({ consume: { spellSlot: false } }, { configure: false }, {});
             const card = use?.message ?? null;
-            await waitFor(() => card?.getFlag(MOD, 'saves'), 6000);
+            await until(() => card?.getFlag(MOD, 'saves'), { timeout: 6000 }).catch(() => null);
             const dc = Number(card?.getFlag(MOD, 'saves')?.dc);
             faces([[10, 20]]);
             const probeSave = await halfling.rollSavingThrow({ ability: 'dex' }, { configure: false }, { create: false });
@@ -332,22 +326,22 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
             await sleep(600);
             faces([[1, 20]]);   // a natural 1 fails; 18 + mod passes the DC
             const rolls2 = await halfling.rollSavingThrow({ ability: 'dex' }, { configure: false }, {});
-            CONFIG.Dice.randomUniform = realPRNG;
+            unrig();
             const rollMsg = rolls2?.[0]?.parent ?? null;
-            const pop = await waitFor(() => rollPopup(/Portent/), 8000);
+            const pop = await until(() => rollPopup(/Portent/), { timeout: 8000 }).catch(() => null);
             const rowsText = textOf(pop?.element);
             ok('41c. an ally\'s failed save a stored 18 turns: the diviner\'s popup "Use the 18 … SUCCESS", the 2 not offered',
               !!pop && /Use the 18/.test(rowsText) && /SUCCESS/.test(rowsText) && !/Use the 2\b/.test(rowsText) && (18 + smod >= dc),
               `pop=${!!pop} dc=${dc} mod=${smod} text="${rowsText.slice(0, 220)}" rolled=${JSON.stringify(rolls2?.[0]?.d20?.results?.map(r => r.result))} saves=${JSON.stringify(game.messages.contents.filter(m => (m.timestamp >= tFlame) && m.rolls?.length).map(m => [m.speaker?.alias, m.flavor?.slice(0, 40), m.rolls[0]?.total, m.id === rollMsg?.id]))}`);
             pickApply(pop);
-            const entry = await waitFor(() => card?.getFlag(MOD, 'saves')?.targets?.find(x => (x.uuid === halfling.uuid) && x.done) ?? null, 10000);
+            const entry = await until(() => card?.getFlag(MOD, 'saves')?.targets?.find(x => (x.uuid === halfling.uuid) && x.done) ?? null, { timeout: 10000 }).catch(() => null);
             ok('41d. Answer: SAVED, the chip "Portent — 2"', !!entry && /save|success/i.test(String(entry?.outcome ?? entry?.verdict ?? '')) && (chip()?.name === 'Portent — 2'),
               `entry=${JSON.stringify(entry && { outcome: entry.outcome, verdict: entry.verdict, total: entry.total })} chip=${chip()?.name ?? null} roll=${JSON.stringify(rollMsg?.getFlag(MOD, 'bystanderRoll')?.bent ?? null)}`);
             clearTargets();
           }
           // e. an enemy's critical hit on the Halfling: the diviner asked, "replace the 20 with the 2" — a MISS, the chip gone
           const msg = await swing({ d20: [20] });
-          const bpop = await waitFor(() => popups().find(app => app.element?.querySelector?.('[data-bf-ticks="bf-bystander"]') && /Portent/.test(textOf(app.element))) ?? null, 8000);
+          const bpop = await until(() => popups().find(app => app.element?.querySelector?.('[data-bf-ticks="bf-bystander"]') && /Portent/.test(textOf(app.element))) ?? null, { timeout: 8000 }).catch(() => null);
           ok('41e. a critical hit on an ally: the diviner\'s popup "Use the 2 … a MISS"', !!bpop && /Use the 2\b/.test(textOf(bpop?.element)) && /a MISS/.test(textOf(bpop?.element)),
             `pop=${!!bpop} guards=${JSON.stringify(holdOf(msg)?.targets?.[0]?.guards?.map(g => [g.name, g.row, g.faces, g.quiet ?? false]) ?? null)}`);
           pickApply(bpop);
@@ -359,10 +353,10 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
           // g. an ordinary hit a face turns: the diviner's popup (RULINGS *The asks widened*), the way out; Answer: a MISS, the banner
           { const old = chip(); if (old) await old.delete(); }   // the rest writes a new chip; wait for THAT one, not the spent one
           await sorcerer.longRest({ dialog: false, chat: false, newDay: false });
-          await waitFor(() => chip(), 6000);
+          await until(() => chip(), { timeout: 6000 }).catch(() => null);
           await setFaces([2]);
           const msg2 = await swing({ d20: [12] });
-          const gpop = await waitFor(() => popups().find(app => app.element?.querySelector?.('[data-bf-ticks="bf-bystander"]') && /Portent/.test(textOf(app.element))) ?? null, 8000);
+          const gpop = await until(() => popups().find(app => app.element?.querySelector?.('[data-bf-ticks="bf-bystander"]') && /Portent/.test(textOf(app.element))) ?? null, { timeout: 8000 }).catch(() => null);
           const gtext = textOf(gpop?.element);
           ok('41g. an ordinary hit a stored 2 turns: the diviner\'s popup "Use the 2 … a MISS"; out of combat the one way out, "Not until the next combat"',
             !!gpop && /Use the 2\b/.test(gtext) && /a MISS/.test(gtext) && !!gpop?.element?.querySelector('input[value="mute-combat"]') && !gpop?.element?.querySelector('input[value="mute-turn"]'),
@@ -370,7 +364,7 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
           pickApply(gpop);
           const t2 = await resolvedTarget(msg2);
           // The crit's banner (41f) may still be fading: the newest attack banner is this hit's.
-          const banner = await waitFor(() => [...document.querySelectorAll('.bf-bend-banner')].filter(b => /the d20 12 becomes/.test(b.textContent ?? '')).pop() ?? null, 6000);
+          const banner = await until(() => [...document.querySelectorAll('.bf-bend-banner')].filter(b => /the d20 12 becomes/.test(b.textContent ?? '')).pop() ?? null, { timeout: 6000 }).catch(() => null);
           const btext = textOf(banner);
           ok('41h. Answer: a MISS, no damage, the chip gone; every screen\'s banner "BTB Test Sorcerer\'s Portent bends reality!", the d20 12 becomes the 2, MISS',
             (t2?.verdict === 'miss') && (t2?.bent?.how === 'set') && (hp() === 400) && !chip()
@@ -379,9 +373,9 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
           // i. the damage rolled by hand after the turned miss: nothing lands, and the card says who turned it
           faces([[4, 6], [4, 6]]);
           const late = await act().rollDamage({}, { configure: false }, { data: { flags: { [MOD]: { attackFor: msg2.id } } } });
-          CONFIG.Dice.randomUniform = realPRNG;
+          unrig();
           const lateMsg = late?.[0]?.parent ?? null;
-          const notApplied = await waitFor(() => game.messages.get(lateMsg?.id)?.getFlag(MOD, 'notApplied') ?? null, 8000);
+          const notApplied = await until(() => game.messages.get(lateMsg?.id)?.getFlag(MOD, 'notApplied') ?? null, { timeout: 8000 }).catch(() => null);
           await sleep(600);
           ok('41i. the damage rolled after the miss: no receipt, the card "Not applied — Portent (BTB Test Sorcerer) turned the hit on BTB Test Halfling into a miss", the Halfling untouched',
             !!notApplied && /Portent \(BTB Test Sorcerer\) turned the hit on BTB Test Halfling into a miss/.test(notApplied?.why ?? '') && !game.messages.get(lateMsg?.id)?.getFlag(MOD, 'receipt')
@@ -393,13 +387,13 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
         const chips = sorcerer.effects.filter(e => e.getFlag(MOD, 'storedDice')).map(e => e.id);
         if (chips.length) await sorcerer.deleteEmbeddedDocuments('ActiveEffect', chips).catch(() => {});
         if (portent) await unlend(sorcerer, portent);
-        CONFIG.Dice.randomUniform = realPRNG;
+        unrig();
         clearTargets();
       }
-    }
+    });
 
     // ---- 126. Portent widened (2026-10-14): a check or a save whose roll CARRIES a DC asks the diviner; a bare check asks nobody
-    if (want(126)) {
+    if (want(126)) await section(126, async () => {
       await closeA1(); await spendLuck();
       const portent = await hgLend(sorcerer, 'Portent', 'feat');
       const chip = () => sorcerer.effects.find(e => e.getFlag(MOD, 'storedDice')?.key === 'Portent') ?? null;
@@ -408,7 +402,7 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
         if (c) await c.update({ name: `Portent — ${f.join(' · ')}`, [`flags.${MOD}.storedDice`]: { key: 'Portent', faces: f, turn: null } });
         else await sorcerer.createEmbeddedDocuments('ActiveEffect', [{ name: `Portent — ${f.join(' · ')}`, img: 'icons/svg/d20.svg', transfer: false, flags: { [MOD]: { storedDice: { key: 'Portent', faces: f, turn: null } } } }]);
       };
-      const resolvedFlag = msg => waitFor(() => { const f = game.messages.get(msg?.id)?.getFlag(MOD, 'bystanderRoll'); return (f?.status === 'resolved') ? f : null; }, 8000);
+      const resolvedFlag = msg => until(() => { const f = game.messages.get(msg?.id)?.getFlag(MOD, 'bystanderRoll'); return (f?.status === 'resolved') ? f : null; }, { timeout: 8000 }).catch(() => null);
       try {
         if (!portent) log.push('§126 skipped: no Portent in the PHB');
         else {
@@ -419,9 +413,9 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
           const cmod = Number(probe?.[0]?.total) - 10;
           faces([[1, 20]]);
           const rollsA = await halfling.rollAbilityCheck({ ability: 'dex', target: 15 }, { configure: false }, {});
-          CONFIG.Dice.randomUniform = realPRNG;
+          unrig();
           const msgA = rollsA?.[0]?.parent ?? null;
-          const popA = await waitFor(() => rollPopup(/Portent/), 8000);
+          const popA = await until(() => rollPopup(/Portent/), { timeout: 8000 }).catch(() => null);
           const textA = textOf(popA?.element);
           ok('126a. a check whose roll carries DC 15, a natural 1: the diviner\'s popup "Use the 18 … SUCCESS", the 2 not offered',
             !!popA && /Use the 18/.test(textA) && /SUCCESS/.test(textA) && !/Use the 2\b/.test(textA) && (Number(rollsA?.[0]?.options?.target) === 15),
@@ -436,7 +430,7 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
           await setFaces([18, 2]);
           faces([[1, 20]]);
           const rollsC = await halfling.rollAbilityCheck({ ability: 'dex' }, { configure: false }, {});
-          CONFIG.Dice.randomUniform = realPRNG;
+          unrig();
           await sleep(1500);
           const askedC = !!rollPopup(/Portent/);
           const flagC = game.messages.get(rollsC?.[0]?.parent?.id)?.getFlag(MOD, 'bystanderRoll') ?? null;
@@ -445,9 +439,9 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
           // d. a save that is not a demand's answer but carries DC 15 (a request's), a natural 1: the popup; Answer: SUCCESS on its card
           faces([[1, 20]]);
           const rollsD = await halfling.rollSavingThrow({ ability: 'wis', target: 15 }, { configure: false }, {});
-          CONFIG.Dice.randomUniform = realPRNG;
+          unrig();
           const msgD = rollsD?.[0]?.parent ?? null;
-          const popD = await waitFor(() => rollPopup(/Portent/), 8000);
+          const popD = await until(() => rollPopup(/Portent/), { timeout: 8000 }).catch(() => null);
           ok('126d. a requested save with DC 15 on the roll, a natural 1: the diviner\'s popup "Use the 18 … SUCCESS"',
             !!popD && /Use the 18/.test(textOf(popD?.element)) && /SUCCESS/.test(textOf(popD?.element)), `pop=${!!popD} target=${rollsD?.[0]?.options?.target} text="${textOf(popD?.element).slice(0, 160)}"`);
           pickApply(popD);
@@ -461,13 +455,13 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
         const chips = sorcerer.effects.filter(e => e.getFlag(MOD, 'storedDice')).map(e => e.id);
         if (chips.length) await sorcerer.deleteEmbeddedDocuments('ActiveEffect', chips).catch(() => {});
         if (portent) await unlend(sorcerer, portent);
-        CONFIG.Dice.randomUniform = realPRNG;
+        unrig();
         clearTargets();
       }
-    }
+    });
 
     // ---- 82. Greater Portent: three dice at the rest
-    if (want(82)) {
+    if (want(82)) await section(82, async () => {
       await closeA1();
       hgKeep(sorcerer, { 'system.spells': foundry.utils.deepClone(sorcerer.system._source.spells), 'system.attributes.hp.value': sorcerer.system._source.attributes.hp.value });
       const portent = await hgLend(sorcerer, 'Portent', 'feat');
@@ -479,8 +473,8 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
           faces([[17, 20], [3, 20], [9, 20]]);
           await sorcerer.longRest({ dialog: false, chat: true, newDay: false });
           await rollStoredAsk();
-          await waitFor(chip, 8000);
-          CONFIG.Dice.randomUniform = realPRNG;
+          await until(chip, { timeout: 8000 }).catch(() => null);
+          unrig();
           ok('82a. the Long Rest with Greater Portent keeps three faces: "Portent — 17 · 3 · 9"', chip()?.name === 'Portent — 17 · 3 · 9', `chip=${chip()?.name ?? null} faces=${JSON.stringify(chip()?.getFlag(MOD, 'storedDice')?.faces ?? null)}`);
         }
       } finally {
@@ -488,12 +482,12 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
         const chips = sorcerer.effects.filter(e => e.getFlag(MOD, 'storedDice')).map(e => e.id);
         if (chips.length) await sorcerer.deleteEmbeddedDocuments('ActiveEffect', chips).catch(() => {});
         for (const it of [greater, portent]) if (it) await unlend(sorcerer, it);
-        CONFIG.Dice.randomUniform = realPRNG; clearTargets();
+        unrig(); clearTargets();
       }
-    }
+    });
 
     // ---- 83. Spell Resistance: the save gate against a spell
-    if (want(83)) {
+    if (want(83)) await section(83, async () => {
       await closeA1(); await set('saveRolls', 'prompt');
       const sr = await hgLend(sorcerer, 'Spell Resistance', 'feat');
       const sTok = sorcTokC();
@@ -509,9 +503,9 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
           await sleep(100);
           const use = await flameAct.use({ consume: { spellSlot: false } }, { configure: false }, {});
           const card = use?.message ?? null;
-          await waitFor(() => card?.getFlag(MOD, 'saves'), 6000);
+          await until(() => card?.getFlag(MOD, 'saves'), { timeout: 6000 }).catch(() => null);
           const p = sorcerer.rollSavingThrow({ ability: 'dex' }, {}, {});
-          const dlg = await waitFor(rollDialog, 6000);
+          const dlg = await until(rollDialog, { timeout: 6000 }).catch(() => null);
           await sleep(500);
           const text = textOf(dlg?.element?.querySelector('[data-bf-reminder]'));
           const net = dlg?.options?.bfSaveGate?.net ?? null;
@@ -527,9 +521,9 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
         await closeA1();
         if (flameLent) await unlend(attacker, flameLent);
         if (sr) await unlend(sorcerer, sr);
-        CONFIG.Dice.randomUniform = realPRNG; clearTargets();
+        unrig(); clearTargets();
       }
-    }
+    });
     return { log, results, skips };
   } catch (err) {
     return { fatal: `${err?.message || err}\n${err?.stack ?? ''}`, results, log, skips };

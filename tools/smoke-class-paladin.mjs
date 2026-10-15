@@ -39,20 +39,14 @@ const f = await connectSuite({ tag: 'class-paladin', watchdogMs: 900_000 });
 announcePlan('class-paladin', plan, pulled);
 
 const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ sections, titles }) => {
-  const results = [];
-  const skips = [];
-  const ok = (name, pass, detail = '') => results.push({ name, pass, detail });
-  const want = id => {
-    if (!sections || sections.includes(String(id))) return true;
-    skips.push(`§${id} ${titles?.[id] ?? ''}`);
-    return false;
-  };
+  const { sleep, until, faces, unrig } = window.__btb;
+  const { results, skips, ok, want, section } = window.__btb.begin({ sections, titles });
   const KIT = window.__btbClasses;
-  const { MOD, a1Victim, activateRange, atkMod, attackOf, attacker, attackerToken, backToRange, c1Cards, cardEl, cardText, castSpell, clearDown, clearTargets, cleric, clericToken, clericWeapon, closeA1, closeDialogs, d1Cards, d1Combat, d1Region, divinity, dropCards, dropEffects, dropHalfling, dropNamed, dropReactionChips, faces, gateFor, halfling, halflingDoc, halflingToken, healFull, hgClose, hgKeep, hgLend, hgStrike, holdOf, hp, lend, log, markOn, pcAttacker, pcToken, pcWeapon, pickApply, pinHeal, popupTitled, popups, realPRNG, regionKeyed, resolvedTarget, scene, set, sleep, spendLuck, spendLuckC, strikePopup, suiteStart, swing, textOf, titleOf, titled, unlend, useFeature, victim, victimToken, waitFor } = KIT;
+  const { MOD, a1Victim, activateRange, atkMod, attackOf, attacker, attackerToken, backToRange, c1Cards, cardEl, cardText, castSpell, clearDown, clearTargets, cleric, clericToken, clericWeapon, closeA1, closeDialogs, d1Cards, d1Combat, d1Region, divinity, dropCards, dropEffects, dropHalfling, dropNamed, dropReactionChips, gateFor, halfling, halflingDoc, halflingToken, healFull, hgClose, hgKeep, hgLend, hgStrike, holdOf, hp, lend, log, markOn, pcAttacker, pcToken, pcWeapon, pickApply, pinHeal, popupTitled, popups, regionKeyed, resolvedTarget, scene, set, spendLuck, spendLuckC, strikePopup, suiteStart, swing, textOf, titleOf, titled, unlend, useFeature, victim, victimToken } = KIT;
   try {
     await KIT.leaveA3();
     // ---- 13. Glorious Defense: the paladin's Cha off an attack on a creature within 10 ft; the strike after
-    if (want(13)) {
+    if (want(13)) await section(13, async () => {
       await closeDialogs(); await spendLuck();
       const gd = await lend(cleric, 'Glorious Defense');
       const gdAct = gd.system.activities?.find?.(a => a.name === 'Glorious Defense') ?? null;
@@ -64,7 +58,7 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
       // The hit by exactly 0: the attack total = the Halfling's AC, so −N (N ≥ 1) always turns it (the margin gate asks).
       const d = Math.max(2, Math.min(19, Number(halfling.system.attributes.ac.value) - atkMod));
       const msg = await swing({ d20: [d] });
-      const pop = await waitFor(() => popupTitled(/Glorious Defense/), 6000);
+      const pop = await until(() => popupTitled(/Glorious Defense/), { timeout: 6000 }).catch(() => null);
       const guards = holdOf(msg)?.targets?.[0]?.guards ?? [];
       const g = guards.find(x => (x.uuid === cleric.uuid) && (x.row === 'Glorious Defense'));
       ok(`13a. the hit on the Halfling (within 10 ft of the Cleric) is held for the Cleric: a bystander popup "Glorious Defense … −${N} · a Reaction", "within 10 ft of BTB Test Halfling"`,
@@ -83,7 +77,7 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
       ok(`13c. the attack card: "Glorious Defense (BTB Test Cleric) −${N} … MISS"`,
         new RegExp(`Glorious Defense \\(BTB Test Cleric\\) −${N}.*MISS`).test(cardText(msg?.id)), cardText(msg?.id).slice(0, 240));
       // The turned hit: the Strike popup (answer.js offerStrike) — one weapon attack at the attacker.
-      const strike = await waitFor(strikePopup, 6000);
+      const strike = await until(strikePopup, { timeout: 6000 }).catch(() => null);
       const attackerName = attackerToken.document?.name ?? attacker.name;
       ok(`13d. the Strike popup: "Glorious Defense — strike back", "Strike ${attackerName} with <weapon>?", Strike and Pass`,
         !!strike && new RegExp(`Strike ${attackerName} with .+\\?`).test(textOf(strike?.element))
@@ -93,8 +87,8 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
       const since = Date.now();
       faces([[1, 20]]);
       strike?.element?.querySelector('button[data-action="strike"]')?.click();
-      const driven = await waitFor(() => game.messages.contents.find(m => (m.timestamp >= since) && (m.getFlag(MOD, 'riposteFor') === msg?.id)
-        && m.rolls?.length && (m.getAssociatedActor?.()?.uuid === cleric.uuid)), 10000);
+      const driven = await until(() => game.messages.contents.find(m => (m.timestamp >= since) && (m.getFlag(MOD, 'riposteFor') === msg?.id)
+        && m.rolls?.length && (m.getAssociatedActor?.()?.uuid === cleric.uuid)), { timeout: 10000 }).catch(() => null);
       const tgt = driven?.system?.targets ?? [];
       ok('13e. Strike drives ONE weapon attack by the Cleric, marked riposteFor the turned attack',
         !!driven && (game.messages.contents.filter(m => (m.timestamp >= since) && (m.getFlag(MOD, 'riposteFor') === msg?.id) && m.rolls?.length).length === 1),
@@ -105,10 +99,10 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
       try { await strikePopup()?.close(); } catch { /* gone */ }
       await closeDialogs();
       await unlend(cleric, gd);
-    }
+    });
 
     // ---- 23. Sacred Weapon's light goes out with the weapon's enchantment
-    if (want(23)) {
+    if (want(23)) await section(23, async () => {
       await closeDialogs();
       const sw = await hgLend(cleric, 'Sacred Weapon', 'feat');
       const act = sw ? cleric.items.get(sw.id)?.system.activities.find(a => a.type === 'enchant') : null;
@@ -126,8 +120,8 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
         // The Paladin's Channel Divinity is not on this sheet: the use spends nothing (the light is the row under test).
         const res = await act.use({ consume: { resources: false, spellSlot: false, action: false }, subsequentActions: false }, { configure: false }, {});
         const card = res?.message ?? null;
-        const fx = await waitFor(lightFx, 8000);
-        const lit = await waitFor(() => (lightNow().bright === 20) ? lightNow() : null, 5000);
+        const fx = await until(lightFx, { timeout: 8000 }).catch(() => null);
+        const lit = await until(() => (lightNow().bright === 20) ? lightNow() : null, { timeout: 5000 }).catch(() => null);
         const keys = (fx?.system?.changes ?? []).map(ch => `${ch.key}=${ch.value}`);
         ok('23a. the use lights the Cleric\'s token: 20 ft Bright, 40 ft Dim (the light effect, the enchantment\'s 10-minute clock)',
           !!fx && keys.includes('token.light.bright=20') && keys.includes('token.light.dim=40') && !!lit && (lit.dim === 40),
@@ -141,11 +135,11 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
         const profileId = act.effects?.[0]?._id ?? null;
         try { await act.applyEnchantment(profileId, weapon, { chatMessage: card, strict: false }); }
         catch (err) { log.push(`§23 applyEnchantment threw: ${err?.message}`); }
-        const ench = await waitFor(enchantOn, 5000);
+        const ench = await until(enchantOn, { timeout: 5000 }).catch(() => null);
         ok('23c. the weapon carries the Sacred Weapon enchantment; the light still stands', !!ench && !!lightFx() && (lightNow().bright === 20),
           `enchant=${ench?.name ?? null} weapon=${cleric.items.get(weapon.id)?.name} light=${JSON.stringify(lightNow())}`);
         if (ench) await ench.delete();
-        const out = await waitFor(() => !lightFx() && (lightNow().bright === before.bright) && (lightNow().dim === before.dim), 8000);
+        const out = await until(() => !lightFx() && (lightNow().bright === before.bright) && (lightNow().dim === before.dim), { timeout: 8000 }).catch(() => null);
         ok('23d. the enchantment deleted: the light effect goes and the token is back to its prior light',
           out, `effect=${lightFx()?.name ?? null} light=${JSON.stringify(lightNow())} before=${JSON.stringify(before)}`);
       }
@@ -155,11 +149,11 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
       const leftLight = cleric.effects.filter(e => e.getFlag(MOD, 'tokenLight')?.key === 'Sacred Weapon').map(e => e.id);
       if (leftLight.length) await cleric.deleteEmbeddedDocuments('ActiveEffect', leftLight).catch(() => {});
       if (sw) await unlend(cleric, sw);
-    }
+    });
     KIT.markA2();
 
     // ---- 40. Inspiring Smite: after Divine Smite, the temp HP divided; No keeps the Channel Divinity; the clock gives all to the paladin
-    if (want(40)) {
+    if (want(40)) await section(40, async () => {
       await closeA1();
       hgKeep(cleric, { 'system.attributes.hp.temp': cleric.system._source.attributes.hp.temp ?? 0, 'system.spells': foundry.utils.deepClone(cleric.system._source.spells) });
       hgKeep(pcAttacker, { 'system.attributes.hp.temp': pcAttacker.system._source.attributes.hp.temp ?? 0 });
@@ -175,8 +169,8 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
         const before = asks().length;
         faces([[4, 8], [5, 8]]);   // 2d8 = 9, + 3 = 12
         await castSpell(cleric, clericToken, divineSmite, 1, victimToken);
-        const ask = await waitFor(() => (asks().length > before) ? asks().at(-1) : null, 8000);
-        CONFIG.Dice.randomUniform = realPRNG;
+        const ask = await until(() => (asks().length > before) ? asks().at(-1) : null, { timeout: 8000 }).catch(() => null);
+        unrig();
         return ask;
       };
       const priorTimer = game.settings.get(MOD, 'decisionTimer');
@@ -188,7 +182,7 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
           for (const a of [cleric, pcAttacker, halfling]) await a.update({ 'system.attributes.hp.temp': 0 });
           // a. the popup: 12 to divide among the creatures within 30 ft, the paladin too
           const ask = await smiteOnce();
-          const pop = await waitFor(() => titled(/^Inspiring Smite — /), 6000);
+          const pop = await until(() => titled(/^Inspiring Smite — /), { timeout: 6000 }).catch(() => null);
           const inputs = [...(pop?.element?.querySelectorAll('input[name="bf-rest-song-n"]') ?? [])];
           const byName = n => inputs.find(i => i.dataset.name === n);
           ok('40a. after Divine Smite: "Divide 12 Temporary Hit Points" with a number per creature, the paladin among them',
@@ -199,21 +193,21 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
           set(byName(clericToken.document.name), 7);
           set(byName(pcToken.document.name), 5);
           pop?.element?.querySelector('button[data-action="ok"]')?.click();
-          await waitFor(() => ask?.getFlag(MOD, 'restSong')?.applied, 8000);
+          await until(() => ask?.getFlag(MOD, 'restSong')?.applied, { timeout: 8000 }).catch(() => null);
           ok('40b. 7 and 5: the paladin 7 temp HP, the PC 5, one Channel Divinity spent',
             (temp(cleric) === 7) && (temp(pcAttacker) === 5) && (cdSpent() === 1), `cleric=${temp(cleric)} pc=${temp(pcAttacker)} cd=${cdSpent()}`);
           // c. No: nothing given, nothing spent
           for (const a of [cleric, pcAttacker]) await a.update({ 'system.attributes.hp.temp': 0 });
           const ask2 = await smiteOnce();
-          const pop2 = await waitFor(() => titled(/^Inspiring Smite — /), 6000);
+          const pop2 = await until(() => titled(/^Inspiring Smite — /), { timeout: 6000 }).catch(() => null);
           pop2?.element?.querySelector('button[data-action="no"]')?.click();
-          await waitFor(() => ask2?.getFlag(MOD, 'restSong')?.status === 'resolved', 6000);
+          await until(() => ask2?.getFlag(MOD, 'restSong')?.status === 'resolved', { timeout: 6000 }).catch(() => null);
           await sleep(800);
           ok('40c. No: nothing given, the Channel Divinity kept', (temp(cleric) === 0) && (cdSpent() === 1), `cleric=${temp(cleric)} cd=${cdSpent()}`);
           // d. the clock: all 12 to the paladin
           await game.settings.set(MOD, 'decisionTimer', 2);
           const ask3 = await smiteOnce();
-          await waitFor(() => ask3?.getFlag(MOD, 'restSong')?.applied, 10000);
+          await until(() => ask3?.getFlag(MOD, 'restSong')?.applied, { timeout: 10000 }).catch(() => null);
           ok('40d. the clock gives all 12 to the paladin, the Channel Divinity spent', (temp(cleric) === 12) && (cdSpent() === 2),
             `cleric=${temp(cleric)} cd=${cdSpent()} flag=${JSON.stringify(ask3?.getFlag(MOD, 'restSong')?.picks ?? null)}`);
         }
@@ -223,13 +217,13 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
         await hgClose(/^Inspiring Smite — /);
         for (const it of [smite, divineSmite]) if (it) await unlend(cleric, it);
         if (cd) await cd.update({ 'system.uses.spent': 0 });
-        CONFIG.Dice.randomUniform = realPRNG;
+        unrig();
         clearTargets();
       }
-    }
+    });
 
     // ---- 65. Undying Sentinel: the ask with a heal
-    if (want(65)) {
+    if (want(65)) await section(65, async () => {
       await closeA1(); await spendLuckC();
       const pal = await hgLend(halfling, 'Paladin', 'class', { 'system.levels': 15 });
       const us = await hgLend(halfling, 'Undying Sentinel', 'feat', { 'system.uses.max': '1', 'system.uses.spent': 0 });
@@ -239,13 +233,13 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
           await sleep(300);
           const t0 = Date.now();
           await dropHalfling(5);
-          const pop = await waitFor(() => titled(/^Undying Sentinel — /), 8000);
+          const pop = await until(() => titled(/^Undying Sentinel — /), { timeout: 8000 }).catch(() => null);
           const popText = textOf(pop?.element);
           ok('65a. the drop asks: "drops to 0 Hit Points — drop to 1 Hit Point instead?" with the heal named, the Halfling held at 1',
             !!pop && /drop to 1 Hit Point instead\?/.test(popText) && /and the heal/.test(popText) && (hp() === 1), `pop="${popText.slice(0, 200)}" hp=${hp()}`);
           pop?.element?.querySelector('button[data-action="use"]')?.click();
-          const card = await waitFor(() => dropCards(t0, 'Undying Sentinel').find(m => m.getFlag(MOD, 'dropToOne')?.applied) ?? null, 10000);
-          await waitFor(() => hp() > 1, 8000);
+          const card = await until(() => dropCards(t0, 'Undying Sentinel').find(m => m.getFlag(MOD, 'dropToOne')?.applied) ?? null, { timeout: 10000 }).catch(() => null);
+          await until(() => hp() > 1, { timeout: 8000 }).catch(() => null);
           await sleep(400);
           ok('65b. Yes: 1 + 3 × 15 = 46 Hit Points, the use spent, the card line "drops to 1 Hit Point instead"',
             (hp() === 46) && (Number(halfling.items.get(us.id)?.system?.uses?.spent) === 1) && /drops to 1 Hit Point instead/.test(cardText(card?.id)),
@@ -256,12 +250,12 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
         await clearDown(halfling);
         for (const it of [us, pal]) if (it) await unlend(halfling, it);
         await healFull();
-        CONFIG.Dice.randomUniform = realPRNG; clearTargets();
+        unrig(); clearTargets();
       }
-    }
+    });
 
     // ---- 77. Smite of Protection: Half Cover on the aura's members after Divine Smite
-    if (want(77)) {
+    if (want(77)) await section(77, async () => {
       await closeA1(); await a1Victim();
       await activateRange();
       hgKeep(cleric, { 'system.spells': foundry.utils.deepClone(cleric.system._source.spells) });
@@ -280,12 +274,12 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
           // (the update returns undefined, nothing moves). Moves go on the north rows.
           await halflingDoc.update({ x: 1700, y: 1900 });   // 5 ft from the cleric: inside the 10-ft aura
           await sleep(600);
-          const region = await waitFor(() => regionKeyed('Aura of Protection', clericToken.document.id), 12000);
-          await waitFor(() => halfling.effects.some(e => e.getFlag(MOD, 'emanation') && e.name.startsWith('Protected')), 10000);
+          const region = await until(() => regionKeyed('Aura of Protection', clericToken.document.id), { timeout: 12000 }).catch(() => null);
+          await until(() => halfling.effects.some(e => e.getFlag(MOD, 'emanation') && e.name.startsWith('Protected')), { timeout: 10000 }).catch(() => null);
           const c = await castSpell(cleric, clericToken, divineSmite, 1, victimToken);
-          const onCleric = await waitFor(() => smiteFx(cleric), 10000);
-          const onHalfling = await waitFor(() => smiteFx(halfling), 8000);
-          const line = (await waitFor(() => cardEl(c?.id)?.querySelector('.bf-cast-rider-line'), 6000))?.textContent?.trim() ?? '';
+          const onCleric = await until(() => smiteFx(cleric), { timeout: 10000 }).catch(() => null);
+          const onHalfling = await until(() => smiteFx(halfling), { timeout: 8000 }).catch(() => null);
+          const line = (await until(() => cardEl(c?.id)?.querySelector('.bf-cast-rider-line'), { timeout: 6000 }).catch(() => null))?.textContent?.trim() ?? '';
           ok('77a. Divine Smite cast inside the aura: the paladin and the Halfling wear "Smite of Protection" (the coverHalf status, a clock to the paladin\'s next turn); the Victim (an enemy) none; the cast card\'s line',
             !!region && !!onCleric && !!onHalfling && onCleric.statuses?.has?.('coverHalf') && !smiteFx(victim) && /Smite of Protection — Smite of Protection \(Half Cover\) on/.test(line) && new RegExp(halflingToken.document.name).test(line),
             `region=${!!region} cleric=${!!onCleric} halfling=${!!onHalfling} statuses=${JSON.stringify([...(onCleric?.statuses ?? [])])} victim=${!!smiteFx(victim)} line="${line}"`);
@@ -295,16 +289,16 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
         for (const a of [cleric, halfling, victim, pcAttacker]) await dropNamed(a, ['Smite of Protection']);
         await halflingDoc.update({ x: hx, y: hy });
         for (const it of [divineSmite, sop, aura, pal]) if (it) await unlend(cleric, it);
-        const gone = await waitFor(() => !regionKeyed('Aura of Protection', clericToken.document.id), 8000);
+        const gone = await until(() => !regionKeyed('Aura of Protection', clericToken.document.id), { timeout: 8000 }).catch(() => null);
         if (!gone) { const r = regionKeyed('Aura of Protection', clericToken.document.id); if (r) await r.delete().catch(() => {}); }
         for (const a of [halfling, pcAttacker]) await dropEffects(a, a.effects.filter(e => e.getFlag(MOD, 'emanation')).map(e => e.id));
-        CONFIG.Dice.randomUniform = realPRNG; clearTargets();
+        unrig(); clearTargets();
         await backToRange();
       }
-    }
+    });
 
     // ---- 78. Soul of Vengeance: the Vow's creature attacks — the paladin within 5 ft is offered the strike
-    if (want(78)) {
+    if (want(78)) await section(78, async () => {
       await closeA1(); await spendLuckC(); await dropReactionChips(cleric); await a1Victim();
       const vow = await hgLend(cleric, 'Vow of Enmity', 'feat');
       const soul = await hgLend(cleric, 'Soul of Vengeance', 'feat');
@@ -320,8 +314,8 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
           marked = await markOn(pcAttacker, 'Vow of Enmity', vow.uuid);
           const t0 = Date.now();
           const msg = await hgStrike(pcAttacker, pcToken, pcWeapon, victimToken);
-          const card = await waitFor(() => c1Cards(t0, 'rebuke').find(m => m.getFlag(MOD, 'rebuke')?.onAttack && (m.getFlag(MOD, 'rebuke')?.actorUuid === cleric.uuid)) ?? null, 8000);
-          const pop = await waitFor(() => popups().find(app => /Soul of Vengeance/.test(textOf(app.element)) && /attacked — strike\?/.test(textOf(app.element))) ?? null, 6000);
+          const card = await until(() => c1Cards(t0, 'rebuke').find(m => m.getFlag(MOD, 'rebuke')?.onAttack && (m.getFlag(MOD, 'rebuke')?.actorUuid === cleric.uuid)) ?? null, { timeout: 8000 }).catch(() => null);
+          const pop = await until(() => popups().find(app => /Soul of Vengeance/.test(textOf(app.element)) && /attacked — strike\?/.test(textOf(app.element))) ?? null, { timeout: 6000 }).catch(() => null);
           const f = card?.getFlag(MOD, 'rebuke');
           ok('78a. the PC Attacker under the Vow makes an attack roll: the paladin\'s popup "BTB Test PC Attacker attacked — strike?" with Soul of Vengeance (a melee attack), the card "under BTB Test Cleric\'s Vow of Enmity"',
             !!msg && !!card && !!pop && (f?.options ?? []).some(o => o.name === 'Soul of Vengeance') && /Vow of Enmity/.test(cardText(card?.id)),
@@ -336,12 +330,12 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
         await dropReactionChips(cleric);
         for (const it of [soul, vow]) if (it) await unlend(cleric, it);
         await healFull();
-        CONFIG.Dice.randomUniform = realPRNG; clearTargets();
+        unrig(); clearTargets();
       }
-    }
+    });
 
     // ---- 103. Holy Nimbus: an enemy starting its turn in the aura takes the radiant damage
-    if (want(103)) {
+    if (want(103)) await section(103, async () => {
       await closeA1(); await activateRange(); await a1Victim();
       const pal = await hgLend(cleric, 'Paladin', 'class', { 'system.levels': 20 });
       const nimbus = await hgLend(cleric, 'Holy Nimbus', 'feat', { 'system.uses.max': '1', 'system.uses.spent': 0 });
@@ -351,16 +345,16 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
         else {
           await sleep(300);
           await useFeature(clericToken, nimbus, 'Holy Nimbus');
-          const lit = await waitFor(() => cleric.effects.find(e => (e.name === 'Holy Nimbus') && e.getFlag(MOD, 'tokenLight')) ?? null, 8000);
-          const region = await waitFor(() => { const r = d1Region('Holy Nimbus', clericToken.document.id); return (r?.behaviors?.size) ? r : null; }, 12000);
+          const lit = await until(() => cleric.effects.find(e => (e.name === 'Holy Nimbus') && e.getFlag(MOD, 'tokenLight')) ?? null, { timeout: 8000 }).catch(() => null);
+          const region = await until(() => { const r = d1Region('Holy Nimbus', clericToken.document.id); return (r?.behaviors?.size) ? r : null; }, { timeout: 12000 }).catch(() => null);
           ok('103a. the use lands "Holy Nimbus" on the paladin (its sunlight), the ring stands at the Aura of Protection\'s reach', !!lit && !!region,
             `lit=${!!lit} region=${!!region} radius=${region?.shapes?.[0]?.radius ?? null}`);
           await victim.update({ 'system.attributes.hp.value': 400, 'system.attributes.hp.temp': 0 });
           const t0 = Date.now();
           combat = await d1Combat([[victimToken, victim, 20], [clericToken, cleric, 10]]);
           await combat.startCombat();
-          const card = await waitFor(() => d1Cards(t0, 'emanationTrigger').find(m => m.getFlag(MOD, 'emanationTrigger')?.key === 'Holy Nimbus') ?? null, 10000);
-          await waitFor(() => Number(victim.system.attributes.hp.value) < 400, 8000);
+          const card = await until(() => d1Cards(t0, 'emanationTrigger').find(m => m.getFlag(MOD, 'emanationTrigger')?.key === 'Holy Nimbus') ?? null, { timeout: 10000 }).catch(() => null);
+          await until(() => Number(victim.system.attributes.hp.value) < 400, { timeout: 8000 }).catch(() => null);
           ok('103b. the Victim starts its turn inside: the card "Holy Nimbus — … started its turn inside", radiant damage landed (no save)',
             !!card && (Number(victim.system.attributes.hp.value) < 400), `card=${!!card} hp=${victim.system.attributes.hp.value} text="${cardText(card?.id).slice(0, 160)}"`);
         }
@@ -369,16 +363,16 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
         if (combat && game.combats.get(combat.id)) await combat.delete();
         await dropNamed(cleric, ['Holy Nimbus']);
         for (const it of [nimbus, pal]) if (it) await unlend(cleric, it);
-        const gone = await waitFor(() => !d1Region('Holy Nimbus', clericToken.document.id), 8000);
+        const gone = await until(() => !d1Region('Holy Nimbus', clericToken.document.id), { timeout: 8000 }).catch(() => null);
         if (!gone) { const r = d1Region('Holy Nimbus', clericToken.document.id); if (r) await r.delete().catch(() => {}); }
         await dropEffects(victim, victim.effects.filter(e => e.getFlag(MOD, 'chip')).map(e => e.id));
-        CONFIG.Dice.randomUniform = realPRNG; clearTargets();
+        unrig(); clearTargets();
         await backToRange();
       }
-    }
+    });
 
     // ---- 104. Avenging Angel: an enemy starting its turn in the aura saves or is Frightened; attacks against it at Advantage
-    if (want(104)) {
+    if (want(104)) await section(104, async () => {
       await closeA1(); await activateRange(); await set('saveRolls', 'auto');
       const pal = await hgLend(cleric, 'Paladin', 'class', { 'system.levels': 20 });
       const angel = await hgLend(cleric, 'Avenging Angel', 'feat', { 'system.uses.max': '1', 'system.uses.spent': 0 });
@@ -388,16 +382,16 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
         else {
           await sleep(300);
           await useFeature(clericToken, angel, 'Avenging Angel');
-          const self = await waitFor(() => cleric.effects.find(e => e.name === 'Avenging Angel') ?? null, 8000);
-          const region = await waitFor(() => { const r = d1Region('Avenging Angel', clericToken.document.id); return (r?.behaviors?.size) ? r : null; }, 12000);
+          const self = await until(() => cleric.effects.find(e => e.name === 'Avenging Angel') ?? null, { timeout: 8000 }).catch(() => null);
+          const region = await until(() => { const r = d1Region('Avenging Angel', clericToken.document.id); return (r?.behaviors?.size) ? r : null; }, { timeout: 12000 }).catch(() => null);
           ok('104a. the use lands "Avenging Angel" on the paladin (the flight), the Frightful Aura ring stands', !!self && !!region, `self=${!!self} region=${!!region}`);
           const t0 = Date.now();
           faces([[1, 20]]);
           combat = await d1Combat([[victimToken, victim, 20], [clericToken, cleric, 10]]);
           await combat.startCombat();
-          const card = await waitFor(() => d1Cards(t0, 'emanationTrigger').find(m => m.getFlag(MOD, 'emanationTrigger')?.key === 'Avenging Angel') ?? null, 10000);
-          const fr = await waitFor(() => victim.effects.find(e => (e.name === 'Frightened') && e.statuses?.has?.('frightened')) ?? null, 15000);
-          CONFIG.Dice.randomUniform = realPRNG;
+          const card = await until(() => d1Cards(t0, 'emanationTrigger').find(m => m.getFlag(MOD, 'emanationTrigger')?.key === 'Avenging Angel') ?? null, { timeout: 10000 }).catch(() => null);
+          const fr = await until(() => victim.effects.find(e => (e.name === 'Frightened') && e.statuses?.has?.('frightened')) ?? null, { timeout: 15000 }).catch(() => null);
+          unrig();
           ok('104b. the Victim starts its turn inside: the Wisdom save demanded at the paladin\'s DC; a 1 FAILS — Frightened lands',
             !!card && (card.getFlag(MOD, 'saves')?.abilities ?? []).includes('wis') && !!fr, `card=${!!card} saves=${JSON.stringify(card?.getFlag(MOD, 'saves') && { dc: card.getFlag(MOD, 'saves').dc, abilities: card.getFlag(MOD, 'saves').abilities })} frightened=${!!fr}`);
           if (combat && game.combats.get(combat.id)) await combat.delete();
@@ -411,16 +405,16 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
         if (combat && game.combats.get(combat.id)) await combat.delete();
         await dropNamed(cleric, ['Avenging Angel']); await dropNamed(victim, ['Frightened']);
         for (const it of [angel, pal]) if (it) await unlend(cleric, it);
-        const gone = await waitFor(() => !d1Region('Avenging Angel', clericToken.document.id), 8000);
+        const gone = await until(() => !d1Region('Avenging Angel', clericToken.document.id), { timeout: 8000 }).catch(() => null);
         if (!gone) { const r = d1Region('Avenging Angel', clericToken.document.id); if (r) await r.delete().catch(() => {}); }
         await dropEffects(victim, victim.effects.filter(e => e.getFlag(MOD, 'chip')).map(e => e.id));
-        CONFIG.Dice.randomUniform = realPRNG; clearTargets();
+        unrig(); clearTargets();
         await backToRange();
       }
-    }
+    });
 
     // ---- 105. Elder Champion: the form's mark on the paladin, Diminish Defiance on the enemies inside, Regeneration at the turn start
-    if (want(105)) {
+    if (want(105)) await section(105, async () => {
       await closeA1(); await activateRange();
       hgKeep(cleric, { 'system.attributes.hp.value': cleric.system._source.attributes.hp.value, 'system.attributes.hp.max': cleric.system._source.attributes.hp.max });
       const pal = await hgLend(cleric, 'Paladin', 'class', { 'system.levels': 20 });
@@ -431,14 +425,14 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
         else {
           await sleep(300);
           await useFeature(clericToken, elder, 'Elder Champion');
-          const mark = await waitFor(() => cleric.effects.find(e => (e.name === 'Diminished Defiance') && e.getFlag(MOD, 'tokenLight')) ?? null, 8000);
-          const member = await waitFor(() => victim.effects.find(e => e.name.startsWith('Diminished Defiance') && e.getFlag(MOD, 'emanation')) ?? null, 12000);
+          const mark = await until(() => cleric.effects.find(e => (e.name === 'Diminished Defiance') && e.getFlag(MOD, 'tokenLight')) ?? null, { timeout: 8000 }).catch(() => null);
+          const member = await until(() => victim.effects.find(e => e.name.startsWith('Diminished Defiance') && e.getFlag(MOD, 'emanation')) ?? null, { timeout: 12000 }).catch(() => null);
           ok('105a. the use lands "Diminished Defiance" on the paladin (no light written), the ring\'s Victim wears the member copy',
             !!mark && !!member && !JSON.stringify(mark?.changes ?? mark?.system?.changes ?? []).includes('token.light'), `mark=${!!mark} member=${!!member} changes=${JSON.stringify(mark?.changes ?? mark?.system?.changes ?? null)}`);
           await cleric.update({ 'system.attributes.hp.max': 100, 'system.attributes.hp.value': 50 });
           combat = await d1Combat([[clericToken, cleric, 20]]);
           await combat.startCombat();
-          await waitFor(() => Number(cleric.system.attributes.hp.value) > 50, 8000);
+          await until(() => Number(cleric.system.attributes.hp.value) > 50, { timeout: 8000 }).catch(() => null);
           await sleep(300);
           ok('105b. the paladin\'s turn start: Regeneration heals 10 (50 → 60)', Number(cleric.system.attributes.hp.value) === 60, `hp=${cleric.system.attributes.hp.value}`);
         }
@@ -447,12 +441,12 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
         if (combat && game.combats.get(combat.id)) await combat.delete();
         await dropNamed(cleric, ['Diminished Defiance']); await dropEffects(victim, victim.effects.filter(e => e.name.startsWith('Diminished Defiance')).map(e => e.id));
         for (const it of [elder, pal]) if (it) await unlend(cleric, it);
-        const gone = await waitFor(() => !d1Region('Elder Champion', clericToken.document.id), 8000);
+        const gone = await until(() => !d1Region('Elder Champion', clericToken.document.id), { timeout: 8000 }).catch(() => null);
         if (!gone) { const r = d1Region('Elder Champion', clericToken.document.id); if (r) await r.delete().catch(() => {}); }
-        CONFIG.Dice.randomUniform = realPRNG; clearTargets();
+        unrig(); clearTargets();
         await backToRange();
       }
-    }
+    });
     return { log, results, skips };
   } catch (err) {
     return { fatal: `${err?.message || err}\n${err?.stack ?? ''}`, results, log, skips };

@@ -33,21 +33,15 @@ const f = await connectSuite({ tag: 'class-druid', watchdogMs: 900_000 });
 announcePlan('class-druid', plan, pulled);
 
 const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ sections, titles }) => {
-  const results = [];
-  const skips = [];
-  const ok = (name, pass, detail = '') => results.push({ name, pass, detail });
-  const want = id => {
-    if (!sections || sections.includes(String(id))) return true;
-    skips.push(`§${id} ${titles?.[id] ?? ''}`);
-    return false;
-  };
+  const { sleep, until, faces, unrig } = window.__btb;
+  const { results, skips, ok, want, section } = window.__btb.begin({ sections, titles });
   const KIT = window.__btbClasses;
-  const { MOD, a1Damage, a1Hit, a1Roll, a1Victim, activateRange, attackOf, attacker, attackerToken, backToRange, c1Cards, cardEl, cardText, clearTargets, cleric, clericToken, closeA1, closeDialogs, closeOffers, created, dropEffects, dropNamed, dropReactionChips, dropVictimFx, faces, halfling, halflingToken, healFull, hgClose, hgKeep, hgLend, hgPickButton, holdOf, hp, log, markOn, modOf, pcAttacker, pcToken, pcWeapon, pickApply, popups, priorActor, realPRNG, regionKeyed, resolvedTarget, riderBox, riderChits, riderRow, rollStoredAsk, scene, set, sleep, sorcerer, spendLuck, swing, swingAt, textOf, unlend, victim, waitFor } = KIT;
+  const { MOD, a1Damage, a1Hit, a1Roll, a1Victim, activateRange, attackOf, attacker, attackerToken, backToRange, c1Cards, cardEl, cardText, clearTargets, cleric, clericToken, closeA1, closeDialogs, closeOffers, created, dropEffects, dropNamed, dropReactionChips, dropVictimFx, halfling, halflingToken, healFull, hgClose, hgKeep, hgLend, hgPickButton, holdOf, hp, log, markOn, modOf, pcAttacker, pcToken, pcWeapon, pickApply, popups, priorActor, regionKeyed, resolvedTarget, riderBox, riderChits, riderRow, rollStoredAsk, scene, set, sorcerer, spendLuck, swing, swingAt, textOf, unlend, victim } = KIT;
   try {
     await KIT.leaveA3();
 
     // ---- 22. Starry Form: the constellation asked; the Chalice's second heal
-    if (want(22)) {
+    if (want(22)) await section(22, async () => {
       await closeDialogs();
       await set('castApply', true);   // retired (the stamp is unconditional) — harmless, as smoke-shields §8
       const ws = await hgLend(cleric, 'Wild Shape', 'feat', { 'system.uses.max': '3', 'system.uses.spent': 0 });
@@ -83,13 +77,13 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
           let consumed = true;
           if (!res?.message) { consumed = false; res = await consumeAct().use({ consume: false, subsequentActions: false }, { configure: false }, {}); }
           const card = res?.message ?? null;
-          await waitFor(() => card?.getFlag(MOD, 'castApply')?.choice, 4000);
+          await until(() => card?.getFlag(MOD, 'castApply')?.choice, { timeout: 4000 }).catch(() => null);
           const choice = foundry.utils.deepClone(card?.getFlag(MOD, 'castApply')?.choice ?? null);
-          const btn = await waitFor(() => hgPickButton(pick), 5000);
+          const btn = await until(() => hgPickButton(pick), { timeout: 5000 }).catch(() => null);
           const buttons = ['Archer', 'Chalice', 'Dragon'].filter(n => !!hgPickButton(n));
           const text = cardText(card?.id);
           btn?.click();
-          await waitFor(() => forms().includes('Starry Form') && chip(), 8000);
+          await until(() => forms().includes('Starry Form') && chip(), { timeout: 8000 }).catch(() => null);
           await sleep(600);
           return { card, choice, buttons, text, consumed, chosen: card?.getFlag(MOD, 'castApply')?.choice?.chosen ?? null, forms: forms(), chip: chip() };
         };
@@ -127,18 +121,18 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
         const cureAct = cleric.items.get(cure.id)?.system.activities.find(x => x.type === 'heal');
         const rolls = await cureAct?.rollDamage({}, { configure: false }, {});
         const healCard = rolls?.[0]?.parent ?? null;
-        const offer = await waitFor(() => [...(cardEl(healCard?.id)?.querySelectorAll('button') ?? [])].find(b => textOf(b) === hName) ?? null, 6000);
+        const offer = await until(() => [...(cardEl(healCard?.id)?.querySelectorAll('button') ?? [])].find(b => textOf(b) === hName) ?? null, { timeout: 6000 }).catch(() => null);
         const names = [...(cardEl(healCard?.id)?.querySelectorAll('button') ?? [])].map(b => textOf(b));
-        const pop = await waitFor(() => popups().find(app => /^Chalice —/.test(app.title ?? '')) ?? null, 3000);
+        const pop = await until(() => popups().find(app => /^Chalice —/.test(app.title ?? '')) ?? null, { timeout: 3000 }).catch(() => null);
         ok('22e. the Cure Wounds card offers "Chalice — heal one more within 30 ft" with a button per creature (the Cleric and the Halfling among them); the popup opens',
           !!offer && /Chalice — heal one more within 30 ft/.test(cardText(healCard?.id)) && names.includes(clericToken.document.name) && !!pop,
           `card=${!!healCard} buttons=${JSON.stringify(names)} pop=${pop?.title ?? null} text=${cardText(healCard?.id).slice(-200)}`);
         faces([[6, 6]]);
         const hp0 = hp();
         offer?.click();
-        const flag = await waitFor(() => game.messages.get(healCard?.id)?.getFlag(MOD, 'alsoHeal')?.picked ? game.messages.get(healCard.id).getFlag(MOD, 'alsoHeal') : null, 6000);
+        const flag = await until(() => game.messages.get(healCard?.id)?.getFlag(MOD, 'alsoHeal')?.picked ? game.messages.get(healCard.id).getFlag(MOD, 'alsoHeal') : null, { timeout: 6000 }).catch(() => null);
         // UNSURE: the Chalice heal is use() then rollDamage() on the heal activity (the handoff's unverified seam).
-        const rose = await waitFor(() => hp() > hp0, 10000);
+        const rose = await until(() => hp() > hp0, { timeout: 10000 }).catch(() => null);
         await sleep(600);
         ok('22f. the Halfling\'s button: the Chalice heal is used on the Halfling — its HP rises; the card says "Chalice — BTB Test Halfling is healed too"',
           (flag?.picked === halfling.uuid) && (flag?.also === 'Chalice') && rose && new RegExp(`Chalice — ${hName} is healed too`).test(cardText(healCard?.id)),
@@ -153,12 +147,12 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
       if (cure && cureLent) await unlend(cleric, cure);
       if (sf) await unlend(cleric, sf);
       if (ws) await unlend(cleric, ws);
-      CONFIG.Dice.randomUniform = realPRNG;
-    }
+      unrig();
+    });
     KIT.markA2();
 
     // ---- 52. Cosmic Omen: the Long Rest's d6 kept as Weal or Woe; Weal +1d6 on a friend's miss, Woe −1d6 on a foe's hit
-    if (want(52)) {
+    if (want(52)) await section(52, async () => {
       await closeA1(); await spendLuck();
       const omen = await hgLend(sorcerer, 'Cosmic Omen', 'feat', { 'system.uses.max': '3', 'system.uses.spent': 0 });
       const chip = () => sorcerer.effects.find(e => e.getFlag(MOD, 'storedDice')?.key === 'Cosmic Omen') ?? null;
@@ -171,22 +165,22 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
           faces([[4, 6]]);
           await sorcerer.longRest({ dialog: false, chat: true, newDay: false });
           await rollStoredAsk();
-          await waitFor(() => chip(), 8000);
-          CONFIG.Dice.randomUniform = realPRNG;
+          await until(() => chip(), { timeout: 8000 }).catch(() => null);
+          unrig();
           ok('52a. the Long Rest rolls the d6: an even face (4) is Weal — the chip "Cosmic Omen — Weal (4)"', chip()?.name === 'Cosmic Omen — Weal (4)', `chip=${chip()?.name ?? null}`);
           // b. Weal: a friend's miss within 30 ft — "+1d6"
           await a1Victim();
           await victim.update({ 'system.attributes.ac.override': (await modOf(pcAttacker, pcWeapon)) + 13 });
           const miss = await swingAt(pcAttacker, pcToken, pcWeapon, { d20: [10] });
-          const pop = await waitFor(() => popups().find(app => app.element?.querySelector?.('[data-bf-ticks="bf-bystander"]') && /Cosmic Omen/.test(textOf(app.element))) ?? null, 8000);
+          const pop = await until(() => popups().find(app => app.element?.querySelector?.('[data-bf-ticks="bf-bystander"]') && /Cosmic Omen/.test(textOf(app.element))) ?? null, { timeout: 8000 }).catch(() => null);
           const guard = holdOf(miss)?.targets?.[0]?.guards?.find(g => g.row === 'Cosmic Omen') ?? null;
           ok('52b. the PC Attacker misses by 3: the druid\'s popup "Cosmic Omen — +1d6" (Weal), the guard\'s activity Weal (Even)',
             !!pop && /\+1d6/.test(textOf(pop?.element)) && (guard?.sign === 1) && (sorcerer.items.get(omen.id)?.system?.activities?.get(guard?.activityId)?.name === 'Weal (Even)'),
             `pop=${!!pop} guard=${JSON.stringify(guard && { sign: guard.sign, activity: sorcerer.items.get(omen.id)?.system?.activities?.get(guard.activityId)?.name })}`);
           faces([[5, 6]]);
           pickApply(pop);
-          const h = await waitFor(() => (holdOf(miss)?.status === 'resolved') ? holdOf(miss) : null, 12000);
-          CONFIG.Dice.randomUniform = realPRNG;
+          const h = await until(() => (holdOf(miss)?.status === 'resolved') ? holdOf(miss) : null, { timeout: 12000 }).catch(() => null);
+          unrig();
           await sleep(900);
           const t = h?.targets?.find(x => x.uuid === victim.uuid) ?? null;
           ok('52c. Answer: +5 — a HIT, a use of Cosmic Omen spent (2 of 3), the chip still Weal (4)', (t?.verdict === 'hit') && (t?.bent?.add === 5) && (usesLeft() === 2) && (chip()?.name === 'Cosmic Omen — Weal (4)'),
@@ -195,7 +189,7 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
           // d. Woe: the face set odd — a foe's hit on the Halfling by 2 asks "−1d6"
           await chip()?.update({ name: 'Cosmic Omen — Woe (3)', [`flags.${MOD}.storedDice`]: { key: 'Cosmic Omen', faces: [3], turn: null } });
           const msg = await swing({ d20: [12] });
-          const pop2 = await waitFor(() => popups().find(app => app.element?.querySelector?.('[data-bf-ticks="bf-bystander"]') && /Cosmic Omen/.test(textOf(app.element))) ?? null, 8000);
+          const pop2 = await until(() => popups().find(app => app.element?.querySelector?.('[data-bf-ticks="bf-bystander"]') && /Cosmic Omen/.test(textOf(app.element))) ?? null, { timeout: 8000 }).catch(() => null);
           const guard2 = holdOf(msg)?.targets?.[0]?.guards?.find(g => g.row === 'Cosmic Omen') ?? null;
           ok('52d. Woe (3): the Attacker hits the Halfling by 2 — the popup "Cosmic Omen — −1d6", the activity Woe (Odd)',
             !!pop2 && /−1d6/.test(textOf(pop2?.element)) && (guard2?.sign === -1) && (sorcerer.items.get(omen.id)?.system?.activities?.get(guard2?.activityId)?.name === 'Woe (Odd)'),
@@ -209,12 +203,12 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
         if (chips.length) await sorcerer.deleteEmbeddedDocuments('ActiveEffect', chips).catch(() => {});
         if (omen) await unlend(sorcerer, omen);
         await dropReactionChips(sorcerer);
-        CONFIG.Dice.randomUniform = realPRNG; clearTargets(); await healFull();
+        unrig(); clearTargets(); await healFull();
       }
-    }
+    });
 
     // ---- 69. Lunar Form: the transformation flag
-    if (want(69)) {
+    if (want(69)) await section(69, async () => {
       await closeDialogs(); await a1Victim(); await dropVictimFx();
       const lunar = await hgLend(pcAttacker, 'Lunar Form', 'feat');
       try {
@@ -236,12 +230,12 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
         await pcAttacker.unsetFlag('dnd5e', 'isPolymorphed').catch(() => {});
         await dropVictimFx(); await dropEffects(pcAttacker, riderChits(pcAttacker));
         if (lunar) await unlend(pcAttacker, lunar);
-        CONFIG.Dice.randomUniform = realPRNG; clearTargets();
+        unrig(); clearTargets();
       }
-    }
+    });
 
     // ---- 90. Oceanic Gift: Wrath of the Sea's ring around another creature, the druid its source
-    if (want(90)) {
+    if (want(90)) await section(90, async () => {
       await closeA1();
       await activateRange();
       const druid = await hgLend(cleric, 'Druid', 'class', { 'system.levels': 14 });
@@ -256,7 +250,7 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
           await sleep(400);
           storm = await markOn(halfling, 'Stormborn', gift.uuid);
           // The region lands before its behaviour and its "initial" record (adoptRegion): wait for the adopted ring, not the bare one.
-          const region = await waitFor(() => { const r = regionKeyed('Oceanic Gift', halflingToken.document.id); return (r?.behaviors?.size && r.getFlag(MOD, 'emanation')?.initial) ? r : null; }, 12000);
+          const region = await until(() => { const r = regionKeyed('Oceanic Gift', halflingToken.document.id); return (r?.behaviors?.size && r.getFlag(MOD, 'emanation')?.initial) ? r : null; }, { timeout: 12000 }).catch(() => null);
           const fl = region?.getFlag(MOD, 'emanation');
           const beh = region?.behaviors?.contents?.[0] ?? null;
           ok('90a. Stormborn (from the druid\'s Oceanic Gift) on the Halfling: the ring "Oceanic Gift" stands around the HALFLING, its source the druid\'s token, the range the druid\'s scale',
@@ -270,7 +264,7 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
             { tokenId: attackerToken.document.id, sceneId: scene.id, actorId: attacker.id, initiative: 10 }]);
           const t0 = Date.now();
           await combat90.startCombat();
-          const pick = await waitFor(() => c1Cards(t0, 'emanationPick').find(m => m.getFlag(MOD, 'emanationPick')?.key === 'Oceanic Gift') ?? null, 10000);
+          const pick = await until(() => c1Cards(t0, 'emanationPick').find(m => m.getFlag(MOD, 'emanationPick')?.key === 'Oceanic Gift') ?? null, { timeout: 10000 }).catch(() => null);
           const cands = (pick?.getFlag(MOD, 'emanationPick')?.candidates ?? []).map(c => c.name);
           ok('90b. at the DRUID\'s turn start the pick card: "Oceanic Gift — BTB Test Cleric\'s turn: choose one creature inside", the creatures inside the Halfling\'s ring the candidates, the druid not',
             !!pick && (cands.length > 1) && !cands.includes(clericToken.document.name) && /BTB Test Cleric's turn: choose one creature inside/.test(cardText(pick?.id)),
@@ -281,9 +275,9 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
           const candList = pick?.getFlag(MOD, 'emanationPick')?.candidates ?? [];
           const chosen = candList.find(c => c.tokenId === attackerToken.document.id) ?? candList.find(c => c.tokenId !== halflingToken.document.id) ?? null;
           const chosenActor = chosen ? scene.tokens.get(chosen.tokenId)?.actor ?? null : null;
-          const button = await waitFor(() => cardEl(pick?.id)?.querySelector(`[data-bf-emanation-pick="${chosen?.tokenId}"]`), 6000);
+          const button = await until(() => cardEl(pick?.id)?.querySelector(`[data-bf-emanation-pick="${chosen?.tokenId}"]`), { timeout: 6000 }).catch(() => null);
           button?.click();
-          const demand = await waitFor(() => game.messages.contents.find(m => (m.timestamp >= t0) && (m.getFlag(MOD, 'emanationTrigger')?.cause === 'pick') && (m.getFlag(MOD, 'emanationTrigger')?.key === 'Oceanic Gift')) ?? null, 10000);
+          const demand = await until(() => game.messages.contents.find(m => (m.timestamp >= t0) && (m.getFlag(MOD, 'emanationTrigger')?.cause === 'pick') && (m.getFlag(MOD, 'emanationTrigger')?.key === 'Oceanic Gift')) ?? null, { timeout: 10000 }).catch(() => null);
           const dc = Number(demand?.getFlag(MOD, 'saves')?.dc);
           // The DC the activity resolves for the lent class (Wisdom, a level-14 druid's proficiency), not the sheet's primary spell DC.
           const druidDc = Number([...(cleric.items.get(wrath.id)?.system?.activities ?? [])].find(a => a.type === 'save')?.save?.dc?.value ?? 0);
@@ -295,13 +289,13 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
         if (combat90 && game.combats.get(combat90.id)) await combat90.delete();
         if (storm) await storm.delete().catch(() => {});
         for (const it of [gift, wrath, sea, druid]) if (it) await unlend(cleric, it);
-        const gone = await waitFor(() => !regionKeyed('Oceanic Gift', halflingToken.document.id), 8000);
+        const gone = await until(() => !regionKeyed('Oceanic Gift', halflingToken.document.id), { timeout: 8000 }).catch(() => null);
         if (!gone) { const r = regionKeyed('Oceanic Gift', halflingToken.document.id); if (r) await r.delete().catch(() => {}); }
         await dropNamed(attacker, ['Frightened']);
-        CONFIG.Dice.randomUniform = realPRNG; clearTargets();
+        unrig(); clearTargets();
         await backToRange();
       }
-    }
+    });
     return { log, results, skips };
   } catch (err) {
     return { fatal: `${err?.message || err}\n${err?.stack ?? ''}`, results, log, skips };

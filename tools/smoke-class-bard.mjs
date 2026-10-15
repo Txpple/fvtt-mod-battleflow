@@ -47,23 +47,17 @@ const f = await connectSuite({ tag: 'class-bard', watchdogMs: 900_000 });
 announcePlan('class-bard', plan, pulled);
 
 const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ sections, titles }) => {
-  const results = [];
-  const skips = [];
-  const ok = (name, pass, detail = '') => results.push({ name, pass, detail });
-  const want = id => {
-    if (!sections || sections.includes(String(id))) return true;
-    skips.push(`§${id} ${titles?.[id] ?? ''}`);
-    return false;
-  };
+  const { sleep, until, faces, unrig } = window.__btb;
+  const { results, skips, ok, want, section } = window.__btb.begin({ sections, titles });
   const KIT = window.__btbClasses;
-  const { AC, MOD, a1Hit, a1Roll, a1Victim, ackHew, act, attackOf, attacker, attackerDoc, attackerToken, b4Cards, balance, bard, bardTokC, bystanderPopup, cardText, castSpell, clearTargets, closeA1, closeDialogs, closeOffers, created, cutPopup, d1Combat, damageFor, damageHoldOf, dropEffects, dropFx, dropMutes, dropReactionChips, dropReactionChipsOn, faces, findPHB, fxNamed, grantCards, grantLine, halfling, halflingDoc, halflingToken, healFull, hewNotices, hgClose, hgKeep, hgLend, holdOf, hp, inspiration, lend, lendClassSpell, log, pcAttacker, pcToken, pcWeapon, pickApply, placeToken, popupTitled, popups, reEsc, reactionChipOn, realPRNG, refillInspiration, rescueWindowC, resolvedTarget, riderBox, riderRow, ridersOf, rollFlag, rollPopup, scene, set, sleep, sorcTokC, sorcerer, sorcererDoc, spendLuck, spendLuckC, spentBI, suiteStart, swing, textOf, titled, unlend, useFeature, waitFor } = KIT;
+  const { AC, MOD, a1Hit, a1Roll, a1Victim, ackHew, act, attackOf, attacker, attackerDoc, attackerToken, b4Cards, balance, bard, bardTokC, bystanderPopup, cardText, castSpell, clearTargets, closeA1, closeDialogs, closeOffers, created, cutPopup, d1Combat, damageFor, damageHoldOf, dropEffects, dropFx, dropMutes, dropReactionChips, dropReactionChipsOn, findPHB, fxNamed, grantCards, grantLine, halfling, halflingDoc, halflingToken, healFull, hewNotices, hgClose, hgKeep, hgLend, holdOf, hp, inspiration, lend, lendClassSpell, log, pcAttacker, pcToken, pcWeapon, pickApply, placeToken, popupTitled, popups, reEsc, reactionChipOn, refillInspiration, rescueWindowC, resolvedTarget, riderBox, riderRow, ridersOf, rollFlag, rollPopup, scene, set, sorcTokC, sorcerer, sorcererDoc, spendLuck, spendLuckC, spentBI, suiteStart, swing, textOf, titled, unlend, useFeature } = KIT;
   try {
 
     // ---- 1. Cutting Words, asked, turns the hit
-    if (want(1)) {
+    if (want(1)) await section(1, async () => {
       await closeDialogs(); await spendLuck(); await refillInspiration();
       const msg = await swing({ d20: [12] });
-      const pop = await waitFor(bystanderPopup, 6000);
+      const pop = await until(bystanderPopup, { timeout: 6000 }).catch(() => null);
       const guards = holdOf(msg)?.targets?.[0]?.guards ?? [];
       ok('1a. the hit is held for the Bard: a bystander popup "Cutting Words … −d8 · a Reaction"; the Sorcerer is not listed (a plain roll)',
         !!pop && /Cutting Words/.test(textOf(pop?.element)) && /−d8/.test(textOf(pop?.element))
@@ -83,25 +77,25 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
       ok('1d. the attack card: "Cutting Words (BTB Test Bard) −5 … MISS"', /Cutting Words \(BTB Test Bard\) −5.*MISS/.test(cardText(msg?.id)), cardText(msg?.id).slice(0, 240));
       ok('1e. one Bardic Inspiration spent; no damage landed; the popup closed', (spentBI() === 1) && (hp() === 400) && !bystanderPopup(),
         `spent=${spentBI()} hp=${hp()} pop=${!!bystanderPopup()}`);
-    }
+    });
 
     // ---- 2. the margin gate on the ROLL half: a hit by 9 asks nobody for the roll; the damage half asks at the damage hold
-    if (want(2)) {
+    if (want(2)) await section(2, async () => {
       await closeDialogs(); await spendLuck(); await refillInspiration(); await dropMutes();
       const msg = await swing({ d20: [19] });
-      const cut = await waitFor(cutPopup, 8000);
+      const cut = await until(cutPopup, { timeout: 8000 }).catch(() => null);
       ok('2a. no attack hold and no roll popup: a d8 cannot turn a hit by 9; the damage waits on the damage hold — the Bard\'s "cut the damage?" popup',
         !holdOf(msg) && !bystanderPopup() && !!cut && (hp() === 400), `hold=${JSON.stringify(holdOf(msg))} pop=${!!bystanderPopup()} cut=${!!cut} hp=${hp()}`);
       pickApply(cut, 'pass');
-      await waitFor(() => hp() < 400, 8000);
+      await until(() => hp() < 400, { timeout: 8000 }).catch(() => null);
       ok('2b. Pass: the damage landed whole', hp() < 400, `hp=${hp()}`);
-    }
+    });
 
     // ---- 3. Cutting Words' damage half at the damage hold (RULINGS *The asks widened*); the out-of-combat mute
-    if (want(3)) {
+    if (want(3)) await section(3, async () => {
       await closeDialogs(); await spendLuck(); await refillInspiration(); await dropMutes();
       const msg = await swing({ d20: [19], dmg: 5 });
-      const cut = await waitFor(cutPopup, 8000);
+      const cut = await until(cutPopup, { timeout: 8000 }).catch(() => null);
       const card = damageHoldOf();
       const guard = card?.getFlag(MOD, 'damageHold')?.guards?.find(g => g.actorUuid === bard.uuid);
       const text = textOf(cut?.element);
@@ -112,8 +106,8 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
         `cut=${!!cut} guard=${JSON.stringify(guard)} text="${text.slice(0, 260)}"`);
       faces([[3, 8]]);
       pickApply(cut, 'cast');
-      const landed = await waitFor(() => { const f = game.messages.get(card?.id)?.getFlag(MOD, 'damageHold'); return f?.applied ? f : null; }, 12000);
-      CONFIG.Dice.randomUniform = realPRNG;
+      const landed = await until(() => { const f = game.messages.get(card?.id)?.getFlag(MOD, 'damageHold'); return f?.applied ? f : null; }, { timeout: 12000 }).catch(() => null);
+      unrig();
       const dmg = damageFor(msg?.id);
       const full = (dmg?.rolls ?? []).reduce((n, r) => n + Number(r.total ?? 0), 0);
       await sleep(600);
@@ -124,10 +118,10 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
       // c. the next hit: "Not until the next combat" — the chip, the hit lands whole
       await refillInspiration(); await dropReactionChipsOn(bard);
       const msg2 = await swing({ d20: [19], dmg: 5 });
-      const cut2 = await waitFor(cutPopup, 8000);
+      const cut2 = await until(cutPopup, { timeout: 8000 }).catch(() => null);
       pickApply(cut2, 'mute-combat');
-      const eff = await waitFor(() => bard.effects.find(e => e.getFlag(MOD, 'bystanderMute')?.key === 'Cutting Words'), 6000);
-      await waitFor(() => hp() < 400, 8000);
+      const eff = await until(() => bard.effects.find(e => e.getFlag(MOD, 'bystanderMute')?.key === 'Cutting Words'), { timeout: 6000 }).catch(() => null);
+      await until(() => hp() < 400, { timeout: 8000 }).catch(() => null);
       await sleep(400);
       ok('3c. "Not until the next combat": the chip "Cutting Words — muted until the next combat" (combat null, until "combat"); the hit lands whole',
         /muted until the next combat/.test(eff?.name ?? '') && (eff?.getFlag(MOD, 'bystanderMute')?.combat === null) && (eff?.getFlag(MOD, 'bystanderMute')?.until === 'combat') && ((400 - hp()) === full),
@@ -135,23 +129,23 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
       // d. muted: a trivial reduction asks nobody — no damage hold, the damage lands at once
       const before = game.messages.contents.filter(m => m.getFlag(MOD, 'damageHold')).length;
       const msg3 = await swing({ d20: [19], dmg: 5 });
-      await waitFor(() => hp() < 400, 8000);
+      await until(() => hp() < 400, { timeout: 8000 }).catch(() => null);
       await sleep(800);
       const after = game.messages.contents.filter(m => m.getFlag(MOD, 'damageHold')).length;
       ok('3d. muted, a trivial reduction asks nobody: no damage hold, no popup, the damage landed whole', (after === before) && !cutPopup() && ((400 - hp()) === full),
         `holds=${before}->${after} pop=${!!cutPopup()} taken=${400 - hp()}`);
       await dropMutes();
       void msg2; void msg3;
-    }
+    });
 
     // ---- 127. the down guard (RULINGS *The asks widened*): a reduction that keeps the Halfling above 0 is asked through the mute
-    if (want(127)) {
+    if (want(127)) await section(127, async () => {
       await closeDialogs(); await spendLuck(); await refillInspiration(); await dropMutes(); await dropReactionChipsOn(bard);
       await bard.createEmbeddedDocuments('ActiveEffect', [{ name: 'Cutting Words — muted until the next combat', img: 'icons/svg/sound-off.svg', transfer: false,
         flags: { [MOD]: { bystanderMute: { key: 'Cutting Words', combat: null, until: 'combat' } } } }]);
       // the hit's damage, measured: muted, a trivial hit at 400 HP lands at once
       const probeMsg = await swing({ d20: [19], dmg: 5 });
-      await waitFor(() => hp() < 400, 8000);
+      await until(() => hp() < 400, { timeout: 8000 }).catch(() => null);
       const full = 400 - hp();
       // the Halfling two short of the damage: it would drop to 0, and a d8 can keep it up
       await halfling.update({ 'system.attributes.hp.value': Math.max(1, full - 2), 'system.attributes.hp.temp': 0 });
@@ -162,7 +156,7 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
       const usage = await act().use({ subsequentActions: false }, { configure: false }, {});
       const rolls = await act().rollAttack({}, { configure: false }, usage?.message?.id ? { data: { 'system.origin': usage.message.id } } : {});
       const msg = rolls?.[0]?.parent ?? null;
-      const cut = await waitFor(cutPopup, 8000);
+      const cut = await until(cutPopup, { timeout: 8000 }).catch(() => null);
       const card = damageHoldOf();
       const guard = card?.getFlag(MOD, 'damageHold')?.guards?.find(g => g.actorUuid === bard.uuid);
       const text = textOf(cut?.element);
@@ -172,17 +166,17 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
         `cut=${!!cut} guard=${JSON.stringify(guard)} full=${full} hp=${hp()} text="${text.slice(0, 260)}" card="${cardText(card?.id).slice(0, 200)}"`);
       faces([[3, 8]]);
       pickApply(cut, 'cast');
-      const landed = await waitFor(() => { const f = game.messages.get(card?.id)?.getFlag(MOD, 'damageHold'); return f?.applied ? f : null; }, 12000);
-      CONFIG.Dice.randomUniform = realPRNG;
+      const landed = await until(() => { const f = game.messages.get(card?.id)?.getFlag(MOD, 'damageHold'); return f?.applied ? f : null; }, { timeout: 12000 }).catch(() => null);
+      unrig();
       await sleep(600);
       ok('127b. Cut (3): the Halfling stands at 1 Hit Point', (landed?.answer === 'cast') && (Number(landed?.reduceBy) === 3) && (hp() === 1),
         `answer=${landed?.answer} reduceBy=${landed?.reduceBy} hp=${hp()} full=${full}`);
       await dropMutes(); await healFull();
       void probeMsg; void msg;
-    }
+    });
 
     // ---- 5. the reach
-    if (want(5)) {
+    if (want(5)) await section(5, async () => {
       await closeDialogs(); await spendLuck(); await refillInspiration();
       // ⚠ The range's tokens sit below its 2000 px edge, where Foundry refuses a move: the Bard is re-placed 65 ft west.
       await scene.deleteEmbeddedDocuments('Token', [KIT.bardDoc.id]);
@@ -194,10 +188,10 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
       await scene.deleteEmbeddedDocuments('Token', [KIT.bardDoc.id]);
       ({ doc: KIT.bardDoc } = await placeToken(bard, 1700, 2100, 1));
       await sleep(600);
-    }
+    });
 
     // ---- 6. the mutes in a combat (RULINGS *The asks widened*): "Not until my turn" and the turn's sweep; "Not this combat" and the combat's
-    if (want(6)) {
+    if (want(6)) await section(6, async () => {
       await closeDialogs(); await spendLuck(); await refillInspiration(); await dropMutes();
       const [combat] = await Combat.createDocuments([{ scene: scene.id, active: true }]);
       created.combats.push(combat.id);
@@ -206,86 +200,86 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
       await combat.startCombat();
       await sleep(400);
       const msg = await swing({ d20: [12] });
-      const pop = await waitFor(bystanderPopup, 6000);
+      const pop = await until(bystanderPopup, { timeout: 6000 }).catch(() => null);
       const turnBtn = pop?.element?.querySelector('input[value="mute-turn"]')?.closest('label');
       const combatBtn = pop?.element?.querySelector('input[value="mute-combat"]')?.closest('label');
       ok('6a. the popup carries both ways out: "Don\x27t ask again till next turn" and "Don\x27t ask again this combat"',
         !!turnBtn && /ask again till next turn/.test(textOf(turnBtn)) && !!combatBtn && /ask again this combat/.test(textOf(combatBtn)), textOf(pop?.element).slice(-160));
       pickApply(pop, 'mute-turn');
-      const eff = await waitFor(() => bard.effects.find(e => e.getFlag(MOD, 'bystanderMute')?.key === 'Cutting Words'), 6000);
+      const eff = await until(() => bard.effects.find(e => e.getFlag(MOD, 'bystanderMute')?.key === 'Cutting Words'), { timeout: 6000 }).catch(() => null);
       const t = await resolvedTarget(msg);
       const muteFlag = eff?.getFlag(MOD, 'bystanderMute');
       ok('6b. "Not until my turn": the chip "Cutting Words — muted until your next turn" (this combat, until "turn"); the hit lands (passed)',
         /Cutting Words — muted until your next turn/.test(eff?.name ?? '') && (muteFlag?.combat === combat.id) && (muteFlag?.until === 'turn') && (t?.verdict === 'hit'),
         `effect=${eff?.name ?? null} flag=${JSON.stringify(muteFlag ?? null)} verdict=${t?.verdict}`);
-      await waitFor(() => hp() < 400, 8000);
+      await until(() => hp() < 400, { timeout: 8000 }).catch(() => null);
       const msg2 = await swing({ d20: [12] });
-      await waitFor(() => hp() < 400, 8000);
+      await until(() => hp() < 400, { timeout: 8000 }).catch(() => null);
       await sleep(800);
       ok('6c. muted: the next hit asks nobody — no attack hold, no popup, no damage hold; the damage landed',
         !holdOf(msg2) && !bystanderPopup() && !cutPopup() && (hp() < 400), `hold=${JSON.stringify(holdOf(msg2)?.targets?.[0]?.guards ?? null)} cut=${!!cutPopup()}`);
       // the Bard's turn begins: the mute goes
       for (let i = 0; (i < 6) && (combat.combatant?.actorId !== bard.id); i++) await combat.nextTurn();
-      const gone = await waitFor(() => !bard.effects.some(e => e.getFlag(MOD, 'bystanderMute')), 8000);
+      const gone = await until(() => !bard.effects.some(e => e.getFlag(MOD, 'bystanderMute')), { timeout: 8000 }).catch(() => null);
       ok('6d. the Bard\'s turn begins: the turn\'s mute is swept', gone && (combat.combatant?.actorId === bard.id),
         `turn=${combat.combatant?.name} left=${bard.effects.filter(e => e.getFlag(MOD, 'bystanderMute')).map(e => e.name)}`);
       // asked again; "Not this combat"
       const msg3 = await swing({ d20: [12] });
-      const pop3 = await waitFor(bystanderPopup, 6000);
+      const pop3 = await until(bystanderPopup, { timeout: 6000 }).catch(() => null);
       pickApply(pop3, 'mute-combat');
-      const eff3 = await waitFor(() => bard.effects.find(e => e.getFlag(MOD, 'bystanderMute')?.key === 'Cutting Words'), 6000);
+      const eff3 = await until(() => bard.effects.find(e => e.getFlag(MOD, 'bystanderMute')?.key === 'Cutting Words'), { timeout: 6000 }).catch(() => null);
       await resolvedTarget(msg3);
       ok('6e. asked again on the Bard\'s turn; "Not this combat": the chip "Cutting Words — muted this combat" (until "combat")',
         !!pop3 && /Cutting Words — muted this combat/.test(eff3?.name ?? '') && (eff3?.getFlag(MOD, 'bystanderMute')?.until === 'combat') && (eff3?.getFlag(MOD, 'bystanderMute')?.combat === combat.id),
         `pop=${!!pop3} effect=${eff3?.name ?? null}`);
-      await waitFor(() => hp() < 400, 8000);
+      await until(() => hp() < 400, { timeout: 8000 }).catch(() => null);
       const msg4 = await swing({ d20: [12] });
       await sleep(1200);
       ok('6f. the next hit asks nobody', !holdOf(msg4) && !bystanderPopup() && !cutPopup(), `hold=${JSON.stringify(holdOf(msg4)?.targets?.[0]?.guards ?? null)}`);
       await combat.delete();
-      const swept = await waitFor(() => !bard.effects.some(e => e.getFlag(MOD, 'bystanderMute')), 8000);
+      const swept = await until(() => !bard.effects.some(e => e.getFlag(MOD, 'bystanderMute')), { timeout: 8000 }).catch(() => null);
       ok('6g. the combat\'s end sweeps the mute', swept, `left=${bard.effects.filter(e => e.getFlag(MOD, 'bystanderMute')).map(e => e.name)}`);
-    }
+    });
 
     // ---- 11. Cutting Words on a hostile's check
-    if (want(11)) {
+    if (want(11)) await section(11, async () => {
       await closeDialogs(); await refillInspiration();
       faces([[14, 20]]);
       const rolls = await attacker.rollSkill({ skill: 'ath' }, { configure: false }, {});
       const msg = rolls?.[0]?.parent ?? null;
-      const pop = await waitFor(() => rollPopup(/Cutting Words/), 8000);
+      const pop = await until(() => rollPopup(/Cutting Words/), { timeout: 8000 }).catch(() => null);
       ok('11a. the Bard\'s popup: "Cutting Words — BTB Test Attacker\'s check", no DC known', !!pop && /No DC is known/.test(textOf(pop?.element)),
         textOf(pop?.element).slice(0, 220));
       faces([[5, 8]]);
       pickApply(pop);
-      const flag = await waitFor(() => (rollFlag(msg)?.status === 'resolved') ? rollFlag(msg) : null, 8000);
+      const flag = await until(() => (rollFlag(msg)?.status === 'resolved') ? rollFlag(msg) : null, { timeout: 8000 }).catch(() => null);
       await sleep(600);
       ok('11b. the d8 (5) off: the card states the arithmetic and "ask your DM"', (flag?.answer === 'roll') && (flag?.bent?.add === -5)
         && /Cutting Words \(BTB Test Bard\) −5/.test(cardText(msg?.id)) && /ask your DM/.test(cardText(msg?.id)),
         `flag=${JSON.stringify({ answer: flag?.answer, bent: flag?.bent?.add })} card=${cardText(msg?.id).slice(-200)}`);
-    }
+    });
 
     // ---- 12. everyone passes
-    if (want(12)) {
+    if (want(12)) await section(12, async () => {
       await closeDialogs(); await refillInspiration(); await balance.update({ 'system.uses.spent': 0 });
       faces([[6, 20], [14, 20]]);   // the FIRST die the lower: cancelling the Advantage changes the roll
       const rolls = await attacker.rollSkill({ skill: 'ath', advantage: true }, { configure: false }, {});
       const msg = rolls?.[0]?.parent ?? null;
-      const a = await waitFor(() => rollPopup(/Cutting Words/), 8000);
-      const b = await waitFor(() => rollPopup(/Restore Balance/), 4000);
+      const a = await until(() => rollPopup(/Cutting Words/), { timeout: 8000 }).catch(() => null);
+      const b = await until(() => rollPopup(/Restore Balance/), { timeout: 4000 }).catch(() => null);
       ok('12a. both asked on an Advantage check', !!a && !!b, `cw=${!!a} rb=${!!b} guards=${JSON.stringify((rollFlag(msg)?.guards ?? []).map(g => g.row))}`);
       pickApply(a, 'pass');
       await sleep(400);
       pickApply(b, 'pass');
-      const flag = await waitFor(() => (rollFlag(msg)?.status === 'resolved') ? rollFlag(msg) : null, 8000);
+      const flag = await until(() => (rollFlag(msg)?.status === 'resolved') ? rollFlag(msg) : null, { timeout: 8000 }).catch(() => null);
       await sleep(500);
       ok('12b. resolved as a pass; nothing on the card', (flag?.answer === 'pass') && !/Reaction — /.test(cardText(msg?.id)),
         `answer=${flag?.answer} card=${cardText(msg?.id).slice(-160)}`);
-    }
+    });
     await KIT.leaveA3();
 
     // ---- 14. Combat Inspiration — Defense: the hit creature's own Inspired die, its Reaction
-    if (want(14)) {
+    if (want(14)) await section(14, async () => {
       await closeDialogs(); await spendLuck(); await dropReactionChips(halfling);
       const ci = await lend(bard, 'Combat Inspiration');
       // The die the code reads (lookup.js inspiredDieOf): the BARD's scale.bard.inspiration formula.
@@ -305,7 +299,7 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
       await sleep(400);
       try {
         const msg = await swing({ d20: [12] });   // a hit by 2: any Bardic die can turn it
-        const pop = await waitFor(() => popupTitled(/Combat Inspiration/), 6000);
+        const pop = await until(() => popupTitled(/Combat Inspiration/), { timeout: 6000 }).catch(() => null);
         const guards = holdOf(msg)?.targets?.[0]?.guards ?? [];
         const g = guards.find(x => x.uuid === halfling.uuid);
         ok(`14a. the Halfling's OWN popup: "Combat Inspiration … −${die} · a Reaction · the Inspired die", "BTB Test Bard's Inspired die"`,
@@ -336,10 +330,10 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
         if (halfling.effects.get(inspired.id)) await halfling.deleteEmbeddedDocuments('ActiveEffect', [inspired.id]).catch(() => {});
         await unlend(bard, ci);
       }
-    }
+    });
 
     // ---- 15. Combat Inspiration — Offense: the Inspired ally's die, UNTICKED on the offer
-    if (want(15)) {
+    if (want(15)) await section(15, async () => {
       await closeDialogs(); await a1Victim();
       const bardic = inspiration();
       if (!pcWeapon || !bardic) log.push(`§15 skipped: pcWeapon=${!!pcWeapon} bardic=${!!bardic}`);
@@ -364,7 +358,7 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
           await sleep(50);
           const dmg = await a1Roll(msg, offer);
           const r = ridersOf(dmg).find(x => x.key === 'combat-inspiration');
-          const gone = await waitFor(() => !pcAttacker.effects.get(eff.id), 6000);
+          const gone = await until(() => !pcAttacker.effects.get(eff.id), { timeout: 6000 }).catch(() => null);
           ok('15b. ticked, the die rides as its own part (the attack\'s own damage type), the pick recorded, the Inspired effect spent',
             !!r && (norm(r.formula) === norm(die)) && !!r.type && (dmg?.rolls ?? []).some(x => norm(x.formula) === norm(die))
               && (msg?.getFlag(MOD, 'clockPick') ?? []).includes('combat-inspiration') && gone,
@@ -389,7 +383,7 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
           // …and the offer still open for that attack, rolled as it stands (unticked): the pick is empty, nothing rides.
           const n0 = game.messages.contents.filter(m => (m.type === 'damage') && (m.getFlag(MOD, 'attackFor') === m2?.id)).length;
           o2?.element?.querySelector('button[data-action="roll"]')?.click();
-          const d2 = await waitFor(() => game.messages.contents.filter(m => (m.type === 'damage') && (m.getFlag(MOD, 'attackFor') === m2?.id))[n0] ?? null, 12000);
+          const d2 = await until(() => game.messages.contents.filter(m => (m.type === 'damage') && (m.getFlag(MOD, 'attackFor') === m2?.id))[n0] ?? null, { timeout: 12000 }).catch(() => null);
           await sleep(400);
           ok('15e. left unticked on the offer: the pick records nothing, nothing rides, the Inspired effect stands',
             !!o2 && Array.isArray(m2?.getFlag(MOD, 'clockPick')) && (m2.getFlag(MOD, 'clockPick').length === 0)
@@ -401,11 +395,11 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
           await unlend(bard, ci);
         }
       }
-    }
+    });
     KIT.markA2();
 
     // ---- 42. Countercharm: a friend's failed demanded save against Charmed, the bard's Reaction rerolls it with Advantage
-    if (want(42)) {
+    if (want(42)) await section(42, async () => {
       await closeA1(); await spendLuck();
       const countercharm = await hgLend(bard, 'Countercharm', 'feat');
       const lentSpells = [];
@@ -425,7 +419,7 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
         await sleep(100);
         const use = await a.use({ consume: { spellSlot: false } }, { configure: false }, {});
         const card = use?.message ?? null;
-        await waitFor(() => card?.getFlag(MOD, 'saves'), 6000);
+        await until(() => card?.getFlag(MOD, 'saves'), { timeout: 6000 }).catch(() => null);
         return card;
       };
       const reactionChip = () => bard.effects.find(e => e.getFlag(MOD, 'mastery') === 'reaction') ?? null;
@@ -458,7 +452,7 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
             faces([[1, 20]]);
             const rolls = await halfling.rollSavingThrow({ ability: 'wis' }, { configure: false }, {});
             const rollMsg = rolls?.[0]?.parent ?? null;
-            const pop = await waitFor(() => rollPopup(/Countercharm/), 8000);
+            const pop = await until(() => rollPopup(/Countercharm/), { timeout: 8000 }).catch(() => null);
             const popText = textOf(pop?.element);
             ok('42a. the Halfling fails a demanded save against Charmed: the bard\'s popup "Countercharm — BTB Test Halfling\'s saving throw", the reroll at Advantage named, the demand carrying "charmed"',
               !!pop && /Countercharm/.test(popText) && /saving throw/.test(popText) && /rolled again with Advantage/.test(popText) && demandStatuses.includes('charmed'),
@@ -466,8 +460,8 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
             // b. Answer: two d20s (17 and 3) rerolled off the Halfling, the 17 standing; the Reaction spent; the entry SAVED
             faces([[17, 20], [3, 20]]);
             pickApply(pop);
-            const entry = await waitFor(() => card.getFlag(MOD, 'saves')?.targets?.find(x => (x.uuid === halfling.uuid) && x.done) ?? null, 12000);
-            CONFIG.Dice.randomUniform = realPRNG;
+            const entry = await until(() => card.getFlag(MOD, 'saves')?.targets?.find(x => (x.uuid === halfling.uuid) && x.done) ?? null, { timeout: 12000 }).catch(() => null);
+            unrig();
             const bent = rollMsg?.getFlag(MOD, 'bystanderRoll')?.bent ?? null;
             const rerollMsg = game.messages.contents.find(m => (m.timestamp >= t0) && (m.getFlag(MOD, 'respondsTo') === rollMsg?.id));
             const rise = rerollMsg?.getFlag(MOD, 'diceRise') ?? null;
@@ -475,7 +469,7 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
               !!entry && (entry.outcome === 'saved') && (bent?.how === 'reroll') && (bent?.stood === 17) && (bent?.total === 17 + smod) && (entry.total === 17 + smod) && (17 + smod >= dc)
                 && !!reactionChip() && (rise?.on === halfling.uuid) && /Advantage/.test(rerollMsg?.flavor ?? ''),
               `entry=${JSON.stringify(entry && { outcome: entry.outcome, total: entry.total })} bent=${JSON.stringify(bent)} reaction=${!!reactionChip()} rise=${JSON.stringify(rise)} flavor="${rerollMsg?.flavor ?? ''}"`);
-            const line = await waitFor(() => { const t = cardText(rollMsg?.id); return /rerolled with Advantage/.test(t) ? t : null; }, 6000);
+            const line = await until(() => { const t = cardText(rollMsg?.id); return /rerolled with Advantage/.test(t) ? t : null; }, { timeout: 6000 }).catch(() => null);
             ok('42c. the roll\'s card: "Countercharm (BTB Test Bard) the d20 (1) rerolled with Advantage (17, 3) — the 17 stands: … vs DC"',
               /Countercharm \(BTB Test Bard\)/.test(line ?? '') && /the d20 \(1\) rerolled with Advantage \(17, 3\) — the 17 stands/.test(line ?? '') && new RegExp(`vs DC ${dc}`).test(line ?? ''),
               `card="${(line ?? cardText(rollMsg?.id)).slice(0, 260)}"`);
@@ -488,8 +482,8 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
           else {
             faces([[1, 20]]);
             await halfling.rollSavingThrow({ ability: 'wis' }, { configure: false }, {});
-            CONFIG.Dice.randomUniform = realPRNG;
-            const entry2 = await waitFor(() => card2.getFlag(MOD, 'saves')?.targets?.find(x => (x.uuid === halfling.uuid) && x.done) ?? null, 10000);
+            unrig();
+            const entry2 = await until(() => card2.getFlag(MOD, 'saves')?.targets?.find(x => (x.uuid === halfling.uuid) && x.done) ?? null, { timeout: 10000 }).catch(() => null);
             const asked = popups().some(app => /Countercharm/.test(textOf(app.element)));
             ok('42d. a failed save against Paralyzed (Hold Person): no Countercharm popup, the failure folds as rolled',
               !asked && !!entry2 && (entry2.outcome === 'failed'), `asked=${asked} entry=${JSON.stringify(entry2 && { outcome: entry2.outcome, total: entry2.total })}`);
@@ -504,13 +498,13 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
         await bard.deleteEmbeddedDocuments('ActiveEffect', bard.effects.filter(e => e.getFlag(MOD, 'mastery') === 'reaction').map(e => e.id)).catch(() => {});
         for (const e of halfling.effects.filter(e => ['Charmed', 'Paralyzed'].includes(e.name))) await e.delete().catch(() => {});
         if (combat42) { await combat42.delete().catch(() => {}); created.combats = created.combats.filter(id => id !== combat42.id); }
-        CONFIG.Dice.randomUniform = realPRNG;
+        unrig();
         clearTargets();
       }
-    }
+    });
 
     // ---- 54. Tandem Footwork: at the bard's Initiative, one d8 to every ally within 30 ft; the late roller gets it as its lands
-    if (want(54)) {
+    if (want(54)) await section(54, async () => {
       await closeA1();
       const tandem = await hgLend(bard, 'Tandem Footwork', 'feat');
       await refillInspiration();
@@ -529,15 +523,15 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
           await combat.setInitiative(cOf(halfling).id, 12);
           await combat.setInitiative(cOf(attacker).id, 9);
           await combat.setInitiative(cOf(bard).id, 18);
-          const card = await waitFor(() => grants()[0] ?? null, 8000);
-          const pop = await waitFor(() => titled(/^Tandem Footwork — /), 6000);
+          const card = await until(() => grants()[0] ?? null, { timeout: 8000 }).catch(() => null);
+          const pop = await until(() => titled(/^Tandem Footwork — /), { timeout: 6000 }).catch(() => null);
           ok('54a. the bard\'s Initiative lands: the popup "Tandem Footwork — give 1d8 to allies within 30 ft? · a use of Bardic Inspiration"',
             !!card && !!pop && /give .*d8 to allies within 30 ft\?/.test(textOf(pop?.element)), `card=${!!card} pop=${!!pop} text="${textOf(pop?.element).slice(0, 200)}"`);
           const biBefore = Number(inspiration()?.system?.uses?.spent ?? 0);
           faces([[5, 8]]);
           pop?.element?.querySelector('button[data-action="yes"]')?.click();
-          const done = await waitFor(() => card?.getFlag(MOD, 'initiativeGrant')?.applied ? card.getFlag(MOD, 'initiativeGrant') : null, 10000);
-          CONFIG.Dice.randomUniform = realPRNG;
+          const done = await until(() => card?.getFlag(MOD, 'initiativeGrant')?.applied ? card.getFlag(MOD, 'initiativeGrant') : null, { timeout: 10000 }).catch(() => null);
+          unrig();
           await sleep(500);
           ok('54b. Yes: a 5 rolled once — the bard 18 → 23, the Halfling 12 → 17, the Attacker (a foe) untouched, the Sorcerer (unrolled) noted as due; a Bardic Inspiration use spent',
             (done?.rolled === 5) && (cOf(bard).initiative === 23) && (cOf(halfling).initiative === 17) && (cOf(attacker).initiative === 9)
@@ -547,7 +541,7 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
           ok('54c. the card: "Tandem Footwork — +5 Initiative: … (1 still to roll)"', /\+5 Initiative/.test(await grantLine(card)) && /1 still to roll/.test(await grantLine(card)), `line="${await grantLine(card)}"`);
           // d. the late roller
           await combat.setInitiative(cOf(sorcerer).id, 10);
-          await waitFor(() => cOf(sorcerer).initiative === 15, 8000);
+          await until(() => cOf(sorcerer).initiative === 15, { timeout: 8000 }).catch(() => null);
           ok('54d. the Sorcerer rolls later: 10 → 15 as its Initiative lands, the note cleared',
             (cOf(sorcerer).initiative === 15) && !combat.getFlag(MOD, 'initiativeBonusDue')?.[cOf(sorcerer).id],
             `init=${cOf(sorcerer).initiative} noted=${JSON.stringify(combat.getFlag(MOD, 'initiativeBonusDue') ?? null)}`);
@@ -557,12 +551,12 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
         if (game.combats.get(combat.id)) await combat.delete();
         if (tandem) await unlend(bard, tandem);
         await refillInspiration();
-        CONFIG.Dice.randomUniform = realPRNG;
+        unrig();
       }
-    }
+    });
 
     // ---- 79. Peerless Skill: the Bardic die on the bard's own failed check
-    if (want(79)) {
+    if (want(79)) await section(79, async () => {
       await closeA1(); await refillInspiration();
       const peerless = await hgLend(bard, 'Peerless Skill', 'feat');
       try {
@@ -572,15 +566,15 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
           faces([[3, 20]]);
           const rolls = await bard.rollSkill({ skill: 'ath' }, { configure: false }, {});
           const m = rolls?.[0]?.parent ?? null;
-          const flag = await waitFor(() => m?.getFlag(MOD, 'd20fold') ?? null, 4000);
+          const flag = await until(() => m?.getFlag(MOD, 'd20fold') ?? null, { timeout: 4000 }).catch(() => null);
           const offer = (flag?.offers ?? []).find(o => o.label === 'Peerless Skill') ?? null;
           ok('79a. a failed Athletics check offers "Peerless Skill" — the Bardic die (the tactical fold on the feature\'s own activity)', !!offer && /d\d/.test(String(offer?.dieFormula ?? '')),
             `offers=${JSON.stringify((flag?.offers ?? []).map(o => o.label))} die=${offer?.dieFormula}`);
-          const win = await waitFor(() => rescueWindowC('Peerless Skill'), 6000);
+          const win = await until(() => rescueWindowC('Peerless Skill'), { timeout: 6000 }).catch(() => null);
           faces([[6, 8], [6, 10], [6, 12]]);
           win?.querySelector('[data-bf-rescue-action="tactical:Peerless Skill"]')?.click();
-          const done = await waitFor(() => { const fl = m?.getFlag(MOD, 'd20fold'); return (fl?.spends?.some(s => (s.name === 'Peerless Skill') && !s.pendingVerdict) && Number.isFinite(fl.foldedTotal)) ? fl : null; }, 10000);
-          CONFIG.Dice.randomUniform = realPRNG;
+          const done = await until(() => { const fl = m?.getFlag(MOD, 'd20fold'); return (fl?.spends?.some(s => (s.name === 'Peerless Skill') && !s.pendingVerdict) && Number.isFinite(fl.foldedTotal)) ? fl : null; }, { timeout: 10000 }).catch(() => null);
+          unrig();
           ok('79b. accepted: the die added to the total, a Bardic Inspiration use spent', (done?.spends?.[0]?.name === 'Peerless Skill') && (done?.foldedTotal > done?.baseTotal) && (spentBI() === before + 1),
             `flag=${JSON.stringify(done && { spends: done.spends?.map(s => [s.name, s.die]), base: done.baseTotal, folded: done.foldedTotal })} spent ${before}→${spentBI()}`);
         }
@@ -588,12 +582,12 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
         await closeA1();
         if (peerless) await unlend(bard, peerless);
         await refillInspiration();
-        CONFIG.Dice.randomUniform = realPRNG; clearTargets();
+        unrig(); clearTargets();
       }
-    }
+    });
 
     // ---- 87. Battle Magic: Hew's reminder after an action-cast spell
-    if (want(87)) {
+    if (want(87)) await section(87, async () => {
       await closeA1();
       hgKeep(bard, { 'system.spells': foundry.utils.deepClone(bard.system._source.spells) });
       const bm = await hgLend(bard, 'Battle Magic', 'feat');
@@ -605,7 +599,7 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
           await bard.update({ 'system.spells.spell1.value': 4 });
           const since = Date.now();
           await castSpell(bard, bTok, cure, 1, halflingToken);
-          const notice = await waitFor(() => hewNotices(since, 'Battle Magic')[0] ?? null, 8000);
+          const notice = await until(() => hewNotices(since, 'Battle Magic')[0] ?? null, { timeout: 8000 }).catch(() => null);
           ok('87a. Cure Wounds cast as an action: "Battle Magic — BTB Test Bard can attack again", the swing from the sheet', !!notice && /Battle Magic — BTB Test Bard can attack again/.test(cardText(notice?.id)),
             `notice=${!!notice} card="${cardText(notice?.id).slice(0, 160)}"`);
           await ackHew('Battle Magic');
@@ -613,12 +607,12 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
       } finally {
         await closeA1(); await ackHew('Battle Magic');
         for (const it of [cure, bm]) if (it) await unlend(bard, it);
-        CONFIG.Dice.randomUniform = realPRNG; clearTargets();
+        unrig(); clearTargets();
       }
-    }
+    });
 
     // ---- 88. Leading Evasion: the bard's Evasion shared with the demand's other targets within 5 ft
-    if (want(88)) {
+    if (want(88)) await section(88, async () => {
       await closeA1(); await set('saveRolls', 'prompt');
       const le = await hgLend(bard, 'Leading Evasion', 'feat');
       const sorcHP = () => Number(sorcerer.system.attributes.hp.value);
@@ -646,17 +640,17 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
           faces([[4, 8]]);
           const use = await flameAct.use({ consume: { spellSlot: false } }, { configure: false }, {});
           const card = use?.message ?? null;
-          await waitFor(() => (card?.getFlag(MOD, 'saves')?.targets?.length ?? 0) >= 2, 8000);
+          await until(() => (card?.getFlag(MOD, 'saves')?.targets?.length ?? 0) >= 2, { timeout: 8000 }).catch(() => null);
           // PROMPT mode: the demand opens each target's own roll dialog; a bare rollSavingThrow is a second, unlinked roll
           // (its card carries no respondsTo, the entry never folds). The sorcerer's dialog is the one rolled.
           const sorcDlg = () => [...foundry.applications.instances.values()].find(app => /RollConfigurationDialog/.test(app.constructor?.name ?? '') && app.rendered && app.element && /BTB Test Sorcerer/.test(textOf(app.element))) ?? null;
-          const dlg = await waitFor(sorcDlg, 8000);
+          const dlg = await until(sorcDlg, { timeout: 8000 }).catch(() => null);
           faces([[1, 20]]);
           (dlg?.element?.querySelector('button[data-action="normal"]') ?? dlg?.element?.querySelector('button[autofocus]') ?? dlg?.element?.querySelector('button[type="submit"]'))?.click();
-          const entry = await waitFor(() => card?.getFlag(MOD, 'saves')?.targets?.find(x => (x.uuid === sorcerer.uuid) && x.done) ?? null, 12000);
-          await waitFor(() => sorcHP() < sorcMax, 8000);
+          const entry = await until(() => card?.getFlag(MOD, 'saves')?.targets?.find(x => (x.uuid === sorcerer.uuid) && x.done) ?? null, { timeout: 12000 }).catch(() => null);
+          await until(() => sorcHP() < sorcMax, { timeout: 8000 }).catch(() => null);
           await sleep(500);
-          CONFIG.Dice.randomUniform = realPRNG;
+          unrig();
           ok('88a. the sorcerer (5 ft from the bard, both targets of the same Dexterity demand) FAILS and takes HALF (4 → 2): the entry "Evasion — Leading Evasion (BTB Test Bard)"',
             (entry?.outcome === 'failed') && (entry?.evasion === true) && /Leading Evasion \(BTB Test Bard\)/.test(String(entry?.evasionBy ?? '')) && (sorcHP() === sorcMax - 2),
             `dlg=${!!dlg} entry=${JSON.stringify(entry && { outcome: entry.outcome, evasion: entry.evasion, by: entry.evasionBy })} hp=${sorcHP()} of ${sorcMax} targets=${JSON.stringify((card?.getFlag(MOD, 'saves')?.targets ?? []).map(t => [t.name, t.done, t.outcome]))}`);
@@ -669,12 +663,12 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
         if (flameLent) await unlend(attacker, flameLent);
         if (le) await unlend(bard, le);
         await healFull();
-        CONFIG.Dice.randomUniform = realPRNG; clearTargets();
+        unrig(); clearTargets();
       }
-    }
+    });
 
     // ---- 89. Unbreakable Majesty: the attacker's Charisma save inside the hold
-    if (want(89)) {
+    if (want(89)) await section(89, async () => {
       await closeA1(); await spendLuckC();
       const um = await hgLend(bard, 'Unbreakable Majesty', 'feat', { 'system.uses.max': '1', 'system.uses.spent': 0 });
       const bTok = bardTokC();
@@ -686,7 +680,7 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
         else {
           await bard.update({ 'system.attributes.ac.override': AC, 'system.attributes.hp.max': 400, 'system.attributes.hp.value': 400 });
           await useFeature(bTok, um, 'Assume Majestic Presence');
-          const presence = await waitFor(() => fxNamed(bard, ['Majestic Presence'])[0] ?? null, 6000);
+          const presence = await until(() => fxNamed(bard, ['Majestic Presence'])[0] ?? null, { timeout: 6000 }).catch(() => null);
           [combat89] = await Combat.createDocuments([{ scene: scene.id, active: true }]);
           created.combats.push(combat89.id);
           await combat89.createEmbeddedDocuments('Combatant', [
@@ -701,9 +695,9 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
           const usage = await act().use({ subsequentActions: false }, { configure: false }, {});
           const rolls = await act().rollAttack({}, { configure: false }, usage?.message?.id ? { data: { 'system.origin': usage.message.id } } : {});
           const msg = rolls?.[0]?.parent ?? null;
-          const h = await waitFor(() => (holdOf(msg)?.status === 'resolved') ? holdOf(msg) : null, 15000);
+          const h = await until(() => (holdOf(msg)?.status === 'resolved') ? holdOf(msg) : null, { timeout: 15000 }).catch(() => null);
           await sleep(800);
-          CONFIG.Dice.randomUniform = realPRNG;
+          unrig();
           const t = h?.targets?.find(x => x.uuid === bard.uuid);
           const saveMsg = game.messages.contents.find(m => m.getFlag(MOD, 'duplicatesSave')?.defenderUuid === bard.uuid) ?? null;
           ok('89a. the hit inside the Majestic Presence: the attacker\'s Charisma save rolled by the machine (a 1 — failed), the verdict ABSORBED, no damage to the bard, the effect stamped for this attacker\'s turn',
@@ -715,9 +709,9 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
           const usage2 = await act().use({ subsequentActions: false }, { configure: false }, {});
           const rolls2 = await act().rollAttack({}, { configure: false }, usage2?.message?.id ? { data: { 'system.origin': usage2.message.id } } : {});
           const msg2 = rolls2?.[0]?.parent ?? null;
-          await waitFor(() => damageFor(msg2?.id)?.getFlag(MOD, 'receipt'), 12000);
+          await until(() => damageFor(msg2?.id)?.getFlag(MOD, 'receipt'), { timeout: 12000 }).catch(() => null);
           await sleep(500);
-          CONFIG.Dice.randomUniform = realPRNG;
+          unrig();
           const t2 = holdOf(msg2)?.targets?.find(x => x.uuid === bard.uuid) ?? null;
           ok('89b. the second hit that turn: once per turn per attacker — no save, the hit lands', !t2?.duplicates?.save && (bhp() < 400), `hold=${JSON.stringify(t2 && { verdict: t2.verdict, dup: t2.duplicates })} hp=${bhp()}`);
         }
@@ -726,12 +720,12 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
         if (combat89 && game.combats.get(combat89.id)) await combat89.delete();
         await dropFx(bard, ['Majestic Presence']);
         if (um) await unlend(bard, um);
-        CONFIG.Dice.randomUniform = realPRNG; clearTargets();
+        unrig(); clearTargets();
       }
-    }
+    });
 
     // ---- 93. Superior Inspiration: Bardic Inspiration back up to two at Initiative
-    if (want(93)) {
+    if (want(93)) await section(93, async () => {
       await closeA1();
       const sup = await hgLend(bard, 'Superior Inspiration', 'feat');
       const bi = inspiration();
@@ -744,7 +738,7 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
           combat = await d1Combat([[KIT.bardDoc, bard, null]]);
           const bC = combat.combatants.find(c => c.actorId === bard.id);
           await combat.setInitiative(bC.id, 14);
-          const card = await waitFor(() => grantCards(bard, 'Superior Inspiration').find(m => (m.timestamp >= t0) && m.getFlag(MOD, 'initiativeGrant')?.applied) ?? null, 8000);
+          const card = await until(() => grantCards(bard, 'Superior Inspiration').find(m => (m.timestamp >= t0) && m.getFlag(MOD, 'initiativeGrant')?.applied) ?? null, { timeout: 8000 }).catch(() => null);
           await sleep(300);
           const value = Number(inspiration()?.system?.uses?.value ?? NaN);
           ok('93a. at Initiative with no Bardic Inspiration left: "Superior Inspiration — Bardic Inspiration uses back up to 2", the uses at 2, nothing asked',
@@ -755,9 +749,9 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
         if (combat && game.combats.get(combat.id)) await combat.delete();
         if (sup) await unlend(bard, sup);
         await refillInspiration();
-        CONFIG.Dice.randomUniform = realPRNG; clearTargets();
+        unrig(); clearTargets();
       }
-    }
+    });
     return { log, results, skips };
   } catch (err) {
     return { fatal: `${err?.message || err}\n${err?.stack ?? ''}`, results, log, skips };

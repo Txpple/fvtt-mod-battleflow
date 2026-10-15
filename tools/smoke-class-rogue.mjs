@@ -23,22 +23,16 @@ const f = await connectSuite({ tag: 'class-rogue', watchdogMs: 900_000 });
 announcePlan('class-rogue', plan, pulled);
 
 const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ sections, titles }) => {
-  const results = [];
-  const skips = [];
-  const ok = (name, pass, detail = '') => results.push({ name, pass, detail });
-  const want = id => {
-    if (!sections || sections.includes(String(id))) return true;
-    skips.push(`§${id} ${titles?.[id] ?? ''}`);
-    return false;
-  };
+  const { sleep, until, faces, unrig } = window.__btb;
+  const { results, skips, ok, want, section } = window.__btb.begin({ sections, titles });
   const KIT = window.__btbClasses;
-  const { MOD, a1Victim, act, attackOf, attacker, attackerToken, clearTargets, closeA1, closeOffers, dropEffects, faces, gateFor, halfling, hgLend, log, markOn, pcAttacker, pcToken, pcWeapon, realPRNG, riderChits, rollDialog, sleep, sorcTokC, sorcerer, spendLuckC, swingAt, textOf, unlend, victim, victimPrior, victimToken, waitFor } = KIT;
+  const { MOD, a1Victim, act, attackOf, attacker, attackerToken, clearTargets, closeA1, closeOffers, dropEffects, gateFor, halfling, hgLend, log, markOn, pcAttacker, pcToken, pcWeapon, riderChits, rollDialog, sorcTokC, sorcerer, spendLuckC, swingAt, textOf, unlend, victim, victimPrior, victimToken } = KIT;
   try {
     await KIT.leaveA3();
     KIT.markA2();
 
     // ---- 74. Versatile Trickster: the free box after a Trip this turn
-    if (want(74)) {
+    if (want(74)) await section(74, async () => {
       await closeA1(); await a1Victim();
       const vt = await hgLend(pcAttacker, 'Versatile Trickster', 'feat');
       try {
@@ -49,7 +43,7 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
           await sleep(300);
           const p = attackOf(pcAttacker, pcWeapon).rollAttack({}, {}, {});
           pcToken.control({ releaseOthers: true }); victimToken.setTarget(true, { releaseOthers: true });
-          const dlg = await waitFor(rollDialog, 6000);
+          const dlg = await until(rollDialog, { timeout: 6000 }).catch(() => null);
           await sleep(500);
           const boxText = textOf(dlg?.element?.querySelector('[data-bf-buy]'));
           const box = dlg?.element?.querySelector('input[name="bf-buy"][data-bf-free]');
@@ -65,7 +59,7 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
           await closeA1();
           await unlend(pcAttacker, vt);
           const p2 = attackOf(pcAttacker, pcWeapon).rollAttack({}, {}, {});
-          const dlg2 = await waitFor(rollDialog, 6000);
+          const dlg2 = await until(rollDialog, { timeout: 6000 }).catch(() => null);
           await sleep(400);
           ok('74c. taken back: no box', !dlg2?.element?.querySelector('input[name="bf-buy"][data-bf-free]'), `dlg=${!!dlg2}`);
           try { await dlg2?.close(); } catch { /* gone */ }
@@ -74,12 +68,12 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
       } finally {
         await closeA1();
         if (vt && pcAttacker.items.get(vt.id)) await unlend(pcAttacker, vt);
-        CONFIG.Dice.randomUniform = realPRNG; clearTargets();
+        unrig(); clearTargets();
       }
-    }
+    });
 
     // ---- 96. Elusive: no attack roll against the rogue has Advantage, unless it is Incapacitated
-    if (want(96)) {
+    if (want(96)) await section(96, async () => {
       await closeA1();
       const elusive = await hgLend(sorcerer, 'Elusive', 'feat');
       const reckless = await markOn(attacker, 'Reckless', null);
@@ -102,12 +96,12 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
         if (incap) await incap.delete().catch(() => {});
         if (reckless) await reckless.delete().catch(() => {});
         if (elusive) await unlend(sorcerer, elusive);
-        CONFIG.Dice.randomUniform = realPRNG; clearTargets();
+        unrig(); clearTargets();
       }
-    }
+    });
 
     // ---- 98. Stroke of Luck (a failed D20 Test becomes a 20) and Living Legend (the save reroll; Unerring Strike's miss made a hit)
-    if (want(98)) {
+    if (want(98)) await section(98, async () => {
       await closeA1(); await spendLuckC();
       const stroke = await hgLend(halfling, 'Stroke of Luck', 'feat', { 'system.uses.max': '1', 'system.uses.spent': 0 });
       let legend = null, legendFx = null, pcLegend = null, pcLegendFx = null;
@@ -119,16 +113,16 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
           const prior = new Set([...document.querySelectorAll('.application')].map(el => el.id));
           faces([[3, 20]]);
           const rolls = await halfling.rollSavingThrow({ ability: 'wis' }, { configure: false }, {});
-          CONFIG.Dice.randomUniform = realPRNG;
+          unrig();
           const m = rolls?.[0]?.parent ?? null;
           const base = Number(rolls?.[0]?.total);
-          const flag = await waitFor(() => m?.getFlag(MOD, 'd20fold') ?? null, 5000);
+          const flag = await until(() => m?.getFlag(MOD, 'd20fold') ?? null, { timeout: 5000 }).catch(() => null);
           const offer = (flag?.offers ?? []).find(o => o.label === 'Stroke of Luck') ?? null;
           ok('98a. a failed save offers "Stroke of Luck — turn the d20 into a 20" (the `succeed` kind, 1 use)', !!offer && (offer.kind === 'succeed') && /into a 20/.test(String(offer.says ?? '')),
             `offers=${JSON.stringify((flag?.offers ?? []).map(o => [o.kind, o.label, o.says]))}`);
-          const win = await waitFor(() => [...document.querySelectorAll('.application')].find(el => (el.tagName === 'DIALOG') && !prior.has(el.id) && !!el.querySelector('[data-bf-rescue-action="succeed"]')) ?? null, 8000);
+          const win = await until(() => [...document.querySelectorAll('.application')].find(el => (el.tagName === 'DIALOG') && !prior.has(el.id) && !!el.querySelector('[data-bf-rescue-action="succeed"]')) ?? null, { timeout: 8000 }).catch(() => null);
           win?.querySelector('[data-bf-rescue-action="succeed"]')?.click();
-          const done = await waitFor(() => { const cur = m?.getFlag(MOD, 'd20fold'); return (cur?.spends?.length && !cur.spends.some(sp => sp.pendingVerdict)) ? cur : null; }, 15000);
+          const done = await until(() => { const cur = m?.getFlag(MOD, 'd20fold'); return (cur?.spends?.length && !cur.spends.some(sp => sp.pendingVerdict)) ? cur : null; }, { timeout: 15000 }).catch(() => null);
           await sleep(300);
           ok('98b. pressed: the d20 counts as a 20 — the folded total is the base − 3 + 20, the use spent',
             (Number(done?.spends?.[0]?.twenty?.total) === base - 3 + 20) && (Number(done?.foldedTotal) === base - 3 + 20) && (Number(halfling.items.get(stroke.id)?.system?.uses?.spent) === 1),
@@ -143,15 +137,15 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
           const rolls2 = await halfling.rollSavingThrow({ ability: 'wis' }, { configure: false }, {});
           const m2 = rolls2?.[0]?.parent ?? null;
           const base2 = Number(rolls2?.[0]?.total);
-          const flag2 = await waitFor(() => m2?.getFlag(MOD, 'd20fold') ?? null, 5000);
+          const flag2 = await until(() => m2?.getFlag(MOD, 'd20fold') ?? null, { timeout: 5000 }).catch(() => null);
           const re = (flag2?.offers ?? []).find(o => (o.kind === 'reroll') && (o.label === 'Living Legend')) ?? null;
           ok('98c. Living Legend standing: a failed save offers its reroll — "your Reaction, the new roll stands"', !!re && /Reaction/.test(String(re.cost ?? '')),
             `offers=${JSON.stringify((flag2?.offers ?? []).map(o => [o.kind, o.label, o.cost]))}`);
-          const pop2 = await waitFor(() => [...document.querySelectorAll('.application')].find(el => (el.tagName === 'DIALOG') && !prior2.has(el.id) && !!el.querySelector('[data-bf-rescue-action="reroll"]')) ?? null, 8000);
+          const pop2 = await until(() => [...document.querySelectorAll('.application')].find(el => (el.tagName === 'DIALOG') && !prior2.has(el.id) && !!el.querySelector('[data-bf-rescue-action="reroll"]')) ?? null, { timeout: 8000 }).catch(() => null);
           faces([[15, 20]]);
           pop2?.querySelector('[data-bf-rescue-action="reroll"]')?.click();
-          const done2 = await waitFor(() => { const cur = m2?.getFlag(MOD, 'd20fold'); return (cur?.spends?.length && !cur.spends.some(sp => sp.pendingVerdict)) ? cur : null; }, 15000);
-          CONFIG.Dice.randomUniform = realPRNG;
+          const done2 = await until(() => { const cur = m2?.getFlag(MOD, 'd20fold'); return (cur?.spends?.length && !cur.spends.some(sp => sp.pendingVerdict)) ? cur : null; }, { timeout: 15000 }).catch(() => null);
+          unrig();
           ok('98d. pressed: the save rerolled (15), the new roll standing', (done2?.spends?.[0]?.kind === 'reroll') && (Number(done2?.spends?.[0]?.reroll?.total) === 15 + (base2 - 3)),
             `base=${base2} spends=${JSON.stringify(done2?.spends ?? null)}`);
           passAll(); await closeA1();
@@ -166,15 +160,15 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
           const prior3 = new Set([...document.querySelectorAll('.application')].map(el => el.id));
           faces([[3, 20], [3, 20]]);
           const ar = await wAct.rollAttack({}, { configure: false }, {});
-          CONFIG.Dice.randomUniform = realPRNG;
+          unrig();
           const am = ar?.[0]?.parent ?? null;
-          const aflag = await waitFor(() => am?.getFlag(MOD, 'd20fold') ?? null, 6000);
+          const aflag = await until(() => am?.getFlag(MOD, 'd20fold') ?? null, { timeout: 6000 }).catch(() => null);
           const us = (aflag?.offers ?? []).find(o => o.label === 'Unerring Strike') ?? null;
           ok('98e. a weapon MISS at AC 30 offers "Unerring Strike — hit instead" (once on each of your turns)', !!us && /hit instead/.test(String(us.says ?? '')),
             `offers=${JSON.stringify((aflag?.offers ?? []).map(o => [o.kind, o.label, o.says, o.cost]))}`);
-          const pop3 = await waitFor(() => [...document.querySelectorAll('.application')].find(el => !prior3.has(el.id) && !!el.querySelector('[data-bf-rescue-action="succeed"]')) ?? null, 8000);
+          const pop3 = await until(() => [...document.querySelectorAll('.application')].find(el => !prior3.has(el.id) && !!el.querySelector('[data-bf-rescue-action="succeed"]')) ?? null, { timeout: 8000 }).catch(() => null);
           pop3?.querySelector('[data-bf-rescue-action="succeed"]')?.click();
-          const adone = await waitFor(() => { const cur = am?.getFlag(MOD, 'd20fold'); return (cur?.spends?.length && !cur.spends.some(sp => sp.pendingVerdict)) ? cur : null; }, 15000);
+          const adone = await until(() => { const cur = am?.getFlag(MOD, 'd20fold'); return (cur?.spends?.length && !cur.spends.some(sp => sp.pendingVerdict)) ? cur : null; }, { timeout: 15000 }).catch(() => null);
           ok('98f. pressed: the miss becomes a HIT (the verdict forced, no die)', adone?.targets?.[0]?.verdict === 'hit', `targets=${JSON.stringify(adone?.targets ?? null)} spends=${JSON.stringify(adone?.spends ?? null)}`);
           await sleep(500);
           await closeOffers();
@@ -187,18 +181,18 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
             const prior4 = new Set([...document.querySelectorAll('.application')].map(el => el.id));
             faces([[3, 20], [3, 20]]);
             const ar2 = await wAct.rollAttack({}, { configure: false }, {});
-            CONFIG.Dice.randomUniform = realPRNG;
+            unrig();
             const am2 = ar2?.[0]?.parent ?? null;
-            const aflag2 = await waitFor(() => am2?.getFlag(MOD, 'd20fold') ?? null, 6000);
+            const aflag2 = await until(() => am2?.getFlag(MOD, 'd20fold') ?? null, { timeout: 6000 }).catch(() => null);
             const so = (aflag2?.offers ?? []).find(o => o.label === 'Stroke of Luck') ?? null;
             ok('98g. a weapon MISS at AC 30 offers "Stroke of Luck — turn the d20 into a 20"', !!so && /into a 20/.test(String(so.says ?? '')),
               `offers=${JSON.stringify((aflag2?.offers ?? []).map(o => [o.kind, o.label, o.says]))}`);
-            const pop4 = await waitFor(() => [...document.querySelectorAll('.application')].find(el => !prior4.has(el.id) && !!el.querySelector('[data-bf-rescue-action="succeed"]')) ?? null, 8000);
+            const pop4 = await until(() => [...document.querySelectorAll('.application')].find(el => !prior4.has(el.id) && !!el.querySelector('[data-bf-rescue-action="succeed"]')) ?? null, { timeout: 8000 }).catch(() => null);
             pop4?.querySelector('[data-bf-rescue-action="succeed"]')?.click();
-            const adone2 = await waitFor(() => { const cur = am2?.getFlag(MOD, 'd20fold'); return (cur?.spends?.length && !cur.spends.some(sp => sp.pendingVerdict)) ? cur : null; }, 15000);
+            const adone2 = await until(() => { const cur = am2?.getFlag(MOD, 'd20fold'); return (cur?.spends?.length && !cur.spends.some(sp => sp.pendingVerdict)) ? cur : null; }, { timeout: 15000 }).catch(() => null);
             await sleep(500);
             await closeOffers();   // the offer rolls the damage
-            const dmg = await waitFor(() => game.messages.contents.find(m => (m.type === 'damage') && !dmgBefore.has(m.id) && (m.getFlag(MOD, 'attackFor') === am2?.id)) ?? null, 8000);
+            const dmg = await until(() => game.messages.contents.find(m => (m.type === 'damage') && !dmgBefore.has(m.id) && (m.getFlag(MOD, 'attackFor') === am2?.id)) ?? null, { timeout: 8000 }).catch(() => null);
             ok('98h. pressed: the 20 HITS past AC 30 and the damage rolls as a CRITICAL HIT (the rule of cool), the use spent',
               (adone2?.targets?.[0]?.verdict === 'hit') && (dmg?.rolls?.[0]?.isCritical === true) && (Number(pcAttacker.items.get(pcStroke?.id ?? '')?.system?.uses?.spent) === 1),
               `targets=${JSON.stringify(adone2?.targets ?? null)} twenty=${JSON.stringify(adone2?.spends?.[0]?.twenty ?? null)} dmgCrit=${dmg?.rolls?.[0]?.isCritical} spent=${pcAttacker.items.get(pcStroke?.id ?? '')?.system?.uses?.spent}`);
@@ -214,9 +208,9 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
         if (halfling.items.get(stroke?.id ?? '')) await unlend(halfling, stroke);
         await victim.update({ 'system.attributes.ac.override': 1 }).catch(() => {});
         await dropEffects(pcAttacker, riderChits(pcAttacker));
-        CONFIG.Dice.randomUniform = realPRNG; clearTargets();
+        unrig(); clearTargets();
       }
-    }
+    });
     return { log, results, skips };
   } catch (err) {
     return { fatal: `${err?.message || err}\n${err?.stack ?? ''}`, results, log, skips };

@@ -12,13 +12,14 @@ import { sectionArg } from './harness.mjs';
 
 /** The page side: the setup, every binding on `window.__btbClasses`. `sections` is the suite's plan. */
 export const classKit = async ({ sections }) => {
-  const want = id => !sections || sections.includes(String(id));
+  const { until, tokenOn, viewScene, snapshotSettings, faces, unrig } = window.__btb;
+  // Whether the suite's plan holds a section: the bands set up only what a planned section needs.
+  const planned = id => !sections || sections.includes(String(id));
   const KIT = {};
   window.__btbClasses = KIT;
 
   const MOD = 'fvtt-mod-bythebooks';
   const log = [];
-  const sleep = ms => new Promise(r => setTimeout(r, ms));
   const suiteStart = Date.now();
   const errors = [];
   const realError = console.error;
@@ -32,8 +33,8 @@ export const classKit = async ({ sections }) => {
   const SETTING_KEYS = ['autoDamage', 'autoApply', 'playerRollDamage', 'damageTimer', 'dramaticBeat', 'requireTarget',
     'reactionHold', 'holdTimer', 'holdReveal', 'holdSkipFutile', 'holdApplyEffect', 'riders', 'effectRiders',
     'masteryRiders', 'masteryAsk', 'castApply', 'concMode', 'saveRolls'];
-  const prior = Object.fromEntries(SETTING_KEYS.map(k => [k, game.settings.get(MOD, k)]));
-  const set = (k, v) => game.settings.set(MOD, k, v);
+  const settings = snapshotSettings(SETTING_KEYS);
+  const { prior, set } = settings;
 
   const scene = game.scenes.getName('By the Books Test Range');
   const attacker = game.actors.getName('BTB Test Attacker');
@@ -59,12 +60,6 @@ export const classKit = async ({ sections }) => {
   const lentBy = new Map();
   const priorActor = {};
   let restored = false;
-  const realPRNG = CONFIG.Dice.randomUniform;
-  const faces = spec => {
-    const queue = spec.map(([n, of]) => 1 - ((n - 0.5) / of));
-    let i = 0;
-    CONFIG.Dice.randomUniform = () => queue[Math.min(i++, queue.length - 1)];
-  };
   const refillLuck = async () => { const l = lucky(); if (l) await l.update({ 'system.uses.spent': 0 }); };
   const spendLuck = async () => { const l = lucky(); if (l) await l.update({ 'system.uses.spent': Number(l.system.uses.max) }); };
   const inspirationSpentBefore = Number(inspiration()?.system?.uses?.spent ?? 0);
@@ -107,15 +102,14 @@ export const classKit = async ({ sections }) => {
   const teardown = async () => {
     if (restored) return;
     restored = true;
-    CONFIG.Dice.randomUniform = realPRNG;
+    unrig();
     console.error = realError;
     if (errors.length) log.push(`console errors: ${JSON.stringify(errors.slice(0, 6))}`);
-    try { for (const [k, v] of Object.entries(prior)) await set(k, v); }
-    catch (err) { log.push(`TEARDOWN settings ERROR: ${err?.message}`); }
+    for (const failed of await settings.restore()) log.push(`TEARDOWN settings ERROR: ${failed}`);
     try {
       await closeDialogs();
       for (const id of created.combats) { const c = game.combats.get(id); if (c) await c.delete(); }
-      if (KIT.priorActiveScene && (game.scenes.active?.id !== KIT.priorActiveScene.id)) { await KIT.priorActiveScene.activate().catch(() => {}); await sleep(800); }
+      if (KIT.priorActiveScene && (game.scenes.active?.id !== KIT.priorActiveScene.id)) { await KIT.priorActiveScene.activate().catch(() => {}); await until(() => game.scenes.active?.id === KIT.priorActiveScene.id, { label: 'the prior scene active again' }).catch(() => null); }
       await dropMutes();
       await refillLuck();
       const b = inspiration(); if (b) await b.update({ 'system.uses.spent': inspirationSpentBefore });
@@ -187,17 +181,14 @@ export const classKit = async ({ sections }) => {
     await balance.update({ 'system.uses.spent': 0 });
     await refillInspiration();
 
-    if (canvas.scene?.id !== scene.id) await scene.view();
-    for (let i = 0; i < 40 && !canvas.ready; i++) await sleep(250);
+    await viewScene(scene);
     const strays = scene.tokens.filter(t => t.actorLink && [attacker.id, halfling.id, bard.id, sorcerer.id, cleric.id, pcAttacker.id, victim.id].includes(t.actorId)).map(t => t.id);
     if (strays.length) await scene.deleteEmbeddedDocuments('Token', strays);
     const placeToken = async (actor, x, y, disposition) => {
       const [doc] = await scene.createEmbeddedDocuments('Token', [
         foundry.utils.mergeObject(actor.prototypeToken.toObject(), { x, y, actorId: actor.id, actorLink: true, disposition }, { inplace: false })]);
       created.tokens.push(doc.id);
-      for (let i = 0; i < 40 && !(canvas.ready && canvas.tokens.get(doc.id)); i++) await sleep(250);
-      const token = canvas.tokens.get(doc.id);
-      if (!token) throw new Error(`${actor.name}'s token never reached the canvas`);
+      const token = await tokenOn(doc.id, { label: `${actor.name}'s token on the canvas` });
       return { doc, token };
     };
     const { token: attackerToken, doc: attackerDoc } = await placeToken(attacker, 1400, 2100, -1);
@@ -210,12 +201,12 @@ export const classKit = async ({ sections }) => {
     const { token: clericToken } = await placeToken(cleric, 1600, 1900, 1);
 
     // ---- helpers
-    const waitFor = async (test, timeout = 8000) => {
-      const until = Date.now() + timeout;
-      while (Date.now() < until) { const v = test(); if (v) return v; await sleep(200); }
-      return test();
-    };
     const textOf = el => (el?.textContent ?? '').replace(/\s+/g, ' ').trim();
+    /** A roll dialog's gate is drawn: its section stands, or the gate has nothing to draw. */
+    const gateDrawn = app => until(() => {
+      const g = app?.options?.bfReminder ?? app?.options?.bfSaveGate ?? app?.options?.bfCheckGate;
+      return !app || !g || !((g.sources?.length > 0) || g.sneak) || app.element?.querySelector('[data-bf-reminder]');
+    }, { label: 'the gate drawn in the roll dialog' });
     const cardEl = id => document.querySelector(`.message[data-message-id="${id}"]`);
     const cardText = id => textOf(cardEl(id));
     const weapon = attacker.items.find(i => (i.type === 'weapon') && i.system.activities?.some?.(a => a.type === 'attack'));
@@ -240,18 +231,18 @@ export const classKit = async ({ sections }) => {
       await step('swing/heal', healFull);
       attackerToken.control({ releaseOthers: true });
       halflingToken.setTarget(true, { releaseOthers: true });
-      await sleep(80);
       faces([...d20.map(n => [n, 20]), [dmg, 6], [dmg, 6]]);
       const usage = await step('swing/use', () => act().use({ subsequentActions: false }, { configure: false }, {}));
       const rolls = await step('swing/rollAttack', () => act().rollAttack(advantage ? { advantage: true } : {}, { configure: false },
         usage?.message?.id ? { data: { 'system.origin': usage.message.id } } : {}));
       const msg = rolls?.[0]?.parent ?? null;
-      await waitFor(() => msg?.getFlag(MOD, 'hold') || damageFor(msg?.id), 4000);
+      // A miss stamps no hold and rolls no damage: the caller reads what came.
+      await until(() => msg?.getFlag(MOD, 'hold') || damageFor(msg?.id), { timeout: 4000 }).catch(() => null);
       return msg;
     };
     const holdOf = msg => game.messages.get(msg?.id)?.getFlag(MOD, 'hold') ?? null;
     const resolvedTarget = async msg => {
-      const h = await waitFor(() => (holdOf(msg)?.status === 'resolved') ? holdOf(msg) : null, 12000);
+      const h = await until(() => (holdOf(msg)?.status === 'resolved') ? holdOf(msg) : null, { timeout: 12000 }).catch(() => null);
       return h?.targets?.find(x => x.uuid === halfling.uuid) ?? null;
     };
     const hp = () => Number(halfling.system.attributes.hp.value);
@@ -271,8 +262,8 @@ export const classKit = async ({ sections }) => {
       const p = await attackOf(actor, w).rollAttack({}, { configure: false }, { create: false });
       return Number(p?.[0]?.total) - Number(p?.[0]?.d20?.total);
     };
-    const missSide = (want(7) || want(8) || want(9)) && pcWeapon && clericWeapon;
-    if ((want(7) || want(8) || want(9)) && !missSide) log.push(`miss side skipped: pcWeapon=${!!pcWeapon} clericWeapon=${!!clericWeapon}`);
+    const missSide = (planned(7) || planned(8) || planned(9)) && pcWeapon && clericWeapon;
+    if ((planned(7) || planned(8) || planned(9)) && !missSide) log.push(`miss side skipped: pcWeapon=${!!pcWeapon} clericWeapon=${!!clericWeapon}`);
     KIT.VAC = null;
     if (missSide) {
       priorActor[victim.id] = {
@@ -287,18 +278,17 @@ export const classKit = async ({ sections }) => {
       await victim.update({ 'system.attributes.hp.value': 400, 'system.attributes.hp.temp': 0 });
       token.control({ releaseOthers: true });
       victimToken.setTarget(true, { releaseOthers: true });
-      await sleep(80);
       faces([...d20.map(n => [n, 20]), [dmg, 6], [dmg, 6], [dmg, 6]]);
       const a = attackOf(actor, w);
       const usage = await a.use({ subsequentActions: false }, { configure: false }, {});
       const rolls = await a.rollAttack(disadvantage ? { disadvantage: true } : {}, { configure: false },
         usage?.message?.id ? { data: { 'system.origin': usage.message.id } } : {});
       const msg = rolls?.[0]?.parent ?? null;
-      await waitFor(() => msg?.getFlag(MOD, 'hold'), 4000);
+      await until(() => msg?.getFlag(MOD, 'hold'), { timeout: 4000 }).catch(() => null);   // a miss no reaction can turn stamps none
       return msg;
     };
     const missTarget = async msg => {
-      const h = await waitFor(() => (holdOf(msg)?.status === 'resolved') ? holdOf(msg) : null, 12000);
+      const h = await until(() => (holdOf(msg)?.status === 'resolved') ? holdOf(msg) : null, { timeout: 12000 }).catch(() => null);
       return h?.targets?.find(x => x.uuid === victim.uuid) ?? null;
     };
     const popupTitled = re => popups().find(app => app.element?.querySelector?.('[data-bf-ticks="bf-bystander"]') && re.test(textOf(app.element))) ?? null;
@@ -306,7 +296,7 @@ export const classKit = async ({ sections }) => {
     const rollPopup = re => popups().find(app => app.element?.querySelector?.('[data-bf-ticks="bf-bystander-roll"]') && re.test(textOf(app.element))) ?? null;
     // The rest's stored dice are the bearer's to roll (2026-10-14): the rest card's ask, its Roll pressed; the chip follows.
     const rollStoredAsk = async (re = /roll your .* dice/i) => {
-      const pop = await waitFor(() => popups().find(app => re.test(textOf(app.element)) && app.element?.querySelector?.('button[data-action="roll"]')) ?? null, 8000);
+      const pop = await until(() => popups().find(app => re.test(textOf(app.element)) && app.element?.querySelector?.('button[data-action="roll"]')) ?? null, { timeout: 8000 }).catch(() => null);
       pop?.element?.querySelector('button[data-action="roll"]')?.click();
       return !!pop;
     };
@@ -344,7 +334,6 @@ export const classKit = async ({ sections }) => {
       const box = [...(pop?.element?.querySelectorAll?.('input[name="bf-rescue"]') ?? [])].find(b => b.value === 'Deflect Attacks');
       if (box) {
         if (!box.checked) box.click();
-        await sleep(50);
         pickApply(pop);
       } else pop?.element?.querySelector('button[data-action="cast"]')?.click();
     };
@@ -374,16 +363,15 @@ export const classKit = async ({ sections }) => {
       await victim.update({ 'system.attributes.hp.value': hpTo, 'system.attributes.hp.temp': 0 });
       token.control({ releaseOthers: true });
       victimToken.setTarget(true, { releaseOthers: true });
-      await sleep(80);
       const before = new Set(popups());
       faces([[19, 20], [19, 20], [3, 6]]);   // a second d20 if the gate adds Advantage (Reckless); assert flags, not faces
       const usage = (activity.item?.type === 'spell') ? null : await activity.use({ subsequentActions: false }, { configure: false }, {});
       const rolls = await activity.rollAttack({}, { configure: false }, usage?.message?.id ? { data: { 'system.origin': usage.message.id } } : {});
       const msg = rolls?.[0]?.parent ?? null;
-      const offer = await waitFor(() => offerApp(before), offerWait);
+      const offer = await until(() => offerApp(before), { timeout: offerWait }).catch(() => null);
       return { msg, offer };
     };
-    const a1Damage = msg => waitFor(() => { const d = damageFor(msg?.id); return d?.getFlag(MOD, 'receipt') ? d : null; }, 12000);
+    const a1Damage = msg => until(() => { const d = damageFor(msg?.id); return d?.getFlag(MOD, 'receipt') ? d : null; }, { timeout: 12000 }).catch(() => null);
     const a1Roll = async (msg, offer) => {
       offer?.element?.querySelector('button[data-action="roll"]')?.click();
       return a1Damage(msg);
@@ -402,7 +390,14 @@ export const classKit = async ({ sections }) => {
     };
     const hewNotices = (since, label) => game.messages.contents.filter(m => (m.timestamp >= since) && (m.getFlag(MOD, 'hewNotice')?.label === label));
     const hewPopup = label => popups().find(app => (app.element?.innerHTML ?? '').includes(`${label} — `) && app.element?.querySelector?.('button[data-action="ok"]')) ?? null;
-    const ackHew = async label => { for (let i = 0; i < 3; i++) { const p = hewPopup(label); if (!p) return; p.element.querySelector('button[data-action="ok"]')?.click(); await sleep(300); } };
+    const ackHew = async label => {
+      for (let i = 0; i < 3; i++) {
+        const p = hewPopup(label);
+        if (!p) return;
+        p.element.querySelector('button[data-action="ok"]')?.click();
+        await until(() => hewPopup(label) !== p, { timeout: 3000 }).catch(() => null);
+      }
+    };
     const riderChits = actor => actor.effects.filter(e => e.getFlag(MOD, 'mastery') === 'rider').map(e => e.id);
     const dropEffects = async (actor, ids) => { const live = ids.filter(id => actor.effects.get(id)); if (live.length) await actor.deleteEmbeddedDocuments('ActiveEffect', live).catch(() => {}); };
     // ---- A1 heal-group helpers (§21–23)
@@ -427,7 +422,6 @@ export const classKit = async ({ sections }) => {
     const hgStrike = async (actor, token, w, targetToken) => {
       token.control({ releaseOthers: true });
       targetToken.setTarget(true, { releaseOthers: true });
-      await sleep(80);
       faces([[20, 20], [20, 20], [4, 6]]);
       const a = attackOf(actor, w);
       const usage = await a.use({ subsequentActions: false }, { configure: false }, {});
@@ -445,7 +439,6 @@ export const classKit = async ({ sections }) => {
     const useFeature = async (token, item, name = null) => {
       token.control({ releaseOthers: true });
       token.setTarget(true, { releaseOthers: true });
-      await sleep(80);
       const r = await actNamed(item, name)?.use({ consume: { resources: false, action: false, spellSlot: false }, subsequentActions: false }, { configure: false }, {});
       clearTargets();
       return r?.message ?? null;
@@ -472,10 +465,9 @@ export const classKit = async ({ sections }) => {
       actorToken.control({ releaseOthers: true });
       clearTargets();
       targetToken.setTarget(true, { releaseOthers: true });
-      await sleep(120);
       const p = activity?.rollAttack({}, {}, {});
-      const app = await waitFor(rollDialog, 6000);
-      await sleep(400);
+      const app = await until(rollDialog, { timeout: 6000 }).catch(() => null);
+      await gateDrawn(app);
       const text = textOf(app?.element?.querySelector('[data-bf-reminder]'));
       const net = app?.options?.bfReminder?.net ?? null;
       try { await app?.close(); } catch { /* gone */ }
@@ -498,10 +490,11 @@ export const classKit = async ({ sections }) => {
     const hitRow = (offer, key) => textOf(offer?.element?.querySelector(`[data-bf-hit-row="${key}"]`));
     const hitRows = offer => [...(offer?.element?.querySelectorAll('[data-bf-hit-row]') ?? [])].map(r => r.dataset.bfHitRow);
     const groupText = (offer, key) => textOf(offer?.element?.querySelector(`div[data-bf-hit-group="${key}"]`));
-    const tick = async (offer, ...keys) => { for (const k of keys) { hitBox(offer, k)?.click(); await sleep(60); } };
+    // A tick's change handler redraws inside the click.
+    const tick = async (offer, ...keys) => { for (const k of keys) hitBox(offer, k)?.click(); };
     const saveCardFor = (key, since) => game.messages.contents.find(m => (m.timestamp >= since) && (m.getFlag(MOD, 'hitManeuverCard')?.key === key)) ?? null;
     const outcomeOn = card => card?.getFlag(MOD, 'saves')?.targets?.find(t => t.uuid === victim.uuid)?.outcome ?? null;
-    const settledSave = (key, since) => waitFor(() => { const c = saveCardFor(key, since); return outcomeOn(c) ? c : null; }, 12000);
+    const settledSave = (key, since) => until(() => { const c = saveCardFor(key, since); return outcomeOn(c) ? c : null; }, { timeout: 12000 }).catch(() => null);
     const typesOf = d => (d?.rolls ?? []).flatMap(r => [...(r.options?.types ?? []), r.options?.type].filter(Boolean));
     /** The PHB's Unarmed Strike weapon on BTB Test PC Attacker (taken back at teardown). */
     const lendUnarmed = async () => {
@@ -529,7 +522,7 @@ export const classKit = async ({ sections }) => {
         { tokenId: pcToken.document.id, sceneId: scene.id, actorId: pcAttacker.id, initiative: 20 },
         { tokenId: victimToken.document.id, sceneId: scene.id, actorId: victim.id, initiative: 10 }]);
       await c.startCombat();
-      await sleep(400);
+      await until(() => c.started, { label: 'the A2 combat started' });
       return c;
     };
 
@@ -544,19 +537,18 @@ export const classKit = async ({ sections }) => {
     };
     const grantCards = (actor, row) => game.messages.contents.filter(m => (m.timestamp >= suiteStart)
       && (m.getFlag(MOD, 'initiativeGrant')?.actorUuid === actor.uuid) && (m.getFlag(MOD, 'initiativeGrant')?.row === row));
-    const grantLine = async m => (await waitFor(() => cardEl(m?.id)?.querySelector('.bf-initiative-grant-line'), 5000))?.textContent?.trim() ?? '';
+    const grantLine = async m => (await until(() => cardEl(m?.id)?.querySelector('.bf-initiative-grant-line'), { timeout: 5000 }).catch(() => null))?.textContent?.trim() ?? '';
     const titled = re => popups().find(app => re.test(titleOf(app))) ?? null;
 
     // ================================================ §A7 — the cast riders and Portent (RULINGS *The PHB classes — A7*)
     const castSpell = async (actor, token, spell, level = 1, target = null) => {
       (target ?? token)?.setTarget(true, { releaseOthers: true });
-      await sleep(80);
       const a = actor.items.get(spell?.id)?.system?.activities?.contents?.[0] ?? null;
       const r = await a?.use({ spell: { slot: `spell${level}` }, subsequentActions: false }, { configure: false }, {});
       clearTargets();
       return r?.message ?? null;
     };
-    const surgeLineOf = async card => (await waitFor(() => cardEl(card?.id)?.querySelector('.bf-surge-line'), 6000))?.textContent?.trim() ?? '';
+    const surgeLineOf = async card => (await until(() => cardEl(card?.id)?.querySelector('.bf-surge-line'), { timeout: 6000 }).catch(() => null))?.textContent?.trim() ?? '';
 
     // ================================================ §B4 — band B rows on tables that exist (RULINGS *The PHB classes — B4*)
     const b4Card = (since, key) => game.messages.contents.find(m => (m.timestamp >= since) && m.getFlag(MOD, key)) ?? null;
@@ -569,15 +561,15 @@ export const classKit = async ({ sections }) => {
     const spellDamage = async (actor, spell, targetToken = null, pins = [[3, 8], [3, 8], [3, 10], [3, 10]]) => {
       clearTargets();
       targetToken?.setTarget(true, { releaseOthers: true });
-      await sleep(80);
       const a = actor.items.get(spell?.id)?.system?.activities?.find(x => x.damage?.parts?.length) ?? null;
       faces(pins);
       const rolls = await a?.rollDamage({}, { configure: false }, {});
-      CONFIG.Dice.randomUniform = realPRNG;
+      unrig();
       clearTargets();
       return rolls?.[0]?.parent ?? null;
     };
-    const statusOn = async (actor, status, active) => { await actor.toggleStatusEffect(status, { active }); await sleep(200); };
+    // A carrier the core toggle cannot clear (a non-canonical id) leaves the status standing: the caller reads it.
+    const statusOn = async (actor, status, active) => { await actor.toggleStatusEffect(status, { active }); await until(() => !!actor.statuses?.has?.(status) === !!active, { timeout: 2000 }).catch(() => null); };
     const hasStatus = (actor, status) => !!actor.statuses?.has?.(status);
 
     // ================================================ §C1 — the band-C rows (RULINGS *The PHB classes — C1*)
@@ -593,7 +585,6 @@ export const classKit = async ({ sections }) => {
       await halfling.update({ 'system.attributes.hp.value': hpTo, 'system.attributes.hp.temp': 0 });
       attackerToken.control({ releaseOthers: true });
       halflingToken.setTarget(true, { releaseOthers: true });
-      await sleep(80);
       faces([[19, 20], [6, 6], ...more]);   // one damage die: the goblin's weapon
       const usage = await act().use({ subsequentActions: false }, { configure: false }, {});
       const rolls = await act().rollAttack({}, { configure: false }, usage?.message?.id ? { data: { 'system.origin': usage.message.id } } : {});
@@ -607,13 +598,12 @@ export const classKit = async ({ sections }) => {
       if (hpTo !== null && actor) await actor.update({ 'system.attributes.hp.value': hpTo, 'system.attributes.hp.temp': 0 });
       token.control({ releaseOthers: true });
       targetToken.setTarget(true, { releaseOthers: true });
-      await sleep(80);
       const before = new Set(popups());
       faces([[19, 20], [19, 20], [3, 6]]);
       const usage = (activity.item?.type === 'spell') ? null : await activity.use({ subsequentActions: false }, { configure: false }, {});
       const rolls = await activity.rollAttack({}, { configure: false }, usage?.message?.id ? { data: { 'system.origin': usage.message.id } } : {});
       const msg = rolls?.[0]?.parent ?? null;
-      const offer = await waitFor(() => offerApp(before), 4000);
+      const offer = await until(() => offerApp(before), { timeout: 4000 }).catch(() => null);   // opens only when a part is due
       return { msg, offer };
     };
     const rescueWindowC = text => [...document.querySelectorAll('.application')].find(el => el.querySelector('[data-bf-rescue-row]') && (el.textContent ?? '').includes(text)) ?? null;
@@ -626,10 +616,14 @@ export const classKit = async ({ sections }) => {
     const dropNamed = async (actor, names) => { const ids = actor.effects.filter(e => names.includes(e.name)).map(e => e.id); if (ids.length) await actor.deleteEmbeddedDocuments('ActiveEffect', ids).catch(() => {}); };
     const activateRange = async () => {
       const priorActive = game.scenes.active ?? null;
-      if (priorActive?.id !== scene.id) { KIT.priorActiveScene = KIT.priorActiveScene ?? priorActive; await scene.activate(); await sleep(1500); }
+      if (priorActive?.id !== scene.id) {
+        KIT.priorActiveScene = KIT.priorActiveScene ?? priorActive;
+        await scene.activate();
+        await until(() => (game.scenes.active?.id === scene.id) && canvas.ready && (canvas.scene?.id === scene.id), { label: 'the range active and drawn' });
+      }
     };
     const backToRange = async () => {
-      if (canvas.scene?.id !== scene.id) { await scene.view(); for (let i = 0; i < 40 && !(canvas.ready && canvas.scene?.id === scene.id); i++) await sleep(250); await sleep(500); }
+      await viewScene(scene);
     };
     const regionKeyed = (key, tokenId) => scene.regions.find(r => { const fl = r.getFlag(MOD, 'emanation'); return (fl?.kind === 'feature') && (fl.key === key) && (fl.tokenId === tokenId); }) ?? null;
 
@@ -663,17 +657,18 @@ export const classKit = async ({ sections }) => {
       const flameAct = attacker.items.get(flameId)?.system?.activities?.find(a => a.type === 'save');
       attackerToken.control({ releaseOthers: true });
       tok.setTarget(true, { releaseOthers: true });
-      await sleep(100);
       const use = await flameAct.use({ consume: { spellSlot: false } }, { configure: false }, {});
       const card = use?.message ?? null;
-      await waitFor(() => card?.getFlag(MOD, 'saves'), 6000);
+      await until(() => card?.getFlag(MOD, 'saves'), { timeout: 6000 }).catch(() => null);
       const p = who.rollSavingThrow({ ability: 'dex' }, {}, {});
-      const dlg = await waitFor(rollDialog, 6000);
-      await sleep(500);
+      let settled = false;
+      Promise.resolve(p).catch(() => {}).finally(() => { settled = true; });
+      const dlg = await until(rollDialog, { timeout: 6000 }).catch(() => null);
+      await gateDrawn(dlg);
       const text = textOf(dlg?.element?.querySelector('[data-bf-reminder]'));
       const net = dlg?.options?.bfSaveGate?.net ?? null;
       try { await dlg?.close(); } catch { /* gone */ }
-      await Promise.race([Promise.resolve(p).catch(() => {}), sleep(3000)]);
+      await until(() => settled, { timeout: 3000 }).catch(() => null);   // the closed dialog's roll, when it settles
       await hgClose(/Saving Throw/);
       clearTargets();
       if (lent) await unlend(attacker, lent);
@@ -698,7 +693,7 @@ export const classKit = async ({ sections }) => {
         if (effect.system.isOnActivity) data.transfer = true;
         await ActiveEffect.create(data, { parent: actor.items.get(w.id), keepOrigin: true, dnd5e: { enchantmentProfile: effect.id, activityId: enchant.id } });
       }
-      await sleep(300);
+      await until(() => (actor.items.get(w.id)?.effects?.filter(e => e.isAppliedEnchantment).length ?? 0) >= picked.length, { timeout: 2000, label: 'the enchantment applied' }).catch(() => null);
       await actor.items.get(w.id).update({ 'system.equipped': true, 'system.attuned': true });
       return actor.items.get(w.id);
     };
@@ -707,19 +702,18 @@ export const classKit = async ({ sections }) => {
       await victim.update({ 'system.attributes.hp.value': hpTo, 'system.attributes.hp.temp': 0 });
       pcToken.control({ releaseOthers: true });
       (target ?? victimToken).setTarget(true, { releaseOthers: true });
-      await sleep(80);
       const before = new Set(popups());
       faces([[face, 20], [face, 20]]);
       const act = weapon.system.activities.find(a => a.type === 'attack');
       const usage = await act.use({ subsequentActions: false }, { configure: false }, {});
       const rolls = await act.rollAttack({}, { configure: false }, usage?.message?.id ? { data: { 'system.origin': usage.message.id } } : {});
-      if (after) faces(after); else CONFIG.Dice.randomUniform = realPRNG;
+      if (after) faces(after); else unrig();
       const msg = rolls?.[0]?.parent ?? null;
-      const offer = await waitFor(() => offerApp(before), 2500);
+      const offer = await until(() => offerApp(before), { timeout: 2500 }).catch(() => null);   // opens only when a part is due
       offer?.element?.querySelector('button[data-action="roll"]')?.click();
-      const dmg = await waitFor(() => damageFor(msg?.id) ?? null, 12000);
-      await waitFor(() => dmg?.getFlag(MOD, 'receipt'), 10000);
-      await sleep(700);
+      // A miss rolls no damage: the caller reads what came. What lands after the receipt is the caller's to wait for.
+      const dmg = await until(() => damageFor(msg?.id) ?? null, { timeout: 12000 }).catch(() => null);
+      await until(() => dmg?.getFlag(MOD, 'receipt'), { timeout: 10000 }).catch(() => null);
       return { msg, dmg, offer };
     };
     const dmgKeys = d => (d?.getFlag(MOD, 'clockRiders')?.riders ?? []).map(r => r.key);
@@ -728,7 +722,7 @@ export const classKit = async ({ sections }) => {
     const outcomeOfCard = c => c?.getFlag(MOD, 'saves')?.targets?.find(t => t.uuid === victim.uuid)?.outcome ?? null;
     const typeNow = () => foundry.utils.deepClone(victim.system._source.details?.type ?? {});
     // The DMG weapons' victim (115–125), set before the first of them.
-    KIT.dmgBand = async () => { if ([115, 116, 117, 118, 119, 120, 121, 122, 123, 124, 125].some(n => want(n))) {
+    KIT.dmgBand = async () => { if ([115, 116, 117, 118, 119, 120, 121, 122, 123, 124, 125].some(n => planned(n))) {
       hgKeep(victim, { 'system.details.type': typeNow(), 'system.attributes.exhaustion': victim.system._source.attributes?.exhaustion ?? 0,
         'system.traits.dr.value': [...(victim.system._source.traits?.dr?.value ?? [])] });
       hgKeep(pcAttacker, { 'system.attributes.hp.temp': pcAttacker.system._source.attributes?.hp?.temp ?? 0 });
@@ -741,7 +735,7 @@ export const classKit = async ({ sections }) => {
       await teardown();
       return log;
     };
-    Object.assign(KIT, { MOD, log, sleep, suiteStart, errors, realError, modDoc, INTERRUPT_ROLLS, SETTING_KEYS, prior, set, scene, attacker, halfling, bard, sorcerer, cleric, pcAttacker, victim, divinity, divinitySpentBefore, lucky, inspiration, created, lentBy, priorActor, restored, realPRNG, faces, refillLuck, spendLuck, inspirationSpentBefore, refillInspiration, popups, bystanderPopup, rescuePopup, pickApply, cutPopup, damageHoldOf, dropReactionChipsOn, closeDialogs, dropMutes, teardown, findPHB, lend, balance, strays, placeToken, attackerToken, attackerDoc, halflingToken, halflingDoc, sorcererDoc, pcToken, victimToken, clericToken, waitFor, textOf, cardEl, cardText, weapon, act, probe, atkMod, AC, healFull, damageFor, step, swing, holdOf, resolvedTarget, hp, spentBI, weaponOf, pcWeapon, clericWeapon, attackOf, modOf, missSide, vhp, swingAt, missTarget, popupTitled, refillDivinity, rollPopup, rollStoredAsk, rollFlag, unlend, dropReactionChips, reactionChipOn, titleOf, strikePopup, deflectPopup, answerDeflect, riderPartFormula, reEsc, OFFER, offerApp, closeOffers, a1Victim, a1Hit, a1Damage, a1Roll, ridersOf, riderRow, riderBox, a1Formula, hewNotices, hewPopup, ackHew, riderChits, dropEffects, hgKeep, hgLend, hgClose, hgStrike, hgPickButton, clearTargets, actNamed, useFeature, fxNamed, dropFx, rollDialog, closeA1, gateFor, victimPrior, RAGE_FX, hitBox, hitRow, hitRows, groupText, tick, saveCardFor, outcomeOn, settledSave, typesOf, lendUnarmed, pinPart, victimFx, dropVictimFx, a2Combat, a4Card, pinHeal, grantCards, grantLine, titled, castSpell, surgeLineOf, b4Card, b4Cards, styleFlag, abilityMod, lendClassSpell, spellDamage, statusOn, hasStatus, spendLuckC, refillLuckC, c1Cards, sorcTokC, bardTokC, dropCards, dropHalfling, hitAt, rescueWindowC, clearDown, markOn, dropNamed, activateRange, backToRange, regionKeyed, d1Cards, d1Combat, d1Region, dmgLend, dmgSaveGate, dmgEnchant, dmgHit, dmgKeys, alwaysLine, dmgCard, outcomeOfCard, typeNow, victimAs });
+    Object.assign(KIT, { MOD, log, suiteStart, errors, realError, modDoc, INTERRUPT_ROLLS, SETTING_KEYS, prior, set, scene, attacker, halfling, bard, sorcerer, cleric, pcAttacker, victim, divinity, divinitySpentBefore, lucky, inspiration, created, lentBy, priorActor, restored, refillLuck, spendLuck, inspirationSpentBefore, refillInspiration, popups, bystanderPopup, rescuePopup, pickApply, cutPopup, damageHoldOf, dropReactionChipsOn, closeDialogs, dropMutes, teardown, findPHB, lend, balance, strays, placeToken, attackerToken, attackerDoc, halflingToken, halflingDoc, sorcererDoc, pcToken, victimToken, clericToken, textOf, cardEl, cardText, weapon, act, probe, atkMod, AC, healFull, damageFor, step, swing, holdOf, resolvedTarget, hp, spentBI, weaponOf, pcWeapon, clericWeapon, attackOf, modOf, missSide, vhp, swingAt, missTarget, popupTitled, refillDivinity, rollPopup, rollStoredAsk, rollFlag, unlend, dropReactionChips, reactionChipOn, titleOf, strikePopup, deflectPopup, answerDeflect, riderPartFormula, reEsc, OFFER, offerApp, closeOffers, a1Victim, a1Hit, a1Damage, a1Roll, ridersOf, riderRow, riderBox, a1Formula, hewNotices, hewPopup, ackHew, riderChits, dropEffects, hgKeep, hgLend, hgClose, hgStrike, hgPickButton, clearTargets, actNamed, useFeature, fxNamed, dropFx, rollDialog, closeA1, gateFor, victimPrior, RAGE_FX, hitBox, hitRow, hitRows, groupText, tick, saveCardFor, outcomeOn, settledSave, typesOf, lendUnarmed, pinPart, victimFx, dropVictimFx, a2Combat, a4Card, pinHeal, grantCards, grantLine, titled, castSpell, surgeLineOf, b4Card, b4Cards, styleFlag, abilityMod, lendClassSpell, spellDamage, statusOn, hasStatus, spendLuckC, refillLuckC, c1Cards, sorcTokC, bardTokC, dropCards, dropHalfling, hitAt, rescueWindowC, clearDown, markOn, dropNamed, activateRange, backToRange, regionKeyed, d1Cards, d1Combat, d1Region, dmgLend, dmgSaveGate, dmgEnchant, dmgHit, dmgKeys, alwaysLine, dmgCard, outcomeOfCard, typeNow, victimAs, gateDrawn, settings });
     return { log };
   } catch (err) {
     return { fatal: `${err?.message || err}\n${err?.stack ?? ''}`, log };
