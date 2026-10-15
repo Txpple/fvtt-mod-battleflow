@@ -281,6 +281,9 @@ async function installW({ mod, casterName, rangeName }) {
   P.cleanup = async () => {
     const c = P.cycle;
     if (!c) return { clean: true, left: {} };
+    clearInterval(c.poller);
+    clearTimeout(c.timer);
+    c.closed = true;
     const m = game.messages.get(c.id);
     const f = m?.getFlag(mod, "summon");
     if (m && f?.applied && !f.dismissed && !f.dismissAsked) {
@@ -679,6 +682,10 @@ try {
       catch (err) {
         r = { ordering: name, cycle: i + 1, offset, error: String(err?.message ?? err) };
         if (/another GM-capable client|would not hang up/.test(r.error)) { results.push(r); console.log(lineOf(r)); throw err; }
+        // A cycle that broke midway: X hung up, then W alone puts the cycle's leavings away before the next one.
+        if (xf) { await hangUp(xf).catch(e => notes.push(`${name} cycle ${i + 1}: ${e.message}`)); xf = null; }
+        await waitAlone(row).catch(() => {});
+        await w.evaluate(() => globalThis.__mgp?.cycle ? globalThis.__mgp.cleanup() : null, null).catch(() => {});
       }
       results.push(r);
       console.log(lineOf(r));
