@@ -34,25 +34,12 @@ announcePlan('transforms', plan, pulled);
 
 const out = await f.evaluate(async ({ sections, titles }) => {
   const MOD = 'fvtt-mod-bythebooks';
-  const results = [];
-  const log = [];
-  const skips = [];
-  const ok = (name, pass, detail = '') => results.push({ name, pass, detail });
-  const want = id => {
-    if (!sections || sections.includes(String(id))) return true;
-    skips.push(`§${id} ${titles?.[id] ?? ''}`);
-    return false;
-  };
-  const sleep = ms => new Promise(r => setTimeout(r, ms));
+  const { until, viewScene } = window.__btb;
+  const { results, log, skips, ok, want, section } = window.__btb.begin({ sections, titles });
   // ⚠ Foundry 14 has no `User#updateTokenTargets`: target through the canvas tokens, the others released.
   const targetOnly = ids => {
     for (const t of [...game.user.targets]) t.setTarget(false, { releaseOthers: false, groupSelection: true });
     for (const id of ids) canvas.tokens.get(id)?.setTarget(true, { releaseOthers: false, groupSelection: true });
-  };
-  const waitFor = async (test, timeout = 8000) => {
-    const until = Date.now() + timeout;
-    while (Date.now() < until) { const v = await test(); if (v) return v; await sleep(200); }
-    return test();
   };
 
   const modDoc = game.modules.get(MOD);
@@ -69,8 +56,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   // "the Druid has no token on the scene" in the overnight battery of 2026-10-11 while green alone.
   const range = game.scenes.getName('By the Books Test Range');
   if (!range) return { fatal: 'missing fixture: scene By the Books Test Range — run tools/fixture-suite.mjs' };
-  if (canvas.scene?.id !== range.id) await range.view();
-  for (let i = 0; i < 40 && !(canvas.ready && canvas.scene?.id === range.id); i++) await sleep(250);
+  await viewScene(range).catch(() => null);
   if (canvas.scene?.id !== range.id) return { fatal: 'the canvas never readied on the test range' };
   const druidToken = canvas.scene.tokens.find(t => t.actor?.id === druid.id) ?? null;
   if (!druidToken) return { fatal: 'the Druid has no token on the scene — run tools/fixture-suite.mjs' };
@@ -122,7 +108,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     const message = result?.message instanceof ChatMessage ? result.message : null;
     if (!message) throw new Error(`the use of ${item.name} posted no card (uses ${item.system.uses?.spent ?? '-'}/${item.system.uses?.max ?? '-'}, slots ${JSON.stringify(item.actor?.system.spells?.spell4 ?? null)})`);
     madeMessages.push(message);
-    const flag = await waitFor(() => (message?.getFlag(MOD, 'transform')?.status === 'asked' || message?.getFlag(MOD, 'transform')?.status === 'picked') ? message.getFlag(MOD, 'transform') : null, 6000);
+    const flag = await until(() => (message?.getFlag(MOD, 'transform')?.status === 'asked' || message?.getFlag(MOD, 'transform')?.status === 'picked') ? message.getFlag(MOD, 'transform') : null, { timeout: 6000 });
     const browser = [...foundry.applications.instances.values()].slice(before).find(a => /CompendiumBrowser/.test(a.constructor?.name ?? ''));
     if (browser) { try { await browser.close(); } catch { /* gone */ } }
     return { activity, message, flag, browserOpened: !!browser };
@@ -134,7 +120,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     const patch = pickedAnswer(flag, { pick, learn });
     if (!patch) throw new Error('the suite\'s answer was refused by pickedAnswer');
     await message.setFlag(MOD, 'transform', { ...flag, ...patch });
-    return waitFor(() => message.getFlag(MOD, 'transform')?.applied ? message.getFlag(MOD, 'transform') : null, 20000);
+    return until(() => message.getFlag(MOD, 'transform')?.applied ? message.getFlag(MOD, 'transform') : null, { timeout: 20000 });
   };
   const copyOf = original => game.actors.find(a => a.isPolymorphed && (a.getFlag('dnd5e', 'originalActor') === original.id)) ?? null;
   const formEffectOn = actor => actor?.effects.find(e => !!e.getFlag(MOD, 'form')) ?? null;
@@ -151,43 +137,47 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     await wildShape.update({ 'system.uses.spent': 0 });
 
     // ================================================== 1. the record
-    if (want(1)) {
+    if (want(1)) await section(1, async () => {
       const { flag, browserOpened } = await useTransform(wildShape);
       ok('§1 the system opened no compendium browser', !browserOpened, `browser=${browserOpened}`);
       ok('§1 the record is asked with the CR ¼ band, no fliers, four slots and the four known forms',
         flag?.status === 'asked' && flag.key === 'Wild Shape' && flag.profile?.cr === 0.25 && flag.profile.movement?.includes('fly') && flag.slots === 4 && flag.known?.length === 4,
         JSON.stringify({ status: flag?.status, profile: flag?.profile, slots: flag?.slots, known: flag?.known?.map(k => k.name) }));
       ok('§1 the record aims at the druid alone', flag?.self === true && flag.targets?.length === 1 && flag.targets[0].uuid === druid.uuid, JSON.stringify(flag?.targets));
-      const popup = await waitFor(() => dialogs().find(a => /Your known forms/.test(a.element?.textContent ?? '')) ?? null, 6000);
+      const popup = await until(() => dialogs().find(a => /Your known forms/.test(a.element?.textContent ?? '')) ?? null, { timeout: 6000 });
       // the known forms and nothing else: no pool, no locked line, no rule text (RULINGS *Wild Shape*, 2026-10-13)
       const picks = popup ? [...popup.element.querySelectorAll('input[name="bf-form-pick"]')] : [];
       ok('§1 the popup: the four known forms as rows and nothing else — no pool, no rule text', !!popup && (picks.length === 4) && picks.every(i => !i.disabled)
         && !popup.element.querySelector('details') && !/in the pool/.test(popup.element.textContent),
         `popup=${!!popup} picks=${picks.length} text=${popup?.element?.textContent?.replace(/\s+/g, ' ').slice(0, 200)}`);
       if (popup) { try { await popup.close(); } catch { /* gone */ } }
-      if (want(7)) {
-        // three known: the window shows the three and no pool — a form is learned at the Long Rest, never at a use
-        await wildShape.setFlag(MOD, 'knownForms', [wolf, rat, horse].map(asKnown));
-        await useTransform(wildShape);
-        const p2 = await waitFor(() => dialogs().find(a => /Your known forms/.test(a.element?.textContent ?? '')) ?? null, 6000);
-        const picks2 = p2 ? [...p2.element.querySelectorAll('input[name="bf-form-pick"]')] : [];
-        ok('§7 with a slot open the window shows the three known forms and no pool to learn from', !!p2 && (picks2.length === 3) && !/Fill the open slot|in the pool/.test(p2.element.textContent), `popup=${!!p2} picks=${picks2.length}`);
-        if (p2) { try { await p2.close(); } catch { /* gone */ } }
-        // none known: the window says so and offers only Close
-        await wildShape.setFlag(MOD, 'knownForms', []);
-        await useTransform(wildShape);
-        const p3 = await waitFor(() => dialogs().find(a => /You know no forms yet/.test(a.element?.textContent ?? '')) ?? null, 6000);
-        const buttons3 = p3 ? [...p3.element.querySelectorAll('button[data-action]')].map(b => b.dataset.action).filter(a => !['close', 'toggleControls'].includes(a)) : [];
-        ok('§7 with none known it says "Finish a Long Rest to study your forms" and offers only Close', !!p3 && /Finish a Long Rest to study your forms/.test(p3.element.textContent)
-          && !p3.element.querySelector('input[name="bf-form-pick"]') && (buttons3.join() === 'cancel'), `popup=${!!p3} buttons=${buttons3.join()}`);
-        if (p3) { try { await p3.close(); } catch { /* gone */ } }
-        await revertAll();
-        await wildShape.setFlag(MOD, 'knownForms', [wolf, rat, horse, spider].map(asKnown));
-      }
-    }
+      if (want(7)) await section(7, async () => {
+        // §2–§6 read the four known forms: they go back even when a wait below throws.
+        try {
+          // three known: the window shows the three and no pool — a form is learned at the Long Rest, never at a use
+          await wildShape.setFlag(MOD, 'knownForms', [wolf, rat, horse].map(asKnown));
+          await useTransform(wildShape);
+          const p2 = await until(() => dialogs().find(a => /Your known forms/.test(a.element?.textContent ?? '')) ?? null, { timeout: 6000 });
+          const picks2 = p2 ? [...p2.element.querySelectorAll('input[name="bf-form-pick"]')] : [];
+          ok('§7 with a slot open the window shows the three known forms and no pool to learn from', !!p2 && (picks2.length === 3) && !/Fill the open slot|in the pool/.test(p2.element.textContent), `popup=${!!p2} picks=${picks2.length}`);
+          if (p2) { try { await p2.close(); } catch { /* gone */ } }
+          // none known: the window says so and offers only Close
+          await wildShape.setFlag(MOD, 'knownForms', []);
+          await useTransform(wildShape);
+          const p3 = await until(() => dialogs().find(a => /You know no forms yet/.test(a.element?.textContent ?? '')) ?? null, { timeout: 6000 });
+          const buttons3 = p3 ? [...p3.element.querySelectorAll('button[data-action]')].map(b => b.dataset.action).filter(a => !['close', 'toggleControls'].includes(a)) : [];
+          ok('§7 with none known it says "Finish a Long Rest to study your forms" and offers only Close', !!p3 && /Finish a Long Rest to study your forms/.test(p3.element.textContent)
+            && !p3.element.querySelector('input[name="bf-form-pick"]') && (buttons3.join() === 'cancel'), `popup=${!!p3} buttons=${buttons3.join()}`);
+          if (p3) { try { await p3.close(); } catch { /* gone */ } }
+        } finally {
+          await revertAll();
+          await wildShape.setFlag(MOD, 'knownForms', [wolf, rat, horse, spider].map(asKnown));
+        }
+      });
+    });
 
     // ================================================== 2–4. the landing, Revert, 0 HP
-    if (want(2)) {
+    if (want(2)) await section(2, async () => {
       const { message } = await useTransform(wildShape);
       const landed = await answer(message, asKnown(wolf));
       const copy = copyOf(druid);
@@ -196,17 +186,19 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       ok('§2 the wildshape preset: the copy keeps the druid\'s HP and carries temp HP equal to the level', !!copy && (copy.system.attributes.hp.max === druid.system.attributes.hp.max) && (copy.system.attributes.hp.temp === 2), `hp=${copy?.system.attributes.hp.value}/${copy?.system.attributes.hp.max} temp=${copy?.system.attributes.hp.temp}`);
       ok('§2 the form effect: "Wild Shape — Wolf", clocked in hours, tied to the record', !!effect && (effect.name === 'Wild Shape — Wolf') && (Number(effect.duration?.seconds) === 3600) && (effect.getFlag(MOD, 'form')?.messageId === message.id), JSON.stringify({ name: effect?.name, seconds: effect?.duration?.seconds, form: effect?.getFlag(MOD, 'form') }));
       ok('§2 the last form is marked on the item', wildShape.getFlag(MOD, 'lastForm') === wolf.uuid, `last=${wildShape.getFlag(MOD, 'lastForm')}`);
-      const row = await waitFor(() => rowUnder(message.id), 6000);
+      // The landed row is drawn after the flag lands: wait for its words; absent, the check reads the row as it stands.
+      const row = await until(() => { const r = rowUnder(message.id); return /is now a/.test(r?.textContent ?? '') ? r : null; },
+        { timeout: 6000, label: 'the card row says "is now a …"' }).catch(() => rowUnder(message.id));
       ok('§2 the card says "is now a Wolf"', /is now a Wolf/.test(row?.textContent ?? ''), (row?.textContent ?? '').replace(/\s+/g, ' ').trim().slice(0, 160));
-      if (want(3)) {
+      if (want(3)) await section(3, async () => {
         await api.askRevert(message);
-        const ended = await waitFor(() => message.getFlag(MOD, 'transform')?.ended ? message.getFlag(MOD, 'transform') : null, 15000);
+        const ended = await until(() => message.getFlag(MOD, 'transform')?.ended ? message.getFlag(MOD, 'transform') : null, { timeout: 15000 });
         ok('§3 Revert: the copy is gone, the token home, the record ended by choice', !!ended?.ended && !game.actors.get(copy?.id) && (druidToken.actorId === druid.id) && (ended.ended.word === 'revert'), JSON.stringify({ ended: ended?.ended, copyStands: !!game.actors.get(copy?.id), token: druidToken.actorId }));
-        const card = await waitFor(() => game.messages.contents.find(m => m.getFlag(MOD, 'formEnd')?.messageId === message.id) ?? null, 6000);
+        const card = await until(() => game.messages.contents.find(m => m.getFlag(MOD, 'formEnd')?.messageId === message.id) ?? null, { timeout: 6000, label: 'the form-end card' });
         if (card) madeMessages.push(card);
         ok('§3 a form-end card posted', !!card && /no longer a Wolf/.test(card.content), (card?.content ?? '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').slice(0, 160));
-      }
-      if (want(4)) {
+      });
+      if (want(4)) await section(4, async () => {
         await wildShape.update({ 'system.uses.spent': 0 });
         const again = await useTransform(wildShape);
         await answer(again.message, asKnown(wolf));
@@ -214,18 +206,23 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         ok('§4 the second use lands a fresh Wolf', !!copy2, `copy=${copy2?.name}`);
         if (copy2) {
           await copy2.update({ 'system.attributes.hp.temp': 0, 'system.attributes.hp.value': 0 });
-          const ended = await waitFor(() => again.message.getFlag(MOD, 'transform')?.ended ? again.message.getFlag(MOD, 'transform') : null, 15000);
-          ok('§4 at 0 Hit Points the form ends on its own: the record ended "dropped to 0 Hit Points", the copy gone', ended?.ended?.word === 'zero' && !game.actors.get(copy2.id), JSON.stringify({ ended: ended?.ended, copyStands: !!game.actors.get(copy2.id) }));
-          const end = await waitFor(() => game.messages.contents.find(m => m.getFlag(MOD, 'formEnd')?.messageId === again.message.id) ?? null, 6000);
-          if (end) madeMessages.push(end);
-          await druid.update({ 'system.attributes.hp.value': druid.system.attributes.hp.max });
+          // The Druid is healed even when a wait below throws: teardown reverts the forms, not the Hit Points.
+          try {
+            const ended = await until(() => again.message.getFlag(MOD, 'transform')?.ended ? again.message.getFlag(MOD, 'transform') : null, { timeout: 15000 });
+            ok('§4 at 0 Hit Points the form ends on its own: the record ended "dropped to 0 Hit Points", the copy gone', ended?.ended?.word === 'zero' && !game.actors.get(copy2.id), JSON.stringify({ ended: ended?.ended, copyStands: !!game.actors.get(copy2.id) }));
+            // Only gathered for teardown: nothing here reads it.
+            const end = await until(() => game.messages.contents.find(m => m.getFlag(MOD, 'formEnd')?.messageId === again.message.id) ?? null, { timeout: 6000 }).catch(() => null);
+            if (end) madeMessages.push(end);
+          } finally {
+            await druid.update({ 'system.attributes.hp.value': druid.system.attributes.hp.max });
+          }
         }
-      }
+      });
       await revertAll();
-    }
+    });
 
     // ================================================== 5. Polymorph on a target
-    if (want(5)) {
+    if (want(5)) await section(5, async () => {
       if (!sorcerer || !dummyToken) skips.push('§5 — no BTB Test Sorcerer or BTB Test Dummy token on this box');
       else {
         const pack = game.packs.get('dnd-players-handbook.spells');
@@ -247,13 +244,14 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           ok('§5 the elect transformed the Dummy into a Giant Frog with the frog\'s HP as temp HP', landed?.outcome === 'landed' && target?.isPolymorphed && /Giant Frog/.test(target.name) && (target.system.attributes.hp.temp > 0), JSON.stringify({ outcome: landed?.outcome, failure: landed?.failure, name: target?.name, temp: target?.system.attributes.hp.temp }));
           if (target?.isPolymorphed) {
             await target.update({ 'system.attributes.hp.temp': 0 });
-            const ended = await waitFor(() => message.getFlag(MOD, 'transform')?.ended ? message.getFlag(MOD, 'transform') : null, 15000);
+            const ended = await until(() => message.getFlag(MOD, 'transform')?.ended ? message.getFlag(MOD, 'transform') : null, { timeout: 15000 });
             ok('§5 with no Temporary Hit Points left the spell ends on the target: reverted, the record ended', ended?.ended?.word === 'noTemp' && !dummyNow()?.actor?.isPolymorphed, JSON.stringify({ ended: ended?.ended, still: dummyNow()?.actor?.isPolymorphed }));
-            const end = await waitFor(() => game.messages.contents.find(m => m.getFlag(MOD, 'formEnd')?.messageId === message.id) ?? null, 6000);
+            // Only gathered for teardown: nothing here reads it.
+            const end = await until(() => game.messages.contents.find(m => m.getFlag(MOD, 'formEnd')?.messageId === message.id) ?? null, { timeout: 6000 }).catch(() => null);
             if (end) madeMessages.push(end);
           }
           await revertAll();
-          if (want(8)) {
+          if (want(8)) await section(8, async () => {
             // The spell's Concentration is its save activity's; the transform activity is a second use on the same item.
             const concActivity = [...spell.system.activities].find(a => a.duration?.concentration) ?? null;
             const conc = concActivity ? await sorcerer.beginConcentrating(concActivity) : null;
@@ -266,62 +264,69 @@ const out = await f.evaluate(async ({ sections, titles }) => {
               const formEffect = formEffectOn(dummyNow()?.actor);
               ok('§8 the form effect depends on the caster\'s Concentration', !!formEffect && (formEffect.getFlag('dnd5e', 'dependentOn') === conc.uuid), JSON.stringify({ effect: formEffect?.name, dep: formEffect?.getFlag('dnd5e', 'dependentOn'), conc: conc.uuid }));
               await conc.delete();
-              const ended = await waitFor(() => again.message.getFlag(MOD, 'transform')?.ended ? again.message.getFlag(MOD, 'transform') : null, 15000);
+              const ended = await until(() => again.message.getFlag(MOD, 'transform')?.ended ? again.message.getFlag(MOD, 'transform') : null, { timeout: 15000 });
               ok('§8 ending Concentration ends the form: the Dummy reverted, the record ended by Concentration', ended?.ended?.word === 'concentration' && !dummyNow()?.actor?.isPolymorphed, JSON.stringify({ ended: ended?.ended, still: dummyNow()?.actor?.isPolymorphed }));
-              const end = await waitFor(() => game.messages.contents.find(m => m.getFlag(MOD, 'formEnd')?.messageId === again.message.id) ?? null, 6000);
+              // Only gathered for teardown: nothing here reads it.
+              const end = await until(() => game.messages.contents.find(m => m.getFlag(MOD, 'formEnd')?.messageId === again.message.id) ?? null, { timeout: 6000 }).catch(() => null);
               if (end) madeMessages.push(end);
               await revertAll();
             }
-          }
+          });
         }
       }
-    }
+    });
 
     // ================================================== 6. the Long Rest
-    if (want(6)) {
+    if (want(6)) await section(6, async () => {
       const playerUser = game.users.find(u => !u.isGM) ?? null;
       const priorOwnership = foundry.utils.deepClone(druid._source.ownership ?? { default: 0 });
       if (!playerUser) skips.push('§6 — no player test user on this box: the swap is gated to party members');
       else {
         await druid.update({ ownership: { default: 0, [playerUser.id]: 3 } }, { diff: false, recursive: false });
-        await wildShape.setFlag(MOD, 'knownForms', [wolf, rat, horse, spider].map(asKnown));
-        const t0 = Date.now();
-        await druid.longRest({ dialog: false, chat: true, newDay: false });
-        const card = await waitFor(() => game.messages.contents.find(m => (m.timestamp >= t0) && (m.getFlag(MOD, 'formSwap')?.status === 'pending')) ?? null, 10000);
-        if (card) madeMessages.push(card);
-        const sf = card?.getFlag(MOD, 'formSwap');
-        ok('§6 the Long Rest posts the ask: four known, none open', !!sf && (sf.slots === 4) && (sf.open === 0) && (sf.known?.length === 4), JSON.stringify({ slots: sf?.slots, open: sf?.open, known: sf?.known?.map(k => k.name) }));
-        const popup = await waitFor(() => dialogs().find(a => /You know these forms/.test(a.element?.textContent ?? '')) ?? null, 6000);
-        ok('§6 the popup: "You know these forms", a box per known form, the pool below, Keep them', !!popup && (popup.element.querySelectorAll('input[name="bf-form-out"]').length === 4) && !!popup.element.querySelector('button[data-action="keep"]'), `popup=${!!popup}`);
-        if (popup) { try { await popup.close(); } catch { /* gone */ } }
-        if (!card) throw new Error('§6: no formSwap card rose after the Long Rest');
-        await api.answerFormSwap(card, { out: wolf.uuid, into: asKnown(bear) });
-        const done = await waitFor(() => game.messages.get(card.id)?.getFlag(MOD, 'formSwap')?.applied ? game.messages.get(card.id) : null, 10000);
-        const after = done?.getFlag(MOD, 'formSwap');
-        const known = (wildShape.getFlag(MOD, 'knownForms') ?? []).map(k => k.name);
-        ok('§6 the elect lands it: Wolf → Brown Bear on the item', after?.outcome === 'changed' && JSON.stringify(known) === JSON.stringify(['Brown Bear', 'Rat', 'Riding Horse', 'Spider']), `outcome=${after?.outcome} known=${known.join(',')}`);
-        const confirm = await waitFor(() => dialogs().find(a => /Swapped Wolf → Brown Bear/.test(a.element?.textContent ?? '')) ?? null, 6000);
-        ok('§6 the confirmation: "You now know these forms", OK', !!confirm && /You now know these forms/.test(confirm.element.textContent), `popup=${!!confirm}`);
-        if (confirm) { confirm.element.querySelector('button[data-action="ok"]')?.click(); await waitFor(() => game.messages.get(card.id)?.getFlag(MOD, 'formSwap')?.acknowledged === true, 6000); }
-        // the open slots: two known, two adds
-        await wildShape.setFlag(MOD, 'knownForms', [wolf, rat].map(asKnown));
-        const t1 = Date.now();
-        await druid.longRest({ dialog: false, chat: true, newDay: false });
-        const card2 = await waitFor(() => game.messages.contents.find(m => (m.timestamp >= t1) && (m.getFlag(MOD, 'formSwap')?.status === 'pending')) ?? null, 10000);
-        if (card2) madeMessages.push(card2);
-        const p2 = await waitFor(() => dialogs().find(a => /Choose your known forms/.test(a.element?.textContent ?? '')) ?? null, 6000);
-        ok('§6 with open slots the ask is "Choose your known forms"', !!card2 && (card2.getFlag(MOD, 'formSwap')?.open === 2) && !!p2, `open=${card2?.getFlag(MOD, 'formSwap')?.open} popup=${!!p2}`);
-        if (p2) { try { await p2.close(); } catch { /* gone */ } }
-        if (!card2) throw new Error('§6: no formSwap card rose after the second Long Rest');
-        await api.answerFormSwap(card2, { adds: [asKnown(horse), asKnown(bear)] });
-        const landed2 = await waitFor(() => game.messages.get(card2.id)?.getFlag(MOD, 'formSwap')?.applied ? game.messages.get(card2.id) : null, 10000);
-        const known2 = (wildShape.getFlag(MOD, 'knownForms') ?? []).map(k => k.name);
-        ok('§6 the two slots are filled', landed2?.getFlag(MOD, 'formSwap')?.outcome === 'changed' && JSON.stringify(known2) === JSON.stringify(['Wolf', 'Rat', 'Riding Horse', 'Brown Bear']), `known=${known2.join(',')}`);
-        const c2 = await waitFor(() => dialogs().find(a => /Learned Riding Horse, Brown Bear/.test(a.element?.textContent ?? '')) ?? null, 6000);
-        if (c2) { c2.element.querySelector('button[data-action="ok"]')?.click(); await waitFor(() => game.messages.get(card2.id)?.getFlag(MOD, 'formSwap')?.acknowledged === true, 6000); }
-        await druid.update({ ownership: priorOwnership }, { diff: false, recursive: false });
+        // The ownership goes back even when a wait below throws: teardown does not restore it.
+        try {
+          await wildShape.setFlag(MOD, 'knownForms', [wolf, rat, horse, spider].map(asKnown));
+          const t0 = Date.now();
+          await druid.longRest({ dialog: false, chat: true, newDay: false });
+          const card = await until(() => game.messages.contents.find(m => (m.timestamp >= t0) && (m.getFlag(MOD, 'formSwap')?.status === 'pending')) ?? null, { timeout: 10000, label: 'a formSwap card after the Long Rest' });
+          if (card) madeMessages.push(card);
+          const sf = card?.getFlag(MOD, 'formSwap');
+          ok('§6 the Long Rest posts the ask: four known, none open', !!sf && (sf.slots === 4) && (sf.open === 0) && (sf.known?.length === 4), JSON.stringify({ slots: sf?.slots, open: sf?.open, known: sf?.known?.map(k => k.name) }));
+          const popup = await until(() => dialogs().find(a => /You know these forms/.test(a.element?.textContent ?? '')) ?? null, { timeout: 6000 });
+          ok('§6 the popup: "You know these forms", a box per known form, the pool below, Keep them', !!popup && (popup.element.querySelectorAll('input[name="bf-form-out"]').length === 4) && !!popup.element.querySelector('button[data-action="keep"]'), `popup=${!!popup}`);
+          if (popup) { try { await popup.close(); } catch { /* gone */ } }
+          if (!card) throw new Error('§6: no formSwap card rose after the Long Rest');
+          await api.answerFormSwap(card, { out: wolf.uuid, into: asKnown(bear) });
+          const done = await until(() => game.messages.get(card.id)?.getFlag(MOD, 'formSwap')?.applied ? game.messages.get(card.id) : null, { timeout: 10000 });
+          const after = done?.getFlag(MOD, 'formSwap');
+          const known = (wildShape.getFlag(MOD, 'knownForms') ?? []).map(k => k.name);
+          ok('§6 the elect lands it: Wolf → Brown Bear on the item', after?.outcome === 'changed' && JSON.stringify(known) === JSON.stringify(['Brown Bear', 'Rat', 'Riding Horse', 'Spider']), `outcome=${after?.outcome} known=${known.join(',')}`);
+          const confirm = await until(() => dialogs().find(a => /Swapped Wolf → Brown Bear/.test(a.element?.textContent ?? '')) ?? null, { timeout: 6000 });
+          ok('§6 the confirmation: "You now know these forms", OK', !!confirm && /You now know these forms/.test(confirm.element.textContent), `popup=${!!confirm}`);
+          // The acknowledgement settles the first ask before the second Long Rest; nothing reads it.
+          if (confirm) { confirm.element.querySelector('button[data-action="ok"]')?.click(); await until(() => game.messages.get(card.id)?.getFlag(MOD, 'formSwap')?.acknowledged === true, { timeout: 6000 }).catch(() => null); }
+          // the open slots: two known, two adds
+          await wildShape.setFlag(MOD, 'knownForms', [wolf, rat].map(asKnown));
+          const t1 = Date.now();
+          await druid.longRest({ dialog: false, chat: true, newDay: false });
+          const card2 = await until(() => game.messages.contents.find(m => (m.timestamp >= t1) && (m.getFlag(MOD, 'formSwap')?.status === 'pending')) ?? null, { timeout: 10000, label: 'a formSwap card after the second Long Rest' });
+          if (card2) madeMessages.push(card2);
+          const p2 = await until(() => dialogs().find(a => /Choose your known forms/.test(a.element?.textContent ?? '')) ?? null, { timeout: 6000 });
+          ok('§6 with open slots the ask is "Choose your known forms"', !!card2 && (card2.getFlag(MOD, 'formSwap')?.open === 2) && !!p2, `open=${card2?.getFlag(MOD, 'formSwap')?.open} popup=${!!p2}`);
+          if (p2) { try { await p2.close(); } catch { /* gone */ } }
+          if (!card2) throw new Error('§6: no formSwap card rose after the second Long Rest');
+          await api.answerFormSwap(card2, { adds: [asKnown(horse), asKnown(bear)] });
+          const landed2 = await until(() => game.messages.get(card2.id)?.getFlag(MOD, 'formSwap')?.applied ? game.messages.get(card2.id) : null, { timeout: 10000 });
+          const known2 = (wildShape.getFlag(MOD, 'knownForms') ?? []).map(k => k.name);
+          ok('§6 the two slots are filled', landed2?.getFlag(MOD, 'formSwap')?.outcome === 'changed' && JSON.stringify(known2) === JSON.stringify(['Wolf', 'Rat', 'Riding Horse', 'Brown Bear']), `known=${known2.join(',')}`);
+          // The second confirmation is only answered, never checked: a soft wait, and the same for its acknowledgement.
+          const c2 = await until(() => dialogs().find(a => /Learned Riding Horse, Brown Bear/.test(a.element?.textContent ?? '')) ?? null, { timeout: 6000 }).catch(() => null);
+          if (c2) { c2.element.querySelector('button[data-action="ok"]')?.click(); await until(() => game.messages.get(card2.id)?.getFlag(MOD, 'formSwap')?.acknowledged === true, { timeout: 6000 }).catch(() => null); }
+        } finally {
+          await druid.update({ ownership: priorOwnership }, { diff: false, recursive: false });
+        }
       }
-    }
+    });
   } catch (err) {
     results.push({ name: 'suite threw', pass: false, detail: `${err?.message}\n${err?.stack}` });
   } finally {
