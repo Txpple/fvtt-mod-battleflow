@@ -776,6 +776,7 @@ export const STATE_KEYS = Object.freeze({
   autoCrit: "provenance — the crit was auto-applied to the damage config",
   damageOffer: "the offer window's own state (open, answered); the die it offers resolves as hitManeuver, clockRiders, sneakDamage",
   spellHoldPending: "the spell's damage is waiting on a hold; the hold's answer is the resolve",
+  spellDamage: "a no-attack damage card claimed at birth for the elect's applier (polish.js, hold/spell-damage.js); the receipt is the resolve",
   holdSkipped: "a hopeless hold skipped in silence — a stat, never presented",
   reactionEffect: "an ActiveEffect's fingerprint — the reaction's own effect on the reactor; its landing is the effect receipt's resolve",
   applied: "an ActiveEffect's fingerprint — written by the module's applier; its landing is the effect receipt's resolve",
@@ -930,6 +931,7 @@ export const STATE_KEYS = Object.freeze({
   armed: "an ActiveEffect field — a scoped fold armed from the sheet (the die, its skills); the fold into the check is the d20fold resolve",
   // region and template fingerprints (emanations.js), never on a message
   emanation: "a Region's or template's fingerprint — the aura's kind, key, source token and who stood inside at the cast",
+  migratedFrom: "provenance on a RegionBehavior the migration recreated under the new scope (decide/migrate.js): the id of the behaviour it replaced, so a retried load never creates a second",
   emanationTrigger: "the demand card an emanation's region raised on a creature — beside the saves record, which is the resolve",
   repeatSave: "the demand card a landed effect's repeated save raised (repeat-saves.js) — beside the saves record, which is the resolve; `settled` and `says` what the verdict did to the effect (the cast card's effectReceipt carries the removal)",
   repeatOffer: "a notice at the bearer's turn start — its own action can repeat the save (Otto's Irresistible Dance); the button raises the demand card",

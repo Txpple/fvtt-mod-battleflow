@@ -6,6 +6,10 @@
 //   - `WORLD_WRITERS`  file → the record key(s) its world writes resolve into, or the reason none does
 //   - `writers`        the files the WRITE_CALL scan says write the world
 //   - `keysByFile()`   the `writes` map turned inside out: file → Set of keys it writes
+//   - `unresolved`     a write naming a constant the file neither declares nor imports, "file:line NAME"
+//   - `unfollowed`     a write through a variable object with no literal declaration in sight, "file:line"
+// A `[CONST]` key resolves against the writing file's own constants and the ones it imports, never
+// another file's name-alike.
 //
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { dirname, join, relative } from "node:path";
@@ -33,16 +37,35 @@ const blank = text => text.replace(/[^\n]/g, " ");
 const stripComments = src => src.replace(/\/\*[\s\S]*?\*\//g, blank).replace(/^\s*\/\/.*$/gm, blank);
 const files = walk(SCRIPTS).map(p => ({ rel: relative(SCRIPTS, p).split("\\").join("/"), src: stripComments(readFileSync(p, "utf8")) }));
 
-/* --- the constants a key may be written through */
+/* --- the constants a key may be written through, per file */
 
-const CONSTS = new Map();
-for (const f of files) {
-  for (const m of f.src.matchAll(/(?:export\s+)?const\s+([A-Z][A-Z0-9_]*)\s*=\s*"([^"]+)"/g)) CONSTS.set(m[1], m[2]);
-}
-const resolveKey = raw => {
+/**
+ * A file's constants: its own `const NAME = "…"` declarations, then the names it imports from another
+ * scripts/ file (`import { NAME, OTHER as LOCAL } from "./x.js"`), resolved against that file's own.
+ * Per file, because two files may give one name different values (`FORM_FLAG` is `"formChip"` in
+ * clock-riders.js and `"form"` in transforms.js).
+ */
+const ownConsts = new Map(files.map(f => [f.rel, new Map([...f.src.matchAll(/(?:export\s+)?const\s+([A-Z][A-Z0-9_]*)\s*=\s*"([^"]+)"/g)].map(m => [m[1], m[2]]))]));
+const CONSTS = new Map(files.map(f => {
+  const own = new Map(ownConsts.get(f.rel));
+  for (const m of f.src.matchAll(/import\s*\{([^}]*)\}\s*from\s*["'](\.[^"']+)["']/g)) {
+    const target = join(dirname(join(SCRIPTS, f.rel)), m[2]);
+    const from = ownConsts.get(relative(SCRIPTS, target).split("\\").join("/"));
+    for (const spec of m[1].split(",").map(s => s.trim()).filter(Boolean)) {
+      const [name, local = name] = spec.split(/\s+as\s+/).map(s => s.trim());
+      if (!own.has(local) && from?.has(name)) own.set(local, from.get(name));
+    }
+  }
+  return [f.rel, own];
+}));
+/** Constants a write names and the scan cannot resolve, as "file:line NAME" (the gate fails on one). */
+const unresolved = [];
+const resolveKey = (raw, f, at) => {
   const k = raw.replace(/^-=/, "");
-  if (/^[A-Z][A-Z0-9_]*$/.test(k)) return CONSTS.get(k) ?? null;
-  return k;
+  if (!/^[A-Z][A-Z0-9_]*$/.test(k)) return k;
+  const value = CONSTS.get(f.rel)?.get(k) ?? null;
+  if (!value) unresolved.push(`${f.rel}:${at} ${k}`);
+  return value;
 };
 
 /* --- the scan: every write site, by key */
@@ -133,17 +156,51 @@ function literalKeys(src, open) {
   return { keys, end: i };
 }
 
+/**
+ * The keys written through a VARIABLE that holds the flag object (`const claim = { spellDamage: true };
+ * … { [MODULE_ID]: claim }`): its nearest declaration before the use, a `{ … }` literal, plus every
+ * `name.key =` / `name[CONST] =` between the two. Null when no literal declaration is in sight.
+ */
+function variableKeys(src, name, before) {
+  const decls = [...src.slice(0, before).matchAll(new RegExp(`\\b(?:const|let|var)\\s+${name}\\s*=\\s*\\{`, "g"))];
+  const decl = decls.at(-1);
+  if (!decl) return null;
+  const { keys } = literalKeys(src, decl.index + decl[0].length - 1);
+  const body = src.slice(decl.index, before);
+  for (const m of body.matchAll(new RegExp(`\\b${name}(?:\\.([A-Za-z_]\\w*)|\\[\\s*([A-Z][A-Z0-9_]*)\\s*\\])\\s*=(?!=)`, "g"))) {
+    keys.push({ raw: m[1] ?? m[2], at: decl.index + m.index });
+  }
+  return keys;
+}
+
+/** Writes through a variable object the scan cannot follow, as "file:line" (the gate fails on one). */
+const unfollowed = [];
+
 for (const f of files) {
   const src = f.src;
-  for (const m of src.matchAll(/\b(?:setFlag|unsetFlag)\(MODULE_ID,\s*("([^"]+)"|([A-Z][A-Z0-9_]*))/g)) note(resolveKey(m[2] ?? m[3]), f, lineAt(src, m.index));
+  const key = (raw, idx) => resolveKey(raw, f, lineAt(src, idx));
+  for (const m of src.matchAll(/\b(?:setFlag|unsetFlag)\(MODULE_ID,\s*("([^"]+)"|([A-Z][A-Z0-9_]*))/g)) note(key(m[2] ?? m[3], m.index), f, lineAt(src, m.index));
   // core.js `clearFlag(doc, key)`: the unsetFlag of a card that may carry the legacy scope (3.0.0's rename).
-  for (const m of src.matchAll(/\bclearFlag\(\s*[\w.?]+\s*,\s*("([^"]+)"|([A-Z][A-Z0-9_]*))/g)) note(resolveKey(m[2] ?? m[3]), f, lineAt(src, m.index));
-  for (const m of src.matchAll(/\bqueueFlagWrite\(\s*[\w.]+\s*,\s*("([^"]+)"|([A-Z][A-Z0-9_]*))/g)) note(resolveKey(m[2] ?? m[3]), f, lineAt(src, m.index));
-  for (const m of src.matchAll(/flags\.\$\{MODULE_ID\}\.(?:\$\{([A-Z][A-Z0-9_]*)\}|(-=)?([A-Za-z_]\w*))/g)) note(resolveKey(m[1] ?? m[3]), f, lineAt(src, m.index));
-  for (const m of src.matchAll(/\[MODULE_ID\]\s*:\s*\{/g)) {
+  for (const m of src.matchAll(/\bclearFlag\(\s*[\w.?]+\s*,\s*("([^"]+)"|([A-Z][A-Z0-9_]*))/g)) note(key(m[2] ?? m[3], m.index), f, lineAt(src, m.index));
+  for (const m of src.matchAll(/\bqueueFlagWrite\(\s*[\w.]+\s*,\s*("([^"]+)"|([A-Z][A-Z0-9_]*))/g)) note(key(m[2] ?? m[3], m.index), f, lineAt(src, m.index));
+  for (const m of src.matchAll(/flags\.\$\{MODULE_ID\}\.(?:\$\{([A-Z][A-Z0-9_]*)\}|(-=)?([A-Za-z_]\w*))/g)) note(key(m[1] ?? m[3], m.index), f, lineAt(src, m.index));
+  // `[MODULE_ID]: { … }`, or the package id as a string key where the file imports nothing (decide/)
+  for (const m of src.matchAll(/(?:\[MODULE_ID\]|"fvtt-mod-bythebooks")\s*:\s*\{/g)) {
     const open = m.index + m[0].length - 1;
     const { keys } = literalKeys(src, open);
-    for (const k of keys) note(resolveKey(k.raw), f, lineAt(src, k.at));
+    for (const k of keys) note(key(k.raw, k.at), f, lineAt(src, k.at));
+  }
+  // the flag object held in a variable: `{ [MODULE_ID]: claim }`
+  for (const m of src.matchAll(/\[MODULE_ID\]\s*:\s*([A-Za-z_$][\w$]*)\s*(?=[,}\n])/g)) {
+    const keys = variableKeys(src, m[1], m.index);
+    if (!keys) { unfollowed.push(`${f.rel}:${lineAt(src, m.index)} [MODULE_ID]: ${m[1]}`); continue; }
+    for (const k of keys) note(key(k.raw, k.at), f, lineAt(src, k.at));
+  }
+  // the scope assigned whole on a flags object: `flags[MODULE_ID] = { … }`, or the migration plan's
+  // `flags[ids.to] = { … }` (decide/migrate.js takes the module's own id as `to`: the layer names no package)
+  for (const m of src.matchAll(/\bflags\[\s*(?:MODULE_ID|(?:\w+\.)?to)\s*\]\s*=\s*\{/g)) {
+    const { keys } = literalKeys(src, m.index + m[0].length - 1);
+    for (const k of keys) note(key(k.raw, k.at), f, lineAt(src, k.at));
   }
 }
 
@@ -257,4 +314,4 @@ export function keysByFile() {
   return out;
 }
 
-export { files, WORLD_WRITERS, writers, writes };
+export { files, unfollowed, unresolved, WORLD_WRITERS, writers, writes };

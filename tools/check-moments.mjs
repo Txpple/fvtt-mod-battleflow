@@ -4,8 +4,12 @@
 // thing that FAILS when a key is missing from the registry.
 //   1. Every flag key the module writes is classified exactly once: `MOMENT_RECORDS` (a resolve,
 //      published) or `STATE_KEYS` (state, with a reason). The scan covers `setFlag`,
-//      `queueFlagWrite`, `flags.${MODULE_ID}.key` paths and `[MODULE_ID]: { … }` literals, with
-//      `[CONST]` keys resolved through the tree's own declarations. Reads are not scanned.
+//      `queueFlagWrite`, `flags.${MODULE_ID}.key` paths, `[MODULE_ID]: { … }` literals (the package
+//      id as a string key in decide/), a flag object held in a variable (`{ [MODULE_ID]: claim }`,
+//      its literal declaration and its `claim.k =` assignments) and a scope assigned whole
+//      (`flags[ids.to] = { … }`), with `[CONST]` keys resolved per file through its own declarations
+//      and its imports. A constant the scan cannot resolve, or a variable object it cannot follow,
+//      FAILS: an unseen write is an unclassified key. Reads are not scanned.
 //   2. No stale row: a listed key nothing writes fails.
 //   3. Every file that writes the WORLD is pinned in `WORLD_WRITERS` (tools/moment-writers.mjs)
 //      with its record(s) or a reason: a resolve landing only on an actor or item is invisible to a
@@ -16,7 +20,7 @@
 //
 //   node tools/check-moments.mjs
 import { MOMENT_RECORDS, MOMENT_WORDS, STATE_KEYS } from "../scripts/decide/moments.js";
-import { files, WORLD_WRITERS, writers, writes } from "./moment-writers.mjs";
+import { files, unfollowed, unresolved, WORLD_WRITERS, writers, writes } from "./moment-writers.mjs";
 
 const failures = [];
 const passes = [];
@@ -36,6 +40,16 @@ if (unclassified.length) {
       + "(scripts/decide/moments.js) — is it a RESOLVE (add a row: what it means, what it publishes, its markers) or STATE (add a reason)?");
   }
 } else pass(`every one of the ${written.length} written keys is classified`);
+
+for (const site of unresolved) {
+  fail("unresolved key", `${site} — a flag write names a constant the file neither declares nor imports, so the scan cannot say which key it writes `
+    + "(declare it in the file, or import it from the file that does)");
+}
+for (const site of unfollowed) {
+  fail("unseen write", `${site} — the flag object is a variable with no \`{ … }\` declaration in sight, so the scan cannot read its keys `
+    + "(build it as a literal in the function that writes it)");
+}
+if (!unresolved.length && !unfollowed.length) pass("every write's key is read: constants resolved per file, variable objects followed to their literal");
 
 const both = [...resolveKeys].filter(k => stateKeys.has(k));
 if (both.length) fail("key in both lists", both.join(", "));
