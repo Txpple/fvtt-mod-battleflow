@@ -8,7 +8,6 @@ import { REACTION_RESETS, identifierOf } from "./decide/registry.js";
 import { foldsFrom, hitsAmong } from "./decide/verdict.js";
 import { storedChipName, withoutFace } from "./decide/stored-dice.js";
 import { CARD, describeTarget, isCard, targetsOf } from "./decide/card.js";
-import { esc } from "./decide/present.js";
 import { METAMAGIC_FLAG } from "./decide/metamagic.js";
 import { tokenDocOf } from "./geometry.js";
 
@@ -689,24 +688,4 @@ export function concentrationEnding(activity) {
   if ( !effect ) return null;
   const name = resolveUuid(effect.origin)?.name ?? effect.name;
   return { id: effect.id, name, same: !!same };
-}
-
-/**
- * Ask before a cast that ends the caster's Concentration: "Casting X will end your Concentration on Y.
- * Proceed?" `go` false when the caster says no; `end` the effect to end, for the use's
- * `concentration.end` (null when the cast ends none).
- * ⚠ dnd5e asks this only in its usage dialog; a cast the module takes past that dialog (a summon's
- * menu) must ask here, or the old spell ends without a word.
- * @returns {Promise<{ go: boolean, end: string|null }>}
- */
-export async function askConcentrationEnd(activity) {
-  const ending = concentrationEnding(activity);
-  if ( !ending ) return { go: true, end: null };
-  const spell = activity.item?.name ?? "this";
-  const yes = await foundry.applications.api.DialogV2.confirm({
-    window: { title: "End Concentration?", icon: "fa-solid fa-head-side-brain" },
-    content: `<p>Casting <b>${esc(spell)}</b> will end your Concentration on <b>${esc(ending.name)}</b>.</p><p>Proceed?</p>`,
-    rejectClose: false
-  });
-  return { go: !!yes, end: ending.id };
 }

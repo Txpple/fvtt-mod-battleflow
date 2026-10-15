@@ -578,16 +578,14 @@ export function partyViewHTML() {
     <div style="margin-top:0.4rem;font-size:var(--font-size-11,11px);opacity:0.7;">The list is the sheet's own (Weapon Proficiencies → Mastery); the fill tops it up on the GM's load, the swap after a Long Rest.</div>`;
 }
 
-export async function openPartyView() {
-  const dialog = new foundry.applications.api.DialogV2({
-    window: { title: "Weapon Mastery — the party", icon: "fa-solid fa-medal" },
-    position: { width: 560 },
+/** The GM's party view, one window: a second click fronts the open one (null then). */
+export function openPartyView() {
+  return openMomentPopup(MODULE_ID, "masteryParty", null, {
+    gate: false,
+    title: "Weapon Mastery — the party", icon: "fa-solid fa-medal", width: 560,
     content: bfCard({ eyebrow: "Weapon Mastery", tone: "neutral", title: "The party's chosen kinds against the allowance" }) + `<div style="margin:0.4rem 0.1rem;">${partyViewHTML()}</div>`,
-    buttons: [{ action: "ok", label: "OK", default: true }],
-    rejectClose: false
+    buttons: [{ action: "ok", label: "OK", default: true }]
   });
-  await dialog.render({ force: true });
-  return dialog;
 }
 
 // The group sheet's header controls (Foundry's `getHeaderControls<Class>` hook): the GM's door.

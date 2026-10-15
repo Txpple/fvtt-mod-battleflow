@@ -33,7 +33,7 @@ law 1. Per-target state is an array of entries with a `uuid` field.
 both discard the promise; a rejection becomes an unhandled rejection nobody logs. When
 `revertTarget` began rejecting on the status race above, the symptom was two writes that quietly
 did not happen. Anything fallible in a fire-and-forget handler needs its own try/catch with a
-`console.error`. **A suite that drives a button listens on
+`log.error` (core.js, the one console door). **A suite that drives a button listens on
 `window.addEventListener("unhandledrejection", …)`** — the one channel a no-catch listener fails
 on (`smoke-bythebooks` §4c).
 

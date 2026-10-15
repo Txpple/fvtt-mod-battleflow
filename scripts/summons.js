@@ -29,7 +29,7 @@ import { concentrationIdOf } from "./decide/card.js";
 import { effectRecord, joinEffectReceipt } from "./decide/receipt.js";
 import { describeCreature, openPicker, pickSpots, poolFromPacks, poolRuleOf, summonArt } from "./gallery.js";
 import { CONCENTRATION_ASKED } from "./shared.js";
-import { momentButton, registerResumable, pendingRow } from "./ui.js";
+import { momentButton, registerResumable, pendingRow, confirmPopup } from "./ui.js";
 import { SURFACES } from "./surfaces.js";
 import { listen, listenOnce } from "./dispatch.js";
 import { tokenDocOf, tokenOnScene, tokensOf } from "./geometry.js";
@@ -1349,10 +1349,9 @@ async function confirmCompanionEnd(effect, message) {
   const flag = message ? readFlag(message, SUMMON_FLAG) : null;
   const row = companionOf(flag?.itemName);
   const noun = lower(row?.noun ?? "companion");
-  const yes = await foundry.applications.api.DialogV2.confirm({
-    window: { title: `Dismiss ${noun}?` },
-    content: `<p>Dismiss ${noun}? This will remove them forever.</p><p>More options available by pressing ${flag?.itemName ? `${esc(flag.itemName)} spell` : "the spell"}.</p>`,
-    rejectClose: false
+  const yes = await confirmPopup(effect.uuid, "companionEnd", {
+    title: `Dismiss ${noun}?`,
+    content: `<p>Dismiss ${noun}? This will remove them forever.</p><p>More options available by pressing ${flag?.itemName ? `${esc(flag.itemName)} spell` : "the spell"}.</p>`
   });
   if ( !yes ) return;
   if ( !message || !flag?.applied ) { await effect.delete({ [MODULE_ID]: { companionEnd: true } }); return; }

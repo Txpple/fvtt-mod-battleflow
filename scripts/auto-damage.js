@@ -6,8 +6,8 @@
 import { MODULE_ID, readFlag, S, setting, decisionWindow, drivesMomentFor, resolveUuid, log } from "./core.js";
 import { missShareFor } from "./lookup.js";
 import { hitTargets, holdOf, savesOf } from "./shared.js";
-import { TONE, esc, popupKey, bfCard, momentBarHTML } from "./decide/present.js";
-import { armDeadline, disarmDeadline, livePopups, offerParts, openManagedPopup, frontPopup } from "./ui.js";
+import { TONE, esc, bfCard, momentBarHTML } from "./decide/present.js";
+import { offerParts, openMomentPopup, frontPopup } from "./ui.js";
 import { CONDITION_BENDS } from "./decide/registry.js";
 import { autoCritSources } from "./decide/reminders.js";
 import { foldedRoll, foldsFrom } from "./decide/verdict.js";
@@ -309,8 +309,6 @@ const CRIT_BADGE = `<span style="display:inline-block;padding:0.05rem 0.45rem;bo
   background:${TONE.crit};color:#111;font-weight:bold;letter-spacing:0.07em;
   font-size:var(--font-size-11,11px);text-transform:uppercase;">&#10022; Critical Hit</span>`;
 
-const offerTimers = new Map();
-
 /**
  * The shell every damage offer wears: button, X and buzzer funnel through ONE `roll`; one popup per card.
  * @param {any} message
@@ -320,7 +318,6 @@ const offerTimers = new Map();
  */
 async function offerRoll(message, { roll, windowTitle, windowIcon, buttonLabel, buttonIcon, extraHTML = "", wire = null, ...card }) {
   if ( frontPopup(message, "damage") ) return;
-  const key = popupKey(message.id, "damage");
 
   const window = playerRollWindow();
   const deadline = window ? Date.now() + (window * 1000) : null;
@@ -336,15 +333,14 @@ async function offerRoll(message, { roll, windowTitle, windowIcon, buttonLabel, 
   const fire = () => {
     if ( fired ) return;
     fired = true;
-    disarmDeadline(offerTimers, message.id);
     void roll();
     if ( deadline ) void message.setFlag(MODULE_ID, "damageOffer", { status: "done" })
       .catch(() => { /* a stale bar drains to empty and the next render drops it */ });
   };
 
-  const dialog = new foundry.applications.api.DialogV2({
-    window: { title: windowTitle, icon: windowIcon },
-    position: { width: 420 },
+  const dialog = await openMomentPopup(message, "damage", null, {
+    gate: false,   // the attacker's own client: its roll, its dice
+    title: windowTitle, icon: windowIcon, width: 420,
     // ⚠ DialogV2 sizes to content: long menus scroll in a bounded box so Roll stays on screen.
     content: bfCard({ tone: "pending", ...card })
       + (extraHTML ? `<div data-bf-offer-menus style="max-height:calc(100vh - 20rem);overflow-y:auto;overflow-x:hidden;">${extraHTML}</div>` : "")
@@ -356,21 +352,12 @@ async function offerRoll(message, { roll, windowTitle, windowIcon, buttonLabel, 
       default: true,
       callback: () => fire()
     }],
-    rejectClose: false
+    // Dismissing is not a veto: the X and Escape roll at once, and so does a render that fails (the native
+    // Damage button is hidden, so nothing is left to press).
+    onDismiss: () => fire(),
+    buzzer: deadline ? { at: deadline, fire } : null
   });
-
-  // Dismissing is not a veto: the X and Escape roll immediately.
-  const close = dialog.close.bind(dialog);
-  dialog.close = (...args) => { fire(); return close(...args); };
-
-  // The buzzer, armed even if the popup never renders.
-  if ( deadline ) armDeadline(offerTimers, message.id, deadline, () => { void dialog.close(); });
-
-  await openManagedPopup(key, message, dialog);
-
-  // A failed render leaves nothing to press (the native Damage button is hidden): roll now.
-  if ( livePopups.get(key) !== dialog ) return fire();
-  if ( wire ) { try { wire(dialog.element); } catch(err) { log.error(`Offer controls failed to wire.`, err); } }
+  if ( wire && dialog?.rendered ) { try { wire(dialog.element); } catch(err) { log.error(`Offer controls failed to wire.`, err); } }
 }
 
 /* The offer's contributions are declared by machines at their evaluation, into ui.js's registry

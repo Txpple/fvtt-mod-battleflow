@@ -26,7 +26,8 @@ let cascadeAnchor = null;           // {left, top} the staircase grows from; die
 
 /**
  * Render and lifecycle-manage a decision popup; a failed render leaves the card to answer from.
- * `message` null: a popup before any card (the gear light's toggle), with no row to redraw.
+ * `message` null: a popup before any card (the gear light's toggle), with no row to redraw. A machine opens a
+ * popup through `openMomentPopup`, which calls this (tools/check-popups.mjs); the export is the live suites' seam.
  */
 export async function openManagedPopup(key, message, dialog) {
   const close = dialog.close.bind(dialog);
@@ -182,31 +183,92 @@ export function adoptManagedPopup(key, message, dialog) {
   void Promise.resolve(ui.chat?.updateMessage?.(message)).catch(() => { /* row refreshes next render */ });
 }
 
+/** popup key → the buzzer armed for it (`openMomentPopup`'s `buzzer`). */
+const popupBuzzers = new Map();
+
 /**
- * Open a machine popup behind the canAnswerFor gate; null when gated off or already open (fronted).
+ * Open a machine popup behind the canAnswerFor gate; null when gated off or already open (fronted). The one door
+ * to a DialogV2 (tools/check-popups.mjs): `message` is the card, or the id a popup with no card is keyed by.
+ *   onDismiss  `(dialog) => …`, once, when the dialog closes unanswered (the X, Escape, the autoclose, the buzzer, a
+ *              close from elsewhere) or never opens (a failed render); a button press is an answer
+ *   buzzer     `{ at, fire }`: at the absolute deadline `at` the dialog closes and `fire` runs, armed before the
+ *              render; any close disarms it. ⚠ This client's clock alone, not re-armed on a reload
  * @param {any} message
  * @param {string} sub
  * @param {any} subject
  * @param {{title?: string, icon?: string, width?: number, content?: string, buttons?: object[],
- *   autoCloseAt?: number|null, gate?: boolean}} [opts]
+ *   autoCloseAt?: number|null, gate?: boolean, onDismiss?: ((dialog: any) => any)|null,
+ *   buzzer?: {at: number|null, fire: () => any}|null}} [opts]
  */
 export async function openMomentPopup(message, sub, subject, {
-  title, icon, width = 440, content, buttons, autoCloseAt = null, gate = true
+  title, icon, width = 440, content, buttons, autoCloseAt = null, gate = true, onDismiss = null, buzzer = null
 } = {}) {
   if ( gate && !canAnswerFor(subject) ) return null;
   if ( frontPopup(message, sub) ) return null;
-  const key = popupKey(message.id, sub);
+  const key = popupKey(idOf(message), sub);
   const dialog = new foundry.applications.api.DialogV2({
     window: { title, icon },
     position: { width },
     content, buttons,
     rejectClose: false
   });
+  let closed = false, dismissed = false;
+  // ⚠ At once, before the dialog's own close: a dismissal may read what the dialog holds (the volley's aim).
+  const dismiss = () => {
+    if ( dismissed || !onDismiss ) return;
+    dismissed = true;
+    try { void Promise.resolve(onDismiss(dialog)).catch(err => log.error("A popup's dismissal could not be answered.", err)); }
+    catch(err) { log.error("A popup's dismissal could not be answered.", err); }
+  };
+  if ( onDismiss || buzzer ) {
+    const close = dialog.close.bind(dialog);
+    // DialogV2 closes a button's submission with `submitted`: anything else is the dialog dismissed.
+    dialog.close = (...args) => {
+      closed = true;
+      disarmDeadline(popupBuzzers, key);
+      if ( args[0]?.submitted !== true ) dismiss();
+      return close(...args);
+    };
+  }
+  if ( buzzer?.at ) {
+    armDeadline(popupBuzzers, key, buzzer.at, async () => {
+      await closeDialog(dialog);
+      await buzzer.fire?.();
+    });
+  }
   if ( autoCloseAt ) setTimeout(() => {
     if ( livePopups.get(key) === dialog ) void closeDialog(dialog);
   }, Math.max(0, autoCloseAt - Date.now()));
-  await openManagedPopup(key, message, dialog);
+  await openManagedPopup(key, (typeof message === "string") ? null : message, dialog);
+  if ( !closed && (livePopups.get(key) !== dialog) ) {
+    disarmDeadline(popupBuzzers, key);
+    dismiss();
+  }
   return dialog;
+}
+
+/**
+ * A yes-or-no question the player's own action raises (a cast the module takes past dnd5e's dialog, a companion's
+ * effect removed): Yes and No, No the default, through openMomentPopup on this client. True or false, or null when it
+ * closes unanswered or is already open.
+ * @param {any} message   the card, or the id the popup is keyed by
+ * @param {string} sub
+ * @param {{title?: string, icon?: string, content?: string, width?: number}} question
+ * @returns {Promise<boolean|null>}
+ */
+export async function confirmPopup(message, sub, { title, icon, content, width = 400 }) {
+  /** @type {(answer: boolean|null) => void} */
+  let settle = () => {};
+  const answered = new Promise(resolve => { settle = resolve; });
+  const dialog = await openMomentPopup(message, sub, null, {
+    gate: false, title, icon, width, content,
+    buttons: [
+      { action: "yes", label: "COMMON.Yes", icon: "fa-solid fa-check", callback: () => settle(true) },
+      { action: "no", label: "COMMON.No", icon: "fa-solid fa-xmark", default: true, callback: () => settle(false) }
+    ],
+    onDismiss: () => settle(null)
+  });
+  return dialog ? answered : null;
 }
 
 // THE PICK (ARCHITECTURE §5 *The pick*): a pick's inputs are drawn by decide/present.js `pickInputHTML` (or a

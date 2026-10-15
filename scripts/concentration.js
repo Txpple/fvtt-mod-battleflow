@@ -6,13 +6,13 @@
  */
 import { MODULE_ID, readFlag, TITLE, S, setting, rollerUserFor, leadsWindow, canAnswerFor, drivesMomentFor, canApplyTo, whisperNoGM, statContext, decisionWindow, savesRollThemselves, ownersAndGmIds, resolveUuid, resolveUuidAsync, log } from "./core.js";
 import { cardItem, featureNamed, lower, wieldedNamed } from "./lookup.js";
-import { askConcentrationEnd, concentrationEnding, CONCENTRATION_ASKED, rollConfigFor } from "./shared.js";
+import { concentrationEnding, CONCENTRATION_ASKED, rollConfigFor } from "./shared.js";
 import { concentrationExemptEntries, damageRuleEntries, listedNames } from "./decide/registry.js";
 import { CONCENTRATION_EXEMPTS, DAMAGE_RULES } from "./decide/registry.js";
 import { ruleLine } from "./decide/present.js";
 import { popupKey, bfCard, esc, holdBarHTML } from "./decide/present.js";
 import { DialogCarried, armAskTimer, disarmAskTimer, electOwns, dramaticVerdictPause, registerDemand, demandAnsweredBy, registerWithheld, withholds,
-  pendingRow, forgetShown, closePopup, frontPopup, postCard } from "./ui.js";
+  pendingRow, forgetShown, closePopup, frontPopup, postCard, confirmPopup } from "./ui.js";
 import { SAVE_FOLDS, foldedSave, foldsFrom } from "./decide/verdict.js";
 import { SURFACES } from "./surfaces.js";
 import { isConcentrationPrompt } from "./decide/card.js";
@@ -627,6 +627,25 @@ listen("preCreateChatMessage", "concentration", doc => {
 });
 
 /* --- a cast that ends Concentration asks first (RULINGS *Summons*) ---------------------------------- */
+
+/**
+ * Ask before a cast that ends the caster's Concentration: "Casting X will end your Concentration on Y.
+ * Proceed?" `go` false when the caster says no; `end` the effect to end, for the use's
+ * `concentration.end` (null when the cast ends none).
+ * ⚠ dnd5e asks this only in its usage dialog; a cast the module takes past that dialog (a summon's
+ * menu) must ask here, or the old spell ends without a word.
+ * @returns {Promise<{ go: boolean, end: string|null }>}
+ */
+async function askConcentrationEnd(activity) {
+  const ending = concentrationEnding(activity);
+  if ( !ending ) return { go: true, end: null };
+  const spell = activity.item?.name ?? "this";
+  const yes = await confirmPopup(activity.uuid, "concentrationEnd", {
+    title: "End Concentration?", icon: "fa-solid fa-head-side-brain",
+    content: `<p>Casting <b>${esc(spell)}</b> will end your Concentration on <b>${esc(ending.name)}</b>.</p><p>Proceed?</p>`
+  });
+  return { go: !!yes, end: ending.id };
+}
 
 // Any other cast that skips dnd5e's usage dialog (`configure: false`) and would end the caster's
 // Concentration on ANOTHER spell asks first, on the caster's client; yes uses it again, the end named.

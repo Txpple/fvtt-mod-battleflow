@@ -37,8 +37,7 @@ const DEADLINE_DELAY = /\b(deadline|Date\.now|decisionWindow|window)\b|\*\s*1000
  * ⚠ A new clock on `armDeadline` is a decision: pin it here or put it on `armAskTimer`.
  */
 const RAW_CLOCKS = new Map([
-  ["ui.js", "armAskTimer is the helper; the raw clock is its own"],
-  ["auto-damage.js", "the damage offer's buzzer closes a POPUP on the client that opened it (the roll follows); there is no flag owner to elect and no re-arm on reload"],
+  ["ui.js", "armAskTimer is the helper, and openMomentPopup's buzzer the popup's own clock on the client that opened it (the damage offer's roll); the raw clock is the spine's"],
   ["stored-dice.js", "the rest card's ask arms on the client that opened the popup, under the resumable's own `drives` (canAnswerFor); its expiry rolls the bearer's dice there"],
   ["volleys.js", "the author's resume: the caster's client alone, and an overdue volley fires at once instead of arming"]
 ]);

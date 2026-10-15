@@ -7,9 +7,9 @@
 import { MODULE_ID, readFlag, queueFlagWrite, deadlineIsLive, statContext, decisionWindow, log } from "./core.js";
 import { volleyEntryFor, resolveVolleyCount } from "./volley-registry.js";
 import { castLevelOf, clampVolleyCount } from "./decide/eligible.js";
-import { popupKey, bfCard, esc, momentBarHTML, reminderDetailsHTML } from "./decide/present.js";
+import { bfCard, esc, momentBarHTML, reminderDetailsHTML } from "./decide/present.js";
 import { REMINDER_FLAG, reminderRecord } from "./decide/reminders.js";
-import { livePopups, openManagedPopup, armDeadline, disarmDeadline, closePopup, frontPopup } from "./ui.js";
+import { openMomentPopup, armDeadline, disarmDeadline, closePopup, frontPopup } from "./ui.js";
 import { judgeRoll } from "./reminders.js";
 import { SURFACES } from "./surfaces.js";
 import { castLevelOn, originData, targetsInData, targetsOf } from "./decide/card.js";
@@ -136,7 +136,6 @@ async function openVolleyPopup(message) {
   const v = readFlag(message, "volley");
   if ( v?.status !== "pending" ) return;
   if ( frontPopup(message, "volley") ) return;
-  const key = popupKey(message.id, "volley");
   // An activity that no longer resolves aims without a judgement.
   const activity = (v.kind === "attack") ? cardActivity(message, v.activityUuid) : null;
   const caster = activity?.item?.actor ?? null;
@@ -180,9 +179,10 @@ async function openVolleyPopup(message) {
     }).join("");
 
   const bar = (v.deadline && v.window) ? momentBarHTML({ deadline: v.deadline, window: v.window }, "to aim") : "";
-  const dialog = new foundry.applications.api.DialogV2({
-    window: { title: `${v.item?.name ?? "Volley"} — ${v.n} ${noun}s`, icon: "fa-solid fa-meteor" },
-    position: { width: (v.kind === "attack") ? 480 : 430 },
+  const dialog = await openMomentPopup(message, "volley", null, {
+    gate: false,   // the caster's own client: the author's resume opens it
+    title: `${v.item?.name ?? "Volley"} — ${v.n} ${noun}s`, icon: "fa-solid fa-meteor",
+    width: (v.kind === "attack") ? 480 : 430,
     content: bfCard({
       img: v.item?.img,
       eyebrow: "Volley — your aim",
@@ -201,19 +201,11 @@ async function openVolleyPopup(message) {
       action: "fire", label: `Fire the ${noun}s`, icon: "fa-solid fa-meteor", default: true,
       callback: (_event, _button, d) => fireVolley(message, readAssignment(message, d.element ?? d))
     }],
-    rejectClose: false
+    // The X is "get on with it", never a cancel: it fires with whatever the inputs hold. A render that fails
+    // leaves no surface to press: it fires the default.
+    onDismiss: d => fireVolley(message, d.rendered ? readAssignment(message, d.element) : null)
   });
-
-  // The X is "get on with it", never a cancel: it fires with whatever the inputs hold.
-  const close = dialog.close.bind(dialog);
-  dialog.close = (...args) => {
-    void fireVolley(message, readAssignment(message, dialog.element));
-    return close(...args);
-  };
-
-  await openManagedPopup(key, message, dialog);
-  // Render failed → no surface to press: fire now.
-  if ( livePopups.get(key) !== dialog ) return void fireVolley(message, null);
+  if ( !dialog?.rendered ) return;
   // Bound after render; any change re-judges every ray — a re-aim moves the spends with it.
   for ( const sel of dialog.element?.querySelectorAll?.("[data-bf-volley-ray]") ?? [] ) {
     sel.addEventListener("change", () => {

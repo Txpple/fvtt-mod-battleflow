@@ -9,9 +9,9 @@ import { ruleHTML } from "./rule-text.js";
 import { GEAR_LIGHTS, gearLightEntries, listedNames, identifierOf } from "./decide/registry.js";
 import { GEAR_LIT, gearLightRow, gearLightOf, gearButtons, gearToggle, gearLightWords, gearCardTitle,
   lightChanges } from "./decide/token-lights.js";
-import { bfCard, ruleLine, popupKey } from "./decide/present.js";
+import { bfCard, ruleLine } from "./decide/present.js";
 import { effectRecord, joinEffectReceipt } from "./decide/receipt.js";
-import { openManagedPopup, frontPopup, postCard } from "./ui.js";
+import { openMomentPopup, frontPopup, postCard } from "./ui.js";
 import { listen } from "./dispatch.js";
 
 const GEAR_FLAG = "gearLight";
@@ -83,7 +83,6 @@ listen("dnd5e.preDisplayCard", "gear-lights", item => {
 /** Open the toggle for one item on this client: its rule line, and the presses its state allows. */
 async function openToggle(item, row) {
   if ( frontPopup(item.uuid, GEAR_FLAG) ) return;
-  const key = popupKey(item.uuid, GEAR_FLAG);
   const lit = litEffectOf(item);
   const litState = lit ? (readFlag(lit, GEAR_FLAG)?.state ?? GEAR_LIT) : null;
   const shown = litState ? gearLightOf(row, litState) : null;
@@ -93,19 +92,18 @@ async function openToggle(item, row) {
     default: i === 0,
     callback: () => { void press(item, row, b); }
   }));
-  const dialog = new foundry.applications.api.DialogV2({
-    window: { title: item.name, icon: "fa-solid fa-fire" },
-    position: { width: 400 },
+  // Keyed by the item, a popup before any card; on the client that used it, so no gate.
+  await openMomentPopup(item.uuid, GEAR_FLAG, null, {
+    gate: false,
+    title: item.name, icon: "fa-solid fa-fire", width: 400,
     content: bfCard({
       img: item.img, eyebrow: "Gear light", tone: litState ? "good" : "neutral",
       title: litState ? `${item.name} — lit: ${gearLightWords(shown)}` : `${item.name} — unlit`,
       subtitle: `${item.actor.name} · nothing is used up`,
       lines: [ruleLine(row.rule)]
     }),
-    buttons,
-    rejectClose: false
+    buttons
   });
-  await openManagedPopup(key, null, dialog);
 }
 
 /**

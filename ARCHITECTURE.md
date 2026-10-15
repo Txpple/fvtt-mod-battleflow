@@ -119,8 +119,9 @@ hold's continuing client). The helper reads the flag's absolute deadline, arms o
 targets, the save choices' earliest clock), drops the clock once the moment is answered or the client is
 no longer the owner, and re-checks the live flag at expiry. **The static proof is `npm run clocks`**
 ([tools/check-clocks.mjs](tools/check-clocks.mjs)): no `setTimeout` on a deadline outside ui.js, the raw
-`armDeadline` only from ui.js and the files it pins (the damage offer's popup buzzer, the stored dice's ask,
-the volley's author-side resume), and every `owns` one of the four. `--list` prints the table.
+`armDeadline` only from ui.js (`armAskTimer`, and `openMomentPopup`'s buzzer: the damage offer's, §5 *The popup*)
+and the files it pins (the stored dice's ask, the volley's author-side resume), and every `owns` one of the four.
+`--list` prints the table.
 
 | Owner | Clocks |
 | --- | --- |
@@ -592,15 +593,36 @@ entry dropped from the demand, a recall that re-arms it.
 A machine never holds the popup registry (`livePopups`): it names a popup by its message and sub. A
 withdrawn question (law 4) closes through `closePopup(message, sub)`, which awaits the close and swallows a
 dialog already gone (`sub` may be a test over the message's open popups: a save entry dropped from the demand
-closes every popup it asked); an opener that builds its own dialog (the system's roll dialog a save or
-Topple rides, a raw DialogV2) asks `frontPopup(message, sub)` first, which brings an open one forward and
-answers whether there was one, as `openMomentPopup` does for the rest. **The static proof is `npm run popups`**
+closes every popup it asked); an opener that rides the system's own dialog (the roll dialog a save or Topple
+rides) asks `frontPopup(message, sub)` first, which brings an open one forward and answers whether there was one,
+as `openMomentPopup` does for the rest. **The static proof is `npm run popups`**
 ([tools/check-popups.mjs](tools/check-popups.mjs)): outside ui.js nothing touches the latch set, no
 `momentButton` is labelled "Answer", every row's `arm` arms through `armAskTimer`, nothing reads
-`livePopups`, and nothing closes a dialog it was not handed (a render hook's app, `this`). The raw
-DialogV2's own lifecycle stands pinned there with its reason (the damage offer's and the volley's test that
-the dialog they just rendered is the one registered, the offer's buzzer closing its own dialog) until
-`openMomentPopup` can fire on dismiss and carry a buzzer. `--list` prints every row and every pin.
+`livePopups`, nothing closes a dialog it was not handed (a render hook's app, `this`), and nothing builds a
+dialog of its own (*The popup*, below). `--list` prints every row and every pin.
+
+### The popup — one door to a DialogV2
+
+Every popup the module opens is `openMomentPopup(message, sub, subject, { title, icon, width, content, buttons,
+autoCloseAt, gate, onDismiss, buzzer })` in [ui.js](scripts/ui.js): the `canAnswerFor` gate (`gate: false` for a
+popup on the client that acted: the attacker's damage, the caster's volley, the gear light's toggle), an open one
+fronted instead of a second, the cascade and the keyboard handed back (`openManagedPopup`, law 12), the registry
+`closePopup` reads. `message` is the card, or the id a popup with no card is keyed by (the gear light's item, the
+party view). Two options carry what a dialog built by hand used to wire itself:
+
+- **`onDismiss(dialog)`** runs once when the dialog closes unanswered — the X, Escape, the autoclose, the buzzer, a
+  close from elsewhere; a button's press is an answer, which DialogV2 closes `submitted` — or never opens (a
+  failed render). It runs before the dialog's own close, so it may read what the dialog holds: the volley fires
+  as aimed, the damage offer rolls (dismissing is not a veto).
+- **`buzzer: { at, fire }`** is the popup's own clock on the client that opened it: at the absolute deadline `at`
+  the dialog closes (a dismissal) and `fire` runs; any close disarms it. ⚠ Not re-armed on a reload: a moment
+  whose clock must outlive the client arms through `armAskTimer` (§3 *The clocks*).
+
+A yes or no the player's own action raises (a cast the module takes past dnd5e's dialog, a companion's effect
+removed) is `confirmPopup(message, sub, { title, icon, content })`: Yes and No, No the default, null when it closes
+unanswered or is already open. **The static proof is `npm run popups`** rule 6: outside ui.js nothing reaches
+`foundry.applications.api.DialogV2` (built, or its `confirm`, `prompt`, `wait`) and nothing calls
+`openManagedPopup`.
 
 ### The card — one envelope, the recipients named
 
@@ -891,10 +913,23 @@ stay at the EDGE. **Do not "tidy" those strings back into the view.**
 
 | Module | Holds |
 | --- | --- |
-| [geometry.js](scripts/geometry.js) | EDGE: `tokensInRegions` — the platform's own containment (`TokenDocument#testInsideRegion` against the region's polygon tree, from the document's committed source position, no canvas); `tokenOfActor`, `tokenForUuid`, `feetOf`, `nearestFeet` — token distance in FEET, the readers the reminder gate grew and the damage service shares (the 5-foot automatic crit) |
-| [lookup.js](scripts/lookup.js) | SPINE: `lower`, `itemsNamed` / `itemNamed` / `featureNamed` (identifier first, then name — §6 *How a row names its content*), `namesAnswering`, `activityNamed`, `activityOfType` (and their own `sameName`) — the sheet readers every machine uses; `resolveUuid` — the `fromUuidSync` guard (a throw on an unloaded pack or a dead document is "not here"); `resolveDie` — a die formula resolved on THIS actor's roll data, an `@` left standing refused. `cardItem` / `cardActivity` — a CARD's item or activity: the live document while it stands, else the card's own snapshot of an item the use DELETED (dnd5e spends before it posts); `tools/check-card-reads.mjs` holds every such read to them, a deliberate live read saying why. Imports only the card seam (decide/card.js — downward), owns nothing. `core.js` and `shared.js` keep their own uuid guard: the leaf and this file's own layer. Its companion in settings.js: `listedNames(entries)` (a list's kinds as a lower-cased set) |
+| [geometry.js](scripts/geometry.js) | EDGE: `tokensInRegions` — the platform's own containment (`TokenDocument#testInsideRegion` against the region's polygon tree, from the document's committed source position, no canvas); THE TOKEN, one rule — `tokenDocOf` (the document a subject stands as: a token's synthetic actor's own token, else the one this client controls, else the first drawn on the viewed scene, else the first linked there, dnd5e's usage token), `tokenOf` (its token on the canvas), `tokenOnScene` (an actor's token on a named scene, the same on every client), `tokensOf` (every one); `feetOf`, `nearestFeet` — token distance in FEET, the readers the reminder gate grew and the damage service shares (the 5-foot automatic crit) |
+| [lookup.js](scripts/lookup.js) | SPINE: `lower`, `itemsNamed` / `itemNamed` / `featureNamed` (identifier first, then name — §6 *How a row names its content*), `namesAnswering`, `activityNamed`, `activityOfType` (and their own `sameName`) — the sheet readers every machine uses (a uuid through core.js `resolveUuid`); `resolveDie` — a die formula resolved on THIS actor's roll data, an `@` left standing refused. `cardItem` / `cardActivity` — a CARD's item or activity: the live document while it stands, else the card's own snapshot of an item the use DELETED (dnd5e spends before it posts); `tools/check-card-reads.mjs` holds every such read to them, a deliberate live read saying why. Imports only the card seam (decide/card.js — downward), owns nothing. Its companion in settings.js: `listedNames(entries)` (a list's kinds as a lower-cased set) |
 | [rule-text.js](scripts/rule-text.js) | SPINE: the rule text, read from the book — `ruleTextFor(pointer)` / `ruleHTML(pointer)`, and the one observer that fills every `data-bf-rule` pointer that reaches the page (§5 law 8) |
 | [surfaces.js](scripts/surfaces.js) | CORE, a second leaf beside core.js: `SURFACES` — every HTML anchor the module reads off the PLATFORM's markup (core's `.message-content`, `[data-message-id]`, `.form-group`; dnd5e's damage tray, the usage card's SUMMARY block (`cardSummary` — where a chained roll's rows draw, ui.js `cardRow`; the card's BUTTONS are data since 6.0, filtered at birth in polish.js), the roll dialog's parts, default and roll buttons, the usage dialog's footer) and `SURFACE_SOURCES`, where each is authored. **No selector string for a platform element lives anywhere else** — `tools/check-surfaces.mjs` fails the build on one, and on a dnd5e anchor that no longer appears in the verified version's shipped templates (`dnd5e-surfaces.json`, generated and pinned like the hook artifact). NOTES §2 *The dnd5e 6.0 pass* §3b: the card's DATA is the contract, its HTML is not |
+
+**One door each** (`npm run lookups`, [tools/check-lookups.mjs](tools/check-lookups.mjs)):
+
+- **A uuid** is read through core.js `resolveUuid` (sync) or `resolveUuidAsync` (a pack document loaded): null for a
+  uuid that is not here — deleted, empty, malformed, an embedded pack document the platform throws on — never a
+  throw; `writableTargets(targets)` beside them, the rows this client may write. core.js because the leaf is the one
+  file every other file can import, the spine's own readers included.
+- **A token** is found through geometry.js's four readers above; dice-rise.js, events.js and shared.js reach them on
+  pinned spine edges. A lookup that answers a different question stands pinned in `TOKENS` with its reason.
+- **A console line** goes out through core.js `log`: `log.warn`, `log.error`, `log.info`, and `log.debug` behind the
+  module's debug switch (`CONFIG.debug.bythebooks = true`, set in the console), every line opening with the title.
+  Biome's `noConsole` fails a console call anywhere else in scripts/ (biome.json); the two leaves that import
+  nothing (decide/present.js, dispatch.js) carry a suppression pinned in `CONSOLE`. tools/ keeps its console.
 
 ### The dependency rule
 
@@ -1332,7 +1367,9 @@ an added die, a reaction that moves AC):
    Answer button, a `livePopups` read or a close the machine draws itself. Its card goes out through `postCard`
    and a relayed answer through `postAnswer`, the recipients one of core.js's sets (§5 *The card*; `npm run
    cards`); its pick is drawn by `pickInputHTML` and read by `picked` / `pickedAll` / `pickInputs`, a bystander's
-   choice is `choicePopup` (§5 *The pick*; `npm run pickers`).
+   choice is `choicePopup` (§5 *The pick*; `npm run pickers`). Its popup opens through `openMomentPopup`, a
+   dismissal and a popup's own clock as its `onDismiss` and `buzzer`, a yes or no as `confirmPopup` (§5 *The
+   popup*); `npm run popups` fails a DialogV2 built anywhere else.
 2. Walk the six steps and the twelve laws explicitly; each is a review checkbox.
 3. Name its answer channels — a moment with one channel is usually missing the AFK fallback.
 4. Add its receipt and its expiry default. A moment with no default outcome is not finished.
@@ -1407,6 +1444,15 @@ an added die, a reaction that moves AC):
    the prose is now wrong.
 4. **Move, do not rewrite.** Flag shapes, setting keys, list defaults, table keys, rules text
    and card copy do not change in a move, and no lint cleanup rides inside a move commit.
+
+**Reading a uuid or a token, writing a console line** (§7 *One door each*; `npm run lookups`):
+1. A uuid goes through core.js `resolveUuid` / `resolveUuidAsync`, and the site meets null; never `fromUuid` or
+   `fromUuidSync` itself.
+2. A token goes through geometry.js: `tokenDocOf` for the document, `tokenOf` for the token on the canvas,
+   `tokenOnScene` for a named scene, `tokensOf` for every one. A site whose question is genuinely another is
+   pinned in check-lookups' `TOKENS` with its reason.
+3. A console line is `log.warn` / `log.error` / `log.info` / `log.debug` (core.js), its words without the title;
+   Biome fails a console call, and a suppression stands only in a leaf that cannot import core.js.
 
 **Writing a comment** (the rule `tools/check-comments.mjs` enforces in `scripts/`):
 1. Say what the code does and why, in the present tense. A why is a constraint of the platform, a
