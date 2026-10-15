@@ -52,17 +52,9 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   const clearReaction = async a => { const ids = (a?.effects ?? []).filter(e => e.getFlag(MOD, 'mastery') === 'reaction').map(e => e.id); if (ids.length) await a.deleteEmbeddedDocuments('ActiveEffect', ids).catch(() => {}); };
   const spendReactionOf = async a => { await a.createEmbeddedDocuments('ActiveEffect', [{ name: 'Reaction — used', img: 'icons/svg/clockwork.svg', transfer: false, flags: { [MOD]: { mastery: 'reaction' } } }]); };
   const reactionChip = a => !!a?.effects?.some(e => e.getFlag(MOD, 'mastery') === 'reaction');
-  const results = [];
-  const log = [];
-  const skips = [];
-  const ok = (name, pass, detail = '') => results.push({ name, pass, detail });
+  const { until, watch, tokenOn, snapshotSettings } = window.__btb;
+  const { results, log, skips, ok, want, section } = window.__btb.begin({ sections, titles });
   // The page-side section gate (tools/harness.mjs); the plan arrives as data.
-  const want = id => {
-    if (!sections || sections.includes(String(id))) return true;
-    skips.push(`§${id} ${titles?.[id] ?? ''}`);
-    return false;
-  };
-  const sleep = ms => new Promise(r => setTimeout(r, ms));
   const suiteStart = Date.now();
 
   // Console-error capture: the module logs its failures there.
@@ -82,8 +74,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   const SETTING_KEYS = ['autoDamage', 'autoApply', 'dramaticBeat', 'requireTarget',
     'reactionHold', 'riders', 'effectRiders', 'masteryRiders', 'playerRollDamage',
     'holdTimer', 'holdSkipFutile', 'holdReveal', 'castApply', 'saves', 'saveRolls'];
-  const prior = Object.fromEntries(SETTING_KEYS.map(k => [k, game.settings.get(MOD, k)]));
-  const set = (k, v) => game.settings.set(MOD, k, v);
+  const settings = snapshotSettings(SETTING_KEYS);
+  const { set } = settings;
 
   const scene = game.scenes.getName('By the Books Test Range');
   const enemy = game.actors.getName('BTB Test Attacker');
@@ -97,8 +89,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   const teardown = async () => {
     if (restored) return;
     restored = true;
-    try { for (const [k, v] of Object.entries(prior)) await set(k, v); }
-    catch (err) { log.push(`TEARDOWN settings ERROR: ${err?.message}`); }
+    for (const failed of await settings.restore()) log.push(`TEARDOWN settings ERROR: ${failed}`);
     try {
       const liveTokens = created.tokens.filter(id => scene.tokens.get(id));
       if (liveTokens.length) await scene.deleteEmbeddedDocuments('Token', liveTokens);
@@ -191,7 +182,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         foundry.utils.mergeObject(actor.prototypeToken.toObject(),
           { x, y, actorId: actor.id, actorLink: true }, { inplace: false })]);
       created.tokens.push(doc.id);
-      for (let i = 0; i < 40 && !(canvas.ready && canvas.tokens.get(doc.id)); i++) await sleep(250);
+      await tokenOn(doc.id);
       return canvas.tokens.get(doc.id);
     };
     const pcToken = await mkToken(pc, 900, 900);
@@ -215,33 +206,33 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     const enemyAttackAct = () => enemy.items.get(enemyWeapon.id)
       ?.system.activities.find(a => a.type === 'attack');
 
+    // Targeting is synchronous on this client; dnd5e reads game.user.targets when the activity is used.
+    const targetsOnly = token => (game.user.targets.size === 1) && ([...game.user.targets][0]?.id === token?.id);
     const attack = async (activity, token, _opts = {}) => {
       game.user.targets.forEach(t => { t.setTarget(false, { releaseOthers: true }); });
       token.setTarget(true, { releaseOthers: true });
-      await sleep(100);
+      await until(() => targetsOnly(token), { label: `the attack's one target ${token?.name}` });
       const use = await activity.use({ subsequentActions: false }, { configure: false }, {});
       const usageId = use?.message?.id ?? null;
       const rolls = await activity.rollAttack({ advantage: false, disadvantage: true },
         { configure: false }, usageId ? { data: { 'system.origin': usageId } } : {});
-      await sleep(200);
+      // dnd5e sets the roll's message on it before rollAttack resolves; each caller waits on what it reads.
       return { usageId, msg: rolls?.[0]?.parent ?? null, roll: rolls?.[0] ?? null };
     };
-    const until = async (fn, ms = 12000) => {
-      const t0 = Date.now();
-      while (Date.now() - t0 < ms) { const v = fn(); if (v) return v; await sleep(200); }
-      return fn();
-    };
-    const waitDamage = (originId, ms = 10000) => until(() => game.messages.contents.find(x =>
+    const damageOf = originId => game.messages.contents.find(x =>
       (x.type === 'damage')
-      && (x._source.system?.origin === originId)), ms);
-    // A card's rule text is filled into the rendered message by rule-text.js, never stored in its content.
+      && (x._source.system?.origin === originId));
+    const waitDamage = (originId, ms = 10000) => until(() => damageOf(originId),
+      { timeout: ms, label: `the damage roll of ${originId}` });
+    // A card's rule text is filled into the rendered message by rule-text.js, never stored in its content:
+    // a pointer is marked done as its fill starts and holds its text once the read resolves.
     const renderedText = async message => {
       const el = await until(() => {
         const node = document.querySelector(`.message[data-message-id="${message?.id}"]`);
-        return (node && !node.querySelector('[data-bf-rule]:not([data-bf-rule-done])')) ? node : null;
-      }, 6000);
-      await new Promise(r => setTimeout(r, 300));
-      return el?.textContent ?? '';
+        const pointers = node ? [...node.querySelectorAll('[data-bf-rule]')] : [];
+        return (node && pointers.every(p => p.hasAttribute('data-bf-rule-done') && p.innerHTML.trim())) ? node : null;
+      }, { timeout: 6300, label: 'the card rendered with its rule text filled' });
+      return el.textContent ?? '';
     };
     const dialogsWith = text => [...document.querySelectorAll('.application')]
       .filter(el => (el.innerHTML ?? '').includes(text));
@@ -255,16 +246,24 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     const rescueRow = (win, action = 'use') =>
       win?.querySelector(`[data-bf-rescue-action="${action}"]`) ?? null;
     const closeDialogs = async text => {
+      const closing = [];
       for (const el of dialogsWith(text)) {
-        try { (el.querySelector('[data-action="close"]') ?? el.querySelector('.header-control'))?.click(); } catch {}
+        try {
+          const control = el.querySelector('[data-action="close"]') ?? el.querySelector('.header-control');
+          if (control) { control.click(); closing.push(el); }
+        } catch {}
       }
-      await sleep(300);
+      // A cleanup: a window that stays open was never asserted, so the wait for it to leave the page is soft.
+      await until(() => closing.every(el => !el.isConnected),
+        { timeout: 3000, label: `the "${text}" windows closed` }).catch(() => null);
     };
     /** Attack until the fold stamps (a nat-20 hit stamps nothing and retries). */
     const missUntilStamped = async (activity, token, flagKey, tries = 8) => {
       for (let i = 0; i < tries; i++) {
         const { msg } = await attack(activity, token);
-        const flag = await until(() => msg?.getFlag(MOD, flagKey), 4000);
+        // Per try: a hit or a fumble stamps nothing, and the loop swings again.
+        const flag = await until(() => msg?.getFlag(MOD, flagKey),
+          { timeout: 4000, label: `the ${flagKey} stamp` }).catch(() => null);
         if (flag) return { msg, flag };
         log.push(`${flagKey}: attempt ${i + 1} did not stamp (hit or fumble) — retrying`);
         await closeDialogs('Weapon Mastery');
@@ -277,10 +276,12 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       for (let attempt = 1; attempt <= 2; attempt++) {
         game.user.targets.forEach(t => { t.setTarget(false, { releaseOthers: true }); });
         token.setTarget(true, { releaseOthers: true });
-        await sleep(250);
+        // Per try: the retry's log line below names the targets when they did not take.
+        await until(() => targetsOnly(token), { label: `the cast's one target ${token?.name}` }).catch(() => null);
         const use = await activity.use({ subsequentActions: false }, { configure: false }, {});
         const card = use?.message?.id ? game.messages.get(use.message.id) : null;
-        const stamped = await until(() => card?.getFlag(MOD, 'saves'), 5000);
+        const stamped = await until(() => card?.getFlag(MOD, 'saves'),
+          { timeout: 5000, label: 'the save demand stamped' }).catch(() => null);
         if (stamped) return card;
         log.push(`castAt: the demand did not stamp (attempt ${attempt}: card=${!!card}, userTargets=${game.user.targets.size}, `
           + `dnd5eTargets=${JSON.stringify((card?.system?.targets ?? []).map(t => ({ ...t, uuid: t.actor })).map(t => t.name))}, `
@@ -293,7 +294,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       'system.attributes.hp.value': victim.system.attributes.hp.max });
 
     /* ==== P1+P2 — the Precision stamp gates */
-    if (want('P')) {
+    if (want('P')) await section('P', async () => {
       await acFlat(victim, 25);   // miss band: disadvantage total 6..25, nat-20 retries
       await victim.update({ 'system.attributes.hp.value': victim.system.attributes.hp.max });
       {
@@ -302,7 +303,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           !!flag && (flag.status === 'pending') && (flag.itemName === 'Precision Attack')
             && (flag.targets?.length === 1),
           JSON.stringify({ status: flag?.status, targets: flag?.targets?.length }));
-        const popup = await until(() => rescueWindow('use'), 6000);
+        const popup = await until(() => rescueWindow('use'), { timeout: 6000, label: 'the precision rescue window' });
         ok('P2. the offer window carries a pressable row and ONE Pass',
           !!popup && !!rescueRow(popup, 'use')
             && (popup.querySelectorAll('button[data-action="pass"]').length === 1),
@@ -314,8 +315,9 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         const resolved = await until(() => {
           const p = msg.getFlag(MOD, 'precision');
           return (p?.status === 'resolved') ? p : null;
-        }, 6000);
-        const dmg = await waitDamage(msg._source.system?.origin, 2500);
+        }, { timeout: 6000, label: 'the precision offer resolved' });
+        // The window: a passed offer rolls no damage.
+        const dmg = await watch(() => damageOf(msg._source.system?.origin), { ms: 2500 });
         ok('P3. Pass — the miss stands, nothing rolls, the die is not spent',
           (resolved?.outcome === 'passed') && !dmg && (poolUses() === usesBefore),
           `outcome=${resolved?.outcome} dmg=${!!dmg} uses ${usesBefore}→${poolUses()}`);
@@ -325,11 +327,13 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       {
         await acFlat(victim, 1);
         const { msg } = await attack(pcAttackAct(), victimToken);
-        await sleep(1500);
+        // The window: a hit stamps no offer.
+        const stray = await watch(() => msg?.getFlag(MOD, 'precision'), { ms: 1500 });
         ok('P4. a hit stamps no precision offer',
-          !!msg && !msg.getFlag(MOD, 'precision'),
-          `flag=${!!msg?.getFlag(MOD, 'precision')}`);
-        await waitDamage(msg?._source.system?.origin, 8000); // let the chain finish
+          !!msg && !stray && !msg.getFlag(MOD, 'precision'),
+          `flag=${!!(stray ?? msg?.getFlag(MOD, 'precision'))}`);
+        // Let the chain finish; a fumble rolls no damage, so the wait is soft.
+        await waitDamage(msg?._source.system?.origin, 8000).catch(() => null);
         await acFlat(victim, 25);
       }
 
@@ -342,12 +346,12 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         if (!flag) {
           ok('P5. accept — the die spends, the verdict flips, damage lands', false, 'no stamp in 8 tries');
         } else {
-          const popup = await until(() => rescueWindow('use'), 6000);
+          const popup = await until(() => rescueWindow('use'), { timeout: 6000, label: 'the precision rescue window' });
           rescueRow(popup, 'use')?.click();
           const resolved = await until(() => {
             const p = msg.getFlag(MOD, 'precision');
             return ((p?.status === 'resolved') && (p.outcome === 'used')) ? p : null;
-          }, 15000);
+          }, { timeout: 15000, label: 'the precision offer resolved used' });
           ok('P5a. accept — the pool spends exactly one use and the die is recorded',
             !!resolved && (poolUses() === usesBefore - 1) && (resolved.die >= 21),
             `uses ${usesBefore}→${poolUses()} die=${resolved?.die}`);
@@ -363,7 +367,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           const applied = await until(() => {
             const r = dmg?.getFlag(MOD, 'receipt');
             return r?.targets?.some(t => t.uuid === victim.uuid) ? r : null;
-          }, 10000);
+          }, { timeout: 10000, label: 'the re-driven damage receipt on the victim' });
           ok('P5d. the re-driven damage lands and APPLIES to the flipped target',
             !!dmg && !!applied && (victim.system.attributes.hp.value < hpBefore),
             `dmg=${!!dmg} applied=${!!applied} hp ${hpBefore}→${victim.system.attributes.hp.value}`);
@@ -379,10 +383,11 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         await set('holdSkipFutile', true);
         await acFlat(victim, 60);
         const { msg } = await attack(pcAttackAct(), victimToken);
-        await sleep(1500);
+        // The window: a hopeless miss stamps no offer.
+        const stray = await watch(() => msg?.getFlag(MOD, 'precision'), { ms: 1500 });
         ok('P6. hopeless (margin beyond the maximised die) — no offer, the miss just stands',
-          !!msg && !msg.getFlag(MOD, 'precision'),
-          `flag=${!!msg?.getFlag(MOD, 'precision')}`);
+          !!msg && !stray && !msg.getFlag(MOD, 'precision'),
+          `flag=${!!(stray ?? msg?.getFlag(MOD, 'precision'))}`);
         await set('holdSkipFutile', false);
         await acFlat(victim, 25);
       }
@@ -398,8 +403,9 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           const resolved = await until(() => {
             const p = msg.getFlag(MOD, 'precision');
             return (p?.status === 'resolved') ? p : null;
-          }, 10000);
-          const dmg = await waitDamage(msg._source.system?.origin, 2000);
+          }, { timeout: 10000, label: 'the precision offer resolved by the buzzer' });
+          // The window: a buzzer's Pass rolls no damage.
+          const dmg = await watch(() => damageOf(msg._source.system?.origin), { ms: 2000 });
           ok('P7. left alone — the buzzer answers Pass, nothing rolls, nothing spends',
             (resolved?.outcome === 'passed (timer)') && !dmg && (poolUses() === usesBefore),
             `outcome=${resolved?.outcome} uses ${usesBefore}→${poolUses()}`);
@@ -407,10 +413,10 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         await set('holdTimer', 0);
         await closeDialogs('Precision');
       }
-    }
+    });
 
     /* ==== R1+R2 — the Riposte offer + the driven attack */
-    if (want('R')) {
+    if (want('R')) await section('R', async () => {
       await acFlat(pc, 40);   // the enemy always misses the PC
       await acFlat(enemy, 1);              // the riposte always hits back (a fumble retries below)
       {
@@ -421,7 +427,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
             && (flag.reactors[0].uuid === pc.uuid) && (flag.attackerUuid === enemy.uuid),
           JSON.stringify({ reactors: flag?.reactors?.map(r => r.name),
             attackerUuid: flag?.attackerUuid, want: enemy.uuid }));
-        const popup = await until(() => dialogsWith('Riposte with')[0], 6000);
+        const popup = await until(() => dialogsWith('Riposte with')[0], { timeout: 6000, label: 'the riposte popup' });
         // ONE equipped melee weapon skips the dropdown: the popup NAMES it.
         ok('R2a. the popup carries Riposte/Pass and NAMES the single weapon (no dropdown, ④)',
           !!popup && !!popup.querySelector('button[data-action="riposte"]')
@@ -431,7 +437,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
 
         popup?.querySelector('button[data-action="riposte"]')?.click();
         const driven = await until(() => game.messages.contents.find(m =>
-          (m.getFlag(MOD, 'riposteFor') === msg?.id) && (m.getFlag(MOD, 'riposteBy') === pc.uuid)), 15000);
+          (m.getFlag(MOD, 'riposteFor') === msg?.id) && (m.getFlag(MOD, 'riposteBy') === pc.uuid)),
+        { timeout: 15000, label: 'the driven riposte attack' });
         ok('R2b. accepting drives a REAL attack carrying its provenance, aimed at the attacker',
           !!driven && (driven.type === 'attack')
             && (driven.system?.targets ?? []).map(t => ({ ...t, uuid: t.actor })).some(t => t.uuid === enemy.uuid),
@@ -450,7 +457,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           ok('R2d. the superiority die is BAKED INTO the base damage roll — one group ((d))',
             !!dmg && (dmg.rolls?.length === 1) && (d8s === 2),
             `dmg=${!!dmg} rolls=${dmg?.rolls?.length} d8Groups=${d8s} formula=${dmg?.rolls?.[0]?.formula}`);
-          const receipt = await until(() => dmg?.getFlag(MOD, 'receipt'), 8000);
+          const receipt = await until(() => dmg?.getFlag(MOD, 'receipt'), { timeout: 8000, label: 'the driven damage receipt' });
           ok('R2e. the driven chain applies like any real attack (receipt on the enemy)',
             !!receipt?.targets?.some(t => t.uuid === enemy.uuid),
             `receipt=${!!receipt}`);
@@ -464,11 +471,10 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           `weaponName=${rFlag?.reactors?.[0]?.weaponName} want=${enemyWeapon.name}`);
 
         // The maneuver's own use must NOT chain dnd5e's follow-up damage dialog; it would open
-        // async, so this is a negative assert after a settle.
-        await sleep(1200);
-        const orphan = [...document.querySelectorAll('.application')].find(el =>
+        // async, so this is a negative assert over a window.
+        const orphan = await watch(() => [...document.querySelectorAll('.application')].find(el =>
           (el.querySelector('.window-title')?.textContent ?? '').includes('Damage Roll')
-          && (el.innerHTML ?? '').includes('Riposte'));
+          && (el.innerHTML ?? '').includes('Riposte')), { ms: 1200 });
         ok('R2h. (v) no native damage dialog orphans off the maneuver use',
           !orphan, `orphanDialog=${!!orphan}`);
       }
@@ -477,10 +483,11 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       {
         await spendReactionOf(pc);
         const { msg } = await attack(enemyAttackAct(), pcToken);
-        await sleep(1500);
+        // The window: a spent Reaction stamps no offer.
+        const stray = await watch(() => msg?.getFlag(MOD, 'riposte'), { ms: 1500 });
         ok('R3. a standing Reaction chip suppresses the offer entirely',
-          !!msg && !msg.getFlag(MOD, 'riposte'),
-          `offered=${!!msg?.getFlag(MOD, 'riposte')}`);
+          !!msg && !stray && !msg.getFlag(MOD, 'riposte'),
+          `offered=${!!(stray ?? msg?.getFlag(MOD, 'riposte'))}`);
         await clearReaction(pc);
       }
 
@@ -501,15 +508,16 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           const bowAct = bow.system.activities?.contents?.find(a => a.type === 'attack');
           game.user.targets.forEach(t => { t.setTarget(false, { releaseOthers: true }); });
           pcToken.setTarget(true, { releaseOthers: true });
-          await sleep(100);
+          await until(() => targetsOnly(pcToken), { label: 'the bow\'s one target' });
           const use = await bowAct.use({ subsequentActions: false }, { configure: false }, {});
           const rolls = await bowAct.rollAttack({ advantage: false, disadvantage: true },
             { configure: false }, { data: { 'system.origin': use?.message?.id } });
-          await sleep(1800);
           const msg = rolls?.[0]?.parent;
+          // The window: a ranged miss stamps no offer.
+          const stray = await watch(() => msg?.getFlag(MOD, 'riposte'), { ms: 1800 });
           ok('R4. a ranged miss offers nothing — the fold is melee-gated',
-            !!msg && !msg.getFlag(MOD, 'riposte'),
-            `flag=${!!msg?.getFlag(MOD, 'riposte')}`);
+            !!msg && !stray && !msg.getFlag(MOD, 'riposte'),
+            `flag=${!!(stray ?? msg?.getFlag(MOD, 'riposte'))}`);
         } else {
           skips.push('R4 — no Shortbow in any pack; ranged gate not exercised');
         }
@@ -522,14 +530,14 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         if (!flag) {
           ok('R5. decline — nothing drives', false, 'no stamp in 8 tries');
         } else {
-          const popup = await until(() => dialogsWith('Riposte with')[0], 6000);
+          const popup = await until(() => dialogsWith('Riposte with')[0], { timeout: 6000, label: 'the riposte popup' });
           popup?.querySelector('button[data-action="pass"]')?.click();
           const resolved = await until(() => {
             const r = msg.getFlag(MOD, 'riposte');
             return (r?.status === 'resolved') ? r : null;
-          }, 6000);
-          await sleep(800);
-          const driven = game.messages.contents.find(m => m.getFlag(MOD, 'riposteFor') === msg.id);
+          }, { timeout: 6000, label: 'the riposte offer resolved' });
+          // The window: a declined riposte drives no attack.
+          const driven = await watch(() => game.messages.contents.find(m => m.getFlag(MOD, 'riposteFor') === msg.id), { ms: 800 });
           ok('R5. decline — no driven attack, the die stays in the pool',
             (resolved?.reactors?.[0]?.answer === 'declined') && !driven && (poolUses() === usesBefore),
             `answer=${resolved?.reactors?.[0]?.answer} driven=${!!driven}`);
@@ -562,14 +570,16 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         if (!flag) {
           ok('R6. a driven attack never re-offers', false, 'no stamp in 8 tries');
         } else {
-          const popup = await until(() => dialogsWith('Riposte with')[0], 6000);
+          const popup = await until(() => dialogsWith('Riposte with')[0], { timeout: 6000, label: 'the riposte popup' });
           popup?.querySelector('button[data-action="riposte"]')?.click();
           const driven = await until(() => game.messages.contents.find(m =>
-            (m.getFlag(MOD, 'riposteFor') === msg.id) && (m.getFlag(MOD, 'riposteBy') === pc.uuid)), 15000);
-          await sleep(2000);   // the stamp hook would need a beat to fire, if it wrongly did
+            (m.getFlag(MOD, 'riposteFor') === msg.id) && (m.getFlag(MOD, 'riposteBy') === pc.uuid)),
+          { timeout: 15000, label: 'the driven riposte attack' });
+          // The window: the stamp hook would need a beat to fire, if it wrongly did.
+          const chained = await watch(() => driven.getFlag(MOD, 'riposte'), { ms: 2000 });
           ok('R6. the driven attack misses an ELIGIBLE reactor and still never chains an offer',
-            !!driven && !driven.getFlag(MOD, 'riposte'),
-            `driven=${!!driven} chained=${!!driven?.getFlag(MOD, 'riposte')}`);
+            !!driven && !chained && !driven.getFlag(MOD, 'riposte'),
+            `driven=${!!driven} chained=${!!(chained ?? driven?.getFlag(MOD, 'riposte'))}`);
           // The announced miss: the card posts before any Graze/Precision offer can arrive.
           // ⚠ A natural 20 hits through AC 40 and correctly posts no miss card: skipped, not failed.
           const drivenCrit = driven?.rolls?.[0]?.isCritical === true;
@@ -578,7 +588,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
               + 'the miss announcement cannot post, so (p) is not exercised this run');
           } else {
             const missCard = await until(() => game.messages.contents.find(m => (m.timestamp >= suiteStart)
-              && /the strike back misses/.test(m.content ?? '')), 6000);
+              && /the strike back misses/.test(m.content ?? '')), { timeout: 6000, label: 'the "strike back misses" card' });
             ok('R6b. (p) the driven MISS announces itself — "the strike back misses" posts',
               !!missCard, `card=${!!missCard}`);
           }
@@ -586,10 +596,10 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         await closeDialogs('Precision');   // the PC's own precision may have offered on that miss
         await closeDialogs('Riposte');
       }
-    }
+    });
 
     /* ==== P8 — player-owned, owner OFFLINE: player-first, GM fallback (the GM gets the popup) */
-    if (want('P8')) {
+    if (want('P8')) await section('P8', async () => {
       {
         const playerUser = game.users.find(u => !u.isGM);
         if (!playerUser) {
@@ -604,19 +614,19 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           if (!flag) {
             ok('P8b. player-owned attacker, owner offline — the GM STILL gets the popup (①)', false, 'no stamp in 8 tries');
           } else {
-            const popup = await until(() => rescueWindow('use'), 6000);
+            const popup = await until(() => rescueWindow('use'), { timeout: 6000, label: 'the precision rescue window on the GM' });
             ok('P8b. player-owned attacker, owner offline — the GM STILL gets the popup (①)',
               !!popup, `popup=${!!popup}`);
             popup?.querySelector('button[data-action="pass"]')?.click();
-            await until(() => msg.getFlag(MOD, 'precision')?.status === 'resolved', 6000);
+            await until(() => msg.getFlag(MOD, 'precision')?.status === 'resolved', { timeout: 6000, label: 'the precision offer resolved' });
           }
           await pc.update({ ownership: { [playerUser.id]: CONST.DOCUMENT_OWNERSHIP_LEVELS.NONE } });
         }
       }
-    }
+    });
 
     /* ==== M1 — two weapons, smart default */
-    if (want('M1')) {
+    if (want('M1')) await section('M1', async () => {
       {
         const [offhand] = await pc.createEmbeddedDocuments('Item', [
           foundry.utils.mergeObject(enemyWeapon.toObject(), {
@@ -625,7 +635,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         const offAct = pc.items.get(offhand.id)?.system.activities.find(a => a.type === 'attack');
         await acFlat(victim, 1);
         const { msg: offMsg } = await attack(offAct, victimToken);
-        await waitDamage(offMsg?._source.system?.origin, 8000);
+        // The offhand's chain finishes first; a fumble rolls no damage, so the wait is soft.
+        await waitDamage(offMsg?._source.system?.origin, 8000).catch(() => null);
         await acFlat(victim, 25);
         await closeDialogs('Weapon Mastery');
 
@@ -633,21 +644,21 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         if (!flag) {
           ok('M1. two weapons — the dropdown returns, preselected to the LAST-ATTACKED (④)', false, 'no stamp in 8 tries');
         } else {
-          const popup = await until(() => dialogsWith('Riposte with')[0], 6000);
+          const popup = await until(() => dialogsWith('Riposte with')[0], { timeout: 6000, label: 'the riposte popup' });
           const select = popup?.querySelector('select[name="bf-riposte-weapon"]');
           ok('M1. two weapons — the dropdown returns, preselected to the LAST-ATTACKED (④)',
             !!select && (select.value === offhand.id),
             `select=${!!select} value=${select?.value} want=${offhand.id}`);
           popup?.querySelector('button[data-action="pass"]')?.click();
-          await until(() => msg.getFlag(MOD, 'riposte')?.status === 'resolved', 6000);
+          await until(() => msg.getFlag(MOD, 'riposte')?.status === 'resolved', { timeout: 6000, label: 'the riposte offer resolved' });
         }
         await pc.deleteEmbeddedDocuments('Item', [offhand.id]).catch(() => {});
         await closeDialogs('Riposte');
       }
-    }
+    });
 
     /* ==== RP — the riposte HIT celebrates */
-    if (want('RP')) {
+    if (want('RP')) await section('RP', async () => {
       {
         await pc.items.get(pool.id)?.update({ 'system.uses.spent': 0 });   // top the pool back up
         await set('playerRollDamage', true);
@@ -656,17 +667,20 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         if (!flag) {
           ok('RP1. (l)/(p) the damage offer celebrates the riposte BY NAME, die note aboard', false, 'no stamp in 8 tries');
         } else {
-          const popup = await until(() => dialogsWith('Riposte with')[0], 6000);
+          const popup = await until(() => dialogsWith('Riposte with')[0], { timeout: 6000, label: 'the riposte popup' });
           popup?.querySelector('button[data-action="riposte"]')?.click();
+          // Soft: no driven attack is the skip below.
           const driven = await until(() => game.messages.contents.find(m =>
-            (m.getFlag(MOD, 'riposteFor') === msg.id) && (m.getFlag(MOD, 'riposteBy') === pc.uuid)), 15000);
+            (m.getFlag(MOD, 'riposteFor') === msg.id) && (m.getFlag(MOD, 'riposteBy') === pc.uuid)),
+          { timeout: 15000, label: 'the driven riposte attack' }).catch(() => null);
           if (!driven || driven.rolls?.[0]?.isFumble) {
             skips.push('RP — the driven attack fumbled (nat 1 vs flat AC 1); the celebration popup not exercised this run');
             await closeDialogs('Precision');
           } else {
             // The offer popup on the driving client names the riposte, with the die-riding note.
             const offer = await until(() => [...document.querySelectorAll('.application')]
-              .find(el => el.querySelector('button[data-action="roll"]') && /riposte/i.test(el.innerHTML ?? '')), 8000);
+              .find(el => el.querySelector('button[data-action="roll"]') && /riposte/i.test(el.innerHTML ?? '')),
+            { timeout: 8000, label: 'the riposte damage offer popup' });
             const title = offer?.querySelector('.window-title')?.textContent ?? '';
             ok('RP1. (l)/(p) the damage offer celebrates the riposte BY NAME, die note aboard',
               !!offer && /riposte/i.test(title) && /roll damage/i.test(title)
@@ -682,10 +696,10 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         await closeDialogs('Riposte');
         await closeDialogs('Weapon Mastery');
       }
-    }
+    });
 
     /* ==== B — the bash choice (Prone or push) */
-    if (want('B')) {
+    if (want('B')) await section('B', async () => {
       await set('saves', true);
       // A listed feat whose save presses an effect on failure (DC 30: always fails; the effect
       // wired by its real id after creation).
@@ -713,23 +727,27 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       {
         await reviveVictim();
         const card = await castAt(bashAct(), victimToken);
+        // Soft: on absence B1a's detail prints the demand's target instead.
         const choice = await until(() => {
           const t = card?.getFlag(MOD, 'saves')?.targets?.[0];
           return (t?.choice && !t.choice.answer) ? t.choice : null;
-        }, 20000);
+        }, { timeout: 20000, label: 'the bash choice opened' }).catch(() => null);
         ok('B1a. a failed listed save opens the bash choice instead of hard-pressing (⑤)',
           choice?.kind === 'bash',
           `choice=${choice ? choice.kind : JSON.stringify(card?.getFlag(MOD, 'saves')?.targets?.[0] ?? null)}`);
         // The usage card carries the verdict; no separate verdict card posts.
         const verdictCards = game.messages.contents.filter(m => m.getFlag(MOD, 'verdictLine')?.sourceMessageId === card?.id);
         const cardTextB1 = () => (ui.chat.element?.querySelector(`.message[data-message-id="${card?.id}"]`)?.textContent ?? '').replace(/\s+/g, ' ');
-        const onCardB1 = await until(() => /vs DC \d+ — failed/.test(cardTextB1()) ? cardTextB1() : null, 6000);
+        // Soft: on absence B1b's detail prints the card's text as it stands.
+        const onCardB1 = await until(() => /vs DC \d+ — failed/.test(cardTextB1()) ? cardTextB1() : null,
+          { timeout: 6000, label: 'the verdict on the usage card' }).catch(() => null);
         ok('B1b. the verdict is on the usage card — "vs DC … — failed" — and no public verdict card posts (the line retired 2026-09-18)',
           !!onCardB1 && (verdictCards.length === 0),
           `cards=${verdictCards.length} text="${(onCardB1 ?? cardTextB1()).slice(0, 160)}"`);
-        const popup = await until(() => dialogsWith('Knock Prone')[0], 6000);
+        const popup = await until(() => dialogsWith('Knock Prone')[0], { timeout: 6000, label: 'the bash choice popup' });
         // The rule line fills from the book a moment after the popup draws.
-        await until(() => (popup?.textContent ?? '').includes('cause it to have the Prone condition'), 4000);
+        await until(() => (popup?.textContent ?? '').includes('cause it to have the Prone condition'),
+          { timeout: 4000, label: 'the bash popup\'s rule line' });
         ok('B1c. the choice popup carries Knock Prone / Push 5 feet, quotes the feat verbatim ((z)) and tooltips its icon ((aa))',
           !!popup && !!popup.querySelector('button[data-action="prone"]')
             && !!popup.querySelector('button[data-action="push"]')
@@ -737,7 +755,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
             && !!popup.querySelector('img[data-tooltip]'),
           `popup=${!!popup} verbatim=${(popup?.textContent ?? '').includes('cause it to have the Prone condition')} tooltip=${!!popup?.querySelector('img[data-tooltip]')}`);
         popup?.querySelector('button[data-action="push"]')?.click();
-        const applied = await until(() => card?.getFlag(MOD, 'saves')?.targets?.[0]?.applied, 15000);
+        const applied = await until(() => card?.getFlag(MOD, 'saves')?.targets?.[0]?.applied,
+          { timeout: 15000, label: 'the push answer applied' });
         const pressed = victim.effects.some(e => e.name === 'BTB Test Prone');
         const pushMsg = game.messages.contents.find(m => (m.timestamp >= suiteStart)
           && /pushes .* 5 feet/.test(m.content ?? ''));
@@ -752,10 +771,12 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         await reviveVictim();
         await victim.effects.find(e => e.statuses.has('prone'))?.delete().catch(() => {});
         const card = await castAt(bashAct(), victimToken);
-        const popup = await until(() => dialogsWith('Knock Prone')[0], 20000);
+        const popup = await until(() => dialogsWith('Knock Prone')[0], { timeout: 20000, label: 'the bash choice popup' });
         popup?.querySelector('button[data-action="prone"]')?.click();
-        const applied = await until(() => card?.getFlag(MOD, 'saves')?.targets?.[0]?.applied, 15000);
-        const chip = await until(() => victim.effects.find(e => e.statuses.has('prone')), 6000);
+        const applied = await until(() => card?.getFlag(MOD, 'saves')?.targets?.[0]?.applied,
+          { timeout: 15000, label: 'the prone answer applied' });
+        const chip = await until(() => victim.effects.find(e => e.statuses.has('prone')),
+          { timeout: 6000, label: 'the Prone chip on the victim' });
         ok('B2. (x) prone — the STANDARD Prone chip lands: canonical id, attacker origin, no custom effect',
           !!applied && (chip?.id === 'dnd5eprone000000') && (chip?.origin === pc.uuid)
             && !victim.effects.some(e => e.name === 'BTB Test Prone'),
@@ -775,10 +796,10 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         const choiceStamped = await until(() => {
           const x = card?.getFlag(MOD, 'saves')?.targets?.[0];
           return (x?.choice && !x.choice.answer) ? x.choice : null;
-        }, 20000);
-        const choicePopup = await until(() => dialogsWith('Knock Prone')[0], 4000);
+        }, { timeout: 20000, label: 'the bash choice opened' });
+        const choicePopup = await until(() => dialogsWith('Knock Prone')[0], { timeout: 4000, label: 'the bash choice popup' });
         const cardBar = await until(() => document.querySelector(
-          `.message[data-message-id="${card?.id}"] [data-bf-deadline]`), 3000);
+          `.message[data-message-id="${card?.id}"] [data-bf-deadline]`), { timeout: 3000, label: 'the choice bar on the card row' });
         const popupBar = choicePopup?.querySelector('[data-bf-deadline]') ?? null;
         ok('B3a. (n) the pending choice bar RENDERS — card row and popup both carry data-bf-deadline',
           !!choiceStamped?.deadline && !!cardBar && !!popupBar,
@@ -786,7 +807,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         const t = await until(() => {
           const x = card?.getFlag(MOD, 'saves')?.targets?.[0];
           return (x?.choice?.answer && x.applied) ? x : null;
-        }, 25000);
+        }, { timeout: 25000, label: 'the buzzer\'s bash answer applied' });
         const chip = victim.effects.find(e => e.statuses.has('prone'));
         ok('B3. left alone — the buzzer defaults the bash to Prone (the (x) standard chip, stated on the card)',
           (t?.choice?.answer === 'prone') && !!t?.choice?.timedOut && (chip?.id === 'dnd5eprone000000'),
@@ -811,16 +832,19 @@ const out = await f.evaluate(async ({ sections, titles }) => {
             const { msg, roll } = await attack(pcAttackAct(), victimToken);
             if (roll && !roll.isFumble) far = msg;
           }
-          await sleep(2500);
+          // The window: a hit from beyond the reach stamps no offer.
+          const stray = await watch(() => far?.getFlag(MOD, 'bashOffer'), { ms: 2500 });
           const feet = canvas.grid.measurePath([pcToken.center, victimToken.center]).distance;
           ok('B4e. a HIT from beyond 5 feet stamps no bash offer — the feat\'s own reach (a play report, 2026-09-22)',
-            !!far && (feet > 5) && !far.getFlag(MOD, 'bashOffer'),
-            `hit=${!!far} feet=${feet} offer=${JSON.stringify(far?.getFlag(MOD, 'bashOffer') ?? null)}`);
+            !!far && (feet > 5) && !stray && !far.getFlag(MOD, 'bashOffer'),
+            `hit=${!!far} feet=${feet} offer=${JSON.stringify(stray ?? far?.getFlag(MOD, 'bashOffer') ?? null)}`);
         }
         const pcHome = { x: pcToken.document.x, y: pcToken.document.y };
-        await pcToken.document.update({ x: victimToken.document.x, y: victimToken.document.y + canvas.grid.size },
-          { animate: false });
-        await sleep(500);
+        const beside = { x: victimToken.document.x, y: victimToken.document.y + canvas.grid.size };
+        await pcToken.document.update(beside, { animate: false });
+        // The reach is measured off the token documents (geometry.js nearestFeet).
+        await until(() => (pcToken.document.x === beside.x) && (pcToken.document.y === beside.y),
+          { label: 'the PC token beside the victim' });
         let offer = null, atkMsg = null, queuedFirst = null, dmgAtPromotion = null;
         // ⚠ The statuses are read off the WRITES, not polled: on Foundry 14.369 / dnd5e 6.0.6 the
         // damage lands ~25 ms after the attack and the promotion ~40 ms after that, so a 200 ms poll
@@ -836,14 +860,17 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           const { msg } = await attack(pcAttackAct(), victimToken);
           atkMsg = msg;
           // The hit stamps the offer QUEUED; it goes pending (clock starts) once the damage lands.
-          const stamped = await until(() => msg?.getFlag(MOD, 'bashOffer'), 4000);
+          // Per try (soft): a miss or a fumble stamps nothing, and the loop swings again.
+          const stamped = await until(() => msg?.getFlag(MOD, 'bashOffer'),
+            { timeout: 4000, label: 'the bash offer stamped' }).catch(() => null);
           if (stamped) {
             queuedFirst = statusLedger.get(msg.id)?.[0] ?? stamped.status;
             offer = await until(() => {
               const b = msg?.getFlag(MOD, 'bashOffer');
               return (b?.status === 'pending') ? b : null;
-            }, 12000);
-            const dmg = offer ? await waitDamage(msg?._source.system?.origin, 500) : null;
+            }, { timeout: 12000, label: 'the bash offer pending' }).catch(() => null);
+            // Soft: a missing damage roll leaves dmgAtPromotion null, which B4a2 reports.
+            const dmg = offer ? await waitDamage(msg?._source.system?.origin, 500).catch(() => null) : null;
             dmgAtPromotion = dmg ? dmg.timestamp : null;
           }
           if (!offer) log.push(`B4: attempt ${i + 1} produced no offer (miss/fumble) — retrying`);
@@ -858,21 +885,23 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           (queuedFirst === 'queued') && Number.isFinite(dmgAtPromotion) && Number.isFinite(offer?.promotedAt)
             && (offer.promotedAt >= dmgAtPromotion) && (offer.promotedAt > (atkMsg?.timestamp ?? 0)),
           `first=${queuedFirst} written=${statusesWritten} damageAt=${dmgAtPromotion} promotedAt=${offer?.promotedAt} attackAt=${atkMsg?.timestamp}`);
-        const popup = await until(() => dialogsWith('— bash')[0], 6000);
+        const popup = await until(() => dialogsWith('— bash')[0], { timeout: 6000, label: 'the bash offer popup' });
         ok('B4b. the offer popup carries Use/Pass',
           !!popup && !!popup.querySelector('button[data-action="use"]')
             && !!popup.querySelector('button[data-action="pass"]'),
           `popup=${!!popup}`);
         popup?.querySelector('button[data-action="use"]')?.click();
         const usage = await until(() => game.messages.contents.find(m =>
-          m.getFlag(MOD, 'bashFor') === atkMsg?.id), 12000);
+          m.getFlag(MOD, 'bashFor') === atkMsg?.id), { timeout: 12000, label: 'the driven bash usage card' });
         ok('B4c. accepting drives the feat\'s OWN save activity, provenance-stamped',
-          !!usage && !!(await until(() => usage?.getFlag(MOD, 'saves'), 8000)),
+          !!usage && !!(await until(() => usage?.getFlag(MOD, 'saves'), { timeout: 8000, label: 'the driven save demand' })),
           `usage=${!!usage} demand=${!!usage?.getFlag(MOD, 'saves')}`);
-        const choicePopup = await until(() => dialogsWith('Knock Prone')[0], 25000);
+        const choicePopup = await until(() => dialogsWith('Knock Prone')[0], { timeout: 25000, label: 'the bash choice popup' });
         choicePopup?.querySelector('button[data-action="prone"]')?.click();
-        const applied = await until(() => usage?.getFlag(MOD, 'saves')?.targets?.[0]?.applied, 15000);
-        const chip = await until(() => victim.effects.find(e => e.statuses.has('prone')), 6000);
+        const applied = await until(() => usage?.getFlag(MOD, 'saves')?.targets?.[0]?.applied,
+          { timeout: 15000, label: 'the prone answer applied' });
+        const chip = await until(() => victim.effects.find(e => e.statuses.has('prone')),
+          { timeout: 6000, label: 'the Prone chip on the victim' });
         ok('B4d. the driven demand fails and the chosen press lands the (x) standard chip — end to end',
           !!applied && (chip?.id === 'dnd5eprone000000'), `applied=${!!applied} chip=${chip?.id ?? null}`);
         await chip?.delete().catch(() => {});
@@ -882,10 +911,10 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       }
       // Off the sheet: every table row is live, so a weapon hit beside the victim in §T would bash.
       await pc.deleteEmbeddedDocuments('Item', [bashFeat.id]).catch(() => {});
-    }
+    });
 
     /* ==== T — Tavern Brawler's push (the `shove` kind) */
-    if (want('T')) {
+    if (want('T')) await section('T', async () => {
       // The PHB's own Tavern Brawler: its Enhanced Unarmed Strike is an attack activity classified unarmed.
       let brawlerSrc = null;
       for (const pack of game.packs.filter(p => (p.metadata.packageName === 'dnd-players-handbook') && (p.documentName === 'Item'))) {
@@ -901,8 +930,11 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         await victim.update({ 'system.attributes.hp.max': 1000, 'system.attributes.hp.value': 1000 });
         await acFlat(victim, 1);
         const pcHome = { x: pcToken.document.x, y: pcToken.document.y };
-        await pcToken.document.update({ x: victimToken.document.x, y: victimToken.document.y + canvas.grid.size }, { animate: false });
-        await sleep(500);
+        const beside = { x: victimToken.document.x, y: victimToken.document.y + canvas.grid.size };
+        await pcToken.document.update(beside, { animate: false });
+        // The reach is measured off the token documents (geometry.js nearestFeet).
+        await until(() => (pcToken.document.x === beside.x) && (pcToken.document.y === beside.y),
+          { label: 'the PC token beside the victim' });
         const hitUntil = async act => {
           for (let i = 0; i < 6; i++) {
             const { msg, roll } = await attack(act, victimToken);
@@ -914,18 +946,20 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         /* T1 — an Unarmed Strike hit: queued, promoted after the damage, Push 5 feet / Pass. */
         {
           const msg = await hitUntil(unarmedAct());
-          const stamped = await until(() => msg?.getFlag(MOD, 'bashOffer'), 4000);
-          const offer = await until(() => { const b = msg?.getFlag(MOD, 'bashOffer'); return (b?.status === 'pending') ? b : null; }, 12000);
+          const stamped = await until(() => msg?.getFlag(MOD, 'bashOffer'), { timeout: 4000, label: 'the shove offer stamped' });
+          const offer = await until(() => { const b = msg?.getFlag(MOD, 'bashOffer'); return (b?.status === 'pending') ? b : null; },
+            { timeout: 12000, label: 'the shove offer pending' });
           ok('T1a. an Unarmed Strike hit by a Tavern Brawler stamps the shove offer (kind shove), pending after the damage',
             (stamped?.kind === 'shove') && (offer?.status === 'pending') && ((offer?.targets ?? []).length === 1),
             `stamped=${JSON.stringify(stamped ? { kind: stamped.kind, status: stamped.status } : null)} offer=${offer?.status}`);
-          const popup = await until(() => dialogsWith('5 feet?')[0], 6000);
+          const popup = await until(() => dialogsWith('5 feet?')[0], { timeout: 6000, label: 'the shove popup' });
           const use = popup?.querySelector('button[data-action="use"]');
           ok('T1b. the popup asks "push … 5 feet?" with Push 5 feet / Pass',
             !!use && /Push 5 feet/.test(use.textContent ?? '') && !!popup?.querySelector('button[data-action="pass"]'),
             `popup=${!!popup} use="${use?.textContent ?? ''}"`);
           use?.click();
-          const card = await until(() => game.messages.contents.find(m => m.getFlag(MOD, 'bashFor') === msg?.id), 8000);
+          const card = await until(() => game.messages.contents.find(m => m.getFlag(MOD, 'bashFor') === msg?.id),
+            { timeout: 8000, label: 'the push announcement card' });
           const text = (card?.content ?? '').replace(/<[^>]+>/g, ' ');
           ok('T1c. Push announces it — "pushes Victim 5 feet", moved by hand — and drives no save activity',
             !!card && /pushes .* 5 feet/.test(text) && /by hand/.test(text) && !card.getFlag(MOD, 'saves'),
@@ -937,9 +971,10 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         /* T2 — a weapon hit carries no shove. */
         {
           const msg = await hitUntil(pcAttackAct());
-          await sleep(2500);
-          ok('T2a. a weapon hit stamps no shove offer — the Unarmed Strike alone', !!msg && !msg.getFlag(MOD, 'bashOffer'),
-            `hit=${!!msg} offer=${JSON.stringify(msg?.getFlag(MOD, 'bashOffer') ?? null)}`);
+          // The window: a weapon hit stamps no shove offer.
+          const stray = await watch(() => msg?.getFlag(MOD, 'bashOffer'), { ms: 2500 });
+          ok('T2a. a weapon hit stamps no shove offer — the Unarmed Strike alone', !!msg && !stray && !msg.getFlag(MOD, 'bashOffer'),
+            `hit=${!!msg} offer=${JSON.stringify(stray ?? msg?.getFlag(MOD, 'bashOffer') ?? null)}`);
         }
 
         /* T4 — the plain Unarmed Strike (the PHB's own weapon) rolls the feat's die, and says so. */
@@ -964,7 +999,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
             ok('T4a. the plain Unarmed Strike rolls the feat 1d4 (1s rerolled) + Str, not the flat 1 + Str; the flag names the swap',
               /1d4r1/.test(formula) && (flag?.feature === 'Tavern Brawler') && /1d4r1/.test(flag?.formula ?? '') && !/d/.test(flag?.was ?? 'd'),
               `formula="${formula}" flag=${JSON.stringify(flag ?? null)}`);
-            const line = await until(() => document.querySelector(`[data-message-id="${dmg?.id}"] .bf-unarmed-dice-line`), 4000);
+            const line = await until(() => document.querySelector(`[data-message-id="${dmg?.id}"] .bf-unarmed-dice-line`),
+              { timeout: 4000, label: 'the unarmed-dice line on the damage card' });
             ok('T4b. the damage card says so: "Tavern Brawler — 1d4r1 + N in place of 1 + N"',
               /Tavern Brawler — 1d4r1 .* in place of 1 \+/.test(line?.textContent ?? ''), `line="${line?.textContent ?? ''}"`);
             await pc.deleteEmbeddedDocuments('Item', [us.id]);
@@ -975,10 +1011,10 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         await closeDialogs('Tavern Brawler');
         await closeDialogs('Weapon Mastery');
       }
-    }
+    });
 
     /* ==== C — Crusher's push */
-    if (want('C')) {
+    if (want('C')) await section('C', async () => {
       const phb = async (name, type) => {
         for (const pack of game.packs.filter(p => (p.metadata.packageName === 'dnd-players-handbook') && (p.documentName === 'Item'))) {
           const hit = (await pack.getIndex({ fields: ['type'] })).find(e => (e.name === name) && (e.type === type));
@@ -1016,29 +1052,34 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         try {
           {
             const msg = await hitUntil(actOf(mace)());
-            const offer = await until(() => { const b = msg?.getFlag(MOD, 'bashOffer'); return (b?.status === 'pending') ? b : null; }, 12000);
+            const offer = await until(() => { const b = msg?.getFlag(MOD, 'bashOffer'); return (b?.status === 'pending') ? b : null; },
+              { timeout: 12000, label: 'the Crusher push offer pending' });
             ok('C1a. a Mace hit (Bludgeoning) by a Crusher stamps the shove offer, its row named Crusher',
               (offer?.kind === 'shove') && (offer?.shoveRow === 'Crusher'), `offer=${JSON.stringify(offer ? { kind: offer.kind, row: offer.shoveRow, status: offer.status } : null)}`);
-            const popup = await until(() => dialogsWith('5 feet?')[0], 6000);
+            const popup = await until(() => dialogsWith('5 feet?')[0], { timeout: 6000, label: 'the Crusher push popup' });
             const text = (popup?.textContent ?? '').replace(/\s+/g, ' ');
             ok('C1b. the popup quotes Crusher\'s own rule ("…deals Bludgeoning damage…one size larger…")',
               /deals Bludgeoning damage/.test(text) && /one size larger/.test(text), text.slice(0, 200));
             popup?.querySelector('button[data-action="use"]')?.click();
-            const card = await until(() => game.messages.contents.find(m => m.getFlag(MOD, 'bashFor') === msg?.id), 8000);
+            const card = await until(() => game.messages.contents.find(m => m.getFlag(MOD, 'bashFor') === msg?.id),
+              { timeout: 8000, label: 'the push announcement card' });
             ok('C1c. Push 5 feet announces it', !!card && /pushes .* 5 feet/.test((card?.content ?? '').replace(/<[^>]+>/g, ' ')), `card=${!!card}`);
             await closeDialogs('Crusher');
           }
           {
             const msg = await hitUntil(actOf(dagger)());
-            await sleep(2500);
-            ok('C2. a Dagger hit (Piercing) stamps no push', !!msg && !msg.getFlag(MOD, 'bashOffer'), `offer=${JSON.stringify(msg?.getFlag(MOD, 'bashOffer') ?? null)}`);
+            // The window: a Piercing hit stamps no push.
+            const stray = await watch(() => msg?.getFlag(MOD, 'bashOffer'), { ms: 2500 });
+            ok('C2. a Dagger hit (Piercing) stamps no push', !!msg && !stray && !msg.getFlag(MOD, 'bashOffer'),
+              `offer=${JSON.stringify(stray ?? msg?.getFlag(MOD, 'bashOffer') ?? null)}`);
           }
           {
             await victim.update({ 'system.traits.size': 'huge' });
             const msg = await hitUntil(actOf(mace)());
-            await sleep(2500);
-            ok('C3. a Huge target (two sizes larger than a Medium pusher): no push', !!msg && !msg.getFlag(MOD, 'bashOffer'),
-              `size=${victim.system.traits.size} pc=${pc.system.traits.size} offer=${JSON.stringify(msg?.getFlag(MOD, 'bashOffer') ?? null)}`);
+            // The window: a target two sizes larger stamps no push.
+            const stray = await watch(() => msg?.getFlag(MOD, 'bashOffer'), { ms: 2500 });
+            ok('C3. a Huge target (two sizes larger than a Medium pusher): no push', !!msg && !stray && !msg.getFlag(MOD, 'bashOffer'),
+              `size=${victim.system.traits.size} pc=${pc.system.traits.size} offer=${JSON.stringify(stray ?? msg?.getFlag(MOD, 'bashOffer') ?? null)}`);
           }
         } finally {
           await victim.update({ 'system.traits.size': sizeBefore }).catch(() => {});
@@ -1048,10 +1089,10 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           await closeDialogs('Weapon Mastery');
         }
       }
-    }
+    });
 
     /* ==== I — Interpose (save-success reaction) */
-    if (want('I')) {
+    if (want('I')) await section('I', async () => {
       // A shield + the listed feat on the VICTIM; a DEX half-damage demand it always saves.
       priorActor[victim.id]['system.abilities.dex.value'] = victim.system._source.abilities.dex.value;
       await victim.update({ 'system.abilities.dex.value': 16 });
@@ -1093,12 +1134,13 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         const opened = await until(() => {
           const t = card?.getFlag(MOD, 'saves')?.targets?.[0];
           return (t?.done && (t.outcome === 'saved') && t.choice && !t.choice.answer) ? t : null;
-        }, 20000);
+        }, { timeout: 20000, label: 'the interpose choice opened on the saved verdict' });
         ok('I1b. (y) the SAVED verdict opens the interpose choice — post-verdict, success-only',
           opened?.choice?.kind === 'interpose',
           `outcome=${opened?.outcome} kind=${opened?.choice?.kind ?? null}`);
-        const popup = await until(() => dialogsWith('take no damage')[0], 6000);
-        await until(() => (popup?.textContent ?? '').includes('holding a Shield'), 4000);
+        const popup = await until(() => dialogsWith('take no damage')[0], { timeout: 6000, label: 'the interpose popup' });
+        await until(() => (popup?.textContent ?? '').includes('holding a Shield'),
+          { timeout: 4000, label: 'the interpose popup\'s rule line' });
         ok('I1c. (z)+(aa) the popup quotes the feat verbatim, tooltips its icon, offers Use / Take half',
           !!popup && (popup.textContent ?? '').includes('holding a Shield')
             && !!popup.querySelector('img[data-tooltip]')
@@ -1107,7 +1149,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           `popup=${!!popup} verbatim=${(popup?.textContent ?? '').includes('holding a Shield')} `
             + `tooltip=${!!popup?.querySelector('img[data-tooltip]')}`);
         popup?.querySelector('button[data-action="use"]')?.click();
-        const applied = await until(() => card?.getFlag(MOD, 'saves')?.targets?.[0]?.applied, 20000);
+        const applied = await until(() => card?.getFlag(MOD, 'saves')?.targets?.[0]?.applied,
+          { timeout: 20000, label: 'the interposed save applied' });
         const validation = game.messages.contents.find(m => (m.timestamp >= suiteStart)
           && /takes no damage/.test(m.content ?? ''));
         ok('I1d. use — the half becomes NONE, the settle card posts, no reaction flag out of combat',
@@ -1127,7 +1170,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         const t = await until(() => {
           const x = card?.getFlag(MOD, 'saves')?.targets?.[0];
           return (x?.choice?.answer && x.applied) ? x : null;
-        }, 25000);
+        }, { timeout: 25000, label: 'the buzzer\'s interpose answer applied' });
         const dropped = hpBefore - victim.system.attributes.hp.value;
         ok('I2. left alone — the buzzer passes and the saved HALF (5 of 10) applies normally',
           (t?.choice?.answer === 'pass') && !!t?.choice?.timedOut && (dropped === 5),
@@ -1156,7 +1199,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         const hpBefore = victim.system.attributes.hp.value;
         const act = pc.items.get(dexHard.id)?.system.activities.get('bfdexhard0000000');
         const card = await castAt(act, victimToken);
-        const applied = await until(() => card?.getFlag(MOD, 'saves')?.targets?.[0]?.applied, 25000);
+        const applied = await until(() => card?.getFlag(MOD, 'saves')?.targets?.[0]?.applied,
+          { timeout: 25000, label: 'the failed save applied' });
         const t = card?.getFlag(MOD, 'saves')?.targets?.[0];
         const dropped = hpBefore - victim.system.attributes.hp.value;
         const offered = !!t?.choice || !!dialogsWith('take no damage')[0];
@@ -1170,10 +1214,10 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         await closeDialogs('BTB Shield Master');
         await victim.update({ 'system.attributes.hp.value': victim.system.attributes.hp.max });
       }
-    }
+    });
 
     /* ==== H — the Hew reminder POPS */
-    if (want('H')) {
+    if (want('H')) await section('H', async () => {
       {
         // The bash feat and the blasts leave first (their popups would stack). ⚠ BY NAME: a
         // `--section H` run never made them.
@@ -1188,10 +1232,11 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         for (let i = 0; i < 6 && !hew; i++) {
           await victim.update({ 'system.attributes.hp.value': 1 });
           const { msg } = await attack(pcAttackAct(), victimToken);
-          dmg = await waitDamage(msg?._source.system?.origin, 10000);
+          // Per try (soft): a fumble rolls no damage and posts no reminder, and the loop swings again.
+          dmg = await waitDamage(msg?._source.system?.origin, 10000).catch(() => null);
           if (!dmg) { log.push(`H1: attempt ${i + 1} rolled no damage (fumble) — retrying`); continue; }
           hew = await until(() => game.messages.contents.find(m => (m.timestamp >= suiteStart)
-            && /Hew — .*can attack again/.test(m.content ?? '')), 10000);
+            && /Hew — .*can attack again/.test(m.content ?? '')), { timeout: 10000, label: 'the Hew reminder card' }).catch(() => null);
         }
         ok('H1. a module-applied KILL with a melee weapon posts the Hew reminder (②)',
           !!hew && (victim.system.attributes.hp.value <= 0) && (dmg?.getFlag(MOD, 'hewNoticed') === true),
@@ -1202,15 +1247,18 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           hewCount === 1, `count=${hewCount}`);
         // Easy-to-forget things pop a notice, not just a card.
         const hewPopup = await until(() => dialogsWith('Hew —')
-          .find(d => d.querySelector('button[data-action="ok"]')), 6000);
+          .find(d => d.querySelector('button[data-action="ok"]')), { timeout: 6000, label: 'the Hew notice popup' });
         ok('H3. the reminder POPS — the OK-only notice shape on the fold\'s own namespace ((c))',
           !!hewPopup, `popup=${!!hewPopup}`);
         hewPopup?.querySelector('button[data-action="ok"]')?.click();
         // The ACK: OK resolves the pending presentation (flag recorded, no bar). The notice family
         // shares acknowledgeMoment.
-        const hewAcked = await until(() => hew?.getFlag(MOD, 'hewNotice')?.acknowledged === true, 5000);
-        await sleep(400);
-        const hewBar = hew ? document.querySelector(`.message[data-message-id="${hew.id}"] [data-bf-deadline]`) : null;
+        const hewAcked = await until(() => hew?.getFlag(MOD, 'hewNotice')?.acknowledged === true,
+          { timeout: 5000, label: 'the Hew notice acknowledged' });
+        const barOf = () => (hew ? document.querySelector(`.message[data-message-id="${hew.id}"] [data-bf-deadline]`) : null);
+        // The card re-renders without its bar once the ack lands.
+        await until(() => !barOf(), { timeout: 2000, label: 'the Hew card\'s bar gone' });
+        const hewBar = barOf();
         ok('H4. (j) OK ACKNOWLEDGES the reminder — flag recorded, the card bar leaves',
           (hewAcked === true) && !hewBar, `acked=${hewAcked} bar=${!!hewBar}`);
         await pc.deleteEmbeddedDocuments('Item', [gwm.id]).catch(() => {});
@@ -1219,11 +1267,11 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         await set('holdTimer', 0);
         skips.push('H — the CRIT trigger is not forced headlessly (nat-20 farming under disadvantage); it now rides the SAME damage-side chain context the kill path pins ((k): dedupe unified on the damage message)');
       }
-    }
+    });
 
     /* ==== PS — Pole Strike's reminder (Hew's shape): after a Quarterstaff, Spear or Heavy + Reach
      * attack, an OK-only reminder of the Bonus Action swing; other weapons say nothing. */
-    if (want('PS')) {
+    if (want('PS')) await section('PS', async () => {
       const phb = async (name, type) => {
         for (const pack of game.packs.filter(p => (p.metadata.packageName === 'dnd-players-handbook') && (p.documentName === 'Item'))) {
           const hit = (await pack.getIndex({ fields: ['type'] })).find(e => (e.name === name) && (e.type === type));
@@ -1233,7 +1281,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       };
       const feat = await phb('Polearm Master', 'feat');
       const spear = await phb('Spear', 'weapon');
-      if (!feat || !spear) return { fatal: 'section PS: no Polearm Master or Spear in the PHB packs' };
+      if (!feat || !spear) throw new Error('section PS: no Polearm Master or Spear in the PHB packs');
       spear.system.equipped = true;
       const lent = await pc.createEmbeddedDocuments('Item', [feat, spear]);
       try {
@@ -1244,43 +1292,50 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         const pole = t => game.messages.contents.filter(m => (m.timestamp >= t) && /Pole Strike — .*can attack again/.test(m.content ?? ''));
         const t0 = Date.now();
         const { msg } = await attack(spearAct, victimToken);
-        await waitDamage(msg?._source.system?.origin, 10000);
-        const card = await until(() => pole(t0)[0] ?? null, 10000);
+        // The chain finishes first; a fumble rolls no damage, so the wait is soft.
+        await waitDamage(msg?._source.system?.origin, 10000).catch(() => null);
+        const card = await until(() => pole(t0)[0] ?? null, { timeout: 10000, label: 'the Pole Strike offer card' });
         const offerOf = card?.getFlag(MOD, 'hewNotice')?.offer ?? null;
         ok('PS1. an attack with a Spear, held by a Polearm Master, posts Pole Strike\'s OFFER — the rule and the other end',
           !!card && /Pole Strike\. Immediately after you take the Attack action/.test(await renderedText(card)) && /other end/.test(card.content ?? '') && !!offerOf,
           `card=${!!card} offer=${JSON.stringify(offerOf)}`);
-        const popup = await until(() => dialogsWith('Pole Strike —').find(d => d.querySelector('button[data-action="use"]')), 6000);
+        const popup = await until(() => dialogsWith('Pole Strike —').find(d => d.querySelector('button[data-action="use"]')),
+          { timeout: 6000, label: 'the Pole Strike offer popup' });
         ok('PS2. the offer POPS with Pole Strike / Pass (the walk, 2026-09-27)', !!popup?.querySelector('button[data-action="pass"]'), `popup=${!!popup}`);
         const tUse = Date.now();
         popup?.querySelector('button[data-action="use"]')?.click();
         const swing = await until(() => game.messages.contents.find(m => (m.timestamp >= tUse) && m.rolls?.length
-          && (m.getFlag(MOD, 'poleStrike') === card?.id)), 10000);
-        const die = await until(() => game.messages.contents.find(m => (m.timestamp >= tUse) && m.getFlag(MOD, 'poleStrikeDie')), 12000);
+          && (m.getFlag(MOD, 'poleStrike') === card?.id)), { timeout: 10000, label: 'the driven Pole Strike swing' });
+        const die = await until(() => game.messages.contents.find(m => (m.timestamp >= tUse) && m.getFlag(MOD, 'poleStrikeDie')),
+          { timeout: 12000, label: 'the Pole Strike die' });
         const dieFlag = die?.getFlag(MOD, 'poleStrikeDie') ?? null;
         const dieTypes = [...(die?.rolls?.[0]?.options?.types ?? [])];
         ok('PS2b. Use drives the SPEAR\'s own attack at the same target; its damage is a d4 of Bludgeoning, and the card says so',
           !!swing && !!dieFlag && /d4/.test(dieFlag.now ?? '') && ((die.rolls?.[0]?.options?.type === 'bludgeoning') || dieTypes.includes('bludgeoning')),
           `swing=${!!swing} die=${JSON.stringify(dieFlag)} type=${die?.rolls?.[0]?.options?.type} types=[${dieTypes}]`);
-        await sleep(600);
-        ok('PS3. one offer for the attack (the driven swing offers none), and no Hew beside it', (pole(t0).length === 1)
-          && !game.messages.contents.some(m => (m.timestamp >= t0) && /Hew — /.test(m.content ?? '')), `pole=${pole(t0).length}`);
+        const hewSince = t => game.messages.contents.some(m => (m.timestamp >= t) && /Hew — /.test(m.content ?? ''));
+        // The window: the driven swing posts no second offer and no Hew.
+        const stray = await watch(() => (pole(t0).length > 1) || hewSince(t0), { ms: 600 });
+        ok('PS3. one offer for the attack (the driven swing offers none), and no Hew beside it', !stray && (pole(t0).length === 1)
+          && !hewSince(t0), `pole=${pole(t0).length} stray=${!!stray}`);
         const t1 = Date.now();
         const { msg: m2 } = await attack(pcAttackAct(), victimToken);
-        await waitDamage(m2?._source.system?.origin, 10000);
-        await sleep(2000);   // load-bearing: time for a WRONG reminder
-        ok('PS4. an attack with a weapon that does not qualify says nothing', !pole(t1).length, `pole=${pole(t1).length}`);
+        // The chain finishes first; a fumble rolls no damage, so the wait is soft.
+        await waitDamage(m2?._source.system?.origin, 10000).catch(() => null);
+        // The window (load-bearing): time for a WRONG reminder.
+        const wrong = await watch(() => pole(t1).length, { ms: 2000 });
+        ok('PS4. an attack with a weapon that does not qualify says nothing', !wrong && !pole(t1).length, `pole=${pole(t1).length}`);
       } finally {
         await pc.deleteEmbeddedDocuments('Item', lent.map(i => i.id).filter(id => pc.items.get(id))).catch(() => {});
         await acFlat(victim, 25);
         await victim.update({ 'system.attributes.hp.value': victim.system.attributes.hp.max });
         await set('holdTimer', 0);
       }
-    }
+    });
 
     /* ==== Q — the cascade is a staircase queue: common anchor, one header-height step per slot,
      * slots reused as they free; the FIRST moment's popup stays in front. */
-    if (want('Q')) {
+    if (want('Q')) await section('Q', async () => {
       {
         const uiMod = await import('/modules/fvtt-mod-bythebooks/scripts/ui.js');
         const anyMsg = game.messages.contents.at(-1);
@@ -1293,25 +1348,27 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         const zOf = d => Number(d.position?.zIndex ?? d.element?.style?.zIndex ?? 0);
         const d1 = mk('BTB Cascade First');
         const d2 = mk('BTB Cascade Second');
+        // openManagedPopup resolves after the render, the staircase position and the fronting.
         await uiMod.openManagedPopup('bf-cascade-1', anyMsg, d1);
         await uiMod.openManagedPopup('bf-cascade-2', anyMsg, d2);
-        await sleep(300);
+        await until(() => d1.rendered && d2.rendered, { label: 'the two cascade popups rendered' });
         const p1 = { left: d1.position.left, top: d1.position.top };
         const step = { left: d2.position.left - p1.left, top: d2.position.top - p1.top };
         ok('Q1. (s) the second popup steps down-right one header from the first',
           (step.left === 36) && (step.top === 36), `step=${JSON.stringify(step)}`);
         ok('Q2. (s) event order IS z-order — the first moment stays in front',
           zOf(d1) > zOf(d2), `z1=${zOf(d1)} z2=${zOf(d2)}`);
+        // The managed close frees the slot before the window's own close runs.
         await d1.close();
-        await sleep(150);
+        await until(() => !d1.rendered, { label: 'the first cascade popup closed' });
         const d3 = mk('BTB Cascade Third');
         await uiMod.openManagedPopup('bf-cascade-3', anyMsg, d3);
-        await sleep(300);
+        await until(() => d3.rendered, { label: 'the third cascade popup rendered' });
         ok('Q3. (s) a freed slot is reused — the third lands on the anchor, never on the survivor',
           (d3.position.left === p1.left) && (d3.position.top === p1.top),
           `third=${JSON.stringify({ left: d3.position.left, top: d3.position.top })} anchor=${JSON.stringify(p1)}`);
         await d2.close(); await d3.close();
-        await sleep(150);
+        await until(() => !d2.rendered && !d3.rendered, { label: 'the cascade popups closed' });
         // THE RANK: the mastery fronts the bash offer though it arrives second; the unranked go
         // behind both. Real subs, through the real popups' opener.
         const dBash = mk('BTB Rank Bash');
@@ -1319,18 +1376,18 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         const dHold = mk('BTB Rank Hold');
         await uiMod.openManagedPopup(`${anyMsg.id}|bashoffer`, anyMsg, dBash);
         await uiMod.openManagedPopup(`${anyMsg.id}|mastery`, anyMsg, dMast);
-        await sleep(300);
+        await until(() => dBash.rendered && dMast.rendered, { label: 'the ranked popups rendered' });
         ok('Q4. the RANK — the mastery arrives second and still fronts the bash offer',
           zOf(dMast) > zOf(dBash), `mastery=${zOf(dMast)} bash=${zOf(dBash)}`);
         await uiMod.openManagedPopup(`${anyMsg.id}|hold`, anyMsg, dHold);
-        await sleep(300);
+        await until(() => dHold.rendered, { label: 'the unranked popup rendered' });
         ok('Q5. an unranked newcomer goes to the back — mastery, then the offer, then the rest',
           (zOf(dMast) > zOf(dBash)) && (zOf(dBash) > zOf(dHold)),
           `mastery=${zOf(dMast)} bash=${zOf(dBash)} hold=${zOf(dHold)}`);
         await dBash.close(); await dMast.close(); await dHold.close();
-        await sleep(150);
+        await until(() => ![dBash, dMast, dHold].some(d => d.rendered), { label: 'the ranked popups closed' });
       }
-    }
+    });
 
     return { log, results, skips, consoleErrors };
   } catch (err) {
