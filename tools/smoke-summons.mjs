@@ -8,14 +8,22 @@
 // spirits and the resistance effect are torn down. The placement preview is a canvas interaction, so
 // the suite answers the record directly through the module's api and the pure fold, never the popup.
 //
+// §10 holds TWO GM CLIENTS (suite issue #8): the assistant identity joins beside the suite's while a Summon Beast
+// landing is answered, and the record lands once (tools/gm-clients.mjs, the arrival landing).
+//
 // Sections: `--section 2`, `--list`. Fixtures and teardown ALWAYS run.
-import { announcePlan, connectSuite, finish, sectionArg, sectionPlan } from './harness.mjs';
+import { arrivalLanding, judgeArrival } from './gm-clients.mjs';
+import { announcePlan, connectSuite, finish, loadEnv, sectionArg, sectionPlan } from './harness.mjs';
+import { gmIdentity } from './target.mjs';
 
 // THE COVERAGE MAP (tools/coverage-map.mjs) — ⚠ NEVER import a suite; the map is parsed.
 export const COVERS = [
-  'summons.js',   // §1 the intercept and the record, §2 the landing, §3 the dragon, §4 Dismiss, §5 the seat, §6 the pool it picks from (gallery.js is a service: the battery's), §9 Battle Familiar conjured: its own seat, one at a time, the fall at 0 HP, the caster's death
+  'summons.js',   // §1 the intercept and the record, §2 the landing, §3 the dragon, §4 Dismiss, §5 the seat, §6 the pool it picks from (gallery.js is a service: the battery's), §9 Battle Familiar conjured: its own seat, one at a time, the fall at 0 HP, the caster's death, §10 a landing as a second GM client arrives (the claim, the snapshot guard)
   'summon-art.js' // §7 the Summon Art window lists the familiar's pool, and the table's art lands on the familiar; §8 Match files and Save
 ];
+
+// §10's second GM client (target.mjs GM_IDENTITIES): the preflight allows exactly these.
+export const GM_CLIENTS = ['suite', 'assistant'];
 
 const SECTIONS = {
   1: 'THE RECORD: a Summon Beast cast by the Sorcerer posts its card with NO token created by the system and a `summon` flag `asked` carrying three profile rows with art and stat lines',
@@ -26,12 +34,13 @@ const SECTIONS = {
   6: 'THE POOL: the pack index pool at CR 0, beasts only, holds Owl once (the MM copy), sorted by CR then name',
   7: 'SUMMON ART: the Summon Art window lists the Owl for Find Familiar; with the Owl given a token and a portrait in the table, a Find Familiar landed as an Owl wears the token, the portrait and the token on its companion effect',
   8: 'MATCH AND SAVE: in the Summon Art window, Match files over a folder holding owl.webp, owl-portrait.webp and bat.webp fills the Owl and the Bat, keeps a Bat token set by hand, and Save stores the table by name',
-  9: 'BATTLE FAMILIAR CONJURED (Arcana Unleashed): with no familiar standing the Brute lands on the Sorcerer\'s 1-hour effect and rolls its own Initiative in the started combat; a second cast dismisses the first (one at a time); at 0 HP it disappears, the card saying so; a third cast disappears when the caster is marked dead'
+  9: 'BATTLE FAMILIAR CONJURED (Arcana Unleashed): with no familiar standing the Brute lands on the Sorcerer\'s 1-hour effect and rolls its own Initiative in the started combat; a second cast dismisses the first (one at a time); at 0 HP it disappears, the card saying so; a third cast disappears when the caster is marked dead',
+  10: 'TWO GM CLIENTS (an Assistant GM beside the suite\'s; a Gamemaster beside an Assistant waits for the gm2 user): Summon Beast answered as the assistant client arrives lands once — one claim, one token, no effect on the caster, one moment, no extra card'
 };
 const DEPENDS = { 3: [1], 4: [2], 5: [2] };
 
 const { plan, pulled } = sectionPlan(SECTIONS, DEPENDS);
-const f = await connectSuite({ tag: 'summons', watchdogMs: 240_000 });
+const f = await connectSuite({ tag: 'summons', watchdogMs: 300_000 });
 announcePlan('summons', plan, pulled);
 
 const out = await f.evaluate(async ({ sections, titles }) => {
@@ -330,5 +339,59 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   }
   return { results, log, skips };
 }, sectionArg(plan, SECTIONS));
+
+/** §10's record, armed on the suite's page: Summon Beast lent and cast to its card (no Concentration standing first), the Land spirit's answer computed. */
+const armBeast = async ({ xName }) => {
+  const MOD = 'fvtt-mod-bythebooks';
+  const { until, viewScene } = window.__btb;
+  const caster = game.actors.getName('BTB Test Sorcerer');
+  const range = game.scenes.getName('By the Books Test Range');
+  if (!caster || !range) return { fatal: 'missing fixture: BTB Test Sorcerer or the test range — run tools/fixture-suite.mjs' };
+  await viewScene(range).catch(() => null);
+  const casterToken = range.tokens.find(t => t.actorId === caster.id);
+  if (!casterToken) return { fatal: 'the Sorcerer has no token on the test range — run tools/fixture-suite.mjs' };
+  const xUser = game.users.getName(xName);
+  if (!xUser) return { fatal: `no world user "${xName}" for the assistant identity — run tools/seed-gm-identities.mjs` };
+  if (caster.concentration?.effects?.size) {
+    await caster.endConcentration().catch(() => {});
+    await until(() => !caster.concentration?.effects?.size, { label: 'the Sorcerer\'s Concentration ended' });
+  }
+  const since = Date.now() - 1000;
+  const { placedAnswer } = await import(`/modules/${MOD}/scripts/decide/summons.js`);
+  const { SUMMON_CHOICES } = await import(`/modules/${MOD}/scripts/decide/registry.js`);
+  const pack = game.packs.get('dnd-players-handbook.spells');
+  const hit = (await pack.getIndex()).find(e => e.name === 'Summon Beast');
+  const src = (await pack.getDocument(hit._id)).toObject();
+  src.system.prepared = 1;
+  src.flags = { ...(src.flags ?? {}), world: { ...(src.flags?.world ?? {}), twoGmSection: true } };
+  const [item] = await caster.createEmbeddedDocuments('Item', [src]);
+  const activity = item.system.activities.getByType('summon')[0];
+  const result = await activity.use({ consume: { spellSlot: false }, create: { measuredTemplate: false }, [MOD]: { toCard: true } }, { configure: false }, { create: true });
+  const message = result?.message instanceof ChatMessage ? result.message : null;
+  if (!message) return { fatal: 'the cast posted no card' };
+  const flag = await until(() => (message.getFlag(MOD, 'summon')?.status === 'asked') ? message.getFlag(MOD, 'summon') : null, { timeout: 8000, label: 'the record asked' });
+  const profile = flag.profiles.find(p => (p.label === 'Bestial Land Spirit') || (p.name === 'Bestial Land Spirit')) ?? flag.profiles[0];
+  const patch = placedAnswer(flag, { profileId: profile?.id ?? null, choice: null, count: 1, sceneId: range.id,
+    placements: [{ x: casterToken.x + range.grid.size * 2, y: casterToken.y, elevation: casterToken.elevation ?? 0, rotation: 0 }] }, SUMMON_CHOICES);
+  if (!patch) return { fatal: 'placedAnswer refused the answer' };
+  return { messageId: message.id, patch, casterId: caster.id, sceneId: range.id, xUserId: xUser.id, since, concentration: true };
+};
+
+if (!out?.fatal && (!plan || plan.includes('10'))) {
+  const env = loadEnv();
+  const assistant = gmIdentity(env, 'assistant');
+  if (!assistant) {
+    out.results.push({ name: '§10 the assistant identity is named in the .env (FOUNDRY_ASSISTANT_USER)', pass: false, detail: 'tools/README.md, the live tier\'s table' });
+  } else {
+    const run = await arrivalLanding(f, { env, key: 'assistant', prep: armBeast, prepArg: { xName: assistant.user }, flagKey: 'summon', tag: 'summons:assistant' });
+    if (run.prep?.fatal) out.results.push({ name: `§10 armed — ${run.prep.fatal}`, pass: false });
+    else {
+      const judged = await f.evaluate(judgeArrival, { ...sectionArg(plan, SECTIONS), run, id: 10, expect: { companionEffects: 0 } });
+      out.results.push(...judged.results);
+      out.log.push(...judged.log);
+    }
+  }
+  out.skips.push('§10 a Gamemaster beside an Assistant GM — waits for the gm2 user (HANDOFF §7 item 1)');
+} else if (!out?.fatal) out.skips.push(`§10 ${SECTIONS[10]}`);
 
 await finish({ tag: 'summons', out, plan, f });

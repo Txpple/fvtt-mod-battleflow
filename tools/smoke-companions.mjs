@@ -9,13 +9,21 @@
 // answered through the pure fold and a `toCard` use (which passes the companion menu as its "Summon"), never the popup.
 // The cards, the imported beasts, the tokens, the companion effects and the lent spell are torn down.
 //
+// §9 holds TWO GM CLIENTS (suite issue #8): the assistant identity joins beside the suite's while a Find Familiar
+// landing is answered, and the record lands once (tools/gm-clients.mjs, the arrival landing).
+//
 // Sections: `--section 3`, `--list`. Fixtures and teardown ALWAYS run.
-import { announcePlan, connectSuite, finish, sectionArg, sectionPlan } from './harness.mjs';
+import { arrivalLanding, judgeArrival } from './gm-clients.mjs';
+import { announcePlan, connectSuite, finish, loadEnv, sectionArg, sectionPlan } from './harness.mjs';
+import { gmIdentity } from './target.mjs';
 
 // THE COVERAGE MAP (tools/coverage-map.mjs) — ⚠ NEVER import a suite; the map is parsed.
 export const COVERS = [
-  'summons.js'   // §1 the first landing, §2 a new form replaces the old, §3 the pocket and the recall, §4 a new form into the pocket, §5 Dismiss forever, §6 two casts back to back, §7 the fall at 0 HP, §8 an orphan swept
+  'summons.js'   // §1 the first landing, §2 a new form replaces the old, §3 the pocket and the recall, §4 a new form into the pocket, §5 Dismiss forever, §6 two casts back to back, §7 the fall at 0 HP, §8 an orphan swept, §9 a landing as a second GM client arrives (the claim, the snapshot guard)
 ];
+
+// §9's second GM client (target.mjs GM_IDENTITIES): the preflight allows exactly these.
+export const GM_CLIENTS = ['suite', 'assistant'];
 
 const SECTIONS = {
   1: 'THE FIRST LANDING: Find Familiar answered as an Owl lands beside the caster — one companion effect "Familiar: Owl (Fey)", one token, one standing record',
@@ -25,12 +33,13 @@ const SECTIONS = {
   5: 'DISMISS FOREVER: no companion effect, no token, no standing record',
   6: 'TWO CASTS BACK TO BACK: two uses fired before either is answered, both answered — the later lands, the earlier is dismissed; one effect, one token, one record',
   7: 'THE FALL: the familiar at 0 HP disappears — no effect, no token, the card says so',
-  8: 'AN ORPHAN SWEPT: a companion effect left on the caster naming a card no longer in the log is removed by the next landing; one effect after it'
+  8: 'AN ORPHAN SWEPT: a companion effect left on the caster naming a card no longer in the log is removed by the next landing; one effect after it',
+  9: 'TWO GM CLIENTS (an Assistant GM beside the suite\'s; a Gamemaster beside an Assistant waits for the gm2 user): Find Familiar answered as the assistant client arrives lands once — one claim, one token, one companion effect, one moment, no extra card'
 };
 const DEPENDS = { 2: [1], 3: [2], 4: [3], 5: [4], 7: [6] };
 
 const { plan, pulled } = sectionPlan(SECTIONS, DEPENDS);
-const f = await connectSuite({ tag: 'companions', watchdogMs: 300_000 });
+const f = await connectSuite({ tag: 'companions', watchdogMs: 360_000 });
 announcePlan('companions', plan, pulled);
 
 const out = await f.evaluate(async ({ sections, titles }) => {
@@ -245,5 +254,59 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   }
   return { results, log, skips };
 }, sectionArg(plan, SECTIONS));
+
+/** §9's record, armed on the suite's page: Find Familiar lent and cast to its card, the Owl's answer computed. */
+const armFamiliar = async ({ xName }) => {
+  const MOD = 'fvtt-mod-bythebooks';
+  const { until, viewScene } = window.__btb;
+  const caster = game.actors.getName('BTB Test Sorcerer');
+  const range = game.scenes.getName('By the Books Test Range');
+  if (!caster || !range) return { fatal: 'missing fixture: BTB Test Sorcerer or the test range — run tools/fixture-suite.mjs' };
+  await viewScene(range).catch(() => null);
+  const casterToken = range.tokens.find(t => t.actorId === caster.id);
+  if (!casterToken) return { fatal: 'the Sorcerer has no token on the test range — run tools/fixture-suite.mjs' };
+  const xUser = game.users.getName(xName);
+  if (!xUser) return { fatal: `no world user "${xName}" for the assistant identity — run tools/seed-gm-identities.mjs` };
+  const since = Date.now() - 1000;
+  const { placedAnswer } = await import(`/modules/${MOD}/scripts/decide/summons.js`);
+  const { SUMMON_CHOICES } = await import(`/modules/${MOD}/scripts/decide/registry.js`);
+  const { poolFromPacks } = await import(`/modules/${MOD}/scripts/gallery.js`);
+  const pack = game.packs.get('dnd-players-handbook.spells');
+  const hit = (await pack.getIndex()).find(e => e.name === 'Find Familiar');
+  const src = (await pack.getDocument(hit._id)).toObject();
+  src.system.prepared = 1;
+  src.flags = { ...(src.flags ?? {}), world: { ...(src.flags?.world ?? {}), twoGmSection: true } };
+  const [item] = await caster.createEmbeddedDocuments('Item', [src]);
+  const summon = item.system.activities.getByType('summon')[0];
+  const result = await summon.use({ [MOD]: { toCard: true }, create: { measuredTemplate: false, summons: false }, consume: { spellSlot: false } }, { configure: false }, { create: true });
+  const message = result?.message instanceof ChatMessage ? result.message : null;
+  if (!message) return { fatal: 'the cast posted no card' };
+  const flag = await until(() => (message.getFlag(MOD, 'summon')?.status === 'asked') ? message.getFlag(MOD, 'summon') : null, { timeout: 8000, label: 'the record asked' });
+  const owl = (await poolFromPacks({ crMax: 0, types: ['beast'] })).find(r => r.name === 'Owl') ?? null;
+  if (!owl) return { fatal: 'no Owl in the familiar pool' };
+  const types = flag.creatureTypes ?? [];
+  const patch = placedAnswer(flag, { profileId: flag.profiles?.[0]?.id ?? null, pick: { uuid: owl.uuid, name: owl.name }, count: 1, sceneId: range.id,
+    creatureType: types.includes('fey') ? 'fey' : (types[0] ?? null), intoPocket: false,
+    placements: [{ x: casterToken.x + range.grid.size, y: casterToken.y, elevation: casterToken.elevation ?? 0, rotation: 0 }] }, SUMMON_CHOICES);
+  if (!patch) return { fatal: 'placedAnswer refused the answer' };
+  return { messageId: message.id, patch, casterId: caster.id, sceneId: range.id, xUserId: xUser.id, since };
+};
+
+if (!out?.fatal && (!plan || plan.includes('9'))) {
+  const env = loadEnv();
+  const assistant = gmIdentity(env, 'assistant');
+  if (!assistant) {
+    out.results.push({ name: '§9 the assistant identity is named in the .env (FOUNDRY_ASSISTANT_USER)', pass: false, detail: 'tools/README.md, the live tier\'s table' });
+  } else {
+    const run = await arrivalLanding(f, { env, key: 'assistant', prep: armFamiliar, prepArg: { xName: assistant.user }, flagKey: 'summon', tag: 'companions:assistant' });
+    if (run.prep?.fatal) out.results.push({ name: `§9 armed — ${run.prep.fatal}`, pass: false });
+    else {
+      const judged = await f.evaluate(judgeArrival, { ...sectionArg(plan, SECTIONS), run, id: 9, expect: { companionEffects: 1 } });
+      out.results.push(...judged.results);
+      out.log.push(...judged.log);
+    }
+  }
+  out.skips.push('§9 a Gamemaster beside an Assistant GM — waits for the gm2 user (HANDOFF §7 item 1)');
+} else if (!out?.fatal) out.skips.push(`§9 ${SECTIONS[9]}`);
 
 await finish({ tag: 'companions', out, plan, f });
