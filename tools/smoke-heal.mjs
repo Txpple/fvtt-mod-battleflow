@@ -30,16 +30,8 @@ announcePlan('heal', plan, pulled);
 
 const out = await f.evaluate(async ({ sections, titles }) => {
   const MOD = 'fvtt-mod-bythebooks';
-  const results = [];
-  const log = [];
-  const skips = [];
-  const ok = (name, pass, detail = '') => results.push({ name, pass, detail });
-  const want = id => {
-    if (!sections || sections.includes(String(id))) return true;
-    skips.push(`§${id} ${titles?.[id] ?? ''}`);
-    return false;
-  };
-  const sleep = ms => new Promise(r => setTimeout(r, ms));
+  const { until, watch, canvasReady, tokenOn, snapshotSettings, faces, unrig } = window.__btb;
+  const { results, log, skips, ok, want, section } = window.__btb.begin({ sections, titles });
   const suiteStart = Date.now();
 
   const mod = game.modules.get(MOD);
@@ -47,8 +39,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   if (!game.settings.settings.has(`${MOD}.decisionTimer`)) return { fatal: 'decisionTimer not registered — OLD code (reload the box)' };
 
   const SETTING_KEYS = ['decisionTimer', 'dramaticBeat'];
-  const prior = Object.fromEntries(SETTING_KEYS.map(k => [k, game.settings.get(MOD, k)]));
-  const set = (k, v) => game.settings.set(MOD, k, v);
+  const settings = snapshotSettings(SETTING_KEYS);
+  const { set } = settings;
 
   const scene = game.scenes.getName('By the Books Test Range');
   const cleric = game.actors.getName('BTB Test Cleric');
@@ -59,21 +51,12 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   let clericPrior = null;
   const placed = [];
   const priorHp = { value: victim.system._source.attributes.hp.value, max: victim.system._source.attributes.hp.max };
-  const realPRNG = CONFIG.Dice.randomUniform;
-  /** The PRNG as a queue of faces — `[[1, 8], [6, 8]]`: each die takes the next; past the end, the last. */
-  const faces = spec => {
-    const queue = spec.map(([n, of]) => 1 - ((n - 0.5) / of));
-    let i = 0;
-    CONFIG.Dice.randomUniform = () => queue[Math.min(i++, queue.length - 1)];
-  };
-  const realDice = () => { CONFIG.Dice.randomUniform = realPRNG; };
   let restored = false;
   const teardown = async () => {
     if (restored) return;
     restored = true;
-    realDice();
-    try { for (const [k, v] of Object.entries(prior)) await set(k, v); }
-    catch (err) { log.push(`TEARDOWN settings ERROR: ${err?.message}`); }
+    unrig();
+    for (const failed of await settings.restore()) log.push(`TEARDOWN settings ERROR: ${failed}`);
     try {
       const live = lent.filter(id => cleric.items.get(id));
       if (live.length) await cleric.deleteEmbeddedDocuments('Item', live);
@@ -118,7 +101,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     if (!cureAct() || !medicAct()) return { fatal: `no heal activity: cure=${!!cureAct()} medic=${!!medicAct()}`, results, log, skips };
 
     if (canvas.scene?.id !== scene.id) await scene.view();
-    for (let i = 0; i < 40 && !canvas.ready; i++) await sleep(250);
+    await canvasReady();
     // The victim's own linked token for the run, on a free square, deleted in teardown.
     const g = scene.grid.size;
     const occupied = (x, y) => scene.tokens.some(t => (t.x < (x + 1) * g) && ((t.x + t.width * g) > x * g) && (t.y < (y + 1) * g) && ((t.y + t.height * g) > y * g));
@@ -128,15 +111,10 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     const [victimDoc] = await scene.createEmbeddedDocuments('Token', [foundry.utils.mergeObject(victim.prototypeToken.toObject(),
       { x: spot.x * g, y: spot.y * g, actorId: victim.id, actorLink: true }, { inplace: false })]);
     placed.push(victimDoc.id);
-    for (let i = 0; i < 40 && !(canvas.ready && canvas.tokens.get(victimDoc.id)); i++) await sleep(250);
+    await tokenOn(victimDoc.id);
     const victimToken = canvas.tokens.get(victimDoc.id);
     if (!victimToken) return { fatal: 'the victim\'s token never reached the canvas', results, log, skips };
 
-    const waitFor = async (test, timeout = 8000) => {
-      const until = Date.now() + timeout;
-      while (Date.now() < until) { const v = test(); if (v) return v; await sleep(200); }
-      return test();
-    };
     const hp = () => Number(victim.system.attributes.hp.value);
     const wound = () => victim.update({ 'system.attributes.hp.max': 200, 'system.attributes.hp.value': 1 });
     const flagOf = m => m?.getFlag(MOD, 'healReroll') ?? null;
@@ -146,69 +124,69 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     const healThrough = async (activity, spec) => {
       game.user.targets.forEach(t => { t.setTarget(false, { releaseOthers: true }); });
       victimToken.setTarget(true, { releaseOthers: true });
-      await sleep(100);
+      await until(() => (game.user.targets.size === 1) && game.user.targets.has(victimToken), { label: 'the Victim targeted' });
       faces(spec);
       const rolls = await activity.rollDamage({}, { configure: false }, {});
       const m = rolls?.[0]?.parent ?? null;
-      await waitFor(() => ['used', 'none'].includes(flagOf(m)?.status), 12000);
-      realDice();
+      await until(() => ['used', 'none'].includes(flagOf(m)?.status), { timeout: 12000 });
+      unrig();
       return m;
     };
     const popupOpen = () => [...foundry.applications.instances.values()].some(app => app.rendered && /Healer/.test(app.title ?? ''));
 
     // ================================================== 1. Cure Wounds [1, 6] → the 1 rerolled to 5
-    if (want(1)) {
+    if (want(1)) await section(1, async () => {
       await wound();
       const m = await healThrough(cureAct(), [[1, 8], [6, 8], [5, 8]]);
       const used = flagOf(m);
-      const receipt = await waitFor(() => m?.getFlag(MOD, 'receipt'), 8000);
+      const receipt = await until(() => m?.getFlag(MOD, 'receipt'), { timeout: 8000 });
       const results0 = m?.rolls?.[0]?.dice?.[0]?.results ?? [];
-      await sleep(500);
+      const asked = await watch(popupOpen, { ms: 500 });
       ok('1a. no popup: the 1 rerolled to 5 at once, struck on the roll, the new total stands',
-        !popupOpen() && (used?.status === 'used') && (used.picks?.[0]?.old === 1) && (used.picks?.[0]?.new === 5)
+        !asked && !popupOpen() && (used?.status === 'used') && (used.picks?.[0]?.old === 1) && (used.picks?.[0]?.new === 5)
           && results0.some(r => (r.result === 1) && (r.active === false)),
-        `status=${used?.status} picks=${JSON.stringify(used?.picks)} total=${healTotal(m)} popup=${popupOpen()}`);
+        `status=${used?.status} picks=${JSON.stringify(used?.picks)} total=${healTotal(m)} popup=${popupOpen()} asked=${!!asked}`);
       ok('1b. the healing lands ONCE, with the new total', !!receipt && (hp() === 1 + healTotal(m)),
         `receipt=${!!receipt} hp=${hp()} expected=${1 + healTotal(m)}`);
       const announce = game.messages.contents.find(x => x.getFlag(MOD, 'respondsTo') === m?.id);
       ok('1c. the new die is on its own card', !!announce && (announce.rolls?.[0]?.total === 5), `card=${!!announce} roll=${announce?.rolls?.[0]?.total}`);
-    }
+    });
 
     // ================================================== 2. two 1s
-    if (want(2)) {
+    if (want(2)) await section(2, async () => {
       await wound();
       const m = await healThrough(cureAct(), [[1, 8], [1, 8], [4, 8], [7, 8]]);
       const used = flagOf(m);
-      const receipt = await waitFor(() => m?.getFlag(MOD, 'receipt'), 8000);
+      const receipt = await until(() => m?.getFlag(MOD, 'receipt'), { timeout: 8000 });
       ok('2a. both 1s rerolled at once (→ 4, 7); the healing lands once with them',
         (used?.status === 'used') && ((used.picks ?? []).length === 2) && (used.picks ?? []).every(p => p.old === 1)
           && !!receipt && (hp() === 1 + healTotal(m)),
         `picks=${JSON.stringify(used?.picks)} hp=${hp()} total=${healTotal(m)}`);
-    }
+    });
 
     // ================================================== 3. no 1
-    if (want(3)) {
+    if (want(3)) await section(3, async () => {
       await wound();
       const m = await healThrough(cureAct(), [[3, 8], [7, 8]]);
-      const receipt = await waitFor(() => m?.getFlag(MOD, 'receipt'), 8000);
+      const receipt = await until(() => m?.getFlag(MOD, 'receipt'), { timeout: 8000 });
       ok('3a. no 1: the record settles "none", the healing lands at once',
         (flagOf(m)?.status === 'none') && !!receipt && (hp() === 1 + healTotal(m)),
         `status=${flagOf(m)?.status} hp=${hp()} total=${healTotal(m)}`);
-    }
+    });
 
     // ================================================== 4. Battle Medic
-    if (want(4)) {
+    if (want(4)) await section(4, async () => {
       await wound();
       const m = await healThrough(medicAct(), [[1, 8], [7, 8]]);
       const formula = m?.rolls?.[0]?.formula ?? '';
-      const receipt = await waitFor(() => m?.getFlag(MOD, 'receipt'), 8000);
+      const receipt = await until(() => m?.getFlag(MOD, 'receipt'), { timeout: 8000 });
       ok('4a. Battle Medic rolls without its own r1, the 1 is rerolled (→ 7), and the healing lands with it',
         !/r1/.test(formula) && (flagOf(m)?.status === 'used') && (flagOf(m)?.picks?.[0]?.new === 7) && !!receipt && (hp() === 1 + healTotal(m)),
         `formula="${formula}" status=${flagOf(m)?.status} hp=${hp()} total=${healTotal(m)}`);
-    }
+    });
 
     // ================================================== 6. Battle Medic on the kit's use
-    if (want(6)) {
+    if (want(6)) await section(6, async () => {
       const kitSrc = await fromUuid('Compendium.dnd-players-handbook.equipment.Item.phbagHealersKit0');
       const [kit] = kitSrc ? await cleric.createEmbeddedDocuments('Item', [kitSrc.toObject()]) : [];
       if (kit) lent.push(kit.id);
@@ -218,7 +196,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const [clericDoc] = await scene.createEmbeddedDocuments('Token', [foundry.utils.mergeObject(cleric.prototypeToken.toObject(),
         { x: (spot.x + 1) * g, y: spot.y * g, actorId: cleric.id, actorLink: true }, { inplace: false })]);
       placed.push(clericDoc.id);
-      for (let i = 0; i < 40 && !canvas.tokens.get(clericDoc.id); i++) await sleep(250);
+      await tokenOn(clericDoc.id);
       const clericToken = canvas.tokens.get(clericDoc.id);
       if (!kit || !cls || !clericToken) {
         ok('6. the fixtures: a Healer’s Kit, a class with Hit Dice, the Cleric’s token', false, `kit=${!!kit} cls=${!!cls} token=${!!clericToken}`);
@@ -228,30 +206,30 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         const faces0 = Number(String(cls.system.hd.denomination).replace(/^d/i, ''));
         game.user.targets.forEach(t => { t.setTarget(false, { releaseOthers: true }); });
         clericToken.setTarget(true, { releaseOthers: true });
-        await sleep(100);
+        await until(() => (game.user.targets.size === 1) && game.user.targets.has(clericToken), { label: 'the Cleric targeted' });
         const use = await cleric.items.get(kit.id)?.system.activities.contents[0]?.use({}, { configure: false }, {});
         const card = use?.message ?? null;
-        const offer = await waitFor(() => card?.getFlag(MOD, 'kitTend'), 6000);
+        const offer = await until(() => card?.getFlag(MOD, 'kitTend'), { timeout: 6000 });
         const tendPopup = () => [...foundry.applications.instances.values()]
           .find(app => app.rendered && app.element?.querySelector?.('input[name="bf-kit-tend"]')) ?? null;
-        const app = await waitFor(tendPopup, 6000);
+        const app = await until(tendPopup, { timeout: 6000 });
         const box = app?.element?.querySelector('input[name="bf-kit-tend"]');
         ok('6a. the kit’s use asks: the card holds the offer, the popup lists the Cleric’s Hit Die by size, the largest ticked',
           (offer?.status === 'pending') && (offer?.pools ?? []).some(p => p.faces === faces0) && !!box?.checked,
           `offer=${JSON.stringify(offer ? { status: offer.status, pools: offer.pools } : null)} popup=${!!app} ticked=${box?.checked}`);
         faces([[5, faces0]]);
         app?.element?.querySelector('button[data-action="tend"]')?.click();
-        const done = await waitFor(() => (card?.getFlag(MOD, 'kitTend')?.applied) ? card.getFlag(MOD, 'kitTend') : null, 12000);
-        const healMsg = await waitFor(() => game.messages.contents.find(m => (m.getFlag(MOD, 'kitTendFor') === card?.id) && m.rolls?.length), 8000);
-        realDice();
-        const receipt = await waitFor(() => healMsg?.getFlag(MOD, 'receipt'), 8000);
+        const done = await until(() => (card?.getFlag(MOD, 'kitTend')?.applied) ? card.getFlag(MOD, 'kitTend') : null, { timeout: 12000 });
+        const healMsg = await until(() => game.messages.contents.find(m => (m.getFlag(MOD, 'kitTendFor') === card?.id) && m.rolls?.length), { timeout: 8000 });
+        unrig();
+        const receipt = await until(() => healMsg?.getFlag(MOD, 'receipt'), { timeout: 8000 });
         const prof = Number(cleric.system.attributes.prof) || 0;
         ok('6b. Tend: the Cleric’s die spent on its class, the feature’s own heal of that size rolled (5 + PB), the healing landed',
           !!done?.spent && (Number(cls.system.hd.spent) === 1) && new RegExp(`1d${faces0}`).test(healMsg?.rolls?.[0]?.formula ?? '')
             && !!receipt && (Number(cleric.system.attributes.hp.value) === 1 + 5 + prof),
           `done=${JSON.stringify(done ? { spent: done.spent, faces: done.faces } : null)} hdSpent=${cls.system.hd.spent} formula="${healMsg?.rolls?.[0]?.formula ?? ''}" hp=${cleric.system.attributes.hp.value}`);
       }
-    }
+    });
 
     return { log, results, skips };
   } catch (err) {

@@ -1,8 +1,9 @@
 /**
  * The suite harness: env, watchdog, connect + preflight, section filtering, the hook and moment
  * ledgers, teardown and the one reporter (ARCHITECTURE §11 *Adding a TEST*).
- * ⚠ Nothing here runs in the page: `f.evaluate()` serializes its function, so a helper the closure
- * needs travels as DATA on the evaluate argument (`sectionArg`).
+ * ⚠ `f.evaluate()` serializes its function, so a helper a suite body needs is the prelude's
+ * (tools/prelude.mjs, installed on the page at connect) or travels as DATA on the evaluate argument
+ * (`sectionArg`).
  * `--section 3[,5]` runs those sections plus their dependencies; `--list` prints the table.
  * Setup and teardown always run. ⚠ A filtered run's summary is stamped PARTIAL.
  * ⚠ Flags are STRICT (#11): an argument a suite does not know prints the usage and exits 2 before
@@ -17,6 +18,7 @@ import { basename, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Foundry, loadEnv } from "fvtt-mcp-dnd5e/client";
 import { strictArgs } from "./args.mjs";
+import { installPrelude } from "./prelude.mjs";
 import { declaredGmClients, foundryConfig, preflightSoleGM } from "./target.mjs";
 
 const REPO = dirname(dirname(fileURLToPath(import.meta.url)));
@@ -442,6 +444,9 @@ export async function connectSuite({ tag, watchdogMs, requireElect = true, allow
    * back its old default. A list setting reads back undefined: the tables are the only list.
    */
   await f.evaluate(retireSettings, null);
+
+  // The prelude (tools/prelude.mjs): the waits and the bookkeeping every suite body reads off `window.__btb`.
+  await installPrelude(f);
 
   /**
    * ⚠ Measured cover OFF for the run, restored at teardown: fixtures stand creatures in a row, so

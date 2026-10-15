@@ -13,6 +13,7 @@
 //
 // Sections: `--section 3`, `--list`. Fixtures and teardown ALWAYS run.
 import { announcePlan, connectSuite, disposeSafely, finish, loadEnv, sectionArg, sectionPlan } from './harness.mjs';
+import { installPrelude } from './prelude.mjs';
 import { playerConfig } from './target.mjs';
 import { Foundry } from 'fvtt-mcp-dnd5e/client';
 
@@ -96,21 +97,8 @@ const LEND = `async ({ casterName }) => {
 
 const out = await f.evaluate(async ({ sections, titles, extra }) => {
   const MOD = 'fvtt-mod-bythebooks';
-  const results = [];
-  const log = [];
-  const skips = [];
-  const ok = (name, pass, detail = '') => results.push({ name, pass, detail });
-  const want = id => {
-    if (!sections || sections.includes(String(id))) return true;
-    skips.push(`§${id} ${titles?.[id] ?? ''}`);
-    return false;
-  };
-  const sleep = ms => new Promise(r => setTimeout(r, ms));
-  const waitFor = async (test, timeout = 8000) => {
-    const until = Date.now() + timeout;
-    while (Date.now() < until) { const v = await test(); if (v) return v; await sleep(200); }
-    return test();
-  };
+  const { until, watch, tokenOn, viewScene, snapshotSettings } = window.__btb;
+  const { results, log, skips, ok, want, section } = window.__btb.begin({ sections, titles });
   const suiteStart = Date.now();
 
   const modDoc = game.modules.get(MOD);
@@ -127,8 +115,8 @@ const out = await f.evaluate(async ({ sections, titles, extra }) => {
   if (!caster) return { fatal: 'missing fixture: BTB Test Sorcerer — run tools/fixture-suite.mjs' };
   const range = game.scenes.getName('By the Books Test Range');
   if (!range) return { fatal: 'missing fixture: scene By the Books Test Range — run tools/fixture-suite.mjs' };
-  if (canvas.scene?.id !== range.id) await range.view();
-  for (let i = 0; i < 40 && !(canvas.ready && canvas.scene?.id === range.id); i++) await sleep(250);
+  // Soft: the fatal below names a range that never readied (a throw out here would end the run with no report).
+  await viewScene(range).catch(() => null);
   if (canvas.scene?.id !== range.id) return { fatal: 'the canvas never readied on the test range' };
   const casterToken = canvas.scene.tokens.find(t => t.actor?.id === caster.id) ?? null;
   if (!casterToken) return { fatal: 'the Sorcerer has no token on the scene — run tools/fixture-suite.mjs' };
@@ -137,8 +125,8 @@ const out = await f.evaluate(async ({ sections, titles, extra }) => {
   const SETTING_KEYS = ['autoDamage', 'autoApply', 'playerRollDamage', 'damageTimer', 'dramaticBeat', 'requireTarget',
     'reactionHold', 'holdTimer', 'riders', 'effectRiders', 'masteryRiders', 'masteryAsk', 'saves', 'castApply', 'concMode',
     'reminderList', 'conditionList', 'damageEitherList', 'clockRiderList', 'hitMenuList', 'd20Folds', 'd20FoldAsk'];
-  const prior = Object.fromEntries(SETTING_KEYS.map(k => [k, game.settings.get(MOD, k)]));
-  const set = (k, v) => game.settings.set(MOD, k, v);
+  const settings = snapshotSettings(SETTING_KEYS);
+  const { set } = settings;
   const def = k => game.settings.settings.get(`${MOD}.${k}`)?.default;
   const skillsBefore = { arc: foundry.utils.deepClone(caster.system._source.skills?.arc ?? {}), ste: foundry.utils.deepClone(caster.system._source.skills?.ste ?? {}) };
 
@@ -157,8 +145,7 @@ const out = await f.evaluate(async ({ sections, titles, extra }) => {
   const teardown = async () => {
     if (restored) return;
     restored = true;
-    try { for (const [k, v] of Object.entries(prior)) await set(k, v); }
-    catch (err) { log.push(`TEARDOWN settings ERROR: ${err?.message}`); }
+    for (const failed of await settings.restore()) log.push(`TEARDOWN settings ERROR: ${failed}`);
     try {
       await closeDialogs();
       await caster.update({ 'system.skills.arc': skillsBefore.arc, 'system.skills.ste': skillsBefore.ste });
@@ -184,17 +171,19 @@ const out = await f.evaluate(async ({ sections, titles, extra }) => {
   const textOf = el => (el?.textContent ?? '').replace(/\s+/g, ' ').trim();
   const rollDialog = () => [...foundry.applications.instances.values()]
     .find(app => /RollConfigurationDialog/.test(app.constructor?.name ?? '') && app.rendered && app.element) ?? null;
-  const openDialog = async (expectBox = true) => {
-    const dlg = await waitFor(rollDialog, 6000);
-    if (expectBox) await waitFor(() => dlg?.element?.querySelector('[data-bf-buy]'), 3000);
-    await sleep(300);
+  // ⚠ The buy rides on the dialog's options from preRoll and is drawn, box and tick at once, in the render hook
+  // (advantage-buys.js drawBuy): the wait is the box drawn, or no buy to draw.
+  const openDialog = async () => {
+    const dlg = await until(rollDialog, { timeout: 6000, label: 'a roll dialog' });
+    await until(() => !dlg.options?.bfBuy || dlg.element?.querySelector('[data-bf-buy]'), { timeout: 3000, label: 'the buy box drawn in the roll dialog' });
     return dlg;
   };
   const boxOf = dlg => dlg?.element?.querySelector('[data-bf-buy]') ?? null;
   const tickOf = dlg => dlg?.element?.querySelector('input[name="bf-buy"]') ?? null;
   const defaultOf = dlg => dlg?.element?.querySelector('button[data-bf-default]')?.dataset?.action ?? null;
   const netOf = dlg => dlg?.element?.querySelector('[data-bf-reminder-head] [data-bf-mode]')?.dataset?.bfMode ?? null;
-  const tick = async dlg => { const t = tickOf(dlg); if (t) { t.checked = true; t.dispatchEvent(new Event('change', { bubbles: true })); } await sleep(150); };
+  // The change handler redraws the box and re-nets the header synchronously (advantage-buys.js drawBuy).
+  const tick = dlg => { const t = tickOf(dlg); if (t) { t.checked = true; t.dispatchEvent(new Event('change', { bubbles: true })); } };
   const press = (dlg, mode) => { const b = dlg?.element?.querySelector(`button[data-action="${mode}"]`); b?.click(); return !!b; };
   const lastOf = type => game.messages.contents.filter(m => (m.timestamp >= suiteStart) && (m.type === type)).pop() ?? null;
 
@@ -215,8 +204,8 @@ const out = await f.evaluate(async ({ sections, titles, extra }) => {
   };
   const moveOwl = async squaresRight => {
     await owlDoc.update({ x: casterToken.x + grid * squaresRight, y: casterToken.y });
-    await waitFor(() => (canvas.tokens.get(owlDoc.id)?.document?.x === owlDoc.x) ? true : null, 4000);
-    await sleep(300);
+    // the buy measures the two documents' squares (geometry.js nearestFeet), not the animated placeable
+    await until(() => (canvas.tokens.get(owlDoc.id)?.document?.x === owlDoc.x) ? true : null, { timeout: 4000 });
   };
 
   try {
@@ -265,7 +254,7 @@ const out = await f.evaluate(async ({ sections, titles, extra }) => {
         create: { summons: false, measuredTemplate: false }, consume: { spellSlot: false } }, { configure: false }, { create: true });
       const message = result?.message instanceof ChatMessage ? result.message : null;
       if (message) madeMessages.push(message);
-      const rec = await waitFor(() => message?.getFlag(MOD, 'transform')?.applied ? message.getFlag(MOD, 'transform') : null, 20000);
+      const rec = await until(() => message?.getFlag(MOD, 'transform')?.applied ? message.getFlag(MOD, 'transform') : null, { timeout: 20000 });
       return { message, rec };
     };
     const casterEffect = () => caster.effects.find(e => /^Battle Familiar/.test(e.name)) ?? null;
@@ -281,13 +270,13 @@ const out = await f.evaluate(async ({ sections, titles, extra }) => {
     for (const e of caster.effects.filter(e => /^Familiar:/.test(e.name))) { try { await e.delete({ [MOD]: { companionEnd: true } }); } catch { /* gone */ } }
 
     // ---- 1. the free cast through the forward, to its card
-    if (want(1)) {
+    if (want(1)) await section(1, async () => {
       const slotsBefore = slotsLeft();
       const tokensBefore = new Set(canvas.scene.tokens.map(t => t.id));
       const result = await forward.use({ [MOD]: { toCard: true }, create: { measuredTemplate: false } }, { configure: false }, { create: true });
       const message = result?.message instanceof ChatMessage ? result.message : null;
       if (message) madeMessages.push(message);
-      const flag = await waitFor(() => message?.getFlag(MOD, 'summon')?.status === 'asked' ? message.getFlag(MOD, 'summon') : null, 6000);
+      const flag = await until(() => message?.getFlag(MOD, 'summon')?.status === 'asked' ? message.getFlag(MOD, 'summon') : null, { timeout: 6000 });
       ok('§1a the forward\'s cast posts its card with the record asked — the system placed nothing',
         !!flag && (canvas.scene.tokens.filter(t => !tokensBefore.has(t.id)).length === 0),
         `message=${!!message} status=${flag?.status} newTokens=${canvas.scene.tokens.filter(t => !tokensBefore.has(t.id)).length}`);
@@ -299,35 +288,37 @@ const out = await f.evaluate(async ({ sections, titles, extra }) => {
         creatureType: (flag.creatureTypes ?? []).includes('celestial') ? 'celestial' : (flag.creatureTypes?.[0] ?? null),
         placements: [{ x: casterToken.x + grid, y: casterToken.y, elevation: casterToken.elevation ?? 0, rotation: 0 }] }, SUMMON_CHOICES) : null;
       if (patch) await message.setFlag(MOD, 'summon', { ...flag, ...patch });
-      const landed = patch ? await waitFor(() => message.getFlag(MOD, 'summon')?.applied ? message.getFlag(MOD, 'summon') : null, 20000) : null;
+      const landed = patch ? await until(() => message.getFlag(MOD, 'summon')?.applied ? message.getFlag(MOD, 'summon') : null, { timeout: 20000 }) : null;
       owlDoc = canvas.scene.tokens.get(landed?.landed?.[0]?.tokenId) ?? null;
       if (owlDoc) madeTokens.push(owlDoc.id);
       for (const a of game.actors.filter(a => a.getFlag('dnd5e', 'isAutoImported') && a.name === 'Owl')) if (!madeActors.includes(a)) madeActors.push(a);
-      owlToken = owlDoc ? await waitFor(() => canvas.tokens.get(owlDoc.id), 6000) : null;
+      owlToken = owlDoc ? await tokenOn(owlDoc.id, { timeout: 6000 }) : null;
       landedMessage = landed ? message : null;
       ok('§1c answered as an Owl, the elect lands it beside the caster with the companion effect on the caster',
         landed?.outcome === 'landed' && !!owlToken && caster.effects.some(e => e.getFlag(MOD, 'companion') === message.id),
         JSON.stringify({ patch: !!patch, owl: !!owl, outcome: landed?.outcome, failure: landed?.failure, token: !!owlToken }));
-    }
+    });
 
     // ---- 2. a cancelled menu spends nothing
-    if (want(2)) {
+    if (want(2)) await section(2, async () => {
       await spellItem.update({ 'system.uses.spent': 0 });
       const before = game.messages.size;
       // the menu in the way: the standing companion's (after §1) or the cast's own picker
       const p = forward.use({}, { configure: false }, { create: true }).catch(() => null);
-      const menu = await waitFor(() => [...foundry.applications.instances.values()].find(a => (a instanceof foundry.applications.api.DialogV2) && /Find Familiar/.test(a.element?.textContent ?? '')) ?? null, 8000);
+      // soft: a menu that never opens is §2a's failure, and the cancel below still runs
+      const menu = await until(() => [...foundry.applications.instances.values()].find(a => (a instanceof foundry.applications.api.DialogV2) && /Find Familiar/.test(a.element?.textContent ?? '')) ?? null, { timeout: 8000 }).catch(() => null);
       ok('§2a the forward\'s cast opens the module\'s menu, not the system\'s', !!menu, `menu=${!!menu}`);
       if (menu) { try { await menu.close(); } catch { /* gone */ } }
       await p;
-      await sleep(600);
-      ok('§2b cancelled: the use stands unspent and no card posted', (usesSpent() === 0) && (game.messages.size === before),
-        `spent=${usesSpent()} messages ${before}→${game.messages.size}`);
+      // ⚠ A window: a spend or a card the cancel failed to stop lands within it.
+      const stray = await watch(() => (usesSpent() !== 0) || (game.messages.size !== before), { ms: 600 });
+      ok('§2b cancelled: the use stands unspent and no card posted', !stray && (usesSpent() === 0) && (game.messages.size === before),
+        `stray=${stray} spent=${usesSpent()} messages ${before}→${game.messages.size}`);
       await closeDialogs();
-    }
+    });
 
     // ---- 3. the boon
-    if (want(3)) {
+    if (want(3)) await section(3, async () => {
       const { max: base } = await owlBaseHp();
       const hp = owlDoc?.actor?.system?.attributes?.hp ?? {};
       const boon = landedMessage?.getFlag(MOD, 'summon')?.boon ?? null;
@@ -336,10 +327,10 @@ const out = await f.evaluate(async ({ sections, titles, extra }) => {
         `hp=${hp.value}/${hp.max} base=${base} level=${level}`);
       ok('§3b the record names Fortified Familiar and the amount — the sheet\'s own (the enchantment on the spell), nothing added on top', boon?.feature === 'Familiar Friend' && boon?.benefit === 'Fortified Familiar' && (Number(boon?.hp) === 2 * level) && (boon?.bySystem === true),
         JSON.stringify(boon));
-    }
+    });
 
     // ---- 4. Helpful Friend, offered
-    if (want(4)) {
+    if (want(4)) await section(4, async () => {
       await closeDialogs();
       await featItem.update({ 'system.uses.spent': 0 });
       const FULL = featLeft();
@@ -351,23 +342,23 @@ const out = await f.evaluate(async ({ sections, titles, extra }) => {
       ok(`§4a the box: "Familiar Friend — 1 use · ${FULL} left" with a tick, the default Normal`,
         new RegExp(`Familiar Friend — 1 use · ${FULL} left`).test(textOf(box)) && !!tickOf(dlg) && (defaultOf(dlg) === 'normal'),
         `box="${textOf(box).slice(0, 100)}" tick=${!!tickOf(dlg)} default=${defaultOf(dlg)}`);
-      await tick(dlg);
+      tick(dlg);
       ok('§4b ticked: the net and the default move to Advantage', (netOf(dlg) === 'advantage') && (defaultOf(dlg) === 'advantage'), `net=${netOf(dlg)} default=${defaultOf(dlg)}`);
       press(dlg, 'advantage');
-      const msg = await waitFor(() => { const m = lastOf('check'); return (m && (m.id !== before)) ? m : null; }, 8000);
+      const msg = await until(() => { const m = lastOf('check'); return (m && (m.id !== before)) ? m : null; }, { timeout: 8000 });
       // the spend is the item's own write, after the roll: waited for, never a sleep (tools/README *A faster platform turns a poll into a lie*)
-      await waitFor(() => (featLeft() === FULL - 1) ? true : null, 6000);
-      await sleep(300);
+      await until(() => (featLeft() === FULL - 1) ? true : null, { timeout: 6000 });
+      // the reminder record and the pool spend ride on the check's creation data (advantage-buys.js postRollConfiguration)
       const rec = msg?.getFlag(MOD, 'reminder');
       ok('§4c pressed: the check went out at Advantage, a use spent, the record names Familiar Friend',
         (Number(msg?.rolls?.[0]?.options?.advantageMode) === 1) && (featLeft() === FULL - 1)
           && (rec?.sources ?? []).some(s => (s.kind === 'buy') && /Familiar Friend/.test(s.label)) && (msg?.getFlag(MOD, 'poolSpend')?.left === FULL - 1),
         `mode=${msg?.rolls?.[0]?.options?.advantageMode} left=${featLeft()} rec=${JSON.stringify(rec?.sources)} spend=${JSON.stringify(msg?.getFlag(MOD, 'poolSpend'))}`);
       await closeDialogs();
-    }
+    });
 
     // ---- 5. beyond 5 ft
-    if (want(5)) {
+    if (want(5)) await section(5, async () => {
       await closeDialogs();
       await moveOwl(3);
       void caster.rollSkill({ skill: 'arc' });
@@ -378,23 +369,23 @@ const out = await f.evaluate(async ({ sections, titles, extra }) => {
         `box="${textOf(box).slice(0, 120)}" tick=${!!tickOf(dlg)}`);
       await closeDialogs();
       await moveOwl(1);
-    }
+    });
 
     // ---- 6. not a proficient skill, not a skill
-    if (want(6)) {
+    if (want(6)) await section(6, async () => {
       await closeDialogs();
       void caster.rollSkill({ skill: 'ste' });
-      let dlg = await openDialog(false);
+      let dlg = await openDialog();
       ok('§6a Stealth (unproficient): no box at all', !!dlg && !boxOf(dlg), `dialog=${!!dlg} box=${!!boxOf(dlg)}`);
       await closeDialogs();
       void caster.rollAbilityCheck({ ability: 'wis' });
-      dlg = await openDialog(false);
+      dlg = await openDialog();
       ok('§6b a raw Wisdom check: no box at all', !!dlg && !boxOf(dlg), `dialog=${!!dlg} box=${!!boxOf(dlg)}`);
       await closeDialogs();
-    }
+    });
 
     // ---- 9. empowered in place
-    if (want(9) && landedMessage && owlDoc) {
+    if (want(9) && landedMessage && owlDoc) await section(9, async () => {
       await closeDialogs();
       const { max: base } = await owlBaseHp();
       const oldId = owlDoc.id;
@@ -403,7 +394,8 @@ const out = await f.evaluate(async ({ sections, titles, extra }) => {
       // the portrait first: Foundry follows a token actor's img onto its token's texture when the two matched
       await owlDoc.actor.update({ img: LOOK.portrait });
       await owlDoc.update({ 'texture.src': LOOK.token, 'texture.scaleX': 2, 'texture.scaleY': 2 });
-      await sleep(400);
+      await until(() => { const t = canvas.scene.tokens.get(oldId); return (t?._source?.texture?.src === LOOK.token) && (t?.actor?.img === LOOK.portrait); },
+        { label: "§9 the Owl's own look stored" });
       log.push(`§9 the Owl's look set: stored=${canvas.scene.tokens.get(oldId)?._source?.texture?.src} prepared=${canvas.scene.tokens.get(oldId)?.texture?.src} scale=${canvas.scene.tokens.get(oldId)?._source?.texture?.scaleX} img=${canvas.scene.tokens.get(oldId)?.actor?.img}`);
       const ringBefore = !!canvas.scene.tokens.get(oldId)?._source?.ring?.enabled;
       const { message, rec } = await empower();
@@ -425,10 +417,10 @@ const out = await f.evaluate(async ({ sections, titles, extra }) => {
         !!eff && (eff.name === 'Battle Familiar: Owl') && (Number(eff.duration?.seconds) === 3600) && !!form && (form.getFlag('dnd5e', 'dependentOn') === eff.uuid)
           && (companionRecord()?.companion?.empower?.messageId === message?.id),
         JSON.stringify({ effect: eff?.name, seconds: eff?.duration?.seconds, form: form?.name, dep: form?.getFlag('dnd5e', 'dependentOn'), empower: companionRecord()?.companion?.empower }));
-    }
+    });
 
     // ---- 10. Helpful Friend while empowered
-    if (want(10) && liveOwl()) {
+    if (want(10) && liveOwl()) await section(10, async () => {
       await closeDialogs();
       await featItem.update({ 'system.uses.spent': 0 });
       owlDoc = liveOwl();
@@ -438,10 +430,10 @@ const out = await f.evaluate(async ({ sections, titles, extra }) => {
       const box = boxOf(dlg);
       ok('§10 the box offered with a tick while the Owl is empowered one square away', !!box && /Familiar Friend — 1 use/.test(textOf(box)) && !!tickOf(dlg), `box="${textOf(box).slice(0, 100)}" tick=${!!tickOf(dlg)}`);
       await closeDialogs();
-    }
+    });
 
     // ---- 11. the temp HP gone: the revert, the re-point
-    if (want(11) && liveOwl()) {
+    if (want(11) && liveOwl()) await section(11, async () => {
       await closeDialogs();
       const old = liveOwl();
       const { max: base } = await owlBaseHp();
@@ -450,9 +442,11 @@ const out = await f.evaluate(async ({ sections, titles, extra }) => {
       await combat.startCombat();
       const transformMessage = game.messages.get(companionRecord()?.companion?.empower?.messageId) ?? null;
       await old.actor.update({ 'system.attributes.hp.temp': 0, 'system.attributes.hp.value': base + 2 * level - 1 });
-      const ended = await waitFor(() => transformMessage?.getFlag(MOD, 'transform')?.ended ? transformMessage.getFlag(MOD, 'transform').ended : null, 20000);
-      await waitFor(() => (liveOwl() && (liveOwl().id !== old.id)) ? true : null, 10000);
-      await sleep(500);
+      const ended = await until(() => transformMessage?.getFlag(MOD, 'transform')?.ended ? transformMessage.getFlag(MOD, 'transform').ended : null, { timeout: 20000 });
+      await until(() => (liveOwl() && (liveOwl().id !== old.id)) ? true : null, { timeout: 10000 });
+      // the revert's re-points (transforms.js repointEmpowered): the seat on the new token, the caster's effect and the empower mark gone
+      await until(() => !!game.combat?.combatants?.find(c => c.tokenId === liveOwl()?.id) && !casterEffect() && !companionRecord()?.companion?.empower,
+        { label: "§11 the seat re-pointed, the caster's effect and the empower mark gone" });
       const now = liveOwl();
       const hp = now?.actor?.system?.attributes?.hp ?? {};
       const seat = game.combat?.combatants?.find(c => c.tokenId === now?.id) ?? null;
@@ -465,18 +459,18 @@ const out = await f.evaluate(async ({ sections, titles, extra }) => {
       owlDoc = now;
       if (now && !madeTokens.includes(now.id)) madeTokens.push(now.id);
       await combat.delete();
-    }
+    });
 
     // ---- 12. the lever: the caster's effect removed by hand
-    if (want(12) && liveOwl()) {
+    if (want(12) && liveOwl()) await section(12, async () => {
       const old = liveOwl();
       const { message } = await empower('Stalker');
       const eff = casterEffect();
       ok('§12a empowered again: the caster\'s effect stands, the Owl polymorphed', !!eff && !!liveOwl()?.actor?.isPolymorphed, `effect=${eff?.name} poly=${liveOwl()?.actor?.isPolymorphed}`);
       await eff?.delete();
-      const ended = await waitFor(() => message?.getFlag(MOD, 'transform')?.ended ? message.getFlag(MOD, 'transform').ended : null, 20000);
-      await waitFor(() => (liveOwl() && (liveOwl().id !== old.id)) ? true : null, 10000);
-      await sleep(500);
+      const ended = await until(() => message?.getFlag(MOD, 'transform')?.ended ? message.getFlag(MOD, 'transform').ended : null, { timeout: 20000 });
+      await until(() => (liveOwl() && (liveOwl().id !== old.id)) ? true : null, { timeout: 10000 });
+      await until(() => !liveOwl()?.actor?.isPolymorphed && !casterEffect(), { label: "§12 the Owl reverted and the caster's effect gone" });
       const now = liveOwl();
       const { max: base2 } = await owlBaseHp();
       const hp2 = now?.actor?.system?.attributes?.hp ?? {};
@@ -486,15 +480,15 @@ const out = await f.evaluate(async ({ sections, titles, extra }) => {
         JSON.stringify({ hp: hp2, deltaHp: now?.delta?.toObject?.()?.system?.attributes?.hp ?? null, tokenFlags: now?.flags?.dnd5e ?? null }));
       owlDoc = now;
       if (now && !madeTokens.includes(now.id)) madeTokens.push(now.id);
-    }
+    });
 
     // ---- 7. in the pocket, then called back
-    if (want(7) && landedMessage) {
+    if (want(7) && landedMessage) await section(7, async () => {
       await closeDialogs();
       const flag = landedMessage.getFlag(MOD, 'summon');
       const patch = companionAsk(flag.companion, { kind: 'away' });
       if (patch) await landedMessage.setFlag(MOD, 'summon', { ...flag, companion: { ...flag.companion, ...patch } });
-      const pocket = await waitFor(() => landedMessage.getFlag(MOD, 'summon')?.companion?.state === 'pocket' ? true : null, 15000);
+      const pocket = await until(() => landedMessage.getFlag(MOD, 'summon')?.companion?.state === 'pocket' ? true : null, { timeout: 15000 });
       ok('§7a put away: the companion waits in its pocket, its token gone', !!pocket && !canvas.scene.tokens.get(owlDoc?.id), `state=${landedMessage.getFlag(MOD, 'summon')?.companion?.state} token=${!!canvas.scene.tokens.get(owlDoc?.id)}`);
       void caster.rollSkill({ skill: 'arc' });
       const dlg = await openDialog();
@@ -505,28 +499,31 @@ const out = await f.evaluate(async ({ sections, titles, extra }) => {
       const inPocket = landedMessage.getFlag(MOD, 'summon');
       const recall = companionAsk(inPocket.companion, { kind: 'recall', placement: { x: casterToken.x + grid, y: casterToken.y, elevation: casterToken.elevation ?? 0, sceneId: canvas.scene.id } });
       if (recall) await landedMessage.setFlag(MOD, 'summon', { ...inPocket, companion: { ...inPocket.companion, ...recall } });
-      const back = await waitFor(() => (landedMessage.getFlag(MOD, 'summon')?.companion?.state === 'present') ? true : null, 15000);
+      const back = await until(() => (landedMessage.getFlag(MOD, 'summon')?.companion?.state === 'present') ? true : null, { timeout: 15000 });
       owlDoc = liveOwl();
       if (owlDoc && !madeTokens.includes(owlDoc.id)) madeTokens.push(owlDoc.id);
       ok('§7c called back: the companion stands again beside the caster', !!back && !!owlDoc, `state=${landedMessage.getFlag(MOD, 'summon')?.companion?.state} token=${!!owlDoc}`);
-    } else if (want(7)) {
+    });
+    else if (want(7)) {
       results.push({ name: '§7 skipped — §1 landed nothing', pass: false, detail: '' });
     }
 
     // ---- 13. dismissed while empowered
-    if (want(13) && liveOwl()) {
+    if (want(13) && liveOwl()) await section(13, async () => {
       await closeDialogs();
       const old = liveOwl();
       const { message } = await empower();
       const poly = !!liveOwl()?.actor?.isPolymorphed;
       await api.askDismiss(landedMessage);
-      const dismissed = await waitFor(() => landedMessage.getFlag(MOD, 'summon')?.dismissed ? true : null, 15000);
-      await sleep(500);
+      const dismissed = await until(() => landedMessage.getFlag(MOD, 'summon')?.dismissed ? true : null, { timeout: 15000 });
+      // the dismissal stamps its record last (summons.js dismissSummon): the token, the effects and the ended record before it
+      await until(() => !canvas.scene.tokens.get(old.id) && !casterEffect() && !caster.effects.some(e => e.getFlag(MOD, 'companion') === landedMessage.id)
+        && message?.getFlag(MOD, 'transform')?.ended, { label: '§13 the token, the effects and the transform record ended' });
       const ended = message?.getFlag(MOD, 'transform')?.ended ?? null;
       ok('§13 Dismiss while empowered: the token goes, the caster\'s effect with it, the companion effect too, the record ended "gone"',
         poly && !!dismissed && !canvas.scene.tokens.get(old.id) && !casterEffect() && !caster.effects.some(e => e.getFlag(MOD, 'companion') === landedMessage.id) && (ended?.word === 'gone'),
         JSON.stringify({ poly, dismissed: !!dismissed, token: !!canvas.scene.tokens.get(old.id), effect: !!casterEffect(), ended }));
-    }
+    });
   } catch (err) {
     results.push({ name: 'suite threw', pass: false, detail: `${err?.message}\n${err?.stack}` });
   } finally {
@@ -547,14 +544,10 @@ if (!out.fatal && (!plan || plan.includes('8'))) {
     console.log('[familiar] player connecting…');
     player = new Foundry(playerConfig(env));
     await player.connect();
+    await installPrelude(player);
     const cast = await player.evaluate(async ({ lend }) => {
       const MOD = 'fvtt-mod-bythebooks';
-      const sleep = ms => new Promise(r => setTimeout(r, ms));
-      const waitFor = async (test, timeout = 8000) => {
-        const until = Date.now() + timeout;
-        while (Date.now() < until) { const v = await test(); if (v) return v; await sleep(200); }
-        return test();
-      };
+      const { until } = window.__btb;
       const mage = game.actors.getName('BTB Test Mage');
       if (!mage?.isOwner) return { fatal: `the player does not own BTB Test Mage (owner=${mage?.isOwner})` };
       for (const e of mage.effects.filter(e => /^Familiar:/.test(e.name))) { try { await e.delete({ [MOD]: { companionEnd: true } }); } catch { /* gone */ } }
@@ -566,7 +559,8 @@ if (!out.fatal && (!plan || plan.includes('8'))) {
       const tokensBefore = canvas.scene?.tokens?.size ?? 0;
       const result = await forward.use({ [MOD]: { toCard: true }, create: { measuredTemplate: false } }, { configure: false }, { create: true });
       const message = result?.message instanceof ChatMessage ? result.message : null;
-      const flag = await waitFor(() => message?.getFlag(MOD, 'summon')?.status === 'asked' ? message.getFlag(MOD, 'summon') : null, 6000);
+      // soft: §8a reads the status, and the GM's teardown below needs this return's ids
+      const flag = await until(() => message?.getFlag(MOD, 'summon')?.status === 'asked' ? message.getFlag(MOD, 'summon') : null, { timeout: 6000 }).catch(() => null);
       return { user: game.user.name, allowSummoning: game.settings.get('dnd5e', 'allowSummoning'), messageId: message?.id ?? null, status: flag?.status ?? null,
         spent: Number(mage.items.get(spell.id)?.system?.uses?.spent ?? -1), newTokens: (canvas.scene?.tokens?.size ?? 0) - tokensBefore,
         lent: [lentOut.featId, lentOut.spellId] };

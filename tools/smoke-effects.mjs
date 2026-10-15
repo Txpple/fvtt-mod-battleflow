@@ -48,23 +48,16 @@ announcePlan('effects', plan, pulled);
 
 const out = await f.evaluate(async ({ sections, titles }) => {
   const MOD = 'fvtt-mod-bythebooks';
-  const results = [];
-  const log = [];
-  const skips = [];
-  const ok = (name, pass, detail = '') => results.push({ name, pass, detail });
-  const skip = why => skips.push(why);
+  const { sleep, until, watch, tokenOn, snapshotSettings } = window.__btb;
   // The section gate (tools/harness.mjs): the closure is serialized, so plan and titles arrive as DATA.
+  const { results, log, skips, ok, want, section: runSection } = window.__btb.begin({ sections, titles });
+  const skip = why => skips.push(why);
   // When each section opened (issue #9): the `console:` lines' +ms stamps are placed against it.
   const marks = [];
-  const want = id => {
-    if (!sections || sections.includes(String(id))) {
-      marks.push(`§${id} +${Date.now() - suiteStart}ms`);
-      return true;
-    }
-    skips.push(`§${id} ${titles?.[id] ?? ''}`);
-    return false;
-  };
-  const sleep = ms => new Promise(r => setTimeout(r, ms));
+  const section = (id, fn) => runSection(id, () => {
+    marks.push(`§${id} +${Date.now() - suiteStart}ms`);
+    return fn();
+  });
   // Every moment-event payload published during this run, so a section can assert its resolve was heard.
   const moments = [];
   const momentHookId = Hooks.on('bythebooks.moment', p => moments.push(p));
@@ -129,8 +122,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   const SETTING_KEYS = ['autoDamage', 'autoApply', 'dramaticBeat', 'requireTarget',
     'reactionHold', 'riders', 'effectRiders', 'masteryRiders',
     'masteryAsk', 'holdTimer', 'saveTimer', 'castApply'];
-  const prior = Object.fromEntries(SETTING_KEYS.map(k => [k, game.settings.get(MOD, k)]));
-  const set = (k, v) => game.settings.set(MOD, k, v);
+  const settings = snapshotSettings(SETTING_KEYS);
+  const { set } = settings;
 
   const scene = game.scenes.getName('By the Books Test Range');
   const victim = game.actors.getName('BTB Test Victim');
@@ -147,8 +140,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     if (restored) return;
     restored = true;
     // ⚠ SETTINGS FIRST, in their own guard: a later cleanup error must never leave suite settings on.
-    try { for (const [k, v] of Object.entries(prior)) await set(k, v); }
-    catch (err) { log.push(`TEARDOWN settings ERROR: ${err?.message}`); }
+    for (const failed of await settings.restore()) log.push(`TEARDOWN settings ERROR: ${failed}`);
     try { uninstallDiagnostic(); } catch (err) { log.push(`TEARDOWN diagnostic ERROR: ${err?.message}`); }
     try {
       // ⚠ Batched deletes per collection: a synthetic actor rebuilds its collections from the delta
@@ -273,7 +265,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       foundry.utils.mergeObject(victim.prototypeToken.toObject(),
         { x: 1400, y: 1400, actorId: victim.id, actorLink: true }, { inplace: false })]);
     created.tokens.push(victimTokenDoc.id);
-    for (let i = 0; i < 40 && !(canvas.ready && canvas.tokens.get(victimTokenDoc.id)); i++) await sleep(250);
+    await tokenOn(victimTokenDoc.id);
     const victimToken = canvas.tokens.get(victimTokenDoc.id);
     if (!victimToken) return { fatal: 'victim token never reached the canvas' };
 
@@ -292,7 +284,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     // `origin:false` leaves the id off (no card, no flag): the chain rides the attack-message fallback.
     const attack = async (activity, { advantage = true, disadvantage = false, origin = true } = {}) => {
       victimToken.setTarget(true, { releaseOthers: true });
-      await sleep(80);
+      await until(() => game.user.targets.has(victimToken), { label: 'the victim targeted' });
       const results = await activity.use({ subsequentActions: false }, { configure: false }, {});
       // ⚠ `undefined` means the USE was refused (no slot, no uses) — not a suppressed card.
       if (results === undefined) return { failed: true, usageId: null, attackMsg: null, roll: null };
@@ -305,27 +297,14 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       return { usageId, attackMsg, roll: rolls?.[0] ?? null };
     };
     const pcAttack = () => pc.items.get(blade.id).system.activities.find(a => a.type === 'attack');
-    const waitDamage = async (originId, { flag = null, timeout = 10_000 } = {}) => {
-      const until = Date.now() + timeout;
-      while (Date.now() < until) {
-        const m = game.messages.contents.find(x =>
-          (x.type === 'damage')
-          && (x._source.system?.origin === originId)
-          && (!flag || x.getFlag(MOD, flag)));
-        if (m) return m;
-        await sleep(250);
-      }
-      return null;
-    };
-    const waitFor = async (test, timeout = 8000) => {
-      const until = Date.now() + timeout;
-      while (Date.now() < until) {
-        const v = test();
-        if (v) return v;
-        await sleep(250);
-      }
-      return null;
-    };
+    /** The damage message an attack's origin id drove, once it carries `flag`; the WHOLE log is searched. */
+    const damageOf = (originId, flag = null) => game.messages.contents.find(x =>
+      (x.type === 'damage')
+      && (x._source.system?.origin === originId)
+      && (!flag || x.getFlag(MOD, flag))) ?? null;
+    /** Until that damage message lands. A miss rolls no damage: a step where a miss may happen catches. */
+    const damageLanded = (originId, { flag = null, timeout = 10_000 } = {}) =>
+      until(() => damageOf(originId, flag), { timeout, label: `the damage for ${originId}${flag ? ` with its ${flag}` : ''}` });
     // Clear chips between scenarios so "the effect landed" means THIS attack landed it.
     const clearChips = async () => {
       const chips = victim.effects.filter(e => e.getFlag(MOD, 'mastery')
@@ -363,26 +342,29 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     };
     const snap14 = () => new Set(game.messages.contents.map(m => m.id));
     const fresh14 = before => game.messages.contents.filter(m => !before.has(m.id));
-    const until14 = async (fn, ms = 8000) => {
-      const t0 = Date.now();
-      while (Date.now() - t0 < ms) { if (fn()) return true; await sleep(200); }
-      return fn();
-    };
+    /** The reminder card of mastery `key` posted since `before` (the id set). */
+    const noticeSince = (key, before) => fresh14(before).find(m => m.getFlag(MOD, 'masteryNotice')?.key === key) ?? null;
+    /** The framed popups still showing a Weapon Mastery reminder (not the chat log's cards). */
+    const masteryPopups = () => [...document.querySelectorAll('.application')]
+      .filter(el => el.querySelector(':scope > .window-header') && (el.innerHTML ?? '').includes('Weapon Mastery'));
 
     // ================================================== 1. the mastery flag stamp
-    if (want(1)) {
+    if (want(1)) await section(1, async () => {
       await acFlat(1);
       await healFull();
       await setMastery('vex');
       {
+        const before1 = snap14();
         const { attackMsg, roll } = await attack(pcAttack());
         ok('1. a mastery PC attack stamps system.mastery',
           attackMsg?.system?.mastery === 'vex',
           `flag=${attackMsg?.system?.mastery} fumble=${roll?.isFumble}`);
         // Wait for the RECEIPT (stamped after application finishes): §2 heals and asserts HP-dependent
-        // payouts, and an application still in flight would drain the healed pool.
-        await waitDamage(attackMsg?._source.system?.origin ?? attackMsg?.id, { flag: 'receipt' });
-        await sleep(600); // payout tail (the mastery stage runs after the receipt)
+        // payouts, and an application still in flight would drain the healed pool. A miss rolls none.
+        const dmg1 = await damageLanded(attackMsg?._source.system?.origin ?? attackMsg?.id, { flag: 'receipt' }).catch(() => null);
+        // The payout tail: the mastery stage runs after the receipt and ends with Vex's reminder card
+        // (none when nothing was dealt or the hit killed).
+        if (dmg1) await until(() => noticeSince('vex', before1), { timeout: 5000 }).catch(() => null);
       }
       {
         const activity = npc.items.find(i => i.system.activities?.some?.(a => a.type === 'attack'))
@@ -391,13 +373,13 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         ok('1b. a non-mastery (NPC) attack stamps nothing',
           !attackMsg?.system?.mastery,
           `flag=${attackMsg?.system?.mastery}`);
-        await waitDamage(attackMsg?._source.system?.origin ?? attackMsg?.id, { flag: 'receipt' });
-        await sleep(600);
+        // the receipt, as above (no mastery, so no payout tail after it); a miss rolls none
+        await damageLanded(attackMsg?._source.system?.origin ?? attackMsg?.id, { flag: 'receipt' }).catch(() => null);
       }
-    }
+    });
 
     // ================================================== 2. Vex pays on damage dealt (auto)
-    if (want(2)) {
+    if (want(2)) await section(2, async () => {
       await healFull();
       await clearChips();
       // Its own mastery, not a leftover from an earlier section or suite.
@@ -405,12 +387,13 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       {
         const t2 = Date.now();
         const { attackMsg, roll } = await attack(pcAttack());
-        const vexed = await waitFor(() => victim.effects.find(e => (e.getFlag(MOD, 'mastery') === 'vex') && !e.disabled), 12_000);
+        // its absence is reported with why (issue #9), so the wait tolerates it
+        const vexed = await until(() => victim.effects.find(e => (e.getFlag(MOD, 'mastery') === 'vex') && !e.disabled), { timeout: 12_000 }).catch(() => null);
         ok('2. Vex (auto): damage dealt ⇒ Vexed chip with the weapon as origin',
           !!vexed && (vexed.origin === pc.items.get(blade.id).uuid),
           `vexed=${!!vexed} origin=${vexed?.origin} fumble=${roll?.isFumble}${vexed ? '' : ` why=${why(attackMsg, t2)}`}`);
         // The chip proves the payout ran, so the receipt hunt starts after it.
-        const dmg = await waitDamage(attackMsg._source.system?.origin, { flag: 'effectReceipt' });
+        const dmg = await damageLanded(attackMsg._source.system?.origin, { flag: 'effectReceipt' });
         const receipt = dmg?.getFlag(MOD, 'effectReceipt');
         ok('2b. the Vexed chip joins the effect receipt',
           !!receipt?.targets?.some(t => (t.uuid === victim.uuid)
@@ -423,10 +406,10 @@ const out = await f.evaluate(async ({ sections, titles }) => {
             && (efv[0].ability === vexed?.name) && Object.isFrozen(efv[0]) && plain(efv[0]),
           `effect=${JSON.stringify(efv[0])}`);
       }
-    }
+    });
 
     // ================================================== 3. the damage gate: immune ⇒ no Vex, Sap anyway
-    if (want(3)) {
+    if (want(3)) await section(3, async () => {
       await clearChips();
       await healFull();
       {
@@ -440,7 +423,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           await victim.update({ 'system.traits.di.value': [...weaponTypes] });
           const hpBefore = victim.system.attributes.hp.value;
           const { attackMsg } = await attack(pcAttack());
-          const dmg = await waitDamage(attackMsg._source.system?.origin, { flag: 'receipt' });
+          const dmg = await damageLanded(attackMsg._source.system?.origin, { flag: 'receipt' });
           const entry = dmg?.getFlag(MOD, 'receipt')?.targets?.find(t => t.uuid === victim.uuid);
           const vexed = victim.effects.find(e => (e.getFlag(MOD, 'mastery') === 'vex') && !e.disabled);
           ok('3. immune target: pool full, took 0, and NO Vex (the damage gate)',
@@ -449,17 +432,17 @@ const out = await f.evaluate(async ({ sections, titles }) => {
 
           await setMastery('sap');
           const second = await attack(pcAttack());
-          await waitDamage(second.attackMsg._source.system?.origin, { flag: 'receipt' });
-          const sapped = await waitFor(() => victim.effects.find(e => (e.getFlag(MOD, 'mastery') === 'sap') && !e.disabled));
+          await damageLanded(second.attackMsg._source.system?.origin, { flag: 'receipt' });
+          const sapped = await until(() => victim.effects.find(e => (e.getFlag(MOD, 'mastery') === 'sap') && !e.disabled));
           ok('3b. Sap lands on the same immune target (hit is enough — no damage gate)',
             !!sapped, `sapped=${!!sapped}`);
           await victim.update({ 'system.traits.di.value': priorActor[victim.id]['system.traits.di.value'] });
         }
       }
-    }
+    });
 
     // ================================================== 4. refresh, never stack
-    if (want(4)) {
+    if (want(4)) await section(4, async () => {
       await clearChips();
       await healFull();
       await setMastery('sap');
@@ -472,31 +455,32 @@ const out = await f.evaluate(async ({ sections, titles }) => {
             const t4 = Date.now();
             const r = await attack(pcAttack());
             last4 = { msg: r.attackMsg, at: t4 };
-            const dmg = await waitDamage(r.attackMsg?._source.system?.origin,
-              { flag: 'receipt' });
+            const dmg = await damageLanded(r.attackMsg?._source.system?.origin,
+              { flag: 'receipt' }).catch(() => null);
             if (dmg) return true;
             log.push(`§4: the swing missed — rolling again (${i + 1}/4)`);
           }
           return false;
         };
-        const landed = (await hit()) && (await waitFor(() =>
-          victim.effects.find(e => e.getFlag(MOD, 'mastery') === 'sap'))) && (await hit());
+        const landed = (await hit()) && (await until(() =>
+          victim.effects.find(e => e.getFlag(MOD, 'mastery') === 'sap')).catch(() => null)) && (await hit());
         if (!landed) {
           // ⚠ Skip out loud: four misses with advantage is a fixture problem, not mastery.js.
           // ⚠ Issue #9 (2026-10-11 battery): this fired with NO "swing missed" line, so a hit landed with
           // its receipt and the Sap chip never came. Print why, so the skip is evidence, not a shrug.
           skip(`4: no hit-then-Sap pair landed (a miss logs "the swing missed" above; none means the chip never came) why=${why(last4?.msg, last4?.at ?? Date.now())}`);
         } else {
-          await sleep(1000);
+          // a window for a twin chip from the second hit's payout
+          const twin = await watch(() => victim.effects.filter(e => (e.getFlag(MOD, 'mastery') === 'sap') && !e.disabled).length > 1, { ms: 1000 });
           const saps = victim.effects.filter(e => (e.getFlag(MOD, 'mastery') === 'sap') && !e.disabled);
-          ok('4. a second hit re-clocks the chip instead of stacking a twin', saps.length === 1,
-            `count=${saps.length}`);
+          ok('4. a second hit re-clocks the chip instead of stacking a twin', (saps.length === 1) && !twin,
+            `count=${saps.length}${twin ? ' (a twin seen)' : ''}`);
         }
       }
-    }
+    });
 
     // ================================================== 5. ask mode: Slow asks, Use pays
-    if (want(5)) {
+    if (want(5)) await section(5, async () => {
       await clearChips();
       await healFull();
       await set('masteryAsk', 'ask');
@@ -506,11 +490,11 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         let attackMsg = null, m = null;
         for (let try5 = 0; (try5 < 4) && !m; try5++) {
           ({ attackMsg } = await attack(pcAttack()));
-          await waitDamage(attackMsg._source.system?.origin, { flag: 'receipt' });
-          m = await waitFor(() => {
+          await damageLanded(attackMsg._source.system?.origin, { flag: 'receipt' }).catch(() => null);
+          m = await until(() => {
             const flag = game.messages.get(attackMsg.id)?.getFlag(MOD, 'mastery');
             return (flag?.status === 'pending') ? flag : null;
-          });
+          }).catch(() => null);
         }
         ok('5. ask mode stamps a pending mastery ask on the attack message',
           (m?.key === 'slow') && (m?.status === 'pending'),
@@ -518,7 +502,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
 
         // The popup is on THIS client (the bridge answers for an unowned PC): exactly Use and Pass.
         // ⚠ Count the FOOTER's buttons only: DialogV2's frame carries its own [data-action] chrome.
-        const dialog = await waitFor(() => {
+        const dialog = await until(() => {
           for (const el of document.querySelectorAll('.application.dialog')) {
             const actions = [...el.querySelectorAll('.form-footer button[data-action]')].map(b => b.dataset.action);
             if (actions.includes('use') && actions.includes('pass')) return el;
@@ -530,8 +514,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           && actions.includes('use') && actions.includes('pass'), `actions=${actions.join(',')}`);
 
         dialog?.querySelector('button[data-action="use"]')?.click();
-        const slowed = await waitFor(() => victim.effects.find(e => (e.getFlag(MOD, 'mastery') === 'slow') && !e.disabled));
-        const done = await waitFor(() => {
+        const slowed = await until(() => victim.effects.find(e => (e.getFlag(MOD, 'mastery') === 'slow') && !e.disabled));
+        const done = await until(() => {
           const flag = game.messages.get(attackMsg.id)?.getFlag(MOD, 'mastery');
           return (flag?.status === 'done') ? flag : null;
         });
@@ -542,7 +526,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           !!slowed && (done?.outcome === 'used') && (walkNow === Math.max(0, walkBase - 10)),
           `slowed=${!!slowed} outcome=${done?.outcome} walk=${walkNow} (base ${walkBase})`);
         ok('5d. the popup closed once the answer landed',
-          await waitFor(() => !document.querySelector('.application.dialog button[data-action="use"]')) !== null,
+          await until(() => !document.querySelector('.application.dialog button[data-action="use"]')).catch(() => null) !== null,
           'a Use/Pass dialog is still open');
         // The mastery ask resolving to `done` publishes `mastery`.
         const mv = momentsOf('mastery').filter(p => p.messageId === attackMsg.id);
@@ -551,24 +535,24 @@ const out = await f.evaluate(async ({ sections, titles }) => {
             && (mv[0].targets?.some(t => t.actorUuid === victim.uuid)) && Object.isFrozen(mv[0]) && plain(mv[0]),
           `mastery=${JSON.stringify(mv[0])}`);
       }
-    }
+    });
 
     // ================================================== 6. the timer expires to Pass
-    if (want(6)) {
+    if (want(6)) await section(6, async () => {
       await clearChips();
       await healFull();
       await set('holdTimer', 2);
       {
         const { attackMsg } = await attack(pcAttack());
-        await waitDamage(attackMsg._source.system?.origin, { flag: 'receipt' });
-        const pending = await waitFor(() => {
+        await damageLanded(attackMsg._source.system?.origin, { flag: 'receipt' });
+        const pending = await until(() => {
           const flag = game.messages.get(attackMsg.id)?.getFlag(MOD, 'mastery');
           return (flag?.status === 'pending') ? flag : null;
         });
-        const done = await waitFor(() => {
+        const done = await until(() => {
           const flag = game.messages.get(attackMsg.id)?.getFlag(MOD, 'mastery');
           return (flag?.status === 'done') ? flag : null;
-        }, 8000);
+        }, { timeout: 8000 });
         const slowed = victim.effects.find(e => (e.getFlag(MOD, 'mastery') === 'slow') && !e.disabled);
         ok('6. an unanswered ask times out to Pass and pays nothing',
           !!pending?.deadline && (done?.answer === 'pass') && done?.timedOut
@@ -578,10 +562,10 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         document.querySelectorAll('.application.dialog button[data-action="pass"]').forEach(b => { b.click(); });
       }
       await set('holdTimer', 0);
-    }
+    });
 
     // ================================================== 7. Topple: the enricher save + prone
-    if (want(7)) {
+    if (want(7)) await section(7, async () => {
       await clearChips();
       await healFull();
       await set('masteryAsk', 'auto');
@@ -598,8 +582,9 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         if (roll?.isFumble) {
           skip('topple: nat-1 fumble missed outright (flake, 1/400) — hit path not exercised');
         } else {
-        await waitDamage(attackMsg._source.system?.origin, { flag: 'receipt' });
-        const card = await waitFor(() => game.messages.contents.find(m => !before.has(m.id) && m.getFlag(MOD, 'topple')), 15000);
+        // both tolerate absence: the card's own line reports it with why (issue #9)
+        await damageLanded(attackMsg._source.system?.origin, { flag: 'receipt' }).catch(() => null);
+        const card = await until(() => game.messages.contents.find(m => !before.has(m.id) && m.getFlag(MOD, 'topple')), { timeout: 15000 }).catch(() => null);
         const dc = 8 + (pc.system.attributes?.prof ?? 0)
           + (pc.system.abilities?.[pcAttack().ability || 'str']?.mod ?? 0);
         ok('7. Topple (auto) posts the save card with the computed DC in the enricher',
@@ -607,14 +592,14 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           `dc expected ${dc}; content has: ${card?.content?.match(/\[\[\/save[^\]]*\]\]/)?.[0] ?? 'no enricher'}${card ? '' : ` why=${why(attackMsg, t7)}`}`);
 
         // The GM prone button, found by label: the [[/save]] enricher renders its own clickable element.
-        const button = await waitFor(() =>
+        const button = await until(() =>
           [...document.querySelectorAll(`[data-message-id="${card?.id}"] button`)]
             .find(b => /prone/i.test(b.textContent)));
         button?.click();
-        const prone = await waitFor(() => victim.statuses?.has?.('prone'));
+        const prone = await until(() => victim.statuses?.has?.('prone'));
         const flagDone = game.messages.get(card?.id)?.getFlag(MOD, 'topple')?.targets?.every(t => t.done);
         ok('7b. the card\'s prone button really knocks the target prone',
-          !!prone && !!(await waitFor(() => game.messages.get(card?.id)?.getFlag(MOD, 'topple')?.targets?.every(t => t.done))),
+          !!prone && !!(await until(() => game.messages.get(card?.id)?.getFlag(MOD, 'topple')?.targets?.every(t => t.done))),
           `prone=${!!prone} done=${flagDone}`);
         // The pressed chip names WHO pressed it: the attacker lands as the effect's origin.
         const proneEffect7 = victim.effects.find(e => e.statuses?.has?.('prone'));
@@ -624,33 +609,35 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         await victim.toggleStatusEffect('prone', { active: false });
         }
       }
-    }
+    });
 
     // ================================================== 8. Topple hopeless skip: already prone
-    if (want(8)) {
+    if (want(8)) await section(8, async () => {
       {
         await victim.toggleStatusEffect('prone', { active: true });
         const before = game.messages.size;
         const { attackMsg } = await attack(pcAttack());
-        await waitDamage(attackMsg._source.system?.origin, { flag: 'receipt' });
-        await sleep(1200);
+        // a miss rolls no damage, and asks nothing either
+        await damageLanded(attackMsg._source.system?.origin, { flag: 'receipt' }).catch(() => null);
+        // a window for a WRONG Topple card
+        const stray = await watch(() => game.messages.contents.slice(before).find(m => m.getFlag(MOD, 'topple')), { ms: 1200 });
         const card = game.messages.contents.slice(before).find(m => m.getFlag(MOD, 'topple'));
-        ok('8. a target already prone is never asked about Topple', !card, `card=${!!card}`);
+        ok('8. a target already prone is never asked about Topple', !card && !stray, `card=${!!(card ?? stray)}`);
         await victim.toggleStatusEffect('prone', { active: false });
       }
-    }
+    });
 
     // ================================================== 9. Push in AUTO mode
-    if (want(9)) {
+    if (want(9)) await section(9, async () => {
       await clearChips();
       await healFull(); // a dead target is skipped by design — the pool must be able to pay
       await setMastery('push');
       {
         const before = game.messages.size;
         const { attackMsg } = await attack(pcAttack());
-        await waitDamage(attackMsg._source.system?.origin, { flag: 'receipt' });
+        await damageLanded(attackMsg._source.system?.origin, { flag: 'receipt' });
         // ⚠ Match the announcement's eyebrow, not /push/i: the usage card's subtitle names the mastery.
-        const cards = await waitFor(() => {
+        const cards = await until(() => {
           const found = game.messages.contents.slice(before)
             .filter(m => (m.content ?? '').includes('Weapon Mastery — Push'));
           return found.length ? found : null;
@@ -660,10 +647,10 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           (cards?.length === 1) && /10 feet/.test(cards[0].content),
           `cards=${cards?.length ?? 0}`);
       }
-    }
+    });
 
     // ================================================== 10. Graze pays the mod on a MISS
-    if (want(10)) {
+    if (want(10)) await section(10, async () => {
       await clearChips();
       await healFull();
       await setMastery('graze');
@@ -675,8 +662,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         if (roll?.isCritical) {
           skip('graze: nat-20 crit hit vs AC 40 (flake, 1/400) — miss path not exercised');
         } else {
-          const receipted = await waitFor(() =>
-            game.messages.get(attackMsg.id)?.getFlag(MOD, 'receipt'), 10_000);
+          const receipted = await until(() =>
+            game.messages.get(attackMsg.id)?.getFlag(MOD, 'receipt'), { timeout: 10_000 });
           const entry = receipted?.targets?.find(t => t.uuid === victim.uuid);
           const hpAfter = victim.system.attributes.hp.value;
           ok('10. Graze: the miss pays exactly the ability mod, receipted on the ATTACK card',
@@ -686,10 +673,10 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         }
         await acFlat(1);
       }
-    }
+    });
 
     // ================================================== 11. spell effect riders
-    if (want(11)) {
+    if (want(11)) await section(11, async () => {
       await clearChips();
       await healFull();
       // An attack-roll spell whose ATTACK ACTIVITY carries effects, found by shape.
@@ -744,7 +731,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
             `FIXTURE: the cast itself was refused (${rof.item.name} on ${rof.actor.name})`);
           throw new Error(`FIXTURE: cast refused — ${rof.item.name} on ${rof.actor.name} (slotless?)`);
         }
-        const dmg = await waitDamage(usageId ?? attackMsg.id, { flag: 'effectReceipt' });
+        const dmg = await damageLanded(usageId ?? attackMsg.id, { flag: 'effectReceipt' });
         const applied = chip();
         const receipt = dmg?.getFlag(MOD, 'effectReceipt');
         ok('11. a spell hit applies the card\'s effects to the target (1.9A)',
@@ -758,11 +745,12 @@ const out = await f.evaluate(async ({ sections, titles }) => {
 
         // Re-cast: refresh, never stack.
         const again = await attack(spellAttack());
-        await waitDamage(again.usageId ?? again.attackMsg.id, { flag: 'effectReceipt' });
-        await sleep(800);
+        await damageLanded(again.usageId ?? again.attackMsg.id, { flag: 'effectReceipt' });
+        // a window for a twin effect
+        const twin = await watch(() => victim.effects.filter(e => effectNames.has(e.name) && !e.disabled).length > 1, { ms: 800 });
         const copies = victim.effects.filter(e => effectNames.has(e.name) && !e.disabled);
         ok('11c. a second cast re-clocks the effect instead of stacking a twin',
-          copies.length === 1, `count=${copies.length}`);
+          (copies.length === 1) && !twin, `count=${copies.length}${twin ? ' (a twin seen)' : ''}`);
 
         await clearChips();
         await clearSpellChips();
@@ -771,27 +759,28 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         if (miss.roll?.isCritical) {
           skip('1.9A miss path: nat-20 crit vs AC 40 (flake, 1/400)');
         } else {
-          await sleep(2500);
-          ok('11d. a missed spell attack applies nothing', !chip(), `chip=${chip()?.name ?? 'none'}`);
+          // a window for a WRONG effect off the miss
+          const stray = await watch(() => chip(), { ms: 2500 });
+          ok('11d. a missed spell attack applies nothing', !chip() && !stray, `chip=${(chip() ?? stray)?.name ?? 'none'}`);
         }
         await acFlat(1);
 
         // ============================================ 12. effect revert: delete + tolerate gone
-        if (want(12)) {
+        if (want(12)) await section(12, async () => {
           await clearChips();
           await clearSpellChips();
           await healFull();
           await restCaster();
           const hit = await attack(spellAttack());
-          const dmg2 = await waitDamage(hit.usageId ?? hit.attackMsg.id, { flag: 'effectReceipt' });
-          const applied2 = await waitFor(() => chip());
-          const revertBtn = await waitFor(() => {
+          const dmg2 = await damageLanded(hit.usageId ?? hit.attackMsg.id, { flag: 'effectReceipt' });
+          const applied2 = await until(() => chip());
+          const revertBtn = await until(() => {
             const row = document.querySelector(`[data-message-id="${dmg2?.id}"] .bythebooks-receipt`);
             return [...(row?.querySelectorAll('button') ?? [])].find(b => b.textContent.includes('✕'));
           });
           revertBtn?.click();
-          const gone = await waitFor(() => !victim.effects.get(applied2?.id));
-          const marked = await waitFor(() => dmg2?.getFlag(MOD, 'effectReceipt')?.targets?.some(t =>
+          const gone = await until(() => !victim.effects.get(applied2?.id));
+          const marked = await until(() => dmg2?.getFlag(MOD, 'effectReceipt')?.targets?.some(t =>
             t.effects.some(e => (e.id === applied2?.id) && e.reverted)));
           ok('12. the receipt\'s revert deletes the applied effect and marks the entry',
             !!gone && !!marked, `gone=${!!gone} marked=${!!marked}`);
@@ -800,23 +789,23 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           await clearChips();
           await clearSpellChips();
           const hit2 = await attack(spellAttack());
-          const dmg3 = await waitDamage(hit2.usageId ?? hit2.attackMsg.id, { flag: 'effectReceipt' });
-          const applied3 = await waitFor(() => chip());
+          const dmg3 = await damageLanded(hit2.usageId ?? hit2.attackMsg.id, { flag: 'effectReceipt' });
+          const applied3 = await until(() => chip());
           await applied3?.delete();
-          const revertBtn2 = await waitFor(() => {
+          const revertBtn2 = await until(() => {
             const row = document.querySelector(`[data-message-id="${dmg3?.id}"] .bythebooks-receipt`);
             return [...(row?.querySelectorAll('button') ?? [])].find(b => b.textContent.includes('✕'));
           });
           revertBtn2?.click();
-          const marked2 = await waitFor(() => dmg3?.getFlag(MOD, 'effectReceipt')?.targets?.some(t =>
+          const marked2 = await until(() => dmg3?.getFlag(MOD, 'effectReceipt')?.targets?.some(t =>
             t.effects.some(e => (e.id === applied3?.id) && e.reverted)));
           ok('12b. revert tolerates an effect that is already gone',
             !!marked2, `marked=${!!marked2}`);
-        }
+        });
 
         // ============================================ 13. every use shows its first card
         // One cast, exactly one card, AND the riders land the effect.
-        if (want(13)) {
+        if (want(13)) await section(13, async () => {
           const usageCards = () => game.messages.contents.filter(m =>
             ((m.type === 'usage'))
             && m.speaker?.alias?.startsWith?.('BTB Test'));
@@ -829,27 +818,30 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           const before13 = usageCards().length;
           const co = await attack(spellAttack());
           const dmg13 = co.failed ? null
-            : await waitDamage(co.usageId ?? co.attackMsg.id, { flag: 'effectReceipt' });
+            : await damageLanded(co.usageId ?? co.attackMsg.id, { flag: 'effectReceipt' });
           ok('13. the spell card posts (exactly one) AND the riders land the effect anyway',
             !co.failed && (usageCards().length === before13 + 1) && !!chip() && !!dmg13,
             co.failed ? 'FIXTURE: the cast itself was refused (slots?)'
               : `cardDelta=${usageCards().length - before13} chip=${chip()?.name ?? 'none'} receipt=${!!dmg13}`);
-        }
+        });
       }
-    }
+    });
 
     // ---------------------------------------------------- 14. the Topple card folds its own save
     // A save chained to the card, or bare from a pending target, is judged against the card's DC on the
     // elect: failure applies Prone and announces; a save chained to another message is ignored.
     // Outcomes are FORCED through the save bonus (±30).
-    if (want(14)) {
+    if (want(14)) await section(14, async () => {
       await set('autoApply', true);
       await set('masteryAsk', 'auto');
       await setMastery('topple');
       // Every machine is always on (autoApply, the dice wait): an earlier section's damage can still be
       // landing, and a hit that drops the 11-HP Victim is dead-skipped with no Topple card. A deep pool
-      // for §14 alone, the fixture's own put back at its end (and by the teardown).
-      await sleep(1500);
+      // for §14 alone, the fixture's own put back at its end (and by the teardown). The landing: every damage
+      // card of the run receipted or marked not applied (auto-apply.js writes one or the other); a card that
+      // never gets either only costs the timeout.
+      await until(() => game.messages.contents.every(m => (m.type !== 'damage') || (m.timestamp < suiteStart)
+        || m.getFlag(MOD, 'receipt') || m.getFlag(MOD, 'notApplied')), { timeout: 5000, label: "the run's damage landed" }).catch(() => null);
       const hpMax14 = victim.system._source.attributes.hp.max;
       priorActor[victim.id]['system.attributes.hp.max'] ??= hpMax14;
       priorActor[victim.id]['system.attributes.hp.value'] ??= victim.system._source.attributes.hp.value;
@@ -880,7 +872,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
 
       let before14 = snap14();
       const atk14 = await attack(pcAttack());
-      await until14(() => fresh14(before14).some(m => m.getFlag(MOD, 'topple')));
+      // its absence is reported with the diagnostic below, and the rest of §14 stands down
+      await until(() => fresh14(before14).some(m => m.getFlag(MOD, 'topple')), { timeout: 8000 }).catch(() => null);
       const toppleMsg = fresh14(before14).find(m => m.getFlag(MOD, 'topple'));
       const tflag = toppleMsg?.getFlag(MOD, 'topple');
       const diag14 = () => JSON.stringify({
@@ -900,19 +893,20 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         await victim.update({ 'system.abilities.con.save.roll.bonus': '-30' });
         await victim.rollSavingThrow({ ability: 'con' }, { configure: false },
           { data: { 'system.origin': atk14.attackMsg.id } });
-        await sleep(1200);
+        // a window for a WRONG fold
+        const folded14 = await watch(() => toppleMsg.getFlag(MOD, 'topple').targets[0].done !== false, { ms: 1200 });
         ok('14b. a save chained to another message does not fold the topple card',
-          toppleMsg.getFlag(MOD, 'topple').targets[0].done === false,
+          (toppleMsg.getFlag(MOD, 'topple').targets[0].done === false) && !folded14,
           `done=${toppleMsg.getFlag(MOD, 'topple').targets[0].done}`);
 
         before14 = snap14();
         const saveRolls14 = await victim.rollSavingThrow({ ability: 'con' }, { configure: false },
           { data: { 'system.origin': toppleMsg.id } });
-        await until14(() => toppleMsg.getFlag(MOD, 'topple').targets[0].done);
+        await until(() => toppleMsg.getFlag(MOD, 'topple').targets[0].done, { timeout: 8000, label: 'the topple card folded' });
         // The announcement posts after the flag flips done and the dice pause: a generous wait.
-        await until14(() => fresh14(before14).some(m => m.content?.includes('falls Prone')), 10_000);
+        await until(() => fresh14(before14).some(m => m.content?.includes('falls Prone')), { timeout: 10_000, label: 'the "falls Prone" announcement' });
         // The applied receipt is written after the announcement.
-        await until14(() => toppleMsg.getFlag(MOD, 'topple').targets[0].applied, 8000);
+        await until(() => toppleMsg.getFlag(MOD, 'topple').targets[0].applied, { timeout: 8000, label: 'the applied mark' });
         const e14 = toppleMsg.getFlag(MOD, 'topple').targets[0];
         const announced = fresh14(before14).filter(m => m.content?.includes('falls Prone')).length;
         const sm14 = saveRolls14?.[0]?.parent;
@@ -941,17 +935,17 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           await healFull();
           before14 = snap14();
           atk14d = await attack(pcAttack());
-          await until14(() => fresh14(before14).some(m => m.getFlag(MOD, 'topple')), 12_000);
+          await until(() => fresh14(before14).some(m => m.getFlag(MOD, 'topple')), { timeout: 12_000 }).catch(() => null);
           topple2 = fresh14(before14).find(m => m.getFlag(MOD, 'topple'));
         }
         if (topple2) {
           const preAnnounce = snap14();
           const rolls14d = await victim.rollSavingThrow({ ability: 'con' }, { configure: false },
             { data: { 'system.origin': topple2.id } });
-          await until14(() => topple2.getFlag(MOD, 'topple').targets[0].done);
+          await until(() => topple2.getFlag(MOD, 'topple').targets[0].done, { timeout: 8000, label: 'the second topple card folded' });
           const e14b = topple2.getFlag(MOD, 'topple').targets[0];
           // A success announces too (one card, no Prone): a public ask resolving in silence reads as dropped.
-          await until14(() => fresh14(preAnnounce).some(m => m.content?.includes('stays standing')), 10_000);
+          await until(() => fresh14(preAnnounce).some(m => m.content?.includes('stays standing')), { timeout: 10_000, label: 'the "stays standing" announcement' });
           const announced2 = fresh14(preAnnounce).filter(m => m.content?.includes('falls Prone')).length;
           const stood2 = fresh14(preAnnounce).filter(m => m.content?.includes('stays standing')).length;
           // The card prints the ROLL's total, never "?".
@@ -983,27 +977,24 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           await healFull();
           before14 = snap14();
           await attack(pcAttack());
-          await until14(() => fresh14(before14).some(m => m.getFlag(MOD, 'topple')));
+          await until(() => fresh14(before14).some(m => m.getFlag(MOD, 'topple')), { timeout: 8000 }).catch(() => null);
           topple3 = fresh14(before14).find(m => m.getFlag(MOD, 'topple'));
         }
         if (topple3) {
           // 14f while pending: the card offers its own correctly-aimed Roll — the native enricher rolls
           // for the SELECTION, which right after an attack is the attacker.
-          let cardEl = null;
-          await until14(() => {
-            cardEl = document.querySelector(`.message[data-message-id="${topple3.id}"]`);
-            return !!cardEl;
-          }, 4000);
+          // the line below reports a card never drawn, so the wait tolerates it
+          const cardEl = await until(() => document.querySelector(`.message[data-message-id="${topple3.id}"]`), { timeout: 4000 }).catch(() => null);
           const rollBtn = cardEl && [...cardEl.querySelectorAll('button')]
             .some(b => b.textContent?.includes('Roll save'));
           ok('14f. a pending topple card offers its own Roll control (the selection trap)',
             !!rollBtn, cardEl ? 'no Roll button in the rendered card' : 'card element not found');
 
           await victim.rollSavingThrow({ ability: 'con' }, { configure: false }, {});
-          await until14(() => topple3.getFlag(MOD, 'topple').targets[0].done);
+          await until(() => topple3.getFlag(MOD, 'topple').targets[0].done, { timeout: 8000, label: 'the third topple card folded' });
           const e14c = topple3.getFlag(MOD, 'topple').targets[0];
           // Prone lands after the verdict pause: wait for the status itself.
-          await until14(() => victim.statuses.has('prone'), 10_000);
+          await until(() => victim.statuses.has('prone'), { timeout: 10_000, label: 'the victim Prone' });
           ok('14e. a bare sheet save from a pending target answers the card',
             e14c.done && (e14c.outcome === 'prone') && victim.statuses.has('prone'),
             `outcome=${e14c.outcome} prone=${victim.statuses.has('prone')}`);
@@ -1022,7 +1013,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           await healFull();
           before14 = snap14();
           await attack(pcAttack());
-          await until14(() => fresh14(before14).some(m => m.getFlag(MOD, 'topple')), 12_000);
+          await until(() => fresh14(before14).some(m => m.getFlag(MOD, 'topple')), { timeout: 12_000 }).catch(() => null);
           topple4 = fresh14(before14).find(m => m.getFlag(MOD, 'topple'));
         }
         if (topple4) {
@@ -1030,17 +1021,14 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           ok('14g. the topple demand stamps the save timer (window + deadline on the flag)',
             (t4.window === 3) && (t4.deadline > Date.now() - 60_000),
             `window=${t4.window ?? 'none'} deadline=${t4.deadline ?? 'none'}`);
-          let barEl = null;
-          await until14(() => {
-            barEl = document.querySelector(`.message[data-message-id="${topple4.id}"] [data-bf-deadline]`);
-            return !!barEl;
-          }, 4000);
+          const barEl = await until(() => document.querySelector(`.message[data-message-id="${topple4.id}"] [data-bf-deadline]`),
+            { timeout: 4000, label: "the topple card's deadline bar" });
           ok('14h. the topple card runs the deadline bar (the pairing rule at the DOM)',
             !!barEl, 'no [data-bf-deadline] node in the rendered topple card');
           // Nobody rolls. The buzzer must — and its roll is marked as the timer's press.
-          await until14(() => topple4.getFlag(MOD, 'topple').targets[0].done, 12_000);
+          await until(() => topple4.getFlag(MOD, 'topple').targets[0].done, { timeout: 12_000, label: 'the buzzer folded the topple card' });
           const e14g = topple4.getFlag(MOD, 'topple').targets[0];
-          await until14(() => victim.statuses.has('prone'), 10_000);
+          await until(() => victim.statuses.has('prone'), { timeout: 10_000, label: 'the victim Prone' });
           const timerRoll = game.messages.contents.find(m =>
             (m._source.system?.origin === topple4.id)
             && m.getFlag(MOD, 'timedOut'));
@@ -1064,16 +1052,15 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         await healFull();
         before14 = snap14();
         await attack(pcAttack());
-        await until14(() => fresh14(before14).some(m => m.getFlag(MOD, 'topple')), 12_000);
+        await until(() => fresh14(before14).some(m => m.getFlag(MOD, 'topple')), { timeout: 12_000, label: 'the fifth topple card' });
         const topple5 = fresh14(before14).find(m => m.getFlag(MOD, 'topple'));
-        let dlg5 = null;
-        await until14(() => { dlg5 = toppleDialogs()[0] ?? null; return !!dlg5; }, 8000);
+        const dlg5 = await until(() => toppleDialogs()[0] ?? null, { timeout: 8000, label: "the Topple's Saving Throw dialog" });
         const labels5 = dialogButtons(dlg5).map(b => b.textContent.trim());
         // The default MARK: autofocus, the module's mark, and where focus is.
         const marks = () => dialogButtons(dlg5).map(b => `${b.dataset.action}:${b.hasAttribute('autofocus') ? 'A' : '-'}${b.hasAttribute('data-bf-default') ? 'M' : '-'}${document.activeElement === b ? 'F' : '-'}`).join(' ');
         const markLog = [`t0 ${marks()}`];
-        await sleep(300); markLog.push(`t300 ${marks()}`);
-        await sleep(1200); markLog.push(`t1500 ${marks()} active=${document.activeElement?.tagName}`);
+        await sleep(300); markLog.push(`t300 ${marks()}`);   // clock: the focus timeline's 300 ms sample (logged, not asserted)
+        await sleep(1200); markLog.push(`t1500 ${marks()} active=${document.activeElement?.tagName}`);   // clock: its 1500 ms sample
         log.push(`14j marks: ${markLog.join(' | ')}`);
         ok('14j. the Topple ask IS the system\'s Saving Throw dialog: its Adv/Normal/Dis, its situational bonus, its roll mode — and our demand fieldset naming the target and the DC',
           !!topple5 && !!dlg5 && (labels5.join('/') === 'Advantage/Normal/Disadvantage')
@@ -1083,8 +1070,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         // Pressing the dialog's own Normal rolls the save chained to the card; the fold judges
         // it exactly as a sheet roll, and the answered dialog leaves.
         dialogButtons(dlg5).find(b => b.textContent.trim() === 'Normal')?.click();
-        await until14(() => topple5?.getFlag(MOD, 'topple').targets[0].done, 12_000);
-        await until14(() => toppleDialogs().length === 0, 4000);
+        await until(() => topple5?.getFlag(MOD, 'topple').targets[0].done, { timeout: 12_000, label: 'the dialog roll folded the topple card' });
+        await until(() => toppleDialogs().length === 0, { timeout: 4000, label: 'the answered dialog closed' });
         const e14j = topple5?.getFlag(MOD, 'topple').targets[0];
         ok('14k. the dialog\'s own button rolls the save chained to the card, the fold judges it, the dialog closes',
           !!e14j?.done && (typeof e14j.total === 'number') && (toppleDialogs().length === 0),
@@ -1097,13 +1084,12 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           name: 'Cunning Strike: Tripped', statuses: ['prone'], disabled: true, img: 'icons/svg/falling.svg', origin: null }]);
         before14 = snap14();
         await attack(pcAttack());
-        await until14(() => fresh14(before14).some(m => m.getFlag(MOD, 'topple')), 12_000);
+        await until(() => fresh14(before14).some(m => m.getFlag(MOD, 'topple')), { timeout: 12_000, label: 'the seventh topple card' });
         const topple7 = fresh14(before14).find(m => m.getFlag(MOD, 'topple'));
-        let dlg7 = null;
-        await until14(() => { dlg7 = toppleDialogs()[0] ?? null; return !!dlg7; }, 8000);
+        const dlg7 = await until(() => toppleDialogs()[0] ?? null, { timeout: 8000, label: "the Topple's Saving Throw dialog" });
         dialogButtons(dlg7).find(b => b.textContent.trim() === 'Normal')?.click();
-        await until14(() => topple7?.getFlag(MOD, 'topple').targets[0].done, 12_000);
-        await until14(() => victim.effects.some(e => e.statuses?.has?.('prone') && !e.disabled), 10_000);
+        await until(() => topple7?.getFlag(MOD, 'topple').targets[0].done, { timeout: 12_000, label: 'the dialog roll folded the topple card' });
+        await until(() => victim.effects.some(e => e.statuses?.has?.('prone') && !e.disabled), { timeout: 10_000, label: 'an enabled Prone on the victim' });
         const landed = victim.effects.find(e => e.statuses?.has?.('prone') && !e.disabled);
         const stillDormant = victim.effects.get(leftover.id);
         ok('14m. a Topple failure presses the CANONICAL Prone beside a dormant look-alike — the leftover stays disabled, the landed one is "Prone"',
@@ -1118,19 +1104,19 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       }
       await victim.update({ 'system.attributes.hp.max': hpMax14 });
       await healFull();
-    }
+    });
 
     // ---------------------------------------------------- 15. the reminders (vex / sap / cleave)
     // The card is the durable record (flag masteryNotice, windowed by S.noticeTimer); the popup
     // is a per-client view and is not asserted here.
-    if (want(15)) {
+    if (want(15)) await section(15, async () => {
       await setMastery('vex');
       let before15 = snap14();
       for (let try15 = 0; try15 < 4; try15++) {
         await healFull(); // dead targets are skipped — every §15 attack starts from full
         before15 = snap14();
         await attack(pcAttack());
-        await until14(() => fresh14(before15).some(m => m.getFlag(MOD, 'masteryNotice')?.key === 'vex'), 10_000);
+        await until(() => noticeSince('vex', before15), { timeout: 10_000 }).catch(() => null);
         if (fresh14(before15).some(m => m.getFlag(MOD, 'masteryNotice')?.key === 'vex')) break;
       }
       let msgs15 = fresh14(before15);
@@ -1145,11 +1131,11 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         !!vexChip && !!vexNotice && windowOk && vexNotice.content.includes('Weapon Mastery'),
         `chip=${!!vexChip} notice=${!!vexNotice} window=${gotWindow} want=${noticeWindow || 'none (sticky)'}`);
       // The pairing rule: the popup's drain runs on the card too, asserted at the bar node.
+      // A windowed notice draws its bar with the render; a sticky one must never draw one (a window).
+      const barOf = () => document.querySelector(`.message[data-message-id="${vexNotice?.id}"] [data-bf-deadline]`);
       let noticeBar = null;
-      await until14(() => {
-        noticeBar = document.querySelector(`.message[data-message-id="${vexNotice?.id}"] [data-bf-deadline]`);
-        return !!noticeBar;
-      }, 4000);
+      if (vexNotice && noticeWindow) noticeBar = await until(barOf, { timeout: 4000, label: "the notice card's drain bar" });
+      else if (vexNotice) noticeBar = await watch(barOf, { ms: 4000 });
       ok(`15a2. the reminder card ${noticeWindow ? 'runs the drain bar' : 'draws no bar when sticky'} (the pairing rule at the DOM)`,
         noticeWindow ? !!noticeBar : !noticeBar,
         noticeWindow ? 'no [data-bf-deadline] node in the rendered notice card'
@@ -1165,7 +1151,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         await healFull(); // dead targets are skipped — every §15 attack starts from full
         before15 = snap14();
         await attack(pcAttack());
-        await until14(() => fresh14(before15).some(m => m.getFlag(MOD, 'masteryNotice')?.key === 'sap'), 10_000);
+        await until(() => noticeSince('sap', before15), { timeout: 10_000 }).catch(() => null);
         if (fresh14(before15).some(m => m.getFlag(MOD, 'masteryNotice')?.key === 'sap')) break;
       }
       const sapNotice = fresh14(before15).find(m => m.getFlag(MOD, 'masteryNotice')?.key === 'sap');
@@ -1178,7 +1164,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       await healFull();
       before15 = snap14();
       await attack(pcAttack());
-      await until14(() => fresh14(before15).some(m => m.getFlag(MOD, 'masteryNotice')?.key === 'cleave'));
+      await until(() => noticeSince('cleave', before15), { timeout: 8000, label: 'the Cleave reminder' });
       msgs15 = fresh14(before15);
       const cleaveNotice = msgs15.find(m => m.getFlag(MOD, 'masteryNotice')?.key === 'cleave');
       ok('15d. cleave reminds without paying anything',
@@ -1193,7 +1179,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         await victim.update({ 'system.attributes.hp.value': 1 });
         before15 = snap14();
         await attack(pcAttack());
-        await until14(() => fresh14(before15).some(m => m.getFlag(MOD, 'masteryNotice')?.key === 'cleave'), 10_000);
+        await until(() => noticeSince('cleave', before15), { timeout: 10_000 }).catch(() => null);
         killNotice15 = fresh14(before15).find(m => m.getFlag(MOD, 'masteryNotice')?.key === 'cleave');
       }
       ok('15d2. (u) a KILLING swing still posts the cleave reminder',
@@ -1205,12 +1191,13 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         .filter(el => (el.innerHTML ?? '').includes('Weapon Mastery'))) {
         try { (el.querySelector('[data-action="close"]') ?? el.querySelector('.header-control'))?.click(); } catch {}
       }
-      await sleep(300);
-    }
+      // the closing is best-effort, so the wait for the popups to leave is too
+      await until(() => !masteryPopups().length, { timeout: 3000 }).catch(() => null);
+    });
 
     // ---------------------------------- 16. the Topple fold's edges
     // The fold refuses other machines' rolls; twin asks and twin chips converge.
-    if (want(16)) {
+    if (want(16)) await section(16, async () => {
       await setMastery('topple');
       await victim.update({ 'system.abilities.con.save.roll.bonus': '+30' }); // every save succeeds — no Prone side-effects
       let card16 = null;
@@ -1219,7 +1206,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         await healFull();
         const b16 = snap14();
         await attack(pcAttack());
-        await until14(() => fresh14(b16).some(m => m.getFlag(MOD, 'topple')), 12_000);
+        await until(() => fresh14(b16).some(m => m.getFlag(MOD, 'topple')), { timeout: 12_000 }).catch(() => null);
         card16 = fresh14(b16).find(m => m.getFlag(MOD, 'topple'));
       }
       if (card16) {
@@ -1231,9 +1218,10 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         // 16b. a roll stamped as ANOTHER machine's answer (respondsTo) never folds the Topple.
         await victim.rollSavingThrow({ ability: 'con' }, { configure: false },
           { data: { flags: { [MOD]: { respondsTo: 'bfstubforeign000' } } } });
-        await sleep(1500);
+        // a window for a WRONG fold
+        const folded16b = await watch(() => card16.getFlag(MOD, 'topple').targets[0].done !== false, { ms: 1500 });
         ok('16b. a respondsTo roll (another machine\'s answer) never folds the topple',
-          card16.getFlag(MOD, 'topple').targets[0].done === false,
+          (card16.getFlag(MOD, 'topple').targets[0].done === false) && !folded16b,
           `done=${card16.getFlag(MOD, 'topple').targets[0].done}`);
 
         // 16c. while a concentration ask pends for the same actor and ability, a bare sheet roll is
@@ -1242,17 +1230,18 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           flags: { [MOD]: { concentration: {
             status: 'pending', actorUuid: victim.uuid, ability: 'con', dc: 10 } } } });
         await victim.rollSavingThrow({ ability: 'con' }, { configure: false }, {});
-        await sleep(1500);
+        // a window for a WRONG fold
+        const folded16c = await watch(() => card16.getFlag(MOD, 'topple').targets[0].done !== false, { ms: 1500 });
         ok('16c. a bare roll defers to a pending concentration ask — the topple stands',
-          card16.getFlag(MOD, 'topple').targets[0].done === false,
+          (card16.getFlag(MOD, 'topple').targets[0].done === false) && !folded16c,
           `done=${card16.getFlag(MOD, 'topple').targets[0].done}`);
 
         // 16d. with that ask gone, the next bare roll is the Topple's, and the success announces.
         await ChatMessage.deleteDocuments([stub16.id]);
         const pre16d = snap14();
         await victim.rollSavingThrow({ ability: 'con' }, { configure: false }, {});
-        await until14(() => card16.getFlag(MOD, 'topple').targets[0].done, 8000);
-        await until14(() => fresh14(pre16d).some(m => m.content?.includes('stays standing')), 10_000);
+        await until(() => card16.getFlag(MOD, 'topple').targets[0].done, { timeout: 8000, label: 'the bare roll folded the topple card' });
+        await until(() => fresh14(pre16d).some(m => m.content?.includes('stays standing')), { timeout: 10_000, label: 'the "stays standing" announcement' });
         const e16 = card16.getFlag(MOD, 'topple').targets[0];
         ok('16d. with the ask gone the bare roll answers the topple, and the save announces',
           e16.done && (e16.outcome === 'saved')
@@ -1267,7 +1256,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
             sourceMessageId: card16.getFlag(MOD, 'topple').sourceMessageId,
             targets: [{ uuid: victim.uuid, name: victim.name,
               done: true, outcome: 'saved', applied: true }] } } } });
-        const gone16 = await until14(() => !game.messages.get(twin16.id), 6000);
+        const gone16 = await until(() => !game.messages.get(twin16.id), { timeout: 6000, label: 'the twin ask gone' });
         ok('16e. a twin ask over the same source supersedes itself — the elder keeps the question',
           !!gone16 && !!game.messages.get(card16.id),
           `twinGone=${!!gone16} elderStands=${!!game.messages.get(card16.id)}`);
@@ -1290,13 +1279,13 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const eA16 = await ActiveEffect.implementation.create({
         name: 'BTB Twin Chip', origin: victim.uuid,
         flags: { [MOD]: { applied: true } } }, { parent: victim });
-      await sleep(60); // distinct server creation stamps — the dedupe orders by them
-      void ActiveEffect.implementation.create({
+      await sleep(60); // clock: distinct server creation stamps — the dedupe orders by them
+      // the twin landed before asking for convergence (its return is not read: the watcher may delete it first)
+      await ActiveEffect.implementation.create({
         name: 'BTB Twin Chip', origin: victim.uuid,
-        flags: { [MOD]: { applied: true } } }, { parent: victim });
-      await sleep(600); // let the twin land before asking for convergence
-      const converged16 = await until14(() =>
-        victim.effects.filter(e => e.name === 'BTB Twin Chip').length === 1, 6000);
+        flags: { [MOD]: { applied: true } } }, { parent: victim }).catch(() => null);
+      const converged16 = await until(() =>
+        victim.effects.filter(e => e.name === 'BTB Twin Chip').length === 1, { timeout: 6000, label: 'the twin chips converged' });
       ok('16f. a twin fingerprinted chip converges to one — newcomer deletes, elder stands',
         !!converged16 && !!eA16 && !!victim.effects.get(eA16.id),
         `converged=${!!converged16} elderStands=${!!(eA16 && victim.effects.get(eA16.id))} `
@@ -1304,13 +1293,13 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       for (const e of victim.effects.filter(e => e.name === 'BTB Twin Chip')) await e.delete();
       await victim.update({ 'system.abilities.con.save.roll.bonus':
         priorActor[victim.id]['system.abilities.con.save.roll.bonus'] });
-    }
+    });
 
     // ================================================== 17. the Cleave arm
     // The reminder offers Arm / Dismiss; the arm is a one-shot actor flag that strips "@mod" from the
     // BASE entry of the next damage roll with that weapon — never a negative mod — expiring by stamp
     // mismatch (in combat) or a 60s TTL.
-    if (want(17)) {
+    if (want(17)) await section(17, async () => {
       await setMastery('cleave');
       await acFlat(1);
       await healFull();
@@ -1323,21 +1312,22 @@ const out = await f.evaluate(async ({ sections, titles }) => {
             .filter(el => (el.innerHTML ?? '').includes('Weapon Mastery'))) {
             try { (el.querySelector('[data-action="close"]') ?? el.querySelector('.header-control'))?.click(); } catch {}
           }
-          await sleep(300);
+          // the closing is best-effort, so the wait for the popups to leave is too
+          await until(() => !masteryPopups().length, { timeout: 3000 }).catch(() => null);
         };
         const modOf = () => pc.system.abilities.str.mod; // the blade is STR-based at 16 (+3)
 
         // 17a — the reminder pops with the Arm control; pressing it writes the actor flag.
         {
           const { attackMsg } = await attack(pcAttack());
-          await waitDamage(attackMsg?._source.system?.origin ?? attackMsg?.id, { flag: 'receipt' });
-          const dialog = await waitFor(() => cleaveDialogs()[0], 8000);
+          await damageLanded(attackMsg?._source.system?.origin ?? attackMsg?.id, { flag: 'receipt' });
+          const dialog = await until(() => cleaveDialogs()[0], { timeout: 8000 });
           ok('17a. the Cleave reminder offers Arm/Dismiss (a decision, not an OK)',
             !!dialog && !!dialog.querySelector('button[data-action="arm"]')
               && !!dialog.querySelector('button[data-action="dismiss"]'),
             `dialog=${!!dialog} arm=${!!dialog?.querySelector('button[data-action="arm"]')}`);
           dialog?.querySelector('button[data-action="arm"]')?.click();
-          const arm = await waitFor(() => pc.getFlag(MOD, 'cleaveArm'), 5000);
+          const arm = await until(() => pc.getFlag(MOD, 'cleaveArm'), { timeout: 5000 });
           ok('17b. Arm writes the one-shot actor flag keyed to THIS weapon',
             (arm?.itemId === blade.id) && (arm?.stamp === null),
             `arm=${JSON.stringify(arm)}`);
@@ -1345,9 +1335,11 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           // "Cleave — armed" block stays.
           const notice17 = game.messages.contents.filter(m =>
             m.getFlag(MOD, 'masteryNotice')?.key === 'cleave').pop();
-          const acked17 = await waitFor(() =>
-            notice17?.getFlag(MOD, 'masteryNotice')?.acknowledged === true, 5000);
-          await sleep(400);
+          const acked17 = await until(() =>
+            notice17?.getFlag(MOD, 'masteryNotice')?.acknowledged === true, { timeout: 5000 });
+          // the acknowledged card re-renders without its bar
+          await until(() => !(notice17 && document.querySelector(`.message[data-message-id="${notice17.id}"] [data-bf-deadline]`)),
+            { timeout: 4000, label: "the acknowledged card's bar gone" });
           const bar17 = notice17 ? document.querySelector(
             `.message[data-message-id="${notice17.id}"] [data-bf-deadline]`) : null;
           ok('17b2. (j) Arm ACKNOWLEDGES the reminder — flag recorded, the card bar leaves',
@@ -1360,7 +1352,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         {
           const { attackMsg } = await attack(pcAttack());
           const originId = attackMsg?._source.system?.origin ?? attackMsg?.id;
-          const dmg = await waitDamage(originId, { flag: 'receipt' });
+          const dmg = await damageLanded(originId, { flag: 'receipt' });
           const formula = dmg?.rolls?.[0]?.formula ?? '';
           ok('17c. armed — the damage roll drops the ability modifier',
             !!dmg && !formula.includes(`+ ${modOf()}`) && !!dmg.getFlag(MOD, 'cleaveStripped')
@@ -1377,7 +1369,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
             { itemId: blade.id, itemName: blade.name, stamp: null, armedAt: Date.now() });
           const { attackMsg } = await attack(pcAttack());
           const originId = attackMsg?._source.system?.origin ?? attackMsg?.id;
-          const dmg = await waitDamage(originId, { flag: 'receipt' });
+          const dmg = await damageLanded(originId, { flag: 'receipt' });
           const formula = dmg?.rolls?.[0]?.formula ?? '';
           ok('17d. negative mod — the strip SKIPS (the penalty stays), the arm still consumes',
             !!dmg && /-\s*2/.test(formula) && !dmg.getFlag(MOD, 'cleaveStripped')
@@ -1394,7 +1386,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
             { itemId: blade.id, itemName: blade.name, stamp: 'staleCombat:1:0', armedAt: Date.now() });
           const { attackMsg } = await attack(pcAttack());
           const originId = attackMsg?._source.system?.origin ?? attackMsg?.id;
-          const dmg = await waitDamage(originId, { flag: 'receipt' });
+          const dmg = await damageLanded(originId, { flag: 'receipt' });
           const formula = dmg?.rolls?.[0]?.formula ?? '';
           ok('17e. a stale combat stamp never strips — mismatch IS expiry, the flag self-cleans',
             !!dmg && formula.includes(`+ ${modOf()}`) && !dmg.getFlag(MOD, 'cleaveStripped')
@@ -1407,7 +1399,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         {
           const { attackMsg } = await attack(pcAttack());
           const originId = attackMsg?._source.system?.origin ?? attackMsg?.id;
-          const dmg = await waitDamage(originId, { flag: 'receipt' });
+          const dmg = await damageLanded(originId, { flag: 'receipt' });
           const formula = dmg?.rolls?.[0]?.formula ?? '';
           ok('17f. unarmed — the modifier rides as always, no strip stamp',
             !!dmg && formula.includes(`+ ${modOf()}`) && !dmg.getFlag(MOD, 'cleaveStripped'),
@@ -1416,7 +1408,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         }
         await pc.unsetFlag(MOD, 'cleaveArm').catch(() => {});
       }
-    }
+    });
 
     return { log, results, skips };
   } catch (err) {

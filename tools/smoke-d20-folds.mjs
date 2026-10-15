@@ -85,11 +85,11 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     /* --- 1: content ------------------------------------------------------------------- */
     if (has(1)) {
       const entries = game.modules.get(MODULE_ID)?.api?.registries?.d20Folds?.() ?? [];
-      // Every entry is one of the fold kinds and each is represented; an older stored list may lack some.
-      const KINDS = ["heroic", "tactical", "bardic", "seeking", "advantage", "succeed", "reroll"];
+      // Every entry names its kind and the five surveyed kinds are represented; that a kind is one of the closed set is
+      // npm run registry's (tools/check-registry.mjs), so a kind a feature adds never reds this.
       const REQUIRED = ["heroic", "tactical", "bardic", "seeking", "advantage"];
-      ok("all six kinds are known, and the five surveyed before group 4 are listed and live",
-        (entries.length >= REQUIRED.length) && entries.every(e => KINDS.includes(e.kind))
+      ok("every entry names its kind, and the five surveyed before group 4 are listed and live",
+        (entries.length >= REQUIRED.length) && entries.every(e => (typeof e.kind === "string") && e.kind)
           && REQUIRED.every(k => entries.some(e => e.kind === k)),
         JSON.stringify(entries));
 

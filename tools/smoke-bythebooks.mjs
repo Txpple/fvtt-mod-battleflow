@@ -48,19 +48,14 @@ let priorSettings = null;
 {
   const r = await f.evaluate(async () => {
     const MOD = 'fvtt-mod-bythebooks';
+    const { snapshotSettings } = window.__btb;
     const mod = game.modules.get(MOD);
     if (!mod?.active) return { ok: false, why: `module active=${mod?.active}` };
-    // The table's current settings, restored at the end (not hardcoded defaults).
-    const prior = {
-      autoDamage: game.settings.get(MOD, 'autoDamage'),
-      autoApply: game.settings.get(MOD, 'autoApply'),
-      dramaticBeat: game.settings.get(MOD, 'dramaticBeat'),
-      requireTarget: game.settings.get(MOD, 'requireTarget'),
-      reactionHold: game.settings.get(MOD, 'reactionHold'),
-      effectRiders: game.settings.get(MOD, 'effectRiders'),
-      masteryRiders: game.settings.get(MOD, 'masteryRiders'),
-      goingDownCosts: game.settings.get(MOD, 'goingDownCosts'),
-    };
+    // The table's current settings, restored at the end (not hardcoded defaults): the snapshot stays on the
+    // page for §6's restore.
+    const settings = snapshotSettings(['autoDamage', 'autoApply', 'dramaticBeat', 'requireTarget', 'reactionHold',
+      'effectRiders', 'masteryRiders', 'goingDownCosts']);
+    window.__smokeSettings = settings;
     await game.settings.set(MOD, 'autoDamage', 'all');
     await game.settings.set(MOD, 'autoApply', true);
     await game.settings.set(MOD, 'dramaticBeat', 0);
@@ -80,13 +75,14 @@ let priorSettings = null;
         for (const it of ta.items.filter(i => i.type === 'spell' && i.name === 'Shield')) await it.delete();
       }
     }
+    const now = snapshotSettings(['autoDamage', 'autoApply']).prior;
     return {
-      ok: true, prior,
+      ok: true, prior: settings.prior,
       user: game.user.name,
       isActiveGM: game.users.activeGM?.isSelf ?? false,
       elect: game.users.activeGM?.name ?? null,
-      autoDamage: game.settings.get(MOD, 'autoDamage'),
-      autoApply: game.settings.get(MOD, 'autoApply'),
+      autoDamage: now.autoDamage,
+      autoApply: now.autoApply,
       trays: game.settings.get('dnd5e', 'autoCollapseChatTrays'),
     };
   }, null);
@@ -105,6 +101,7 @@ let priorSettings = null;
 
 // ---- 2. fixtures: scene, actors, tokens
 const fx = await f.evaluate(async () => {
+  const { viewScene, tokenOn } = window.__btb;
   const out = { log: [] };
   try {
     // Scene (idempotent by name; local view only — activation would move the players).
@@ -175,10 +172,9 @@ const fx = await f.evaluate(async () => {
       }
     }
 
-    if (canvas.scene?.id !== scene.id) await scene.view();
-    for (let i = 0; i < 40 && !(canvas.ready && canvas.tokens.get(victimToken)); i++) {
-      await new Promise(r => setTimeout(r, 250));
-    }
+    // Soft: a canvas that never draws the victim is the refusal below.
+    await viewScene(scene).catch(() => null);
+    await tokenOn(victimToken).catch(() => null);
     if (!canvas.tokens.get(victimToken)) return { ok: false, why: 'canvas never readied' };
 
     return {
@@ -198,6 +194,7 @@ if (!fx.ok) { process.exit(1); }
 // ---- 3. the hit chain
 if (want('3')) {
   const r = await f.evaluate(async ({ victimId, victimToken, attackerId, itemName }) => {
+    const { until, faces, unrig } = window.__btb;
     try {
       // The token is UNLINKED: assert against its synthetic actor, not the world actor.
       const base = game.actors.get(victimId);
@@ -216,30 +213,26 @@ if (want('3')) {
       const usageId = results?.message?.id ?? null;
       if (!usageId) return { ok: false, why: 'no usage message id' };
 
-      // ⚠ The d20 is PINNED to a 19 for the forced hit: neither a fumble nor a crit. The old "only a
-      // 1-in-400 double fumble misses" failed twice in three runs on 2026-10-11, which is not 1-in-400.
-      const realPRNG = CONFIG.Dice.randomUniform;
-      CONFIG.Dice.randomUniform = () => 0.925;
+      // ⚠ The d20 is PINNED for the forced hit against AC 1: a 2 on every die drawn while the rig stands,
+      // neither a fumble nor a crit.
+      faces([[2, 20]]);
       let rolls;
       try {
         rolls = await activity.rollAttack(
           { advantage: true },
           { configure: false },
           { data: { 'system.origin': usageId } });
-      } finally { CONFIG.Dice.randomUniform = realPRNG; }
+      } finally { unrig(); }
       if (!rolls?.length) return { ok: false, why: 'attack roll produced no rolls' };
       const attackTotal = rolls[0].total;
       // A 1-in-400 double fumble still misses; it rides in the failure detail to read as a flake.
       const fumble = rolls[0].isFumble ?? false;
 
-      let damageMsg = null;
-      for (let i = 0; i < 40 && !damageMsg; i++) {
-        await new Promise(r => setTimeout(r, 250));
-        damageMsg = game.messages.contents.slice(-10).find(m =>
-          (m.type === 'damage')
-          && (m._source.system?.origin === usageId)
-          && m.getFlag('fvtt-mod-bythebooks', 'receipt'));
-      }
+      // Soft: a hit that never lands a receipted damage card is the diagnosis below.
+      const damageMsg = await until(() => game.messages.contents.slice(-10).find(m =>
+        (m.type === 'damage')
+        && (m._source.system?.origin === usageId)
+        && m.getFlag('fvtt-mod-bythebooks', 'receipt')), { label: 'the receipted damage card' }).catch(() => null);
       if (!damageMsg) {
         const tail = game.messages.contents.slice(msgCount).map(m => ({
           id: m.id, type: m.type,
@@ -289,6 +282,7 @@ if (want('3')) {
 if (want('3b')) {
   const driveOnce = async label => {
     const r = await f.evaluate(async ({ victimId, victimToken, attackerId, attackerToken, itemName }) => {
+      const { until, faces, unrig } = window.__btb;
       try {
         const base = game.actors.get(victimId);
         await base.update({ 'system.attributes.ac.override': 1 });
@@ -299,22 +293,18 @@ if (want('3b')) {
         const results = await activity.use({ subsequentActions: false }, { configure: false }, {});
         const usageId = results?.message?.id ?? null;
         if (!usageId) return { ok: false, why: 'no usage message id' };
-        const realPRNG = CONFIG.Dice.randomUniform;
-        CONFIG.Dice.randomUniform = () => 0.925; // a 19 on every die (see §3b out of combat)
+        faces([[2, 20]]); // a 2 on every die drawn while it stands (see §3)
         let rolls;
         try {
           rolls = await activity.rollAttack({ advantage: true }, { configure: false },
             { data: { 'system.origin': usageId } });
-        } finally { CONFIG.Dice.randomUniform = realPRNG; }
+        } finally { unrig(); }
         if (!rolls?.length) return { ok: false, why: 'attack roll produced no rolls' };
-        let damageMsg = null;
-        for (let i = 0; i < 40 && !damageMsg; i++) {
-          await new Promise(r => setTimeout(r, 250));
-          damageMsg = game.messages.contents.slice(-10).find(m =>
-            (m.type === 'damage')
-            && (m._source.system?.origin === usageId)
-            && m.getFlag('fvtt-mod-bythebooks', 'receipt'));
-        }
+        // Soft: a hit that never lands a receipted damage card is the refusal below.
+        const damageMsg = await until(() => game.messages.contents.slice(-10).find(m =>
+          (m.type === 'damage')
+          && (m._source.system?.origin === usageId)
+          && m.getFlag('fvtt-mod-bythebooks', 'receipt')), { label: 'the receipted damage card' }).catch(() => null);
         if (!damageMsg) {
           return { ok: false, why: `no receipted damage message (fumble=${rolls[0].isFumble ?? false}`
             + ` — a 1-in-400 double fumble is a re-run, not a defect)` };
@@ -379,16 +369,14 @@ if (want('3b')) {
   if (started.ok) {
     // combatStart on the elect stamps a GM-whispered roster card.
     const roster = await f.evaluate(async ({ combatId }) => {
+      const { until } = window.__btb;
       try {
-        let flag = null;
-        let content = '';
-        for (let i = 0; i < 24 && !flag; i++) {
-          await new Promise(r => setTimeout(r, 250));
-          const m = game.messages.contents.findLast(x =>
-            x.getFlag('fvtt-mod-bythebooks', 'combatRoster')?.combatId === combatId);
-          flag = m?.getFlag('fvtt-mod-bythebooks', 'combatRoster') ?? null;
-          content = m?.content ?? '';
-        }
+        // Soft: a roster that never stamps is the ok: false below.
+        const m = await until(() => game.messages.contents.findLast(x =>
+          x.getFlag('fvtt-mod-bythebooks', 'combatRoster')?.combatId === combatId),
+        { timeout: 6000, label: 'the roster card' }).catch(() => null);
+        const flag = m?.getFlag('fvtt-mod-bythebooks', 'combatRoster') ?? null;
+        const content = m?.content ?? '';
         return { ok: !!flag, flag, content };
       } catch (err) { return { ok: false, why: err.message }; }
     }, { combatId: started.combatId });
@@ -416,19 +404,18 @@ if (want('3b')) {
     }
     // Delete the combat (never leave it running); deletion also closes the roster (endedRound).
     const gone = await f.evaluate(async ({ combatId }) => {
+      const { until } = window.__btb;
       try {
         await game.combats.get(combatId)?.delete();
-        let closed = null;
-        let markerId = null;
-        let content = '';
-        for (let i = 0; i < 24 && (closed == null); i++) {
-          await new Promise(r => setTimeout(r, 250));
-          const m = game.messages.contents.findLast(x =>
-            x.getFlag('fvtt-mod-bythebooks', 'combatRoster')?.combatId === combatId);
-          markerId = m?.id ?? null;
-          closed = m?.getFlag('fvtt-mod-bythebooks', 'combatRoster')?.endedRound ?? null;
-          content = m?.content ?? '';
-        }
+        const marker = () => game.messages.contents.findLast(x =>
+          x.getFlag('fvtt-mod-bythebooks', 'combatRoster')?.combatId === combatId);
+        // Soft: a roster that never closes is reported below, and its card is deleted either way.
+        await until(() => marker()?.getFlag('fvtt-mod-bythebooks', 'combatRoster')?.endedRound != null,
+          { timeout: 6000, label: 'the roster closed' }).catch(() => null);
+        const m = marker();
+        const markerId = m?.id ?? null;
+        const closed = m?.getFlag('fvtt-mod-bythebooks', 'combatRoster')?.endedRound ?? null;
+        const content = m?.content ?? '';
         if (markerId) await game.messages.get(markerId)?.delete();
         return { ok: !game.combats.get(combatId), closed, content };
       } catch (err) { return { ok: false, why: err.message }; }
@@ -447,6 +434,7 @@ if (want('3b')) {
 if (want('3c')) {
   const r = await f.evaluate(async () => {
     const MOD = 'fvtt-mod-bythebooks';
+    const { until } = window.__btb;
     try {
       const pc = game.actors.getName('BTB Test PC Attacker');
       if (!pc) return { ok: false, why: 'BTB Test PC Attacker is not in the world — run tools/fixture-suite.mjs' };
@@ -467,12 +455,9 @@ if (want('3c')) {
         const message = rolls[0].parent;
         messageId = message?.id ?? null;
         if (!(message instanceof ChatMessage)) return { ok: false, why: 'the death save has no message to stamp' };
-        // The stamp is an async setFlag: wait for it.
-        let ctx = null;
-        for (let i = 0; i < 20 && !ctx; i++) {
-          await new Promise(r => setTimeout(r, 250));
-          ctx = game.messages.get(messageId)?.getFlag(MOD, 'rollCtx') ?? null;
-        }
+        // The stamp is an async setFlag: wait for it. Soft: a stamp that never lands is the report's null.
+        const ctx = await until(() => game.messages.get(messageId)?.getFlag(MOD, 'rollCtx'),
+          { timeout: 5000, label: 'the rollCtx stamp' }).catch(() => null);
         return {
           ok: true, rollCtx: ctx, total: rolls[0].total,
           rollType: (message.type === 'save') ? message.system.type : message.type,   // 6.0: a death save is type save, sub-kind death
@@ -507,6 +492,7 @@ ${err.stack}` };
 // ---- 4. revert via a real DOM click
 if (want('4')) {
   const r = await f.evaluate(async ({ damageMsgId, victimToken, expectedHp }) => {
+    const { until } = window.__btb;
     try {
       const button = document.querySelector(
         `[data-message-id="${damageMsgId}"] .bythebooks-receipt button`);
@@ -523,12 +509,11 @@ if (want('4')) {
       button.click();
 
       const victim = canvas.tokens.get(victimToken).actor; // the damaged (synthetic) actor
-      let reverted = null;
-      for (let i = 0; i < 40 && !reverted; i++) {
-        await new Promise(r => setTimeout(r, 250));
+      // Soft: a marker that never lands is the refusal below.
+      const reverted = await until(() => {
         const flag = game.messages.get(damageMsgId)?.getFlag('fvtt-mod-bythebooks', 'receipt');
-        if (flag?.targets?.every(t => t.reverted)) reverted = flag;
-      }
+        return flag?.targets?.every(t => t.reverted) ? flag : null;
+      }, { label: 'the reverted marker' }).catch(() => null);
       if (!reverted) return { ok: false, why: 'reverted marker never set' };
       const hp = victim.system._source.attributes.hp;
       const buttonAfter = document.querySelector(
@@ -552,6 +537,7 @@ if (want('4')) {
 // weapon's own damage type, read from the item
 if (want('4b')) {
   const r = await f.evaluate(async ({ victimId, victimToken, attackerId, itemName }) => {
+    const { until } = window.__btb;
     const base = game.actors.get(victimId);
     const priorDi = foundry.utils.deepClone(base.system._source.traits.di);
     try {
@@ -587,15 +573,11 @@ if (want('4b')) {
         { data: { 'system.origin': usageId } });
       const fumble = rolls?.[0]?.isFumble ?? false;
 
-      // Whole-log search by originating id: a tail window flakes.
-      let damageMsg = null;
-      for (let i = 0; i < 40 && !damageMsg; i++) {
-        await new Promise(r => setTimeout(r, 250));
-        damageMsg = game.messages.contents.find(m =>
-          (m.type === 'damage')
-          && (m._source.system?.origin === usageId)
-          && m.getFlag('fvtt-mod-bythebooks', 'receipt'));
-      }
+      // Whole-log search by originating id: a tail window flakes. Soft: no damage card is `noDamage` below.
+      const damageMsg = await until(() => game.messages.contents.find(m =>
+        (m.type === 'damage')
+        && (m._source.system?.origin === usageId)
+        && m.getFlag('fvtt-mod-bythebooks', 'receipt')), { label: 'the receipted damage card' }).catch(() => null);
       if (!damageMsg) return { ok: true, fumble, noDamage: true };
 
       const entry = damageMsg.getFlag('fvtt-mod-bythebooks', 'receipt')
@@ -603,13 +585,12 @@ if (want('4b')) {
       const rolled = damageMsg.rolls.reduce((n, r) => n + r.total, 0);
       const hp1 = victim.system._source.attributes.hp.value;
 
-      // What the table is TOLD: the receipt row in this client's chat DOM.
-      let rowText = '';
-      for (let i = 0; i < 20 && !rowText.includes('immune'); i++) {
-        await new Promise(r => setTimeout(r, 250));
-        rowText = document.querySelector(
-          `[data-message-id="${damageMsg.id}"] .bythebooks-receipt`)?.textContent ?? '';
-      }
+      // What the table is TOLD: the receipt row in this client's chat DOM. Soft: the row as it stands is
+      // what the report reads.
+      const rowOf = () => document.querySelector(
+        `[data-message-id="${damageMsg.id}"] .bythebooks-receipt`)?.textContent ?? '';
+      await until(() => rowOf().includes('immune'), { timeout: 5000, label: 'the receipt row rendered' }).catch(() => null);
+      const rowText = rowOf();
       return { ok: true, fumble, rolled, entry, max, hp0, hp1, rowText: rowText.trim(), types: [...types] };
     } catch (err) {
       return { ok: false, why: `${err.message}\n${err.stack}` };
@@ -645,6 +626,7 @@ if (want('4b')) {
 // exist". `clearStatus` (shared.js) and a catch on the revert buttons keep the card's record.
 if (want('4c')) {
   const r = await f.evaluate(async ({ victimId, victimToken, attackerId, itemName }) => {
+    const { until } = window.__btb;
     const rejections = [];
     const onRejection = ev => rejections.push(String(ev?.reason?.message ?? ev?.reason ?? ev));
     window.addEventListener('unhandledrejection', onRejection);
@@ -673,34 +655,27 @@ if (want('4c')) {
             + '(a 1-in-400 run, not a defect - re-run before diagnosing)' };
       }
 
-      let damageMsg = null;
-      for (let i = 0; i < 40 && !damageMsg; i++) {
-        await new Promise(r => setTimeout(r, 250));
-        damageMsg = game.messages.contents.slice(-10).find(m =>
-          (m.type === 'damage')
-          && (m._source.system?.origin === usageId)
-          && m.getFlag('fvtt-mod-bythebooks', 'receipt'));
-      }
+      // Soft: a hit that never lands a receipted damage card is the refusal below.
+      const damageMsg = await until(() => game.messages.contents.slice(-10).find(m =>
+        (m.type === 'damage')
+        && (m._source.system?.origin === usageId)
+        && m.getFlag('fvtt-mod-bythebooks', 'receipt')), { label: 'the receipted damage card' }).catch(() => null);
       if (!damageMsg) return { ok: false, why: 'no receipted damage message' };
 
-      // Wait for the dead mark, not a flat sleep.
-      let died = false;
-      for (let i = 0; i < 40 && !died; i++) {
-        await new Promise(r => setTimeout(r, 250));
-        died = (victim.system.attributes.hp.value === 0) && victim.statuses.has('dead');
-      }
+      // Wait for the dead mark, not a flat sleep. Soft: `died` is what the report reads.
+      const died = !!(await until(() => (victim.system.attributes.hp.value === 0) && victim.statuses.has('dead'),
+        { label: 'the dead mark' }).catch(() => null));
 
       const button = document.querySelector(
         `[data-message-id="${damageMsg.id}"] .bythebooks-receipt button`);
       if (!button) return { ok: false, died, why: 'receipt revert button not found in chat DOM' };
       button.click();
 
-      let reverted = null;
-      for (let i = 0; i < 40 && !reverted; i++) {
-        await new Promise(r => setTimeout(r, 250));
+      // Soft: `reverted` is what the report reads.
+      const reverted = await until(() => {
         const flag = game.messages.get(damageMsg.id)?.getFlag('fvtt-mod-bythebooks', 'receipt');
-        if (flag?.targets?.every(t => t.reverted)) reverted = flag;
-      }
+        return flag?.targets?.every(t => t.reverted) ? flag : null;
+      }, { label: 'the reverted marker' }).catch(() => null);
       const buttonAfter = document.querySelector(
         `[data-message-id="${damageMsg.id}"] .bythebooks-receipt button`);
       return {
@@ -748,7 +723,7 @@ if (want('4d')) {
     const attacker = game.actors.get(attackerId);
     const priorHp = foundry.utils.deepClone(victim.system._source.attributes.hp);
     const priorEx = Number(victim.system._source.attributes.exhaustion ?? 0);
-    const sleep = ms => new Promise(r => setTimeout(r, ms));
+    const { until, faces, unrig } = window.__btb;
     const drop = async () => {
       await base.update({ 'system.attributes.ac.override': 1 });
       await victim.update({ 'system.attributes.hp.value': 1, 'system.attributes.hp.temp': 0, 'system.attributes.exhaustion': 0 });
@@ -758,17 +733,14 @@ if (want('4d')) {
       const results = await activity.use({ subsequentActions: false }, { configure: false }, {});
       const usageId = results?.message?.id ?? null;
       if (!usageId) throw new Error('no usage message id');
-      const realPRNG = CONFIG.Dice.randomUniform;
-      CONFIG.Dice.randomUniform = () => 0.925;
+      faces([[2, 20]]);   // a 2 on every die drawn while it stands (see §3)
       try { await activity.rollAttack({ advantage: true }, { configure: false }, { data: { 'system.origin': usageId } }); }
-      finally { CONFIG.Dice.randomUniform = realPRNG; }
-      let damageMsg = null;
-      for (let i = 0; i < 40 && !damageMsg; i++) {
-        await sleep(250);
-        damageMsg = game.messages.contents.slice(-10).find(m => (m.type === 'damage') && (m._source.system?.origin === usageId) && m.getFlag(MOD, 'receipt'));
-      }
+      finally { unrig(); }
+      // Soft, both: a card that never lands is the throw below; a pool still up is what the reports read.
+      const damageMsg = await until(() => game.messages.contents.slice(-10).find(m => (m.type === 'damage') && (m._source.system?.origin === usageId) && m.getFlag(MOD, 'receipt')),
+        { label: 'the receipted damage card' }).catch(() => null);
       if (!damageMsg) throw new Error('no receipted damage message');
-      for (let i = 0; i < 20 && (victim.system.attributes.hp.value > 0); i++) await sleep(250);
+      await until(() => victim.system.attributes.hp.value <= 0, { timeout: 5000, label: 'the victim down' }).catch(() => null);
       return damageMsg;
     };
     try {
@@ -776,21 +748,19 @@ if (want('4d')) {
       const msg = await drop();
       const entry = msg.getFlag(MOD, 'receipt')?.targets?.find(t => t.uuid === victim.uuid) ?? null;
       const after = Number(victim.system._source.attributes.exhaustion ?? 0);
-      let rowText = '';
-      for (let i = 0; i < 20 && !rowText; i++) {
-        await sleep(250);
-        rowText = document.querySelector(`[data-message-id="${msg.id}"] .bythebooks-receipt`)?.textContent?.replace(/\s+/g, ' ') ?? '';
-        if (!/Exhaustion/.test(rowText)) rowText = '';
-      }
+      // The rendered row arrives after the receipt. Soft: a row with no Exhaustion line reads as '' below.
+      const rowOf = () => document.querySelector(`[data-message-id="${msg.id}"] .bythebooks-receipt`)?.textContent?.replace(/\s+/g, ' ') ?? '';
+      const rowText = (await until(() => (/Exhaustion/.test(rowOf()) ? rowOf() : null),
+        { timeout: 5000, label: 'the Exhaustion line on the receipt row' }).catch(() => null)) ?? '';
       const button = document.querySelector(`[data-message-id="${msg.id}"] .bythebooks-receipt button`);
       button?.click();
-      let reverted = null;
-      for (let i = 0; i < 40 && !reverted; i++) {
-        await sleep(250);
+      // Soft: `reverted` is what the report reads.
+      const reverted = await until(() => {
         const flag = game.messages.get(msg.id)?.getFlag(MOD, 'receipt');
-        if (flag?.targets?.every(t => t.reverted)) reverted = flag;
-      }
-      await sleep(300);
+        return flag?.targets?.every(t => t.reverted) ? flag : null;
+      }, { label: 'the reverted marker' }).catch(() => null);
+      // The revert writes the Hit Points (and the level) before its marker. Soft: the values are what the report reads.
+      await until(() => victim.system._source.attributes.hp.value > 0, { label: "the revert's Hit Points" }).catch(() => null);
       const afterRevert = Number(victim.system._source.attributes.exhaustion ?? 0);
       const hpAfterRevert = victim.system._source.attributes.hp.value;
       // off: a drop adds nothing
@@ -823,6 +793,7 @@ if (want('4d')) {
 // ---- 5. the miss test
 if (want('5')) {
   const r = await f.evaluate(async ({ victimId, victimToken, attackerId, itemName }) => {
+    const { watch } = window.__btb;
     try {
       const victim = game.actors.get(victimId);
       const attacker = game.actors.get(attackerId);
@@ -839,14 +810,11 @@ if (want('5')) {
         { data: { 'system.origin': usageId } });
       const isCritical = rolls?.[0]?.isCritical ?? false;
 
-      // A miss means the dice never exist (a nat-20 crit is reported as a flake).
-      let damageMsg = null;
-      for (let i = 0; i < 16 && !damageMsg; i++) {
-        await new Promise(r => setTimeout(r, 250));
-        damageMsg = game.messages.contents.slice(-6).find(m =>
-          (m.type === 'damage')
-          && (m._source.system?.origin === usageId));
-      }
+      // A miss means the dice never exist (a nat-20 crit is reported as a flake): the window in which they
+      // would roll.
+      const damageMsg = await watch(() => game.messages.contents.slice(-6).find(m =>
+        (m.type === 'damage')
+        && (m._source.system?.origin === usageId)), { ms: 4000 });
       return { ok: true, attackTotal: rolls?.[0]?.total, isCritical, damageAppeared: !!damageMsg };
     } catch (err) {
       return { ok: false, why: `${err.message}\n${err.stack}` };
@@ -862,6 +830,7 @@ if (want('5')) {
 if (want('5b')) {
   const r = await f.evaluate(async ({ victimId, victimToken, attackerId, itemName }) => {
     const MOD = 'fvtt-mod-bythebooks';
+    const { watch } = window.__btb;
     try {
       const out = {};
       const base = game.actors.get(victimId);
@@ -882,7 +851,8 @@ if (want('5b')) {
       canvas.tokens.get(victimToken).setTarget(true, { releaseOthers: true });
       const before = usageCards().length;
       await activity().use({ subsequentActions: false }, { configure: false }, {});
-      await new Promise(r => setTimeout(r, 1500));
+      // The window in which a second card would post; the count below is what it reads.
+      await watch(() => usageCards().length - before > 1, { ms: 1500 });
       out.cardDelta = usageCards().length - before;
 
       // (c) No-target gate: with nothing targeted the use is refused outright.
@@ -890,7 +860,8 @@ if (want('5b')) {
       game.user.targets.forEach(t => { t.setTarget(false, { releaseOthers: false }); });
       const before3 = game.messages.size;
       const result = await activity().use({ subsequentActions: false }, { configure: false }, {});
-      await new Promise(r => setTimeout(r, 1000));
+      // The window in which a refused use would still post; the count below is what it reads.
+      await watch(() => game.messages.size > before3, { ms: 1000 });
       out.gateRefused = !result;
       out.gateMessagesCreated = game.messages.size - before3;
       await game.settings.set(MOD, 'requireTarget', false);
@@ -912,8 +883,10 @@ if (want('5b')) {
 // GM client, so this tests that no ACTOR-TYPE gate remains, not a player client.
 if (want('5c')) {
   const r = await f.evaluate(async ({ victimId, victimToken, attackerId, itemName, playerName }) => {
+    const { until } = window.__btb;
     const base = game.actors.get(victimId);
     const priorHp = base.system.attributes.hp.value;
+    const hits = [];   // the damage cards, whose receipts say the HP was written
     try {
       await base.update({ 'system.attributes.ac.override': 1 });
 
@@ -954,13 +927,11 @@ if (want('5c')) {
           { advantage: true },
           { configure: false },
           { data: { 'system.origin': usageId } });
-        let dmg = null;
-        for (let i = 0; i < 16 && !dmg; i++) {
-          await new Promise(r => setTimeout(r, 250));
-          dmg = game.messages.contents.slice(-8).find(m =>
-            (m.type === 'damage')
-            && (m._source.system?.origin === usageId));
-        }
+        // Soft: no damage card is `rolled: false` below.
+        const dmg = await until(() => game.messages.contents.slice(-8).find(m =>
+          (m.type === 'damage')
+          && (m._source.system?.origin === usageId)), { timeout: 4000, label: 'the damage card' }).catch(() => null);
+        if (dmg) hits.push(dmg.id);
         // Only a double fumble misses AC 1; reported as a flake.
         return { rolled: !!dmg, total: rolls?.[0]?.total, fumble: rolls?.[0]?.isFumble ?? false };
       };
@@ -969,8 +940,10 @@ if (want('5c')) {
     } catch (err) {
       return { ok: false, why: `${err.message}\n${err.stack}` };
     } finally {
-      // The two hits applied: the victim's HP comes back for the sections below.
-      await new Promise(r => setTimeout(r, 1500));
+      // The two hits applied (each card's receipt follows its HP write): the victim's HP comes back for the
+      // sections below. Soft: a teardown wait never throws.
+      await until(() => hits.every(id => game.messages.get(id)?.getFlag('fvtt-mod-bythebooks', 'receipt')),
+        { label: 'the hits applied' }).catch(() => null);
       await base.update({ 'system.attributes.hp.value': priorHp }).catch(() => {});
     }
   }, fx);
@@ -1004,15 +977,16 @@ if (want('5c')) {
 if (want('5d')) {
   const pd = await f.evaluate(async () => {
     const MOD = 'fvtt-mod-bythebooks';
-    const sleep = ms => new Promise(r => setTimeout(r, ms));
-    const log = [];
+    // ⚠ No try here: a throw would skip the teardown below and §6, so every wait in this body is soft.
+    const { until, watch, tokenOn, viewScene, snapshotSettings } = window.__btb;
+    const { results, log } = window.__btb.begin();
 
     const attacker = game.actors.getName('BTB Test Attacker');
     const victim = game.actors.getName('BTB Test Victim');
     if (!attacker || !victim) return { fatal: 'BTB Test fixtures missing — run smoke-bythebooks first' };
 
     const scene = game.scenes.getName('By the Books Test Range') ?? canvas.scene;
-    if (scene && (canvas.scene?.id !== scene.id)) { await scene.view(); await sleep(1200); }
+    if (scene) await viewScene(scene).catch(() => null);
 
     const vTokens = canvas.tokens.placeables.filter(t => t.actor?.id === victim.id);
     if (!vTokens.length) return { fatal: 'BTB Test Victim has no token — re-run smoke-bythebooks' };
@@ -1022,17 +996,9 @@ if (want('5d')) {
       .find(a => a.type === 'attack');
     if (!activity) return { fatal: 'BTB Test Attacker has no attack activity' };
 
-    const prior = {
-      autoDamage: game.settings.get(MOD, 'autoDamage'),
-      autoApply: game.settings.get(MOD, 'autoApply'),
-      dramaticBeat: game.settings.get(MOD, 'dramaticBeat'),
-      reactionHold: game.settings.get(MOD, 'reactionHold'),
-      riders: game.settings.get(MOD, 'riders'),
-      masteryRiders: game.settings.get(MOD, 'masteryRiders'),
-      playerRollDamage: game.settings.get(MOD, 'playerRollDamage'),
-      damageTimer: game.settings.get(MOD, 'damageTimer'),
-      victimAC: foundry.utils.deepClone(victim.system._source.attributes.ac)
-    };
+    const settings = snapshotSettings(['autoDamage', 'autoApply', 'dramaticBeat', 'reactionHold', 'riders',
+      'masteryRiders', 'playerRollDamage', 'damageTimer']);
+    const priorAC = foundry.utils.deepClone(victim.system._source.attributes.ac);
     await game.settings.set(MOD, 'autoDamage', 'all');
     await game.settings.set(MOD, 'damageTimer', 15);   // section 8 waits this window out for real
     await game.settings.set(MOD, 'autoApply', false);   // the roll is what is under test, not the application
@@ -1049,30 +1015,31 @@ if (want('5d')) {
       .filter(el => (el.innerHTML ?? '').includes('Damage &mdash; your roll')
                  || (el.innerHTML ?? '').includes('Damage — your roll'));
 
+    // Every popup closed, gone from the page (a dismissal rolls its damage at once).
     const closeAllPopups = async () => {
-      for (const el of popupEls()) {
+      const open = popupEls();
+      for (const el of open) {
         const btn = el.querySelector('[data-action="close"]') ?? el.querySelector('.header-control');
         try { btn?.click(); } catch {}
       }
-      await sleep(400);
+      await until(() => open.every(el => !el.isConnected), { label: 'the damage popups closed' }).catch(() => null);
     };
 
     /** Roll one attack at `targets` and return its usage + attack message. */
     const attack = async (targets) => {
       game.user.targets.forEach(t => { t.setTarget(false, { releaseOthers: false }); });
-      await sleep(150);
       targets.forEach((t, i) => { t.setTarget(true, { releaseOthers: i === 0 }); });
-      await sleep(250);
+      await until(() => (game.user.targets.size === targets.length) && targets.every(t => game.user.targets.has(t)),
+        { label: 'the targets set' }).catch(() => null);
       const before = game.messages.size;
       const results = await activity.use({ subsequentActions: false }, { configure: false }, {});
       const usageId = results?.message?.id ?? null;
       const rolls = await activity.rollAttack({ advantage: true }, { configure: false },
         { data: { 'system.origin': usageId } });
-      await sleep(150);
+      const attackMsg = await until(() => game.messages.contents.slice(before).find(m => (m.type === 'attack'))
+        ?? rolls?.[0]?.parent, { label: 'the attack message' }).catch(() => null);
       const fresh = game.messages.contents.slice(before);
       created.push(...fresh.map(m => m.id));
-      const attackMsg = fresh.find(m => (m.type === 'attack'))
-        ?? rolls?.[0]?.parent ?? null;
       return { usageId, attackMsg, total: rolls?.[0]?.total ?? null };
     };
 
@@ -1082,15 +1049,11 @@ if (want('5d')) {
       && ((m._source.system?.origin === usageId)));
 
     const waitDamage = async (usageId, ms) => {
-      for (let i = 0; i < Math.ceil(ms / 250); i++) {
-        const d = damageFor(usageId);
-        if (d) { created.push(d.id); return d; }
-        await sleep(250);
-      }
-      return null;
+      const d = await until(() => damageFor(usageId), { timeout: ms, label: 'the damage roll' }).catch(() => null);
+      if (d) created.push(d.id);
+      return d;
     };
 
-    const results = [];
     const one = [vTokens[0]];
 
     // ⚠ A second target needs a DISTINCT ACTOR: descriptors key on the actor uuid, so two tokens
@@ -1103,7 +1066,7 @@ if (want('5d')) {
       name: 'BTB Probe Second Target', actorId: extra.id, actorLink: true,
       x: canvas.grid.size * 3, y: canvas.grid.size * 3, hidden: true, disposition: -1
     }]);
-    await sleep(400);
+    if (extraTokDoc) await tokenOn(extraTokDoc.id).catch(() => null);
     const two = extraTokDoc?.object ? [vTokens[0], extraTokDoc.object] : one;
 
     /* 1 — setting OFF: nothing changes. */
@@ -1122,9 +1085,10 @@ if (want('5d')) {
     let critLever = null;
     {
       const { usageId, attackMsg } = await attack(one);
-      await sleep(1200);
+      // The popup is what the step waits for; the window after it is where the damage must NOT roll yet.
+      await until(() => popupEls().length, { label: 'the damage popup' }).catch(() => null);
+      const early = await watch(() => damageFor(usageId), { ms: 1200 });
       const popups = popupEls();
-      const early = damageFor(usageId);
       results.push({ n: 2, name: 'ON — popup opens, damage waits',
         pass: (popups.length === 1) && !early,
         detail: `popups=${popups.length} damageAlready=${!!early}` });
@@ -1169,7 +1133,9 @@ if (want('5d')) {
               + ` attackCrit=${wasCrit} damageCrit=${dmg?.rolls?.[0]?.isCritical ?? null}` });
 
       /* 11 — the roll folds the offer; the card's bar drops. */
-      await sleep(400);   // the done-write is fire-and-forget behind the roll
+      // The done-write is fire-and-forget behind the roll. Soft: the flag as it stands is what the row reads.
+      await until(() => attackMsg?.getFlag(MOD, 'damageOffer')?.status === 'done', { label: 'the offer folded to done' })
+        .catch(() => null);
       const offerAfter = attackMsg?.getFlag(MOD, 'damageOffer');
       results.push({ n: 11, name: '(w) rolled — the offer flag folds to done',
         pass: offerAfter?.status === 'done',
@@ -1181,9 +1147,10 @@ if (want('5d')) {
     {
       // Bounded retry for a NON-crit start: the decoy pin only means something from isCritical=false.
       let attackMsg = null;
+      let usageId = null;
       for (let try9 = 0; try9 < 4; try9++) {
-        ({ attackMsg } = await attack(one));
-        await sleep(900);
+        ({ attackMsg, usageId } = await attack(one));
+        await until(() => popupEls().length, { label: 'the damage popup' }).catch(() => null);
         await closeAllPopups();   // the popup this attack raised is not the one under test
         if ((attackMsg?.rolls?.[0]?.isCritical ?? null) === false) break;
       }
@@ -1217,7 +1184,7 @@ if (want('5d')) {
       if (critLever.realWorks) {
         const mod = await import('/modules/fvtt-mod-bythebooks/scripts/auto-damage.js');
         await mod.offerDamageRoll(activity, attackMsg);
-        await sleep(900);
+        await until(() => popupEls().length, { label: 'the critical damage popup' }).catch(() => null);
         const popups = popupEls();
         const html = popups[0]?.innerHTML ?? '';
         const label = popups[0]?.querySelector('button[data-action="roll"]')?.textContent?.trim() ?? '';
@@ -1226,23 +1193,29 @@ if (want('5d')) {
           pass: (popups.length === 1) && html.includes('Critical Hit')
                 && /Roll Critical Damage/i.test(label) && /Critical/i.test(title),
           detail: `popups=${popups.length} badge=${html.includes('Critical Hit')} label="${label}" title="${title}"` });
+        const dismissedAt = Date.now();
         await closeAllPopups();
+        // The dismissal rolls the critical damage at once: it lands before the next attack.
+        await until(() => game.messages.contents.some(m => (m.type === 'damage')
+          && (m._source.system?.origin === usageId) && (m.timestamp >= dismissedAt)), { label: 'the dismissed offer rolled' })
+          .catch(() => null);
       } else {
         results.push({ n: 5, name: 'crit — badge, label and title all say so',
           pass: false, detail: `the die-level lever did not flip isCritical: ${JSON.stringify(critLever)}` });
       }
-      await sleep(1500);
     }
 
     /* 3 — two targets, ONE popup. */
     {
       const { usageId, attackMsg } = await attack(two);
-      await sleep(1200);
+      // The first popup is what the step waits for; the window after it is where a second would open.
+      await until(() => popupEls().length, { label: 'the damage popup' }).catch(() => null);
+      const second = await watch(() => popupEls().length > 1, { ms: 1200 });
       const popups = popupEls();
       const hits = attackMsg ? (attackMsg.system.targets ?? []).length : 0;
       results.push({ n: 3, name: 'two targets hit — exactly ONE popup',
-        pass: (popups.length === 1) && (hits >= 2),
-        detail: `targeted=${two.length} snapshot=${hits} popups=${popups.length}` });
+        pass: !second && (popups.length === 1) && (hits >= 2),
+        detail: `targeted=${two.length} snapshot=${hits} popups=${popups.length}${second ? ' (a second opened in the window)' : ''}` });
 
       /* 7 — dismissing rolls IMMEDIATELY, not at the buzzer. */
       await closeAllPopups();
@@ -1254,9 +1227,10 @@ if (want('5d')) {
     /* 8 — the buzzer, waited out for real. */
     {
       const { usageId } = await attack(one);
-      await sleep(1200);
+      // The popup is what the step waits for; the window after it is where the damage must NOT roll early.
+      await until(() => popupEls().length, { label: 'the damage popup' }).catch(() => null);
+      const at5 = !!(await watch(() => damageFor(usageId), { ms: 1200 }));
       const opened = popupEls().length;
-      const at5 = !!damageFor(usageId);
       const dmg = await waitDamage(usageId, 20000);   // the window is 15s
       results.push({ n: 8, name: 'left alone — the buzzer rolls it',
         pass: (opened === 1) && !at5 && !!dmg,
@@ -1264,27 +1238,25 @@ if (want('5d')) {
       await closeAllPopups();
     }
 
-    /* teardown */
+    /* teardown: the popups the pinned settings opened first, then the settings (every key in its own guard),
+     * then the world */
     await closeAllPopups();
+    const failed = await settings.restore();
     game.user.targets.forEach(t => { t.setTarget(false, { releaseOthers: false }); });
     await ChatMessage.deleteDocuments([...new Set(created)].filter(id => game.messages.has(id)))
       .catch(() => {});
     if (extraTokDoc) await canvas.scene.deleteEmbeddedDocuments('Token', [extraTokDoc.id]).catch(() => {});
     if (extra) await extra.delete().catch(() => {});
     await victim.update({
-      'system.attributes.ac.override': prior.victimAC?.override ?? null,
-      'system.attributes.ac.flat': prior.victimAC?.flat ?? null
+      'system.attributes.ac.override': priorAC?.override ?? null,
+      'system.attributes.ac.flat': priorAC?.flat ?? null
     }).catch(() => {});
-    for (const [k, v] of Object.entries(prior)) {
-      if (k === 'victimAC') continue;
-      await game.settings.set(MOD, k, v);
-    }
     const restored = {
-      autoDamage: game.settings.get(MOD, 'autoDamage'),
-      autoApply: game.settings.get(MOD, 'autoApply'),
-      playerRollDamage: game.settings.get(MOD, 'playerRollDamage')
+      ...snapshotSettings(['autoDamage', 'autoApply', 'playerRollDamage']).prior,
+      ...(failed.length ? { failed } : {})
     };
-    return { scene: canvas.scene?.name, victimTokens: vTokens.length, critLever, log, results, restored, prior };
+    return { scene: canvas.scene?.name, victimTokens: vTokens.length, critLever, log, results, restored,
+      prior: { ...settings.prior, victimAC: priorAC } };
   }, null);
   if (pd.fatal) {
     report('5d. the player-damage offer ran', false, `FATAL: ${pd.fatal}`);
@@ -1304,13 +1276,12 @@ if (want('5d')) {
 if (want('5e')) {
   const r = await f.evaluate(async ({ victimId, victimToken, attackerToken, attackerId, itemName }) => {
     const MOD = 'fvtt-mod-bythebooks';
-    const sleep = ms => new Promise(r => setTimeout(r, ms));
+    const { until } = window.__btb;
     const out = { log: [] };
     // ⚠ Wait for the walk, never sleep: a moving token's document x/y are INTERIM while it
-    // animates (`_source` holds the destination).
-    const arrived = async tok => {
-      for (let i = 0; i < 100 && ((tok.document.x !== tok.document._source.x) || (tok.document.y !== tok.document._source.y)); i++) await sleep(100);
-    };
+    // animates (`_source` holds the destination). Soft: a walk that never settles shows in the detail's squares.
+    const arrived = tok => until(() => (tok.document.x === tok.document._source.x) && (tok.document.y === tok.document._source.y),
+      { label: `${tok.name} arrived` }).catch(() => null);
     const base = game.actors.get(victimId);
     const vTok = canvas.tokens.get(victimToken), aTok = canvas.tokens.get(attackerToken);
     const victim = vTok?.actor;
@@ -1329,12 +1300,9 @@ if (want('5e')) {
       const usageId = results?.message?.id ?? null;
       const rolls = await activity.rollAttack({ advantage: true }, { configure: false },
         { data: { 'system.origin': usageId } });
-      let damageMsg = null;
-      for (let i = 0; i < 40 && !damageMsg; i++) {
-        await sleep(250);
-        damageMsg = game.messages.contents.slice(-10).find(m =>
-          (m.type === 'damage') && (m._source.system?.origin === usageId));
-      }
+      // Soft: no damage card is the reports' nulls.
+      const damageMsg = await until(() => game.messages.contents.slice(-10).find(m =>
+        (m.type === 'damage') && (m._source.system?.origin === usageId)), { label: 'the damage card' }).catch(() => null);
       // The topology the distance read assumes, on the detail line (a stray token measures wrong).
       const aTokens = canvas.scene.tokens.filter(t => t.actorId === attacker.id).length;
       const squares = Math.max(Math.abs(aTok.document.x - vTok.document.x), Math.abs(aTok.document.y - vTok.document.y)) / canvas.scene.grid.size;
@@ -1390,24 +1358,20 @@ if (want('5e')) {
 
 // ---- 6. restore the table's prior settings + test chat-log cleanup
 {
-  const r = await f.evaluate(async prior => {
-    const MOD = 'fvtt-mod-bythebooks';
-    await game.settings.set(MOD, 'autoDamage', prior?.autoDamage ?? 'off');
-    await game.settings.set(MOD, 'autoApply', prior?.autoApply ?? false);
-    await game.settings.set(MOD, 'dramaticBeat', prior?.dramaticBeat ?? 0);
-    await game.settings.set(MOD, 'requireTarget', prior?.requireTarget ?? false);
-    await game.settings.set(MOD, 'reactionHold', prior?.reactionHold ?? false);
-    await game.settings.set(MOD, 'effectRiders', prior?.effectRiders ?? false);
-    await game.settings.set(MOD, 'masteryRiders', prior?.masteryRiders ?? false);
-    await game.settings.set(MOD, 'goingDownCosts', prior?.goingDownCosts ?? false);
+  const r = await f.evaluate(async () => {
+    const { snapshotSettings } = window.__btb;
+    // §1's snapshot (kept on this page) first, every key in its own guard; a page without it restores
+    // nothing, and the report below fails on the values.
+    const failed = window.__smokeSettings ? await window.__smokeSettings.restore() : ['no §1 snapshot on the page'];
+    delete window.__smokeSettings;
     const testMessages = game.messages.filter(m => m.speaker?.alias?.startsWith('BTB Test'));
     await ChatMessage.deleteDocuments(testMessages.map(m => m.id));
     return {
-      autoDamage: game.settings.get(MOD, 'autoDamage'),
-      autoApply: game.settings.get(MOD, 'autoApply'),
+      ...snapshotSettings(['autoDamage', 'autoApply']).prior,
       deletedMessages: testMessages.length,
+      ...(failed.length ? { failed } : {}),
     };
-  }, priorSettings);
+  }, null);
   report('settings restored to pre-test values + chat cleaned',
     r.autoDamage === (priorSettings?.autoDamage ?? 'off') && r.autoApply === (priorSettings?.autoApply ?? false),
     JSON.stringify(r));

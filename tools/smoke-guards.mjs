@@ -33,16 +33,8 @@ announcePlan('guards', plan, pulled);
 
 const out = await f.evaluate(async ({ sections, titles }) => {
   const MOD = 'fvtt-mod-bythebooks';
-  const results = [];
-  const log = [];
-  const skips = [];
-  const ok = (name, pass, detail = '') => results.push({ name, pass, detail });
-  const want = id => {
-    if (!sections || sections.includes(String(id))) return true;
-    skips.push(`§${id} ${titles?.[id] ?? ''}`);
-    return false;
-  };
-  const sleep = ms => new Promise(r => setTimeout(r, ms));
+  const { until, watch, canvasReady, tokenOn, snapshotSettings, faces, unrig } = window.__btb;
+  const { results, log, skips, ok, want, section } = window.__btb.begin({ sections, titles });
   const suiteStart = Date.now();
   // The module's own console errors, into the log (a failed answer says why there).
   const errors = [];
@@ -57,8 +49,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   const SETTING_KEYS = ['autoDamage', 'autoApply', 'playerRollDamage', 'damageTimer', 'dramaticBeat', 'requireTarget',
     'reactionHold', 'holdTimer', 'holdReveal', 'holdSkipFutile', 'holdApplyEffect', 'riders', 'effectRiders',
     'masteryRiders', 'masteryAsk', 'castApply', 'concMode'];
-  const prior = Object.fromEntries(SETTING_KEYS.map(k => [k, game.settings.get(MOD, k)]));
-  const set = (k, v) => game.settings.set(MOD, k, v);
+  const settings = snapshotSettings(SETTING_KEYS);
+  const { set } = settings;
 
   const scene = game.scenes.getName('By the Books Test Range');
   const attacker = game.actors.getName('BTB Test Attacker');
@@ -71,12 +63,6 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   const priorActor = {};
   const equippedBefore = fighter.items.filter(i => i.system?.equipped === true).map(i => i.id);
   let restored = false;
-  const realPRNG = CONFIG.Dice.randomUniform;
-  const faces = spec => {
-    const queue = spec.map(([n, of]) => 1 - ((n - 0.5) / of));
-    let i = 0;
-    CONFIG.Dice.randomUniform = () => queue[Math.min(i++, queue.length - 1)];
-  };
   const refillLuck = async () => { const l = lucky(); if (l) await l.update({ 'system.uses.spent': 0 }); };
   const spendLuck = async () => { const l = lucky(); if (l) await l.update({ 'system.uses.spent': Number(l.system.uses.max) }); };
   const popups = () => [...foundry.applications.instances.values()].filter(app => app.rendered);
@@ -95,11 +81,10 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   const teardown = async () => {
     if (restored) return;
     restored = true;
-    CONFIG.Dice.randomUniform = realPRNG;
+    unrig();
     console.error = realError;
     if (errors.length) log.push(`console errors: ${JSON.stringify(errors.slice(0, 6))}`);
-    try { for (const [k, v] of Object.entries(prior)) await set(k, v); }
-    catch (err) { log.push(`TEARDOWN settings ERROR: ${err?.message}`); }
+    for (const failed of await settings.restore()) log.push(`TEARDOWN settings ERROR: ${failed}`);
     try {
       await closeDialogs();
       await dropProtected();
@@ -174,14 +159,14 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     await lend('Longsword', 'weapon', true);
 
     if (canvas.scene?.id !== scene.id) await scene.view();
-    for (let i = 0; i < 40 && !canvas.ready; i++) await sleep(250);
+    await canvasReady();
     const strays = scene.tokens.filter(t => t.actorLink && [attacker.id, halfling.id, fighter.id].includes(t.actorId)).map(t => t.id);
     if (strays.length) await scene.deleteEmbeddedDocuments('Token', strays);
     const placeToken = async (actor, x, y, disposition) => {
       const [doc] = await scene.createEmbeddedDocuments('Token', [
         foundry.utils.mergeObject(actor.prototypeToken.toObject(), { x, y, actorId: actor.id, actorLink: true, disposition }, { inplace: false })]);
       created.tokens.push(doc.id);
-      for (let i = 0; i < 40 && !(canvas.ready && canvas.tokens.get(doc.id)); i++) await sleep(250);
+      await tokenOn(doc.id);
       const token = canvas.tokens.get(doc.id);
       if (!token) throw new Error(`${actor.name}'s token never reached the canvas`);
       return { doc, token };
@@ -191,11 +176,6 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     await placeToken(fighter, 1600, 2100, 1);
 
     // ---- helpers
-    const waitFor = async (test, timeout = 8000) => {
-      const until = Date.now() + timeout;
-      while (Date.now() < until) { const v = test(); if (v) return v; await sleep(200); }
-      return test();
-    };
     const textOf = el => (el?.textContent ?? '').replace(/\s+/g, ' ').trim();
     const cardText = id => textOf(document.querySelector(`.message[data-message-id="${id}"]`));
     const weapon = attacker.items.find(i => (i.type === 'weapon') && i.system.activities?.some?.(a => a.type === 'attack'));
@@ -218,12 +198,12 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       await healFull();
       attackerToken.control({ releaseOthers: true });
       halflingToken.setTarget(true, { releaseOthers: true });
-      await sleep(80);
+      await until(() => attackerToken.controlled && (game.user.targets.size === 1) && game.user.targets.has(halflingToken), { label: 'the attacker controlled, the Halfling targeted' });
       faces([...d20.map(n => [n, 20]), [dmg, 6]]);
       const usage = await act().use({ subsequentActions: false }, { configure: false }, {});
       const rolls = await act().rollAttack({}, { configure: false }, usage?.message?.id ? { data: { 'system.origin': usage.message.id } } : {});
       const msg = rolls?.[0]?.parent ?? null;
-      await waitFor(() => msg?.getFlag(MOD, 'hold') || damageFor(msg?.id), 4000);
+      await until(() => msg?.getFlag(MOD, 'hold') || damageFor(msg?.id), { timeout: 6000, label: 'the attack held, or its damage rolled' });
       return msg;
     };
     const holdOf = msg => game.messages.get(msg?.id)?.getFlag(MOD, 'hold') ?? null;
@@ -231,11 +211,11 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     const hp = () => Number(halfling.system.attributes.hp.value);
 
     // ---- 1. Protection turns the hit
-    if (want(1)) {
+    if (want(1)) await section(1, async () => {
       await closeDialogs(); await dropProtected(); await refillLuck();
       await onlyGuard('Protection');
       const msg = await swing({ d20: [12] });
-      const guard = await waitFor(guardPopup, 6000);
+      const guard = await until(guardPopup, { timeout: 6000 });
       const own = rescuePopup();
       const t0 = targetOf(msg);
       ok('1a. the hit is held with the Fighter on guard; the guard\'s own popup ("Protection · Disadvantage · a Reaction") beside the Halfling\'s Lucky',
@@ -243,20 +223,22 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         `guard=${!!guard} own=${!!own} guards=${JSON.stringify(t0?.guards ?? null)}`);
       faces([[6, 20]]);
       guard?.element?.querySelector('button[data-action="answer"]')?.click();
-      const resolved = await waitFor(() => (holdOf(msg)?.status === 'resolved') ? holdOf(msg) : null, 12000);
+      const resolved = await until(() => (holdOf(msg)?.status === 'resolved') ? holdOf(msg) : null, { timeout: 12000 });
       const t = resolved?.targets?.find(x => x.uuid === halfling.uuid);
       ok('1b. the second d20 (6) stands: a MISS, answered by the guard (guardedBy the Fighter, rescue Protection)',
         (t?.answer === 'roll') && (t?.verdict === 'miss') && (t?.rescue === 'Protection') && (t?.guardedBy?.uuid === fighter.uuid),
         JSON.stringify({ answer: t?.answer, verdict: t?.verdict, rescue: t?.rescue, by: t?.guardedBy }));
-      await sleep(800);
+      await until(() => /bent the roll/.test(cardText(msg?.id)), { timeout: 4000, label: 'the attack card\'s rendered "bent the roll" line' });
+      await until(() => !guardPopup() && !rescuePopup(), { timeout: 4000, label: 'both popups closed' });
+      const struck = await watch(() => hp() !== 400, { ms: 800 });
       ok('1c. the attack card: "Protection (BTB Test Fighter) bent the roll … MISS"', /Protection \(BTB Test Fighter\) bent the roll.*MISS/.test(cardText(msg?.id)),
         cardText(msg?.id).slice(0, 220));
-      ok('1d. both popups closed; no damage landed', !guardPopup() && !rescuePopup() && (hp() === 400), `guard=${!!guardPopup()} own=${!!rescuePopup()} hp=${hp()}`);
-    }
+      ok('1d. both popups closed; no damage landed', !guardPopup() && !rescuePopup() && !struck && (hp() === 400), `guard=${!!guardPopup()} own=${!!rescuePopup()} hp=${hp()} struck=${!!struck}`);
+    });
 
     // ---- 2. the standing half
-    if (want(2)) {
-      const eff = await waitFor(() => halfling.effects.find(e => e.getFlag(MOD, 'protectedBy') === fighter.uuid), 6000);
+    if (want(2)) await section(2, async () => {
+      const eff = await until(() => halfling.effects.find(e => e.getFlag(MOD, 'protectedBy') === fighter.uuid), { timeout: 6000 });
       ok('2a. "Protected — BTB Test Fighter" on the Halfling', /Protected — BTB Test Fighter/.test(eff?.name ?? ''), `effect=${eff?.name ?? null}`);
       const { judgeRoll } = await import('/modules/fvtt-mod-bythebooks/scripts/reminders.js');
       const near = judgeRoll(attacker, { activity: act(), targets: [halflingToken] });
@@ -270,7 +252,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         const live = created.tokens.filter(id => scene.tokens.get(id)?.actorId === fighter.id);
         if (live.length) await scene.deleteEmbeddedDocuments('Token', live);
         await placeToken(fighter, x, 2100, 1);
-        await sleep(300);
+        await until(() => { const ts = canvas.tokens.placeables.filter(p => p.actor?.id === fighter.id); return (ts.length === 1) && (ts[0].document.x === x); }, { label: 'the Fighter re-placed, alone on the canvas' });
       };
       await moveFighter(1800);   // 15 ft from the Halfling
       const far = judgeRoll(attacker, { activity: act(), targets: [halflingToken] });
@@ -278,82 +260,84 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         `net=${far?.net} sources=${JSON.stringify((far?.sources ?? []).map(s => [s.label, s.bend]))}`);
       await moveFighter(1600);
       await dropProtected();
-    }
+    });
 
     // ---- 3. P1 — a guard's pass waits for the others
-    if (want(3)) {
+    if (want(3)) await section(3, async () => {
       await closeDialogs(); await refillLuck();
       const msg = await swing({ d20: [12] });
-      const guard = await waitFor(guardPopup, 6000);
+      const guard = await until(guardPopup, { timeout: 6000 });
       guard?.element?.querySelector('button[data-action="pass"]')?.click();
-      await sleep(1200);
+      await until(() => (targetOf(msg)?.guards ?? []).every(g => g.passed), { timeout: 4000, label: 'the guard marked passed' });
+      const closed = await watch(() => (holdOf(msg)?.status !== 'pending') || !rescuePopup(), { ms: 1200 });
       const mid = targetOf(msg);
       ok('3a. the Fighter passes: the hold stays open for the Halfling (guard marked passed, no answer)',
-        (holdOf(msg)?.status === 'pending') && !mid?.answer && (mid?.guards ?? []).every(g => g.passed) && !!rescuePopup(),
-        JSON.stringify({ status: holdOf(msg)?.status, answer: mid?.answer, guards: mid?.guards, own: !!rescuePopup() }));
+        !closed && (holdOf(msg)?.status === 'pending') && !mid?.answer && (mid?.guards ?? []).every(g => g.passed) && !!rescuePopup(),
+        JSON.stringify({ status: holdOf(msg)?.status, answer: mid?.answer, guards: mid?.guards, own: !!rescuePopup(), closed: !!closed }));
       rescuePopup()?.element?.querySelector('button[data-action="pass"]')?.click();
-      const resolved = await waitFor(() => (holdOf(msg)?.status === 'resolved') ? holdOf(msg) : null, 12000);
-      const dmg = await waitFor(() => damageFor(msg?.id), 8000);
-      await sleep(800);
+      const resolved = await until(() => (holdOf(msg)?.status === 'resolved') ? holdOf(msg) : null, { timeout: 12000 });
+      const dmg = await until(() => damageFor(msg?.id), { timeout: 8000 });
+      await until(() => hp() < 400, { timeout: 4000, label: 'the Halfling\'s Hit Points down' });
       ok('3b. the Halfling passes too: the hit lands', !!resolved && (targetOf(msg)?.answer === 'pass') && !!dmg && (hp() < 400),
         `answer=${targetOf(msg)?.answer} dmg=${!!dmg} hp=${hp()}`);
-    }
+    });
 
     // ---- 4. the guard alone; no Shield, no guard
-    if (want(4)) {
+    if (want(4)) await section(4, async () => {
       await closeDialogs(); await spendLuck();
       const msg = await swing({ d20: [12] });
-      const guard = await waitFor(guardPopup, 6000);
+      const guard = await until(guardPopup, { timeout: 6000 });
       const own = rescuePopup();
       const t0 = targetOf(msg);
       ok('4a. Lucky spent: only the guard is asked (selfAsk false, no Halfling popup)', !!guard && !own && (t0?.selfAsk === false),
         JSON.stringify({ guard: !!guard, own: !!own, selfAsk: t0?.selfAsk }));
       guard?.element?.querySelector('button[data-action="pass"]')?.click();
-      const resolved = await waitFor(() => (holdOf(msg)?.status === 'resolved') ? holdOf(msg) : null, 12000);
+      const resolved = await until(() => (holdOf(msg)?.status === 'resolved') ? holdOf(msg) : null, { timeout: 12000 });
       ok('4b. the guard passes: the hit lands', !!resolved && (targetOf(msg)?.answer === 'pass'), `answer=${targetOf(msg)?.answer}`);
       await fighter.updateEmbeddedDocuments('Item', [{ _id: shield.id, 'system.equipped': false }]);
       await closeDialogs();
       const bare = await swing({ d20: [12] });
-      await sleep(1200);
-      ok('4c. no Shield held: nobody is asked — no hold, the damage lands at once', !holdOf(bare) && !guardPopup() && !!damageFor(bare?.id),
-        `hold=${!!holdOf(bare)} popup=${!!guardPopup()} dmg=${!!damageFor(bare?.id)}`);
+      const asked = await watch(() => holdOf(bare) || guardPopup(), { ms: 1200 });
+      await until(() => damageFor(bare?.id), { timeout: 4000, label: 'the bare swing\'s damage' });
+      ok('4c. no Shield held: nobody is asked — no hold, the damage lands at once', !asked && !holdOf(bare) && !guardPopup() && !!damageFor(bare?.id),
+        `hold=${!!holdOf(bare)} popup=${!!guardPopup()} dmg=${!!damageFor(bare?.id)} asked=${!!asked}`);
       await fighter.updateEmbeddedDocuments('Item', [{ _id: shield.id, 'system.equipped': true }]);
       await refillLuck();
-    }
+    });
 
     // ---- 5. Interception
-    if (want(5)) {
+    if (want(5)) await section(5, async () => {
       await closeDialogs(); await spendLuck();
       await onlyGuard('Interception');
       const msg = await swing({ d20: [12], dmg: 5 });
-      const pop = await waitFor(interceptPopup, 8000);
+      const pop = await until(interceptPopup, { timeout: 8000 });
       const card = game.messages.contents.find(m => (m.timestamp >= suiteStart) && m.getFlag(MOD, 'damageHold')?.guards?.some(g => g.actorUuid === fighter.uuid)
         && (m.getFlag(MOD, 'damageHold')?.status === 'pending'));
       ok('5a. the attack\'s damage waits: a hold card naming the Fighter, the guard\'s popup "… intercept?"', !!pop && !!card && (hp() === 400),
         `popup=${!!pop} card=${!!card} hp=${hp()}`);
       faces([[9, 10]]);
       pop?.element?.querySelector('button[data-action="cast"]')?.click();
-      const landed = await waitFor(() => { const f = game.messages.get(card?.id)?.getFlag(MOD, 'damageHold'); return (f?.applied) ? f : null; }, 12000);
-      await sleep(600);
+      const landed = await until(() => { const f = game.messages.get(card?.id)?.getFlag(MOD, 'damageHold'); return (f?.applied) ? f : null; }, { timeout: 12000 });
+      const struck = await watch(() => hp() !== 400, { ms: 600 });
       const taken = 400 - hp();
       ok('5b. Intercept: 1d10 + PB rolled (9 + PB), the damage lands short by it — the Fighter the reactor, the receipt says so',
-        (landed?.answer === 'cast') && (landed?.actorUuid === fighter.uuid) && (Number(landed?.reduceBy) >= 10) && (taken === 0),
-        `flag=${JSON.stringify({ answer: landed?.answer, actor: landed?.actorName, reduceBy: landed?.reduceBy })} taken=${taken}`);
+        (landed?.answer === 'cast') && (landed?.actorUuid === fighter.uuid) && (Number(landed?.reduceBy) >= 10) && !struck && (taken === 0),
+        `flag=${JSON.stringify({ answer: landed?.answer, actor: landed?.actorName, reduceBy: landed?.reduceBy })} taken=${taken} struck=${!!struck}`);
       void msg;
-    }
+    });
 
     // ---- 6. Interception passed
-    if (want(6)) {
+    if (want(6)) await section(6, async () => {
       await closeDialogs(); await spendLuck();
       await onlyGuard('Interception');
       await swing({ d20: [12], dmg: 5 });
-      const pop = await waitFor(interceptPopup, 8000);
+      const pop = await until(interceptPopup, { timeout: 8000 });
       const card = game.messages.contents.filter(m => m.getFlag(MOD, 'damageHold')?.status === 'pending').pop();
       pop?.element?.querySelector('button[data-action="pass"]')?.click();
-      const landed = await waitFor(() => { const f = game.messages.get(card?.id)?.getFlag(MOD, 'damageHold'); return (f?.applied) ? f : null; }, 12000);
-      await sleep(600);
+      const landed = await until(() => { const f = game.messages.get(card?.id)?.getFlag(MOD, 'damageHold'); return (f?.applied) ? f : null; }, { timeout: 12000 });
+      await until(() => hp() < 400, { timeout: 4000, label: 'the Halfling\'s Hit Points down' });
       ok('6a. passed: the damage lands whole', (landed?.answer === 'pass') && ((400 - hp()) > 0), `answer=${landed?.answer} taken=${400 - hp()}`);
-    }
+    });
 
     return { log, results, skips };
   } catch (err) {

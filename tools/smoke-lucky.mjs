@@ -27,16 +27,8 @@ announcePlan('lucky', plan, pulled);
 
 const out = await f.evaluate(async ({ sections, titles }) => {
   const MOD = 'fvtt-mod-bythebooks';
-  const results = [];
-  const log = [];
-  const skips = [];
-  const ok = (name, pass, detail = '') => results.push({ name, pass, detail });
-  const want = id => {
-    if (!sections || sections.includes(String(id))) return true;
-    skips.push(`§${id} ${titles?.[id] ?? ''}`);
-    return false;
-  };
-  const sleep = ms => new Promise(r => setTimeout(r, ms));
+  const { until, watch, canvasReady, tokenOn, snapshotSettings, faces, unrig } = window.__btb;
+  const { results, log, skips, ok, want, section } = window.__btb.begin({ sections, titles });
   const suiteStart = Date.now();
 
   const modDoc = game.modules.get(MOD);
@@ -47,8 +39,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   const SETTING_KEYS = ['autoDamage', 'autoApply', 'playerRollDamage', 'damageTimer', 'dramaticBeat', 'requireTarget',
     'reactionHold', 'holdTimer', 'riders', 'effectRiders', 'masteryRiders', 'masteryAsk', 'saves', 'castApply', 'concMode',
     'reminderList', 'conditionList', 'damageEitherList', 'clockRiderList', 'hitMenuList', 'd20Folds', 'd20FoldAsk'];
-  const prior = Object.fromEntries(SETTING_KEYS.map(k => [k, game.settings.get(MOD, k)]));
-  const set = (k, v) => game.settings.set(MOD, k, v);
+  const settings = snapshotSettings(SETTING_KEYS);
+  const { set } = settings;
   const def = k => game.settings.settings.get(`${MOD}.${k}`)?.default;
 
   const scene = game.scenes.getName('By the Books Test Range');
@@ -65,12 +57,6 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   const created = { tokens: [] };
   let combat = null;
   let restored = false;
-  const realPRNG = CONFIG.Dice.randomUniform;
-  const faces = spec => {
-    const queue = spec.map(([n, of]) => 1 - ((n - 0.5) / of));
-    let i = 0;
-    CONFIG.Dice.randomUniform = () => queue[Math.min(i++, queue.length - 1)];
-  };
   const refillLuck = async () => { const l = lucky(); if (l) await l.update({ 'system.uses.spent': 0 }); };
   const dropPoisoned = async () => { if (halfling.statuses.has('poisoned')) await halfling.toggleStatusEffect('poisoned', { active: false }); };
   const closeDialogs = async () => {
@@ -82,9 +68,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   const teardown = async () => {
     if (restored) return;
     restored = true;
-    CONFIG.Dice.randomUniform = realPRNG;
-    try { for (const [k, v] of Object.entries(prior)) await set(k, v); }
-    catch (err) { log.push(`TEARDOWN settings ERROR: ${err?.message}`); }
+    unrig();
+    for (const failed of await settings.restore()) log.push(`TEARDOWN settings ERROR: ${failed}`);
     try {
       await closeDialogs();
       await dropPoisoned();
@@ -131,14 +116,14 @@ const out = await f.evaluate(async ({ sections, titles }) => {
 
     // ---- fixtures
     if (canvas.scene?.id !== scene.id) await scene.view();
-    for (let i = 0; i < 40 && !canvas.ready; i++) await sleep(250);
+    await canvasReady();
     const strays = scene.tokens.filter(t => t.actorLink && [attacker.id, halfling.id].includes(t.actorId)).map(t => t.id);
     if (strays.length) await scene.deleteEmbeddedDocuments('Token', strays);
     const placeToken = async (actor, x, y) => {
       const [doc] = await scene.createEmbeddedDocuments('Token', [
         foundry.utils.mergeObject(actor.prototypeToken.toObject(), { x, y, actorId: actor.id, actorLink: true }, { inplace: false })]);
       created.tokens.push(doc.id);
-      for (let i = 0; i < 40 && !(canvas.ready && canvas.tokens.get(doc.id)); i++) await sleep(250);
+      await tokenOn(doc.id);
       const token = canvas.tokens.get(doc.id);
       if (!token) throw new Error(`${actor.name}'s token never reached the canvas`);
       return { doc, token };
@@ -147,25 +132,25 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     const { doc: halflingDoc, token: halflingToken } = await placeToken(halfling, 1500, 1700);
 
     // ---- helpers
-    const waitFor = async (test, timeout = 8000) => {
-      const until = Date.now() + timeout;
-      while (Date.now() < until) { const v = test(); if (v) return v; await sleep(200); }
-      return test();
-    };
     const textOf = el => (el?.textContent ?? '').replace(/\s+/g, ' ').trim();
     const rollDialog = () => [...foundry.applications.instances.values()]
       .find(app => /RollConfigurationDialog/.test(app.constructor?.name ?? '') && app.rendered && app.element) ?? null;
     const openDialog = async () => {
-      const dlg = await waitFor(rollDialog, 6000);
-      await waitFor(() => dlg?.element?.querySelector('[data-bf-buy]'), 3000);
-      await sleep(150);
+      const dlg = await until(rollDialog, { timeout: 6000 });
+      await until(() => dlg?.element?.querySelector('[data-bf-buy]'), { timeout: 3000 });
+      await until(() => dlg?.element?.querySelector('button[data-bf-default]'), { timeout: 3000, label: 'the dialog\'s default button marked' });
       return dlg;
     };
     const boxOf = dlg => dlg?.element?.querySelector('[data-bf-buy]') ?? null;
     const tickOf = dlg => dlg?.element?.querySelector('input[name="bf-buy"]') ?? null;
     const defaultOf = dlg => dlg?.element?.querySelector('button[data-bf-default]')?.dataset?.action ?? null;
     const netOf = dlg => dlg?.element?.querySelector('[data-bf-reminder-head] [data-bf-mode]')?.dataset?.bfMode ?? null;
-    const tick = async dlg => { const t = tickOf(dlg); if (t) { t.checked = true; t.dispatchEvent(new Event('change', { bubbles: true })); } await sleep(150); };
+    const tick = async dlg => {
+      const t = tickOf(dlg);
+      if (!t) return;
+      t.checked = true; t.dispatchEvent(new Event('change', { bubbles: true }));
+      await until(() => tickOf(dlg)?.checked, { label: 'the box redrawn ticked' });
+    };
     const press = (dlg, mode) => { const b = dlg?.element?.querySelector(`button[data-action="${mode}"]`); b?.click(); return !!b; };
     const lastOf = type => game.messages.contents.filter(m => (m.timestamp >= suiteStart) && (m.type === type)).pop() ?? null;
     const weapon = halfling.items.find(i => (i.type === 'weapon') && i.system.activities?.some?.(a => a.type === 'attack'));
@@ -177,12 +162,12 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       if (game.combat) await game.combat.delete();
       combat = await Combat.create({ scene: scene.id, active: true });
       await combat.createEmbeddedDocuments('Combatant', [{ actorId: halfling.id, tokenId: halflingDoc.id, sceneId: scene.id }]);
-      await sleep(300);
+      await until(() => (game.combat?.id === combat.id) && combat.combatants.some(c => c.actorId === halfling.id), { label: 'the Halfling\'s combat viewed' });
       return combat.combatants.find(c => c.actorId === halfling.id);
     };
 
     // ---- 1. an attack, ticked
-    if (want(1)) {
+    if (want(1)) await section(1, async () => {
       await refillLuck(); await closeDialogs();
       halflingToken.control({ releaseOthers: true });
       attackerToken.setTarget(true, { releaseOthers: true });
@@ -198,39 +183,39 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       ok('1b. ticked: the net and the default move to Advantage', (netOf(dlg) === 'advantage') && (defaultOf(dlg) === 'advantage'),
         `net=${netOf(dlg)} default=${defaultOf(dlg)}`);
       press(dlg, 'advantage');
-      const msg = await waitFor(() => { const m = lastOf('attack'); return (m && (m.id !== before)) ? m : null; }, 8000);
-      await sleep(600);
+      const msg = await until(() => { const m = lastOf('attack'); return (m && (m.id !== before)) ? m : null; }, { timeout: 8000 });
+      await until(() => luckLeft() === ONE_SPENT, { timeout: 4000, label: 'a Luck Point spent' });
       const rec = msg?.getFlag(MOD, 'reminder');
       ok('1c. pressed: the roll went out at Advantage, a Luck Point spent, the record names Lucky and the spend',
         (Number(msg?.rolls?.[0]?.options?.advantageMode) === 1) && (luckLeft() === ONE_SPENT)
           && (rec?.sources ?? []).some(s => (s.kind === 'buy') && /Lucky/.test(s.label)) && (msg?.getFlag(MOD, 'poolSpend')?.left === ONE_SPENT),
         `mode=${msg?.rolls?.[0]?.options?.advantageMode} left=${luckLeft()} rec=${JSON.stringify(rec?.sources)} spend=${JSON.stringify(msg?.getFlag(MOD, 'poolSpend'))}`);
       await closeDialogs();
-    }
+    });
 
     // ---- 2. a save, left unticked
-    if (want(2)) {
+    if (want(2)) await section(2, async () => {
       await refillLuck(); await lucky()?.update({ 'system.uses.spent': 1 }); await closeDialogs();
       void halfling.rollSavingThrow({ ability: 'dex' });
       const dlg = await openDialog();
       ok('2a. the save dialog carries the box, one point short of full', new RegExp(`Lucky — 1 Luck Point · ${ONE_SPENT} left`).test(textOf(boxOf(dlg))), `box="${textOf(boxOf(dlg)).slice(0, 80)}"`);
       const before = game.messages.size;
       press(dlg, 'normal');
-      await waitFor(() => game.messages.size > before, 6000);
-      await sleep(500);
+      await until(() => game.messages.size > before, { timeout: 6000 });
+      const spent = await watch(() => luckLeft() !== ONE_SPENT, { ms: 500 });
       const msg = game.messages.contents.at(-1);
-      ok('2b. pressed Normal unticked: nothing spent, no record names Lucky', (luckLeft() === ONE_SPENT)
+      ok('2b. pressed Normal unticked: nothing spent, no record names Lucky', !spent && (luckLeft() === ONE_SPENT)
         && !(msg?.getFlag(MOD, 'reminder')?.sources ?? []).some(s => s.kind === 'buy') && !msg?.getFlag(MOD, 'poolSpend'),
         `left=${luckLeft()} rec=${JSON.stringify(msg?.getFlag(MOD, 'reminder'))}`);
       await closeDialogs();
-    }
+    });
 
     // ---- 3. beside a Disadvantage
-    if (want(3)) {
+    if (want(3)) await section(3, async () => {
       await refillLuck(); await closeDialogs();
       await set('reminderList', 'buy, condition');
       await halfling.toggleStatusEffect('poisoned', { active: true });
-      await sleep(300);
+      await until(() => halfling.statuses.has('poisoned'), { label: 'the Halfling Poisoned' });
       void halfling.rollSkill({ skill: 'ste' });
       const dlg = await openDialog();
       ok('3a. Poisoned alone: the net Disadvantage', netOf(dlg) === 'disadvantage', `net=${netOf(dlg)}`);
@@ -239,16 +224,16 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         `net=${netOf(dlg)} default=${defaultOf(dlg)}`);
       const before = game.messages.size;
       press(dlg, 'normal');
-      await waitFor(() => game.messages.size > before, 6000);
-      await sleep(600);
+      await until(() => game.messages.size > before, { timeout: 6000 });
+      await until(() => luckLeft() === ONE_SPENT, { timeout: 4000, label: 'a Luck Point spent' });
       ok('3c. pressed Normal: the Luck Point is spent all the same', luckLeft() === ONE_SPENT, `left=${luckLeft()}`);
       await dropPoisoned();
       await set('reminderList', 'buy');
       await closeDialogs();
-    }
+    });
 
     // ---- 4. none left
-    if (want(4)) {
+    if (want(4)) await section(4, async () => {
       await closeDialogs();
       await lucky()?.update({ 'system.uses.spent': Number(lucky().system.uses.max) });
       void halfling.rollAbilityCheck({ ability: 'wis' });
@@ -258,10 +243,10 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         `box="${textOf(box).slice(0, 90)}" tick=${!!tickOf(dlg)}`);
       await closeDialogs();
       await refillLuck();
-    }
+    });
 
     // ---- 5. initiative's dialog
-    if (want(5)) {
+    if (want(5)) await section(5, async () => {
       await refillLuck(); await closeDialogs();
       const combatant = await newCombat();
       faces([[6, 20], [14, 20]]);
@@ -270,18 +255,20 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       ok('5a. initiative\'s dialog carries the box', new RegExp(`Lucky — 1 Luck Point · ${FULL} left`).test(textOf(boxOf(dlg))), `box="${textOf(boxOf(dlg)).slice(0, 80)}"`);
       await tick(dlg);
       press(dlg, 'advantage');
-      const initMsg = await waitFor(() => game.messages.contents.slice(-6).reverse().find(m => m.getFlag('core', 'initiativeRoll') && (m.timestamp >= suiteStart)) ?? null, 8000);
-      await sleep(1200);
+      const initMsg = await until(() => game.messages.contents.slice(-6).reverse().find(m => m.getFlag('core', 'initiativeRoll') && (m.timestamp >= suiteStart)) ?? null, { timeout: 8000 });
+      await until(() => (combat.combatants.get(combatant?.id)?.initiative === initMsg?.rolls?.[0]?.total) && (luckLeft() === ONE_SPENT),
+        { timeout: 4000, label: 'the initiative written and a Luck Point spent' });
+      const offer = await watch(() => (initMsg?.getFlag(MOD, 'd20fold')?.offers ?? []).some(o => o.kind === 'advantage'), { ms: 1200 });
       const init = combat.combatants.get(combatant?.id)?.initiative;
       const roll = initMsg?.rolls?.[0];
       ok('5b. the initiative rolled at Advantage (14 kept), a point spent, the roll marked bought',
         (Number(roll?.options?.advantageMode) === 1) && (Number(roll?.d20?.total) === 14) && (init === roll?.total)
           && (luckLeft() === ONE_SPENT) && (roll?.options?.bfBought === 'Lucky'),
         `mode=${roll?.options?.advantageMode} d20=${roll?.d20?.total} init=${init} total=${roll?.total} left=${luckLeft()} bought=${roll?.options?.bfBought}`);
-      ok('5c. the no-dialog fold stands aside — no Lucky offer on that roll', !(initMsg?.getFlag(MOD, 'd20fold')?.offers ?? []).some(o => o.kind === 'advantage'),
-        `fold=${JSON.stringify(initMsg?.getFlag(MOD, 'd20fold')?.offers)}`);
+      ok('5c. the no-dialog fold stands aside — no Lucky offer on that roll', !offer && !(initMsg?.getFlag(MOD, 'd20fold')?.offers ?? []).some(o => o.kind === 'advantage'),
+        `fold=${JSON.stringify(initMsg?.getFlag(MOD, 'd20fold')?.offers)} offered=${!!offer}`);
       await closeDialogs();
-    }
+    });
 
     // ---- 6. no dialog: the higher stands
     const noDialog = async (first, second) => {
@@ -292,18 +279,19 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const seen = new Set(game.messages.contents.map(m => m.id));
       faces([[first, 20]]);
       await combat.rollInitiative([combatant.id], { updateTurn: false });
-      const initMsg = await waitFor(() => game.messages.contents.slice(-6).reverse()
-        .find(m => !seen.has(m.id) && m.getFlag('core', 'initiativeRoll') && m.getFlag(MOD, 'd20fold')) ?? null, 8000);
+      const initMsg = await until(() => game.messages.contents.slice(-6).reverse()
+        .find(m => !seen.has(m.id) && m.getFlag('core', 'initiativeRoll') && m.getFlag(MOD, 'd20fold')) ?? null, { timeout: 8000 });
       const flag = initMsg?.getFlag(MOD, 'd20fold');
       const offered = (flag?.testKind === 'initiative') && (flag?.offers ?? []).some(o => (o.kind === 'advantage') && (o.label === 'Lucky'));
-      const win = await waitFor(() => rescueWindow('Lucky'), 6000);
+      const win = await until(() => rescueWindow('Lucky'), { timeout: 6000, label: 'the Lucky rescue window' });
       faces([[second, 20]]);
       win?.querySelector('[data-bf-rescue-action="advantage"]')?.click();
-      const done = await waitFor(() => { const fl = initMsg?.getFlag(MOD, 'd20fold'); return (fl?.status === 'resolved') ? fl : null; }, 10000);
-      await sleep(500);
+      const done = await until(() => { const fl = initMsg?.getFlag(MOD, 'd20fold'); return (fl?.status === 'resolved') ? fl : null; }, { timeout: 10000 });
+      await until(() => (combat.combatants.get(combatant?.id)?.initiative === done.foldedTotal) && (luckLeft() === ONE_SPENT),
+        { timeout: 4000, label: 'the initiative moved to the folded total, a Luck Point spent' });
       return { offered, flag, done, base: Number(flag?.baseTotal), init: combat.combatants.get(combatant?.id)?.initiative, win: !!win };
     };
-    if (want(6)) {
+    if (want(6)) await section(6, async () => {
       const r = await noDialog(5, 15);
       ok('6a. the combat\'s own roll offers Lucky (the popup open)', r.offered && r.win,
         `offers=${JSON.stringify(r.flag?.offers?.map(o => [o.kind, o.label]))} win=${r.win}`);
@@ -311,16 +299,16 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         (r.done?.outcome === 'used') && (Math.abs(r.init - (r.base + 10)) < 1e-9) && (luckLeft() === ONE_SPENT),
         `init=${r.init} want=${r.base + 10} left=${luckLeft()} folded=${r.done?.foldedTotal}`);
       await closeDialogs();
-    }
+    });
 
     // ---- 7. no dialog: the first stands
-    if (want(7)) {
+    if (want(7)) await section(7, async () => {
       const r = await noDialog(15, 4);
       ok('7a. the second d20 lower (4): the first (15) stands, the point spent either way',
         r.offered && (r.done?.outcome === 'used') && (r.init === r.base) && (luckLeft() === ONE_SPENT),
         `init=${r.init} want=${r.base} left=${luckLeft()}`);
       await closeDialogs();
-    }
+    });
 
     return { log, results, skips };
   } catch (err) {

@@ -36,23 +36,9 @@ announcePlan('volleys', plan, pulled);
 
 const out = await f.evaluate(async ({ sections, titles }) => {
   const MOD = 'fvtt-mod-bythebooks';
-  const results = [];
-  const log = [];
-  const skips = [];
-  const ok = (name, pass, detail = '') => results.push({ name, pass, detail });
+  const { until, watch, tokenOn, snapshotSettings } = window.__btb;
   // The page-side section gate (tools/harness.mjs); the plan arrives as data.
-  const want = id => {
-    if (!sections || sections.includes(String(id))) return true;
-    skips.push(`§${id} ${titles?.[id] ?? ''}`);
-    return false;
-  };
-  const sleep = ms => new Promise(r => setTimeout(r, ms));
-  // Wait for the thing, not the clock: returns as soon as `fn` is truthy.
-  const until = async (fn, ms = 8000) => {
-    const t0 = Date.now();
-    while (Date.now() - t0 < ms) { const v = fn(); if (v) return v; await sleep(150); }
-    return fn();
-  };
+  const { results, log, skips, ok, want, section } = window.__btb.begin({ sections, titles });
   const suiteStart = Date.now();
 
   const mod = game.modules.get(MOD);
@@ -65,9 +51,9 @@ const out = await f.evaluate(async ({ sections, titles }) => {
 
   const SETTING_KEYS = ['volleys', 'autoDamage', 'autoApply', 'playerRollDamage', 'dramaticBeat',
     'damageTimer', 'requireTarget', 'reactionHold', 'blockList', 'riders', 'effectRiders',
-    'masteryRiders', 'concMode', 'saves', 'castApply', 'resourceNotices', 'reminderList', 'conditionList'];
-  const prior = Object.fromEntries(SETTING_KEYS.map(k => [k, game.settings.get(MOD, k)]));
-  const set = (k, v) => game.settings.set(MOD, k, v);
+    'masteryRiders', 'concMode', 'saves', 'castApply', 'resourceNotices', 'reminderList', 'conditionList', 'effectList'];
+  const settings = snapshotSettings(SETTING_KEYS);
+  const { prior, set } = settings;
 
   const scene = game.scenes.getName('By the Books Test Range');
   const victim = game.actors.getName('BTB Test Victim');
@@ -83,8 +69,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   const teardown = async () => {
     if (restored) return;
     restored = true;
-    try { for (const [k, v] of Object.entries(prior)) await set(k, v); }
-    catch (err) { log.push(`TEARDOWN settings ERROR: ${err?.message}`); }
+    for (const failed of await settings.restore()) log.push(`TEARDOWN settings ERROR: ${failed}`);
     try { for (const n of TEST_ENTRIES) registry.delete(n); }
     catch (err) { log.push(`TEARDOWN registry ERROR: ${err?.message}`); }
     try {
@@ -129,11 +114,11 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   const fresh = beforeIds => game.messages.contents.filter(m => !beforeIds.has(m.id));
   const snap = () => new Set(game.messages.contents.map(m => m.id));
   // ⚠ §4 asserts ABSENCE: wait for what the cast does produce (its usage card, same hook chain),
-  // then settle (ARCHITECTURE §11 *Adding a TEST* rule 3).
+  // then watch the window for a volley stamp; returns the stamped card, or null
+  // (ARCHITECTURE §11 *Adding a TEST* rule 3).
   const castSettled = async beforeIds => {
-    await until(() => fresh(beforeIds).some(m => (m.type === 'usage')
-      ), 5000);
-    await sleep(400);
+    await until(() => fresh(beforeIds).some(m => (m.type === 'usage')), { timeout: 5000, label: 'the cast\'s usage card' });
+    return watch(() => fresh(beforeIds).find(m => m.getFlag(MOD, 'volley')), { ms: 400 });
   };
 
   try {
@@ -176,7 +161,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         foundry.utils.mergeObject(actor.prototypeToken.toObject(),
           { x, y: 1400, actorId: actor.id, actorLink: true }, { inplace: false })]);
       created.tokens.push(doc.id);
-      for (let i = 0; i < 40 && !(canvas.ready && canvas.tokens.get(doc.id)); i++) await sleep(250);
+      await tokenOn(doc.id);
       return canvas.tokens.get(doc.id);
     };
     const victimToken = await mkToken(victim, 1000);
@@ -241,12 +226,12 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     let msgs;
 
     // ---- §1 darts, aimed by hand
-    if (want(1)) {
+    if (want(1)) await section(1, async () => {
       log.push('§1 darts');
       targetBoth();
       before = snap();
       await mmAct.use({}, { configure: false }, {});
-      const card1 = await until(() => fresh(before).find(m => m.getFlag(MOD, 'volley')), 1200);
+      const card1 = await until(() => fresh(before).find(m => m.getFlag(MOD, 'volley')), { timeout: 1200, label: 'the volley card' });
       msgs = fresh(before);
       const v1 = card1?.getFlag(MOD, 'volley');
       ok('1a volley stamps: kind damage, n 3, two targets, pending',
@@ -270,17 +255,19 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         for (const s of steppers) s.value = (s.dataset.bfVolleyUuid === victim.uuid) ? '2' : '1';
         dlg1.element.querySelector('button[data-action="fire"]')?.click();
       }
-      await until(() => fresh(before).filter(m => (m.type === 'damage')
-        && m.getFlag(MOD, 'volleyFor')).length >= 3, 2500);
+      const dartsNow = () => fresh(before).filter(m => (m.type === 'damage') && m.getFlag(MOD, 'volleyFor'));
+      await until(() => dartsNow().length >= 2, { timeout: 2500, label: 'the two aimed dart rolls' });
+      // 1d says exactly two: a third roll (three darts unaggregated) is the wrong thing.
+      const thirdRoll = await watch(() => dartsNow()[2], { ms: 2500 });
       msgs = fresh(before);
       const dartRolls = msgs.filter(m => (m.type === 'damage')
         && m.getFlag(MOD, 'volleyFor'));
       const forVictim = dartRolls.find(m => m.getFlag(MOD, 'volleyTarget') === victim.uuid);
       const forShielder = dartRolls.find(m => m.getFlag(MOD, 'volleyTarget') === shielder.uuid);
       ok('1d two aimed damage rolls — one per target, chained to the card',
-        (dartRolls.length === 2) && !!forVictim && !!forShielder
+        !thirdRoll && (dartRolls.length === 2) && !!forVictim && !!forShielder
           && dartRolls.every(m => m._source.system?.origin === card1?.id),
-        `rolls=${dartRolls.length}`);
+        `rolls=${dartRolls.length}${thirdRoll ? ` third=${thirdRoll.id}` : ''}`);
       ok('1e dart aggregation: 2 darts = 2 dice groups in ONE message, 1 dart = 1',
         (forVictim?.rolls?.length === 2) && (forShielder?.rolls?.length === 1)
           && forVictim.rolls.every(r => r.formula.includes('1d4')),
@@ -288,7 +275,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       ok('1f each dart roll snapshots exactly its own target',
         ((forVictim?.system?.targets ?? []).map(t => ({ ...t, uuid: t.actor })).map(t => t.uuid).join() === victim.uuid)
           && ((forShielder?.system?.targets ?? []).map(t => ({ ...t, uuid: t.actor })).map(t => t.uuid).join() === shielder.uuid));
-      await until(() => forVictim?.getFlag(MOD, 'receipt') && forShielder?.getFlag(MOD, 'receipt'), 1500);
+      await until(() => forVictim?.getFlag(MOD, 'receipt') && forShielder?.getFlag(MOD, 'receipt'), { timeout: 1500, label: 'both dart receipts' });
       ok('1g both rolls applied through the existing spellDamage machinery (receipts per target)',
         !!forVictim?.getFlag(MOD, 'receipt') && !!forShielder?.getFlag(MOD, 'receipt'));
       const v1r = card1?.getFlag(MOD, 'volley');
@@ -309,10 +296,10 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           !!document.querySelector(`[data-message-id="${m?.id}"] .bf-volley-aim img[data-tooltip]`)
             && !!document.querySelector(`[data-message-id="${m?.id}"] .bf-volley-aim`)
               ?.textContent.includes((m?.system?.targets ?? []).map(t => ({ ...t, uuid: t.actor }))[0]?.name ?? '@@')));
-    }
+    });
 
     // ---- §2 upcast — the count scales
-    if (want(2)) {
+    if (want(2)) await section(2, async () => {
       // The REAL channel: a slot pick. The system re-resolves bare `scaling` during consume
       // (measured — it reaches postUse as 0), so the fixture spends an actual 3rd-level slot
       // and the stamp reads the message's own spellLevel.
@@ -343,7 +330,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       before = snap();
       await upItem.system.activities.contents[0].use(
         { spell: { slot: 'spell3' } }, { configure: false }, {});
-      const card2 = await until(() => fresh(before).find(m => m.getFlag(MOD, 'volley')), 1200);
+      const card2 = await until(() => fresh(before).find(m => m.getFlag(MOD, 'volley')), { timeout: 1200 });
       msgs = fresh(before);
       const v2 = card2?.getFlag(MOD, 'volley');
       ok('2a a 3rd-level slot reads 5 darts off the content formula (message spellLevel is the channel)',
@@ -353,7 +340,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       // The X is "get on with it": closing fires the volley with the default even spread (3/2).
       await dlg2?.close();
       await until(() => fresh(before).filter(m => (m.type === 'damage')
-        && m.getFlag(MOD, 'volleyFor')).length >= 2, 2500);
+        && m.getFlag(MOD, 'volleyFor')).length >= 2, { timeout: 2500 });
       msgs = fresh(before);
       const upRolls = msgs.filter(m => (m.type === 'damage') && m.getFlag(MOD, 'volleyFor'));
       const upV = upRolls.find(m => m.getFlag(MOD, 'volleyTarget') === victim.uuid);
@@ -361,10 +348,10 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       ok('2b closing fired the even spread: 3 dice groups and 2',
         (upV?.rolls?.length === 3) && (upS?.rolls?.length === 2),
         JSON.stringify({ v: upV?.rolls?.length, s: upS?.rolls?.length }));
-    }
+    });
 
     // ---- §3 rays — real attacks
-    if (want(3)) {
+    if (want(3)) await section(3, async () => {
       log.push('§3 rays');
       // Force the hit: the rays are real attack rolls; at AC 1 only a natural 1 misses (3e counts them).
       await victim.update({ 'system.attributes.ac.override': 1 });
@@ -372,7 +359,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       targetBoth();
       before = snap();
       await srAct.use({}, { configure: false }, {});
-      const card3 = await until(() => fresh(before).find(m => m.getFlag(MOD, 'volley')), 1200);
+      const card3 = await until(() => fresh(before).find(m => m.getFlag(MOD, 'volley')), { timeout: 1200 });
       msgs = fresh(before);
       const v3 = card3?.getFlag(MOD, 'volley');
       ok('3a volley stamps: kind attack, n 3 — and NO native first ray rolled',
@@ -408,7 +395,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       // the three rays are sequential real attacks, each with its own damage — wait for the
       // LAST one rather than for a clock sized to the slowest plausible run.
       await until(() => fresh(before).filter(m => (m.type === 'attack')
-        && m.getFlag(MOD, 'volleyRay')).length >= 3, 4500);
+        && m.getFlag(MOD, 'volleyRay')).length >= 3, { timeout: 4500 });
       msgs = fresh(before);
       const rays = msgs.filter(m => (m.type === 'attack') && m.getFlag(MOD, 'volleyRay'))
         .sort((a, b) => a.getFlag(MOD, 'volleyRay') - b.getFlag(MOD, 'volleyRay'));
@@ -426,7 +413,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const rayDamageOf = () => fresh(before).filter(m =>
         (m.type === 'damage') && !m.getFlag(MOD, 'volleyFor'));
       await until(() => rayDamageOf().length >= wantDamage
-        && rayDamageOf().every(m => !!m.getFlag(MOD, 'receipt')), 4500);
+        && rayDamageOf().every(m => !!m.getFlag(MOD, 'receipt')), { timeout: 4500 });
       const rayDamage = rayDamageOf();
       // ⚠ Count the d6s, never match the formula: a crit doubles the dice. Exactly two on a clean
       // hit, at least two on a crit (dnd5e's crit arithmetic is not this suite's to assert).
@@ -458,10 +445,10 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         !!document.querySelector(`[data-message-id="${rays[0]?.id}"] .bf-volley-aim img[data-tooltip]`)
           && !!document.querySelector(`[data-message-id="${rays[0]?.id}"] .bf-volley-aim`)
             ?.textContent.includes('Ray 1'));
-    }
+    });
 
     // ---- §4 negatives — never a volley
-    if (want(4)) {
+    if (want(4)) await section(4, async () => {
       log.push('§4 negatives');
       // (a) retired: volleys are always on (RULINGS *The settings*); there is no switch to test.
       // (b) a single-projectile count — the REGISTRY's count; content counts decide nothing
@@ -469,18 +456,19 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       targetBoth();
       before = snap();
       await mmAct.use({}, { configure: false }, {});
-      await castSettled(before);
+      const stamped4b = await castSettled(before);
       closeStrays();
-      ok('4b registry count 1: not a volley', !fresh(before).some(m => m.getFlag(MOD, 'volley')));
+      ok('4b registry count 1: not a volley', !stamped4b && !fresh(before).some(m => m.getFlag(MOD, 'volley')),
+        stamped4b ? `stamped ${stamped4b.id}` : '');
       registry.set('BTB Volley Missile', { kind: 'damage', count: '2 + @item.level' });
       // (c) targetless
       game.user.targets.forEach(t => { t.setTarget(false, { releaseOthers: true }); });
       before = snap();
       await mmAct.use({}, { configure: false }, {});
-      await castSettled(before);
+      const stamped4c = await castSettled(before);
       closeStrays();
       ok('4c targetless cast: not a volley (native path keeps it)',
-        !fresh(before).some(m => m.getFlag(MOD, 'volley')));
+        !stamped4c && !fresh(before).some(m => m.getFlag(MOD, 'volley')), stamped4c ? `stamped ${stamped4c.id}` : '');
       // (d) the census false positive (Dimension Door's shape): a CONTENT count of 2 with a
       // damage activity, but the name is UNLISTED — never a volley under (ff).
       const [unlisted] = await npc.createEmbeddedDocuments('Item', [{
@@ -502,20 +490,20 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       targetBoth();
       before = snap();
       await unlisted.system.activities.contents[0].use({}, { configure: false }, {});
-      await castSettled(before);
+      const stamped4d = await castSettled(before);
       closeStrays();
       ok('4d an UNLISTED spell with content count 2 + damage never volleys (the Dimension Door pin)',
-        !fresh(before).some(m => m.getFlag(MOD, 'volley')));
-    }
+        !stamped4d && !fresh(before).some(m => m.getFlag(MOD, 'volley')), stamped4d ? `stamped ${stamped4d.id}` : '');
+    });
 
     // ---- §5 expiry fires the spread
-    if (want(5)) {
+    if (want(5)) await section(5, async () => {
       log.push('§5 expiry');
       await set('damageTimer', 3);
       targetBoth();
       before = snap();
       await mmAct.use({}, { configure: false }, {});
-      const card5 = await until(() => fresh(before).find(m => m.getFlag(MOD, 'volley')), 1000);
+      const card5 = await until(() => fresh(before).find(m => m.getFlag(MOD, 'volley')), { timeout: 1000 });
       ok('5a pending with a 3s deadline and the public card bar',
         (card5?.getFlag(MOD, 'volley')?.status === 'pending')
           && !!document.querySelector(`[data-message-id="${card5?.id}"] .bf-volley-row [data-bf-deadline]`));
@@ -524,7 +512,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const expRollsNow = () => fresh(before).filter(m =>
         (m.type === 'damage') && m.getFlag(MOD, 'volleyFor'));
       await until(() => (card5?.getFlag(MOD, 'volley')?.status === 'resolved')
-        && (expRollsNow().length === 2), 9000);
+        && (expRollsNow().length === 2), { timeout: 9000 });
       const v5 = card5?.getFlag(MOD, 'volley');
       const expRolls = expRollsNow();
       ok('5b the buzzer fired the even spread: resolved, 2+1 dice groups across two rolls',
@@ -532,10 +520,10 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           && (expRolls.map(m => m.rolls.length).sort().join() === '1,2'),
         JSON.stringify({ s: v5?.status, rolls: expRolls.map(m => m.rolls.length) }));
       await set('damageTimer', 15);
-    }
+    });
 
     // ---- §6 the blocklist claim rides
-    if (want(6)) {
+    if (want(6)) await section(6, async () => {
       // ⚠ VICTIM ONLY: a targeted Shield holder stamps a real spell hold (another machine). This
       // pins the claim wiring on the driven rolls and the release when no hold stamps.
       // The block list is the code table (BLOCKS: Magic Missile against Shield), matched by identifier
@@ -546,28 +534,28 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       victimToken.setTarget(true, { releaseOthers: true });
       before = snap();
       await mmAct.use({}, { configure: false }, {});
-      await until(() => fresh(before).find(m => m.getFlag(MOD, 'volley')), 5000);
+      await until(() => fresh(before).find(m => m.getFlag(MOD, 'volley')), { timeout: 5000 });
       const card6 = fresh(before).find(m => m.getFlag(MOD, 'volley'));
       ok('6a no eligible holder was targeted, so no hold stamped on the card',
         !!card6 && !card6.getFlag(MOD, 'hold'));
       await findDialog('BTB Volley Missile')?.close();   // fire the default spread
       const claimedNow = () => fresh(before).filter(m =>
         (m.type === 'damage') && m.getFlag(MOD, 'volleyFor'));
-      await until(() => claimedNow().length === 1, 6000);
+      await until(() => claimedNow().length === 1, { timeout: 6000 });
       const claimed = claimedNow();
       ok('6b the driven dart roll was born with BOTH claims (spellDamage + the hold pending)',
         (claimed.length === 1) && claimed.every(m => (m.getFlag(MOD, 'spellDamage') === true)
           && (m.getFlag(MOD, 'spellHoldPending') !== undefined)),
         JSON.stringify(claimed.map(m => [m.getFlag(MOD, 'spellDamage'), m.getFlag(MOD, 'spellHoldPending')])));
-      await until(() => claimed.every(m => !!m.getFlag(MOD, 'receipt')), 8000);
+      await until(() => claimed.every(m => !!m.getFlag(MOD, 'receipt')), { timeout: 8000 });
       ok('6c with no hold on the card, the volley released its own claim and the roll applied',
         claimed.every(m => (m.getFlag(MOD, 'spellHoldPending') === false) && !!m.getFlag(MOD, 'receipt')),
         JSON.stringify(claimed.map(m => [m.getFlag(MOD, 'spellHoldPending'), !!m.getFlag(MOD, 'receipt')])));
       await mmItem.update({ 'system.identifier': 'bf-volley-missile' });
-    }
+    });
 
     // ---- §7 the registry IS membership
-    if (want(7)) {
+    if (want(7)) await section(7, async () => {
       log.push('§7 registry');
       ok('7a the shipped registry carries the census four',
         ['Magic Missile', 'Scorching Ray', 'Eldritch Blast', 'Steel Wind Strike'].every(n => registry.has(n)),
@@ -594,7 +582,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       targetBoth();
       before = snap();
       await srReal.system.activities.contents[0].use({}, { configure: false }, {});
-      await until(() => fresh(before).find(m => m.getFlag(MOD, 'volley')), 5000);
+      await until(() => fresh(before).find(m => m.getFlag(MOD, 'volley')), { timeout: 5000 });
       const card7 = fresh(before).find(m => m.getFlag(MOD, 'volley'));
       const v7 = card7?.getFlag(MOD, 'volley');
       ok('7b a BARE Scorching Ray volleys off the shipped entry — 3 rays at 2nd',
@@ -603,7 +591,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       await findDialog('Scorching Ray')?.close();   // fire the default spread
       const rays7Now = () => fresh(before).filter(m =>
         (m.type === 'attack') && m.getFlag(MOD, 'volleyRay'));
-      await until(() => rays7Now().length === 3, 8000);
+      await until(() => rays7Now().length === 3, { timeout: 8000 });
       const rays7 = rays7Now();
       ok('7c its three rays drove for real', rays7.length === 3, `rays=${rays7.length}`);
       // Eldritch Blast's beams band by CHARACTER level — the count fn, pinned pure (no world
@@ -614,10 +602,10 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         (beams(4) === 1) && (beams(5) === 2) && (beams(11) === 3) && (beams(17) === 4)
           && (beams(20) === 4) && (beams(0, 7) === 2),
         JSON.stringify([beams(4), beams(5), beams(11), beams(17), beams(0, 7)]));
-    }
+    });
 
     // ---- §8 distinct targets (Steel Wind Strike)
-    if (want(8)) {
+    if (want(8)) await section(8, async () => {
       log.push('§8 distinct');
       const [sws] = await npc.createEmbeddedDocuments('Item', [{
         name: 'Steel Wind Strike', type: 'spell',
@@ -640,7 +628,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       targetBoth();
       before = snap();
       await sws.system.activities.contents[0].use({}, { configure: false }, {});
-      await until(() => fresh(before).find(m => m.getFlag(MOD, 'volley')), 5000);
+      await until(() => fresh(before).find(m => m.getFlag(MOD, 'volley')), { timeout: 5000 });
       const card8 = fresh(before).find(m => m.getFlag(MOD, 'volley'));
       const v8 = card8?.getFlag(MOD, 'volley');
       ok('8a n clamps to the target count and the flag says distinct — 2 targets, 2 rays, not 5',
@@ -653,21 +641,21 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       }
       const rays8Now = () => fresh(before).filter(m =>
         (m.type === 'attack') && m.getFlag(MOD, 'volleyRay'));
-      await until(() => rays8Now().length === 2, 8000);
+      await until(() => rays8Now().length === 2, { timeout: 8000 });
       const rays8 = rays8Now();
       const targets8 = rays8.map(m => (m.system?.targets ?? []).map(t => ({ ...t, uuid: t.actor }))[0]?.uuid).sort();
       ok('8b duplicate picks fell back to one-each: two attacks, DISTINCT targets',
         (rays8.length === 2) && (new Set(targets8).size === 2),
         JSON.stringify(targets8));
-    }
+    });
 
     // ---- §9 per-ray adv/dis
-    if (want(9)) {
+    if (want(9)) await section(9, async () => {
       log.push('§9 adv/dis');
       targetBoth();
       before = snap();
       await srAct.use({}, { configure: false }, {});
-      await until(() => findDialog('BTB Volley Rays'), 5000);
+      await until(() => findDialog('BTB Volley Rays'), { timeout: 5000 });
       const dlg9 = findDialog('BTB Volley Rays');
       ok('9a the popup offers a mode select per ray',
         !!dlg9 && (dlg9.element.querySelectorAll('[data-bf-volley-mode]').length === 3));
@@ -679,7 +667,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const rays9Now = () => fresh(before).filter(m =>
         (m.type === 'attack') && m.getFlag(MOD, 'volleyRay'))
         .sort((a, b) => a.getFlag(MOD, 'volleyRay') - b.getFlag(MOD, 'volleyRay'));
-      await until(() => rays9Now().length === 3, 8000);
+      await until(() => rays9Now().length === 3, { timeout: 8000 });
       const rays9 = rays9Now();
       // dnd5e renders its advantage modifier as 2d20adv / 2d20dis (its own alias, not kh/kl).
       ok('9b ray 1 rolled at advantage, ray 2 at disadvantage, ray 3 a bare d20',
@@ -693,12 +681,12 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         (v9?.assignment?.[0]?.mode === 'advantage') && (v9?.assignment?.[1]?.mode === 'disadvantage')
           && (v9?.assignment?.[2]?.mode === undefined),
         JSON.stringify(v9?.assignment ?? null));
-    }
+    });
 
     // ---- §10 the gate meets the rays: with the dialog suppressed, the gate judges each ray AT
     // THE AIM, spends carried forward. The victim Prone and adjacent, the shielder Blinded, a Vex
     // chip on the victim: ray 1 spends the Vex, ray 2 must not be offered it.
-    if (want(10)) {
+    if (want(10)) await section(10, async () => {
       log.push('§10 the gate at the aim');
       await set('reminderList', 'vex, sap, prone, condition, range');
       await set('conditionList', 'blinded');
@@ -725,20 +713,21 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         duration: { value: 1, units: 'rounds', expiry: 'turnEnd' }, transfer: false,
         flags: { [MOD]: { mastery: 'vex' } }
       }, { parent: victim });
-      await sleep(250);
+      await until(() => victim.statuses.has('prone') && shielder.statuses.has('blinded') && victim.effects.get(vex.id),
+        { label: 'Prone, Blinded and the Vex chip on the actors' });
       targetBoth();
       before = snap();
       await srAct.use({}, { configure: false }, {});
-      await until(() => findDialog('BTB Volley Rays'), 5000);
+      await until(() => findDialog('BTB Volley Rays'), { timeout: 5000 });
       const dlg10 = findDialog('BTB Volley Rays');
-      const aim = async (i, uuid) => {
+      // The select's change listener redraws every ray's judgement synchronously.
+      const aim = (i, uuid) => {
         const sel = dlg10?.element.querySelector(`[data-bf-volley-ray="${i}"]`);
         if (!sel) return;
         sel.value = uuid;
         sel.dispatchEvent(new Event('change'));
-        await sleep(120);
       };
-      await aim(0, victim.uuid); await aim(1, victim.uuid); await aim(2, shielder.uuid);
+      aim(0, victim.uuid); aim(1, victim.uuid); aim(2, shielder.uuid);
       const judges = () => [...(dlg10?.element.querySelectorAll('[data-bf-volley-judge]') ?? [])];
       const jtext = i => (judges()[i]?.textContent ?? '').replace(/\s+/g, ' ').trim();
       const modeOf = i => dlg10?.element.querySelector(`[data-bf-volley-mode="${i}"]`)?.value ?? null;
@@ -758,16 +747,16 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       ok('10e every ray\'s mode select defaults to its net — Advantage',
         [0, 1, 2].every(i => modeOf(i) === 'advantage'), [0, 1, 2].map(modeOf).join());
       // Re-aim ray 1 at the shielder: the Vex moves to the first ray still at the victim.
-      await aim(0, shielder.uuid);
+      aim(0, shielder.uuid);
       ok('10f re-aiming ray 1 moves the Vex to ray 2 — the spends follow the aim',
         !/Vexed/.test(jtext(0)) && /Vexed/.test(jtext(1)) && /2 Modifiers — Net Advantage/.test(jtext(1)),
         `${jtext(0).slice(0, 120)} | ${jtext(1).slice(0, 120)}`);
-      await aim(0, victim.uuid);
+      aim(0, victim.uuid);
       dlg10?.element.querySelector('button[data-action="fire"]')?.click();
       const rays10Now = () => fresh(before).filter(m =>
         (m.type === 'attack') && m.getFlag(MOD, 'volleyRay'))
         .sort((a, b) => a.getFlag(MOD, 'volleyRay') - b.getFlag(MOD, 'volleyRay'));
-      await until(() => rays10Now().length === 3, 8000);
+      await until(() => rays10Now().length === 3, { timeout: 8000 });
       const rays10 = rays10Now();
       const rec = i => rays10[i]?.getFlag(MOD, 'reminder') ?? null;
       ok('10g every ray\'s card carries the gate\'s record — net Advantage, rolled Advantage, honoured',
@@ -781,7 +770,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       ok('10i the dice went out with Advantage on every ray',
         rays10.every(m => /2d20(adv|kh)/.test(m.rolls?.[0]?.formula ?? '')),
         JSON.stringify(rays10.map(m => m.rolls?.[0]?.formula ?? null)));
-      await until(() => !victim.effects.get(vex.id), 6000);
+      await until(() => !victim.effects.get(vex.id), { timeout: 6000 });
       const spentOn = i => (rays10[i]?.getFlag(MOD, 'chipSpend')?.spent ?? []).map(s => s.key);
       ok('10j the Vex is SPENT by ray 1 alone — the receipt on its card, none on ray 2, the chip gone',
         !victim.effects.get(vex.id) && spentOn(0).includes('vex') && !spentOn(1).includes('vex'),
@@ -793,37 +782,48 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         if (carriers.length) await a.deleteEmbeddedDocuments('ActiveEffect', carriers.map(e => e.id));
       }
       for (const [i, t] of trio.entries()) await t.document.update({ disposition: priorDispo[i] }).catch(() => {});
-    }
+    });
 
     // ---- 11. a standing effect (Innate Sorcery) on every ray: only Vex, Sap and the spend rows
     // carry forward as spent
-    if (want(11)) {
+    if (want(11)) await section(11, async () => {
       log.push('§11 a standing effect on every ray');
-      const priorLists = { reminderList: game.settings.get(MOD, 'reminderList'), effectList: game.settings.get(MOD, 'effectList') };
+      const lists = snapshotSettings(['reminderList', 'effectList']);
       await set('reminderList', 'vex, sap, prone, condition, range, effect');
-      await set('effectList', game.settings.settings.get(`${MOD}.effectList`)?.default ?? priorLists.effectList);
+      await set('effectList', game.settings.settings.get(`${MOD}.effectList`)?.default ?? lists.prior.effectList);
       const [sorcery] = await ActiveEffect.implementation.create({
         name: 'Innate Sorcery', img: 'icons/svg/aura.svg', transfer: false, disabled: false
       }, { parent: npc }).then(e => [e]);
-      await sleep(250);
-      targetBoth();
-      before = snap();
-      await srAct.use({}, { configure: false }, {});
-      await until(() => findDialog('BTB Volley Rays'), 5000);
-      const dlg11 = findDialog('BTB Volley Rays');
-      const judges11 = () => [...(dlg11?.element.querySelectorAll('[data-bf-volley-judge]') ?? [])];
-      const jtext11 = i => (judges11()[i]?.textContent ?? '').replace(/\s+/g, ' ').trim();
-      const modeOf11 = i => dlg11?.element.querySelector(`[data-bf-volley-mode="${i}"]`)?.value ?? null;
-      ok('11a every ray lists Innate Sorcery as Advantage — a standing effect is not spent by ray 1',
-        (judges11().length === 3) && [0, 1, 2].every(i => /Innate Sorcery/.test(jtext11(i)) && !/spent by this ray/.test(jtext11(i)) && (modeOf11(i) === 'advantage')),
-        [0, 1, 2].map(i => `ray${i + 1}="${jtext11(i).slice(0, 80)}" mode=${modeOf11(i)}`).join(' | '));
-      try { await dlg11?.close(); } catch { /* closing fires the volley as aimed */ }
-      await until(() => fresh(before).filter(m => m.type === 'attack').length >= 3, 15000);
-      await sleep(800);
-      await npc.deleteEmbeddedDocuments('ActiveEffect', [sorcery.id]).catch(() => {});
-      await set('reminderList', priorLists.reminderList);
-      await set('effectList', priorLists.effectList);
-    }
+      // The effect comes off and the lists go back even when a wait below throws: teardown sweeps neither.
+      try {
+        await until(() => npc.effects.get(sorcery.id), { label: 'Innate Sorcery on the caster' });
+        targetBoth();
+        before = snap();
+        await srAct.use({}, { configure: false }, {});
+        await until(() => findDialog('BTB Volley Rays'), { timeout: 5000 });
+        const dlg11 = findDialog('BTB Volley Rays');
+        const judges11 = () => [...(dlg11?.element.querySelectorAll('[data-bf-volley-judge]') ?? [])];
+        const jtext11 = i => (judges11()[i]?.textContent ?? '').replace(/\s+/g, ' ').trim();
+        const modeOf11 = i => dlg11?.element.querySelector(`[data-bf-volley-mode="${i}"]`)?.value ?? null;
+        ok('11a every ray lists Innate Sorcery as Advantage — a standing effect is not spent by ray 1',
+          (judges11().length === 3) && [0, 1, 2].every(i => /Innate Sorcery/.test(jtext11(i)) && !/spent by this ray/.test(jtext11(i)) && (modeOf11(i) === 'advantage')),
+          [0, 1, 2].map(i => `ray${i + 1}="${jtext11(i).slice(0, 80)}" mode=${modeOf11(i)}`).join(' | '));
+        try { await dlg11?.close(); } catch { /* closing fires the volley as aimed */ }
+        await until(() => fresh(before).filter(m => m.type === 'attack').length >= 3, { timeout: 15000 });
+        // The rays' damages land after their attacks: every ray that hit (+30 flat: all but a natural 1)
+        // has its damage receipted before the effect comes off.
+        await until(() => {
+          const rays = fresh(before).filter(m => (m.type === 'attack') && m.getFlag(MOD, 'volleyRay'));
+          const ids = new Set(rays.map(m => m.id));
+          const hits = rays.filter(m => m.rolls?.[0]?.isFumble !== true).length;
+          const dmg = fresh(before).filter(m => (m.type === 'damage') && ids.has(m.getFlag(MOD, 'attackFor')));
+          return (dmg.length >= hits) && dmg.every(m => !!m.getFlag(MOD, 'receipt'));
+        }, { timeout: 4500, label: 'the hitting rays\' damages receipted' });
+      } finally {
+        await npc.deleteEmbeddedDocuments('ActiveEffect', [sorcery.id]).catch(() => {});
+        for (const failed of await lists.restore()) log.push(`§11 settings restore ERROR: ${failed}`);
+      }
+    });
 
     await teardown();
   } catch (err) {

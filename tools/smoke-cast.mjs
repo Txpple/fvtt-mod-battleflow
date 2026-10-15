@@ -34,17 +34,9 @@ announcePlan('cast', plan, pulled);
 
 const out = await f.evaluate(async ({ sections, titles }) => {
   const MOD = 'fvtt-mod-bythebooks';
-  const results = [];
-  const log = [];
-  const skips = [];
-  const ok = (name, pass, detail = '') => results.push({ name, pass, detail });
+  const { until, watch, tokenOn, snapshotSettings, faces, unrig } = window.__btb;
+  const { results, log, skips, ok, want, section } = window.__btb.begin({ sections, titles });
   // The section gate (tools/harness.mjs): the closure is serialized, so plan and titles arrive as DATA.
-  const want = id => {
-    if (!sections || sections.includes(String(id))) return true;
-    skips.push(`§${id} ${titles?.[id] ?? ''}`);
-    return false;
-  };
-  const sleep = ms => new Promise(r => setTimeout(r, ms));
   const suiteStart = Date.now();
 
   const mod = game.modules.get(MOD);
@@ -56,8 +48,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   const SETTING_KEYS = ['castApply', 'autoDamage', 'autoApply', 'dramaticBeat', 'requireTarget',
     'reactionHold', 'blockList', 'riders', 'effectRiders', 'masteryRiders',
     'concMode', 'interruptList', 'holdApplyEffect'];
-  const prior = Object.fromEntries(SETTING_KEYS.map(k => [k, game.settings.get(MOD, k)]));
-  const set = (k, v) => game.settings.set(MOD, k, v);
+  const settings = snapshotSettings(SETTING_KEYS);
+  const { set } = settings;
 
   const scene = game.scenes.getName('By the Books Test Range');
   const victim = game.actors.getName('BTB Test Victim');
@@ -72,8 +64,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     if (restored) return;
     restored = true;
     // ⚠ SETTINGS FIRST, in their own guard: a later cleanup error must never leave suite settings on.
-    try { for (const [k, v] of Object.entries(prior)) await set(k, v); }
-    catch (err) { log.push(`TEARDOWN settings ERROR: ${err?.message}`); }
+    for (const failed of await settings.restore()) log.push(`TEARDOWN settings ERROR: ${failed}`);
     try {
       // End the caster's concentration: the native dependentOn cascade strips the applied chips.
       for (const e of [...(npc.concentration?.effects ?? [])]) { try { await e.delete(); } catch { /* gone */ } }
@@ -124,7 +115,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         foundry.utils.mergeObject(actor.prototypeToken.toObject(),
           { x, y: 1000, actorId: actor.id, actorLink: true }, { inplace: false })]);
       created.tokens.push(doc.id);
-      for (let i = 0; i < 40 && !(canvas.ready && canvas.tokens.get(doc.id)); i++) await sleep(250);
+      await tokenOn(doc.id);
       return canvas.tokens.get(doc.id);
     };
     const victimToken = await mkToken(victim, 1000);
@@ -206,17 +197,13 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     created.items.push({ actorId: npc.id, id: missileItem.id });
 
     const activityOf = (item, type) => npc.items.get(item.id).system.activities.find(a => a.type === type);
-    const target = (...tokens) => {
+    const target = async (...tokens) => {
       game.user.targets.forEach(t => { t.setTarget(false, { releaseOthers: true }); });
       tokens.forEach((t, i) => { t.setTarget(true, { releaseOthers: i === 0 }); });
+      await until(() => (game.user.targets.size === tokens.length) && tokens.every(t => game.user.targets.has(t)), { label: 'the targets set' });
     };
     const snap = () => new Set(game.messages.contents.map(m => m.id));
     const fresh = before => game.messages.contents.filter(m => !before.has(m.id));
-    const until = async (fn, ms = 6000) => {
-      const t0 = Date.now();
-      while (Date.now() - t0 < ms) { if (fn()) return true; await sleep(200); }
-      return fn();
-    };
     const usageCards = msgs => msgs.filter(m =>
       (m.type === 'usage'));
 
@@ -227,13 +214,12 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     const chipOn = a => a.effects.find(e => e.name === 'BTB Blessed');
 
     // ---------------------------------------------------- 1. the native-card bus
-    if (want(1)) {
-      target(victimToken, shielderToken);
-      await sleep(120);
+    if (want(1)) await section(1, async () => {
+      await target(victimToken, shielderToken);
       before = snap();
       use = await activityOf(blessItem, 'utility').use({}, { configure: false }, {});
-      if (use === undefined) return { fatal: 'the Bless fixture cast was refused' };
-      await until(() => fresh(before).some(m => m.getFlag(MOD, 'effectReceipt')?.castDone));
+      if (use === undefined) throw new Error('the Bless fixture cast was refused');
+      await until(() => fresh(before).some(m => m.getFlag(MOD, 'effectReceipt')?.castDone), { timeout: 6000, label: 'the cast receipt (castDone)' });
       msgs = fresh(before);
       const nativeCard = usageCards(msgs).find(m => m.getFlag(MOD, 'castApply'));
       ok('1a. the native card posts and carries the payload stamp',
@@ -257,9 +243,9 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         !!receipt1?.targets?.[0]?.effects?.[0]?.description?.includes?.('1d4'),
         `description=${JSON.stringify(receipt1?.targets?.[0]?.effects?.[0]?.description ?? null)}`);
 
-    }
+    });
     // ---------------------------------------------------- 2. no suppression machinery
-    if (want(2)) {
+    if (want(2)) await section(2, async () => {
       // A re-registered suppression setting is the regression; one cast is exactly one usage card.
       ok('2a. the suppression settings are unregistered (the machinery stayed dead)',
         ['suppressAttackCards', 'suppressWeaponCards', 'suppressSpellCards',
@@ -267,12 +253,11 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           .every(k => !game.settings.settings.has(`${MOD}.${k}`)),
         'a suppress* key is registered again');
 
-      target(victimToken, shielderToken);
-      await sleep(120);
+      await target(victimToken, shielderToken);
       before = snap();
       use = await activityOf(blessItem, 'utility').use({}, { configure: false }, {});
-      if (use === undefined) return { fatal: 'the second Bless cast was refused' };
-      await until(() => fresh(before).some(m => m.getFlag(MOD, 'effectReceipt')?.castDone));
+      if (use === undefined) throw new Error('the second Bless cast was refused');
+      await until(() => fresh(before).some(m => m.getFlag(MOD, 'effectReceipt')?.castDone), { timeout: 6000, label: 'the cast receipt (castDone)' });
       msgs = fresh(before);
       const secondCard = usageCards(msgs).find(m => m.getFlag(MOD, 'castApply'));
       ok('2b. every use shows its first card: exactly one usage card, the stamp on it',
@@ -288,24 +273,23 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           && !!concEffect2 && (chipOn(victim)?.origin === concEffect2.uuid),
         `victim=${!!chipOn(victim)} shielder=${!!chipOn(shielder)} receiptTargets=${receipt2?.targets?.length} origin=${chipOn(victim)?.origin}`);
 
-    }
+    });
     // ---------------------------------------------------- 3. healing: dice roll, heal up
-    if (want(3)) {
+    if (want(3)) await section(3, async () => {
       const hpMax = victim.system.attributes.hp.max;
       await victim.update({ 'system.attributes.hp.value': Math.max(1, hpMax - 15) });
       const hpBefore = victim.system.attributes.hp.value;
       ok('3-pre. the patient is actually hurt (a number that cannot move proves nothing)',
         hpBefore < hpMax, `hp=${hpBefore}/${hpMax}`);
-      target(victimToken);
-      await sleep(120);
+      await target(victimToken);
       before = snap();
       // subsequentActions:false + an explicit configure:false roll: live, the subsequent roll opens the
       // native dialog on the caster's client.
       use = await activityOf(cureItem, 'heal').use({ subsequentActions: false }, { configure: false }, {});
-      if (use === undefined) return { fatal: 'the Cure fixture cast was refused' };
+      if (use === undefined) throw new Error('the Cure fixture cast was refused');
       await activityOf(cureItem, 'heal').rollDamage({}, { configure: false },
         use?.message?.id ? { data: { 'system.origin': use.message.id } } : {});
-      await until(() => fresh(before).some(m => m.getFlag(MOD, 'receipt')));
+      await until(() => fresh(before).some(m => m.getFlag(MOD, 'receipt')), { timeout: 6000, label: 'the healing receipt' });
       msgs = fresh(before);
       const healRoll = msgs.find(m => m.type === 'healing');
       const healReceipt = healRoll?.getFlag(MOD, 'receipt');
@@ -321,21 +305,20 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           && (healReceipt?.targets?.[0]?.delta?.value === hpAfter - hpBefore),
         `rolled=${rolled} hp ${hpBefore}→${hpAfter} note=${healReceipt?.targets?.[0]?.note}`);
 
-    }
+    });
     // ---------------------------------------------------- 4. damage activities: the card posts,
-    if (want(4)) {
+    if (want(4)) await section(4, async () => {
       // casting keeps its hands off — Magic Missile is the negate hold's seam. The DICE are the
       // damage-cast machine's (always on since the settings cut): it rolls at the use, chained to the
       // card, and the spellDamage applier lands it — never a castApply stamp.
       // Whole HP first, so the hit is measurable (a victim at 3 HP clamps at 0).
       await victim.update({ 'system.attributes.hp.value': victim.system.attributes.hp.max });
       const mhpBefore = victim.system.attributes.hp.value;
-      target(victimToken);
-      await sleep(120);
+      await target(victimToken);
       before = snap();
       use = await activityOf(missileItem, 'damage').use({ subsequentActions: false }, { configure: false }, {});
-      if (use === undefined) return { fatal: 'the Missile fixture cast was refused' };
-      await until(() => fresh(before).some(m => (m.type === 'damage') && m.getFlag(MOD, 'receipt')), 6000);
+      if (use === undefined) throw new Error('the Missile fixture cast was refused');
+      await until(() => fresh(before).some(m => (m.type === 'damage') && m.getFlag(MOD, 'receipt')), { timeout: 6000, label: 'the Missile damage receipt' });
       msgs = fresh(before);
       const mDmg = msgs.find(m => m.type === 'damage');
       const mRolled = mDmg ? mDmg.rolls.reduce((a, r) => a + r.total, 0) : null;
@@ -350,23 +333,22 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       // 4b (a LISTED damage spell with no reactor holds nothing) retired here: the block list is the
       // code table (Magic Missile only), and smoke-hold §6e / smoke-volleys §6a own that claim.
 
-    }
+    });
     // ---------------------------------------------------- 5. no targets, no feature
-    if (want(5)) {
-      target();
-      await sleep(120);
+    if (want(5)) await section(5, async () => {
+      await target();
       before = snap();
       use = await activityOf(blessItem, 'utility').use({}, { configure: false }, {});
-      await sleep(1500);
+      const stray = await watch(() => fresh(before).some(m => m.getFlag(MOD, 'castApply')) || (usageCards(fresh(before)).length > 1), { ms: 1500 });
       msgs = fresh(before);
       ok('5a. a targetless cast keeps its native card and is left to the humans',
-        (use !== undefined) && (usageCards(msgs).length === 1)
+        (use !== undefined) && !stray && (usageCards(msgs).length === 1)
           && !msgs.some(m => m.getFlag(MOD, 'castApply')),
-        `usageCards=${usageCards(msgs).length}`);
+        `usageCards=${usageCards(msgs).length} stray=${!!stray}`);
 
-    }
+    });
     // ---------------------------------------------------- 6. SELF-tagged activities self-aim
-    if (want(6)) {
+    if (want(6)) await section(6, async () => {
       // A self activity ignores the UI targets, aims at its own actor, and needs no target at all.
       const [windItem] = await npc.createEmbeddedDocuments('Item', [{
         name: 'BTB Test Second Wind', type: 'feat',
@@ -395,14 +377,13 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       await npc.update({ 'system.attributes.hp.value': Math.max(1, npcMax - 10) });
       const npcBefore = npc.system.attributes.hp.value;
       const vBefore6 = victim.system.attributes.hp.value;
-      target(victimToken); // the WRONG target, on purpose
-      await sleep(120);
+      await target(victimToken); // the WRONG target, on purpose
       before = snap();
       use = await activityOf(windItem, 'heal').use({ subsequentActions: false }, { configure: false }, {});
-      if (use === undefined) return { fatal: 'the Second Wind fixture use was refused' };
+      if (use === undefined) throw new Error('the Second Wind fixture use was refused');
       await activityOf(windItem, 'heal').rollDamage({}, { configure: false },
         use?.message?.id ? { data: { 'system.origin': use.message.id } } : {});
-      await until(() => fresh(before).some(m => m.getFlag(MOD, 'receipt')));
+      await until(() => fresh(before).some(m => m.getFlag(MOD, 'receipt')), { timeout: 6000, label: 'the healing receipt' });
       msgs = fresh(before);
       const windRoll = msgs.find(m => m.type === 'healing');
       const windStamp = windRoll?.getFlag(MOD, 'healPending');
@@ -417,14 +398,13 @@ const out = await f.evaluate(async ({ sections, titles }) => {
 
       await npc.update({ 'system.attributes.hp.value': Math.max(1, npcMax - 10) });
       const npcBefore2 = npc.system.attributes.hp.value;
-      target(); // nobody targeted at all — the stamp must not need a snapshot
-      await sleep(120);
+      await target(); // nobody targeted at all — the stamp must not need a snapshot
       before = snap();
       use = await activityOf(windItem, 'heal').use({ subsequentActions: false }, { configure: false }, {});
-      if (use === undefined) return { fatal: 'the bare Second Wind use was refused' };
+      if (use === undefined) throw new Error('the bare Second Wind use was refused');
       await activityOf(windItem, 'heal').rollDamage({}, { configure: false },
         use?.message?.id ? { data: { 'system.origin': use.message.id } } : {});
-      await until(() => fresh(before).some(m => m.getFlag(MOD, 'receipt')));
+      await until(() => fresh(before).some(m => m.getFlag(MOD, 'receipt')), { timeout: 6000, label: 'the healing receipt' });
       ok('6b. a SELF heal needs no target at all — a bare cast lands on the caster',
         npc.system.attributes.hp.value === Math.min(npcMax, npcBefore2 + 7),
         `npc ${npcBefore2}→${npc.system.attributes.hp.value}`);
@@ -456,12 +436,11 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       }]);
       created.items.push({ actorId: npc.id, id: favorItem.id });
 
-      target(victimToken); // wrong target up again — the chip must not land there
-      await sleep(120);
+      await target(victimToken); // wrong target up again — the chip must not land there
       before = snap();
       use = await activityOf(favorItem, 'utility').use({}, { configure: false }, {});
-      if (use === undefined) return { fatal: 'the Favor fixture cast was refused' };
-      await until(() => fresh(before).some(m => m.getFlag(MOD, 'effectReceipt')?.castDone));
+      if (use === undefined) throw new Error('the Favor fixture cast was refused');
+      await until(() => fresh(before).some(m => m.getFlag(MOD, 'effectReceipt')?.castDone), { timeout: 6000, label: 'the cast receipt (castDone)' });
       msgs = fresh(before);
       const favorCard = usageCards(msgs).find(m => m.getFlag(MOD, 'castApply'));
       ok('6c. a SELF utility applies its effect to the caster, never the snapshot',
@@ -480,11 +459,10 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       await favorItem.update({ 'system.identifier': 'shield' });
       const favored = () => npc.effects.filter(e => e.name === 'BTB Favored');
       await npc.deleteEmbeddedDocuments('ActiveEffect', favored().map(e => e.id));
-      target(victimToken); // an incidental enemy target — the snapshot must not steer a SELF cast
-      await sleep(120);
+      await target(victimToken); // an incidental enemy target — the snapshot must not steer a SELF cast
       before = snap();
       use = await activityOf(favorItem, 'utility').use({}, { configure: false }, {});
-      await until(() => fresh(before).some(m => m.getFlag(MOD, 'effectReceipt')?.castDone));
+      await until(() => fresh(before).some(m => m.getFlag(MOD, 'effectReceipt')?.castDone), { timeout: 6000, label: 'the cast receipt (castDone)' });
       msgs = fresh(before);
       const listedCard = usageCards(msgs).find(m => m.getFlag(MOD, 'castApply'));
       ok('6d. a LISTED reaction cast with no hold pending self-aims — the caster, never the snapshot',
@@ -505,29 +483,28 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           targets: [{ uuid: npc.uuid, name: npc.name, reaction: 'BTB Test Favor', ac: 10 }] } } }
       });
       try {
-        target();
-        await sleep(120);
+        await target();
         before = snap();
         use = await activityOf(favorItem, 'utility').use({}, { configure: false }, {});
-        await sleep(1800);
+        const stray = await watch(() => fresh(before).some(m => (m.id !== fakeHold.id) && m.getFlag(MOD, 'castApply')) || (favored().length > 1), { ms: 1800 });
         msgs = fresh(before).filter(m => m.id !== fakeHold.id);
         ok('6e. a LISTED reaction cast while a hold is pending on the caster is the hold\'s — no cast stamp, at most one chip',
-          (use !== undefined) && !msgs.some(m => m.getFlag(MOD, 'castApply'))
+          (use !== undefined) && !stray && !msgs.some(m => m.getFlag(MOD, 'castApply'))
             && (favored().length <= 1),
           `castApplyStamps=${msgs.filter(m => m.getFlag(MOD, 'castApply')).length}`
-            + ` npcChips=${favored().length}`);
+            + ` npcChips=${favored().length} stray=${!!stray}`);
       } finally {
         await fakeHold.delete().catch(() => {});
         await npc.deleteEmbeddedDocuments('ActiveEffect', favored().map(e => e.id)).catch(() => {});
       }
       await favorItem.update({ 'system.identifier': 'bf-test-favor' });
-    }
+    });
 
     // ---------------------------------------------------- 7. a used-up item still applies
     // dnd5e SPENDS before it posts (NOTES *A use SPENDS before it posts*): the last potion is deleted
     // before its card exists, so casting reads the activity off the card's snapshot. A stack keeps its
     // item until the last drink: both shapes are walked.
-    if (want(7)) {
+    if (want(7)) await section(7, async () => {
       // ⚠ THE DRINKER IS THE TOKEN'S OWN ACTOR when the token is unlinked (the monster norm): the card
       // names that token, so the effect lands there, not on the world actor.
       const drinker = scene.tokens.find(t => t.actorId === npc.id)?.actor ?? npc;
@@ -560,14 +537,14 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       /** Drink once: the use, the card, the item's fate, and the effect on the drinker. */
       const drink = async item => {
         await clearPotioned();
-        target();   // SELF — no target needed, none given
-        await sleep(120);
+        await target();   // SELF — no target needed, none given
         const act = drinker.items.get(item.id)?.system.activities.get('bfpotionutil0000');
         if (!act) return { refused: true };
         const used = await act.use({}, { configure: false }, {});
         const card = (used?.message instanceof ChatMessage) ? used.message : null;
         const stamp = card?.getFlag(MOD, 'castApply') ?? null;
-        const done = card ? await until(() => card.getFlag(MOD, 'effectReceipt')?.castDone, 8000) : false;
+        // A missing receipt is reported in the drink's record (`done`), and the next drink still runs.
+        const done = card ? await until(() => card.getFlag(MOD, 'effectReceipt')?.castDone, { timeout: 8000 }).catch(() => null) : false;
         const chip = potioned()[0] ?? null;
         return { card: !!card, stamp: !!stamp, done: !!done, chip: !!chip, left: drinker.items.get(item.id)?.system.quantity ?? 0,
           resists: drinker.system.traits.dr.value.has('poison'), receipt: (card?.getFlag(MOD, 'effectReceipt')?.targets ?? []).map(t => t.uuid) };
@@ -591,25 +568,23 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         const left = drinker.items.filter(i => i.name === 'BTB Test Potion').map(i => i.id);
         if (left.length) await drinker.deleteEmbeddedDocuments('Item', left).catch(() => {});
       }
-    }
+    });
 
     // ================================================== 8. Beacon of Hope: healing at its maximum
-    if (want(8)) {
-      const realPRNG = CONFIG.Dice.randomUniform;
+    if (want(8)) await section(8, async () => {
       let hopeful = null;
       try {
         const hpMax = victim.system.attributes.hp.max;
         await victim.update({ 'system.attributes.hp.max': 200, 'system.attributes.hp.value': 1 });
         [hopeful] = await victim.createEmbeddedDocuments('ActiveEffect', [{ name: 'Hopeful', img: 'icons/svg/aura.svg', transfer: false, disabled: false }]);
-        target(victimToken);
-        await sleep(120);
-        CONFIG.Dice.randomUniform = () => 1 - (0.5 / 8);   // every die a 1
+        await target(victimToken);
+        faces([[1, 4]]);   // every die a 1
         before = snap();
         use = await activityOf(cureItem, 'heal').use({ subsequentActions: false }, { configure: false }, {});
         await activityOf(cureItem, 'heal').rollDamage({}, { configure: false },
           use?.message?.id ? { data: { 'system.origin': use.message.id } } : {});
-        CONFIG.Dice.randomUniform = realPRNG;
-        await until(() => fresh(before).some(m => m.getFlag(MOD, 'receipt')), 12000);
+        unrig();
+        await until(() => fresh(before).some(m => m.getFlag(MOD, 'receipt')), { timeout: 12000, label: 'the Beacon healing receipt' });
         msgs = fresh(before);
         const healRoll = msgs.find(m => m.type === 'healing');
         const rolled = healRoll?.rolls?.reduce((n, r) => n + r.total, 0) ?? 0;
@@ -623,10 +598,10 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           `hp 1→${hpAfter} max=${maximum} note="${entry?.note}"`);
         await victim.update({ 'system.attributes.hp.max': hpMax, 'system.attributes.hp.value': hpMax });
       } finally {
-        CONFIG.Dice.randomUniform = realPRNG;
+        unrig();
         if (hopeful) await hopeful.delete().catch(() => {});
       }
-    }
+    });
 
     return { log, results, skips };
   } catch (err) {

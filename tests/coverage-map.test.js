@@ -128,6 +128,17 @@ describe("suitesFor — the rules", () => {
     expect(at(suitesFor(["tools/seed.mjs"], ctx))).toEqual([2, 3, 5, 6]);
   });
 
+  it("(d) a suite kit selects the suites importing it, and nothing else", () => {
+    const withKit = {
+      ...ctx,
+      toolUsersOf: base => (base === "kit.mjs" ? ["smoke-a", "smoke-d"] : [])
+    };
+    const plan = planFor(["tools/kit.mjs"], withKit);
+    expect(names(plan.rows)).toEqual(["smoke-a", "smoke-d"]);
+    expect(plan.rows[0].why).toEqual(["imports tools/kit.mjs, which changed"]);
+    expect(planFor(["tools/other.mjs"], withKit).rows).toEqual([]);
+  });
+
   it("(d) a probe or tool not in the order runs nothing", () => {
     const plan = planFor(["tools/probe-x.mjs", "tools/check-layers.mjs"], ctx);
     expect(plan.rows).toEqual([]);

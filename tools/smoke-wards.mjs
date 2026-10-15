@@ -39,16 +39,8 @@ announcePlan('wards', plan, pulled);
 
 const out = await f.evaluate(async ({ sections, titles }) => {
   const MOD = 'fvtt-mod-bythebooks';
-  const results = [];
-  const log = [];
-  const skips = [];
-  const ok = (name, pass, detail = '') => results.push({ name, pass, detail });
-  const want = id => {
-    if (!sections || sections.includes(String(id))) return true;
-    skips.push(`§${id} ${titles?.[id] ?? ''}`);
-    return false;
-  };
-  const sleep = ms => new Promise(r => setTimeout(r, ms));
+  const { until, watch, canvasReady, tokenOn, snapshotSettings, faces, unrig } = window.__btb;
+  const { results, log, skips, ok, want, section } = window.__btb.begin({ sections, titles });
   const suiteStart = Date.now();
 
   const mod = game.modules.get(MOD);
@@ -59,8 +51,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   const SETTING_KEYS = ['autoDamage', 'autoApply', 'playerRollDamage', 'damageTimer', 'dramaticBeat', 'requireTarget',
     'reactionHold', 'holdTimer', 'holdReveal', 'holdSkipFutile', 'riders', 'effectRiders', 'masteryRiders', 'masteryAsk',
     'castApply', 'concMode', 'reminderList', 'damageEitherList', 'decisionTimer', 'saveRolls'];
-  const prior = Object.fromEntries(SETTING_KEYS.map(k => [k, game.settings.get(MOD, k)]));
-  const set = (k, v) => game.settings.set(MOD, k, v);
+  const settings = snapshotSettings(SETTING_KEYS);
+  const { set } = settings;
 
   const scene = game.scenes.getName('By the Books Test Range');
   const attacker = game.actors.getName('BTB Test Attacker');
@@ -75,13 +67,6 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   for (const a of [attacker, victim, sorcerer, cleric]) priorEffects[a.id] = new Set(a.effects.map(e => e.id));
   const priorSenses = foundry.utils.deepClone(attacker.system._source.attributes.senses ?? {});
   let restored = false;
-  const realPRNG = CONFIG.Dice.randomUniform;
-  /** The PRNG as a queue of faces `[n, of]`: each die takes the next; past the end, the last. */
-  const faces = spec => {
-    const queue = spec.map(([n, of]) => 1 - ((n - 0.5) / of));
-    let i = 0;
-    CONFIG.Dice.randomUniform = () => queue[Math.min(i++, queue.length - 1)];
-  };
   const closeDialogs = async () => {
     for (const app of foundry.applications.instances.values()) {
       if (/RollConfigurationDialog|ActivityUsageDialog|UsageDialog/.test(app.constructor?.name ?? '') || app.element?.querySelector?.('[data-bf-ticks]') || app.element?.querySelector?.('[data-bf-save-demand]')) { try { await app.close(); } catch { /* gone */ } }
@@ -94,9 +79,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   const teardown = async () => {
     if (restored) return;
     restored = true;
-    CONFIG.Dice.randomUniform = realPRNG;
-    try { for (const [k, v] of Object.entries(prior)) await set(k, v); }
-    catch (err) { log.push(`TEARDOWN settings ERROR: ${err?.message}`); }
+    unrig();
+    for (const failed of await settings.restore()) log.push(`TEARDOWN settings ERROR: ${failed}`);
     try {
       await closeDialogs();
       for (const a of [attacker, victim, sorcerer, cleric]) await strayEffects(a);
@@ -142,14 +126,14 @@ const out = await f.evaluate(async ({ sections, titles }) => {
 
     // -------------------------------------------------- fixtures
     if (canvas.scene?.id !== scene.id) await scene.view();
-    for (let i = 0; i < 40 && !canvas.ready; i++) await sleep(250);
+    await canvasReady();
     // ⚠ No stray sweep: the range's fixture tokens (the Cleric's, the Sorcerer's — LINKED) belong to the other
     // suites; this one places its own beside them and deletes only those.
     const placeToken = async (actor, x, y) => {
       const [doc] = await scene.createEmbeddedDocuments('Token', [
         foundry.utils.mergeObject(actor.prototypeToken.toObject(), { x, y, actorId: actor.id, actorLink: true }, { inplace: false })]);
       created.tokens.push(doc.id);
-      for (let i = 0; i < 40 && !(canvas.ready && canvas.tokens.get(doc.id)); i++) await sleep(250);
+      await tokenOn(doc.id);
       const token = canvas.tokens.get(doc.id);
       if (!token) throw new Error(`${actor.name}'s token never reached the canvas`);
       return { doc, token };
@@ -188,11 +172,6 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     if (!sanctuary || !mirror || !flame) return { fatal: `the PHB ships no ${!sanctuary ? 'Sanctuary' : !mirror ? 'Mirror Image' : 'Sacred Flame'} this box can find`, results, log, skips };
 
     // -------------------------------------------------- helpers
-    const waitFor = async (test, timeout = 8000) => {
-      const until = Date.now() + timeout;
-      while (Date.now() < until) { const v = test(); if (v) return v; await sleep(200); }
-      return test();
-    };
     const target = tok => { game.user.targets.forEach(t => { t.setTarget(false, { releaseOthers: true }); }); tok.setTarget(true, { releaseOthers: true }); };
     /** The pack's effect landed on a bearer from the lent spell (its origin the bearer's or the caster's own item). */
     const wear = async (bearer, item, names) => {
@@ -216,65 +195,63 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     const swing = async (tok, spec) => {
       atkTok.control({ releaseOthers: true });
       target(tok);
-      await sleep(80);
       faces(spec);
       const rolls = await act().rollAttack({}, { configure: false }, {});
       return rolls?.[0]?.parent ?? null;
     };
 
     // ================================================== 1. Sanctuary at the roll — the save fails
-    if (want(1)) {
+    if (want(1)) await section(1, async () => {
       await clearWards();
       await wear(victim, sanctuary, ['Warded']);
       await wisBonus(attacker, -30);
       const t = Date.now();
       const msg = await swing(vicTok, [[15, 20]]);
-      const card = await waitFor(() => wardCards().find(m => m.timestamp >= t) ?? null, 6000);
+      const card = await until(() => wardCards().find(m => m.timestamp >= t) ?? null, { timeout: 6000 });
       const sv = card?.getFlag(MOD, 'saves');
       const w = card?.getFlag(MOD, 'ward');
       ok('1a. the attack does NOT roll: no attack message; a save demand card for the goblin — Wisdom, the Cleric\'s DC, effectsHandled "ward", pinned, the goblin the one target',
         !msg && !!card && (sv?.abilities?.[0] === 'wis') && (sv?.dc === sanctuary.system.activities.find(a => a.type === 'save')?.save?.dc?.value) && (sv?.effectsHandled === 'ward') && (sv?.pinnedTargets === true) && (sv?.targets?.length === 1) && (sv.targets[0].uuid === attacker.uuid) && (w?.gate === 'attack') && (w?.wardUuid === victim.uuid),
         `msg=${!!msg} card=${!!card} saves=${JSON.stringify(sv && { abilities: sv.abilities, dc: sv.dc, handled: sv.effectsHandled, pinned: sv.pinnedTargets, targets: sv.targets.map(x => x.name) })} ward=${JSON.stringify(w)}`);
-      const settled = await waitFor(() => card?.getFlag(MOD, 'ward')?.settled ? card.getFlag(MOD, 'ward') : null, 10000);
+      const settled = await until(() => card?.getFlag(MOD, 'ward')?.settled ? card.getFlag(MOD, 'ward') : null, { timeout: 10000 });
       ok('1b. the save FAILS (−30): the ward settles "turned aside", and no attack message follows', (settled?.outcome === 'failed') && /turned aside/.test(settled?.says ?? '') && (attackMessages(t).length === 0),
         `settled=${JSON.stringify(settled && { outcome: settled.outcome, says: settled.says })} attacks=${attackMessages(t).length} verdict=${card?.getFlag(MOD, 'saves')?.targets?.[0]?.outcome}`);
-      const el = await waitFor(() => document.querySelector(`[data-message-id="${card?.id}"] .bf-ward-line`) ?? null, 4000);
+      const el = await until(() => document.querySelector(`[data-message-id="${card?.id}"] .bf-ward-line`) ?? null, { timeout: 4000 });
       ok('1c. the card renders the line: turned aside, choose a new target or the attack is lost', /turned aside/.test(el?.textContent ?? '') && /Choose a new target/.test(el?.textContent ?? ''), `line="${el?.textContent?.trim()}"`);
       ok('1d. Warded stands on the Victim (a failure ends nothing)', victim.effects.some(e => e.name === 'Warded'), '');
       await closeDialogs();
-    }
+    });
 
     // ================================================== 2. Sanctuary at the roll — the save passes
-    if (want(2)) {
+    if (want(2)) await section(2, async () => {
       await clearWards();
       await wear(victim, sanctuary, ['Warded']);
       await wisBonus(attacker, 30);
       const t = Date.now();
       const first = await swing(vicTok, [[15, 20]]);
-      const card = await waitFor(() => wardCards().find(m => m.timestamp >= t) ?? null, 6000);
-      const settled = await waitFor(() => card?.getFlag(MOD, 'ward')?.settled ? card.getFlag(MOD, 'ward') : null, 10000);
-      const atk = await waitFor(() => attackMessages(t)[0] ?? null, 8000);
+      const card = await until(() => wardCards().find(m => m.timestamp >= t) ?? null, { timeout: 6000 });
+      const settled = await until(() => card?.getFlag(MOD, 'ward')?.settled ? card.getFlag(MOD, 'ward') : null, { timeout: 10000 });
+      const atk = await until(() => attackMessages(t)[0] ?? null, { timeout: 8000 });
       ok('2a. the first press rolled nothing; the save PASSES (+30); the attack is then made AGAIN with the pass in hand — one attack message, one demand', !first && (settled?.outcome === 'saved') && !!atk && (attackMessages(t).length === 1) && (wardCards().filter(m => m.timestamp >= t).length === 1),
         `first=${!!first} settled=${JSON.stringify(settled && { outcome: settled.outcome, says: settled.says })} attacks=${attackMessages(t).length} demands=${wardCards().filter(m => m.timestamp >= t).length}`);
-      await sleep(600);
-      ok('2b. the pass is spent: nothing else was demanded after the attack rolled', wardCards().filter(m => m.timestamp >= t).length === 1, `demands=${wardCards().filter(m => m.timestamp >= t).length}`);
+      const second = await watch(() => wardCards().filter(m => m.timestamp >= t)[1], { ms: 600 });
+      ok('2b. the pass is spent: nothing else was demanded after the attack rolled', !second && (wardCards().filter(m => m.timestamp >= t).length === 1), `demands=${wardCards().filter(m => m.timestamp >= t).length}`);
       await closeDialogs();
-    }
+    });
 
     // ================================================== 3. Sanctuary at the cast
-    if (want(3)) {
+    if (want(3)) await section(3, async () => {
       await clearWards();
       await wear(victim, sanctuary, ['Warded']);
       // The GOBLIN casts (an NPC: its save rolls on the elect, whoever else is connected); the DC is Sanctuary's.
       await wisBonus(attacker, -30);
       atkTok.control({ releaseOthers: true });
       target(vicTok);
-      await sleep(80);
       const t = Date.now();
       const flameAct = attacker.items.get(flame.id).system.activities.find(a => a.type === 'save');
       const use = await flameAct.use({ consume: { spellSlot: false } }, { configure: false }, {});
-      const card = await waitFor(() => wardCards().find(m => (m.timestamp >= t) && (m.getFlag(MOD, 'ward')?.gate === 'damagingSpell')) ?? null, 6000);
-      const settled = await waitFor(() => card?.getFlag(MOD, 'ward')?.settled ? card.getFlag(MOD, 'ward') : null, 10000);
+      const card = await until(() => wardCards().find(m => (m.timestamp >= t) && (m.getFlag(MOD, 'ward')?.gate === 'damagingSpell')) ?? null, { timeout: 6000 });
+      const settled = await until(() => card?.getFlag(MOD, 'ward')?.settled ? card.getFlag(MOD, 'ward') : null, { timeout: 10000 });
       const usage = game.messages.contents.find(m => (m.timestamp >= t) && (m.getFlag('dnd5e', 'use') || m.system?.activity) && (m.speaker?.actor === attacker.id) && !m.getFlag(MOD, 'ward'));
       ok('3a. Sacred Flame at the warded Victim is gated BEFORE its cast: no usage card, a "damagingSpell" demand of the caster; the save fails and the cast is turned aside', !use?.message && !!card && (card.getFlag(MOD, 'ward')?.attackerUuid === attacker.uuid) && (settled?.outcome === 'failed') && !usage,
         `use=${!!use?.message} card=${!!card} settled=${JSON.stringify(settled && { outcome: settled.outcome, gate: card?.getFlag(MOD, 'ward')?.gate })} usage=${!!usage} saves=${JSON.stringify(card?.getFlag(MOD, 'saves')?.targets)} ward=${JSON.stringify(card?.getFlag(MOD, 'ward'))}`);
@@ -285,100 +262,101 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       if (burnAct) {
         const t2 = Date.now();
         const use2 = await burnAct.use({ consume: { spellSlot: false }, create: { measuredTemplate: false } }, { configure: false }, {});
-        await sleep(400);
-        ok('3b. an area spell (Burning Hands) aimed with the Victim targeted is NOT gated: its usage card posts, no ward demand', !!use2?.message && !wardCards().some(m => m.timestamp >= t2), `usage=${!!use2?.message} demands=${wardCards().filter(m => m.timestamp >= t2).length}`);
+        const demanded = await watch(() => wardCards().find(m => m.timestamp >= t2), { ms: 400 });
+        ok('3b. an area spell (Burning Hands) aimed with the Victim targeted is NOT gated: its usage card posts, no ward demand', !!use2?.message && !demanded && !wardCards().some(m => m.timestamp >= t2), `usage=${!!use2?.message} demands=${wardCards().filter(m => m.timestamp >= t2).length}`);
       } else log.push('§3b skipped: no Burning Hands to lend');
       await closeDialogs();
       await clearWards();
-    }
+    });
 
     // ================================================== 4. the ward ends
-    if (want(4)) {
+    if (want(4)) await section(4, async () => {
       await clearWards();
       await wear(attacker, sanctuary, ['Warded']);   // the goblin is warded now
-      await sleep(200);
       ok('4-. Warded on the goblin', attacker.effects.some(e => e.name === 'Warded'), '');
       const t = Date.now();
       const msg = await swing(vicTok, [[15, 20]]);
-      const gone = await waitFor(() => attacker.effects.some(e => e.name === 'Warded') ? null : true, 6000);
-      const endCard = await waitFor(() => game.messages.contents.find(m => (m.timestamp >= t) && m.getFlag(MOD, 'wardEnded')) ?? null, 6000);
+      const gone = await until(() => attacker.effects.some(e => e.name === 'Warded') ? null : true, { timeout: 6000 });
+      const endCard = await until(() => game.messages.contents.find(m => (m.timestamp >= t) && m.getFlag(MOD, 'wardEnded')) ?? null, { timeout: 6000 });
       ok('4a. the warded goblin\'s own attack roll ENDS Sanctuary: Warded leaves its sheet, a card says "made an attack roll"; the attack itself rolled', !!msg && !!gone && (endCard?.getFlag(MOD, 'wardEnded')?.act === 'attack') && /made an attack roll/.test(endCard?.content ?? ''),
         `attack=${!!msg} gone=${!!gone} card=${JSON.stringify(endCard?.getFlag(MOD, 'wardEnded') ?? null)}`);
       await closeDialogs();
-    }
+    });
 
     // ================================================== 5. Mirror Image — a duplicate takes the hit
     const holdOf = msg => game.messages.get(msg?.id)?.getFlag(MOD, 'hold') ?? null;
     const entryOf = msg => holdOf(msg)?.targets?.find(t => t.uuid === sorcerer.uuid) ?? null;
     const healSorc = () => sorcerer.update({ 'system.attributes.hp.value': 200, 'system.attributes.hp.temp': 0 });
-    const resolved = msg => waitFor(() => { const h = holdOf(msg); return (h?.status === 'resolved') ? h : null; }, 10000);
-    if (want(5)) {
+    const resolved = msg => until(() => { const h = holdOf(msg); return (h?.status === 'resolved') ? h : null; }, { timeout: 10000 });
+    if (want(5)) await section(5, async () => {
       await clearWards(); await clearDupes(); await healSorc();
       await wear(sorcerer, mirror, ['Duplicate A', 'Duplicate B', 'Duplicate C']);
       const t = Date.now();
       const msg = await swing(sorTok, [[15, 20], [1, 6], [4, 6], [2, 6]]);   // the d20 hits AC 1; the d6s: 1, 4, 2
       const hold = await resolved(msg);
       const e = entryOf(msg);
-      const landed = await waitFor(() => (dupes().length === 2) ? true : null, 8000);
+      const landed = await until(() => (dupes().length === 2) ? true : null, { timeout: 8000 });
       ok('5a. the hit stands: the hold carries a "duplicate" entry answered by the machine, 3d6 rolled (1, 4, 2), the 4 redirects — verdict "absorbed", Duplicate C destroyed, two stand',
         !!hold && (e?.kind === 'duplicate') && (e?.answer === 'auto') && (e?.verdict === 'absorbed') && (JSON.stringify(e?.duplicates?.faces) === '[1,4,2]') && (e?.duplicates?.winner === 1) && (e?.duplicates?.took?.name === 'Duplicate C') && !!landed && (JSON.stringify(dupes()) === '["Duplicate A","Duplicate B"]'),
         `status=${hold?.status} entry=${JSON.stringify(e && { kind: e.kind, answer: e.answer, verdict: e.verdict, dup: e.duplicates })} dupes=${dupes().join(',')}`);
-      await sleep(800);
-      ok('5b. no damage reached the Sorcerer', sorcerer.system.attributes.hp.value === 200, `hp=${sorcerer.system.attributes.hp.value}`);
-      const said = game.messages.contents.find(m => (m.timestamp >= t) && /A duplicate takes the hit/.test(m.content ?? ''));
+      const hurt = await watch(() => sorcerer.system.attributes.hp.value < 200, { ms: 800 });
+      ok('5b. no damage reached the Sorcerer', !hurt && (sorcerer.system.attributes.hp.value === 200), `hp=${sorcerer.system.attributes.hp.value}`);
+      // The announcement posts apart from the hold; absent, the check says "no card".
+      const said = await until(() => game.messages.contents.find(m => (m.timestamp >= t) && /A duplicate takes the hit/.test(m.content ?? '')),
+        { timeout: 4000, label: 'the "A duplicate takes the hit" announcement' }).catch(() => null);
       ok('5c. the announcement: "A duplicate takes the hit", the dice, "duplicates: 2 of 3 left"', !!said && /3d6/.test(said.content) && /2 of 3 left/.test(said.content), said?.content?.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').slice(0, 200) ?? 'no card');
       await closeDialogs();
-    }
+    });
 
     // ================================================== 6. the hit gets through
-    if (want(6)) {
+    if (want(6)) await section(6, async () => {
       await clearDupes(); await healSorc();
       await wear(sorcerer, mirror, ['Duplicate A', 'Duplicate B', 'Duplicate C']);
       const t = Date.now();
       const msg = await swing(sorTok, [[15, 20], [1, 6], [2, 6], [1, 6]]);
       const hold = await resolved(msg);
       const e = entryOf(msg);
-      const hurt = await waitFor(() => (sorcerer.system.attributes.hp.value < 200) ? true : null, 8000);
+      const hurt = await until(() => (sorcerer.system.attributes.hp.value < 200) ? true : null, { timeout: 8000 });
       ok('6a. every d6 under 3: the hit gets through — verdict "hit", the flat 1 applied, all three duplicates stand', !!hold && (e?.verdict === 'hit') && (e?.duplicates?.absorbed === false) && !!hurt && (dupes().length === 3),
         `entry=${JSON.stringify(e && { verdict: e.verdict, dup: e.duplicates })} hp=${sorcerer.system.attributes.hp.value} dupes=${dupes().join(',')}`);
       const said = game.messages.contents.find(m => (m.timestamp >= t) && /The hit gets through/.test(m.content ?? ''));
       ok('6b. the announcement says the hit got through', !!said, '');
       await closeDialogs();
-    }
+    });
 
     // ================================================== 7. the last duplicate
-    if (want(7)) {
+    if (want(7)) await section(7, async () => {
       await clearDupes(); await healSorc();
       await wear(sorcerer, mirror, ['Duplicate A']);
       const t = Date.now();
       const msg = await swing(sorTok, [[15, 20], [5, 6]]);
       const hold = await resolved(msg);
       const e = entryOf(msg);
-      const gone = await waitFor(() => (dupes().length === 0) ? true : null, 8000);
-      const said = await waitFor(() => game.messages.contents.find(m => (m.timestamp >= t) && /The last duplicate takes the hit/.test(m.content ?? '')) ?? null, 6000);
+      const gone = await until(() => (dupes().length === 0) ? true : null, { timeout: 8000 });
+      const said = await until(() => game.messages.contents.find(m => (m.timestamp >= t) && /The last duplicate takes the hit/.test(m.content ?? '')) ?? null, { timeout: 6000 });
       ok('7a. one duplicate, a 5: the last is destroyed, none stand, the card says the spell ended', !!hold && (e?.verdict === 'absorbed') && (e?.duplicates?.left === 0) && !!gone && !!said && /Mirror Image ended/.test(said.content),
         `entry=${JSON.stringify(e && { verdict: e.verdict, dup: e.duplicates })} dupes=${dupes().join(',')} said=${!!said}`);
       await closeDialogs();
-    }
+    });
 
     // ================================================== 8. Blindsight sees through
-    if (want(8)) {
+    if (want(8)) await section(8, async () => {
       await clearDupes(); await healSorc();
       await wear(sorcerer, mirror, ['Duplicate A', 'Duplicate B', 'Duplicate C']);
       await attacker.update({ 'system.attributes.senses.blindsight': 30 });
       const t = Date.now();
       const msg = await swing(sorTok, [[15, 20], [6, 6]]);
-      await sleep(1200);
-      const seen = game.messages.contents.find(m => (m.timestamp >= t) && m.getFlag(MOD, 'duplicatesSeen'));
-      const hurt = await waitFor(() => (sorcerer.system.attributes.hp.value < 200) ? true : null, 8000);
+      const seen = await until(() => game.messages.contents.find(m => (m.timestamp >= t) && m.getFlag(MOD, 'duplicatesSeen')),
+        { timeout: 6000, label: 'the "sees through" card' });
+      const hurt = await until(() => (sorcerer.system.attributes.hp.value < 200) ? true : null, { timeout: 8000 });
       ok('8a. an attacker with Blindsight: no hold for the duplicates, a card says it sees through ("Blindsight"), the hit lands, all three stand', !!msg && !holdOf(msg) && (seen?.getFlag(MOD, 'duplicatesSeen')?.why === 'Blindsight') && !!hurt && (dupes().length === 3),
         `hold=${!!holdOf(msg)} seen=${JSON.stringify(seen?.getFlag(MOD, 'duplicatesSeen') ?? null)} hp=${sorcerer.system.attributes.hp.value} dupes=${dupes().length}`);
       await attacker.update({ 'system.attributes.senses': priorSenses });
       await closeDialogs();
-    }
+    });
 
     // ================================================== 9. a PLAYER CHARACTER attacks the ward
-    if (want(9)) {
+    if (want(9)) await section(9, async () => {
       await clearWards(); await clearDupes();
       await wear(victim, sanctuary, ['Warded']);
       const fighter = game.actors.getName('BTB Test Fighter');
@@ -390,19 +368,18 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         await wisBonus(fighter, 30);
         ftrTok.control({ releaseOthers: true });
         target(vicTok);
-        await sleep(80);
         faces([[15, 20]]);
         const t = Date.now();
         const fAct = fighter.items.get(weapon.id).system.activities.find(a => a.type === 'attack');
         const rolls = await fAct.rollAttack({}, { configure: false }, {});
-        const card = await waitFor(() => wardCards().find(m => m.timestamp >= t) ?? null, 6000);
-        const settled = await waitFor(() => card?.getFlag(MOD, 'ward')?.settled ? card.getFlag(MOD, 'ward') : null, 10000);
-        const atk = await waitFor(() => attackMessages(t)[0] ?? null, 8000);
+        const card = await until(() => wardCards().find(m => m.timestamp >= t) ?? null, { timeout: 6000 });
+        const settled = await until(() => card?.getFlag(MOD, 'ward')?.settled ? card.getFlag(MOD, 'ward') : null, { timeout: 10000 });
+        const atk = await until(() => attackMessages(t)[0] ?? null, { timeout: 8000 });
         ok('9a. a PLAYER CHARACTER (the Fighter) at the warded Victim: gated, its save rolled by the elect (no owner connected), passed, the attack made again', !rolls?.[0]?.parent && !!card && (settled?.outcome === 'saved') && !!atk,
           `first=${!!rolls?.[0]?.parent} card=${!!card} settled=${JSON.stringify(settled && { outcome: settled.outcome })} saves=${JSON.stringify(card?.getFlag(MOD, 'saves')?.targets)} attack=${!!atk}`);
         await closeDialogs();
       }
-    }
+    });
 
     await clearDupes();
     await clearWards();

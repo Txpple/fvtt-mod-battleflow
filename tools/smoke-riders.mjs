@@ -33,17 +33,9 @@ announcePlan('riders', plan, pulled);
 
 const out = await f.evaluate(async ({ sections, titles }) => {
   const MOD = 'fvtt-mod-bythebooks';
-  const results = [];
-  const log = [];
-  const skips = [];
-  const ok = (name, pass, detail = '') => results.push({ name, pass, detail });
+  const { until, tokenOn, snapshotSettings } = window.__btb;
+  const { results, log, skips, ok, want, section } = window.__btb.begin({ sections, titles });
   // The section gate (tools/harness.mjs): the closure is serialized, so plan and titles arrive as DATA.
-  const want = id => {
-    if (!sections || sections.includes(String(id))) return true;
-    skips.push(`§${id} ${titles?.[id] ?? ''}`);
-    return false;
-  };
-  const sleep = ms => new Promise(r => setTimeout(r, ms));
 
   const mod = game.modules.get(MOD);
   if (!mod?.active) return { fatal: `module active=${mod?.active}` };
@@ -53,12 +45,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     }
   }
 
-  const prior = {
-    // §10 casts; the settings it pins come back with the rest.
-    castApply: game.settings.get(MOD, 'castApply'),
-    dramaticBeat: game.settings.get(MOD, 'dramaticBeat'),
-    reactionHold: game.settings.get(MOD, 'reactionHold'),
-  };
+  // §10 casts; the settings it pins come back with the rest.
+  const settings = snapshotSettings(['castApply', 'dramaticBeat', 'reactionHold']);
 
   const scene = game.scenes.getName('By the Books Test Range');
   const attacker = game.actors.getName('BTB Test Attacker');
@@ -75,6 +63,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   const teardown = async () => {
     if (restored) return;
     restored = true;
+    // ⚠ SETTINGS FIRST, each in its own guard: a later cleanup error must never leave suite settings on.
+    for (const failed of await settings.restore()) log.push(`TEARDOWN settings ERROR: ${failed}`);
     for (const { item, effect, data } of itemRestores.reverse()) {
       if (!item?.parent?.items.get(item.id)) continue;
       if (effect) await item.updateEmbeddedDocuments('ActiveEffect', [{ _id: effect, ...data }]);
@@ -100,7 +90,6 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     const liveTokens = created.tokens.filter(id => scene.tokens.get(id));
     if (liveTokens.length) await scene.deleteEmbeddedDocuments('Token', liveTokens);
     game.user.targets.forEach(t => { t.setTarget(false, { releaseOthers: true }); });
-    for (const [k, v] of Object.entries(prior)) await game.settings.set(MOD, k, v);
   };
 
   try {
@@ -158,8 +147,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       return doc;
     };
     const victimTokenDoc = await tokenFor(victim);
-    await sleep(400);
-    const victimToken = canvas.tokens.get(victimTokenDoc.id);
+    const victimToken = await tokenOn(victimTokenDoc.id);
     if (!victimToken) return { fatal: 'victim token never reached the canvas' };
 
     // ---- helpers
@@ -177,7 +165,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     };
     const rollAt = async (isCritical = false) => {
       victimToken.setTarget(true, { releaseOthers: true });
-      await sleep(80);
+      await until(() => (game.user.targets.size === 1) && game.user.targets.has(victimToken), { label: 'the Victim targeted' });
       const rolls = await activity().rollDamage({ isCritical }, { configure: false }, { create: false });
       return (rolls ?? []).map(r => ({ formula: r.formula, type: r.options?.type ?? null }));
     };
@@ -190,39 +178,39 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     let rolls;
 
     // ---------------------------------------------------------------- 1. the rider rides
-    if (want(1)) {
+    if (want(1)) await section(1, async () => {
       await putMark(itemOrigin);
       rolls = await rollAt();
       ok('1. marked target gets the rider', forceParts(rolls).length === 1
         && forceParts(rolls)[0].formula === '1d6', JSON.stringify(rolls));
-    }
+    });
 
     // ---------------------------------------------------------------- 2. crit doubles it
-    if (want(2)) {
+    if (want(2)) await section(2, async () => {
       rolls = await rollAt(true);
       ok('2. crit doubles the rider (no code does this)', forceParts(rolls)[0]?.formula === '2d6',
         JSON.stringify(rolls));
-    }
+    });
 
     // ---------------------------------------------------------------- 5. SOMEONE ELSE'S mark
-    if (want(5)) {
+    if (want(5)) await section(5, async () => {
       // Two rangers can mark one creature; each adds only their own die.
       await clearMarks();
       await putMark(`${hmBystander.uuid}.ActiveEffect.${markerTemplate.id}`);
       rolls = await rollAt();
       ok("5. another creature's mark pays this attacker nothing", forceParts(rolls).length === 0,
         JSON.stringify(rolls));
-    }
+    });
 
     // ---------------------------------------------------------------- 6. no mark at all
-    if (want(6)) {
+    if (want(6)) await section(6, async () => {
       await clearMarks();
       rolls = await rollAt();
       ok('6. an unmarked target pays nothing', forceParts(rolls).length === 0, JSON.stringify(rolls));
-    }
+    });
 
     // ---------------------------------------------------------------- 7. concentration origin
-    if (want(7)) {
+    if (want(7)) await section(7, async () => {
       // The tray writes `origin = concentration ?? effect`: the other shape must work too.
       const [conc] = await attacker.createEmbeddedDocuments('ActiveEffect', [
         dnd5e.documents.ActiveEffect5e.createConcentrationEffectData(
@@ -233,10 +221,10 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       rolls = await rollAt();
       ok('7. a concentration-shaped origin works too', forceParts(rolls)[0]?.formula === '1d6',
         JSON.stringify(rolls));
-    }
+    });
 
     // ---------------------------------------------------------------- 8. Foe Slayer REPLACES
-    if (want(8)) {
+    if (want(8)) await section(8, async () => {
       await clearMarks();
       await putMark(itemOrigin);
       const foe = await grant(attacker, 'foe-slayer');
@@ -249,7 +237,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         ok('8. Foe Slayer replaces the die (d10, and only one)',
           (force.length === 1) && (force[0].formula === '1d10'), JSON.stringify(rolls));
       }
-    }
+    });
 
     // dnd5e 6.x leaves the PACK's uuid in a world template's `system.origin.item`, and an application
     // copies the template (NOTES *An applied copy carries its TEMPLATE'S lineage*).
@@ -262,7 +250,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       ?? [...hmAttacker.system.activities].find(a => (a.type === 'utility') && (a.effects ?? []).length);
 
     // ------------------------------------ 9. the tray's shape: stale item, fresh activity
-    if (want(9)) {
+    if (want(9)) await section(9, async () => {
       // What `_prepareEffectData` leaves on the target: the template's stale `item` beside the fresh
       // `activity`, and no `origin` string of ours.
       await clearMarks();
@@ -271,10 +259,10 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       ok("9. a mark carrying the pack's uuid beside a fresh activity still pays",
         (forceParts(rolls).length === 1) && (forceParts(rolls)[0].formula === expectDie()),
         `activity=${markActivity?.uuid ?? 'NONE'} ${JSON.stringify(rolls)}`);
-    }
+    });
 
     // ------------------------------------ 10. through the cast: the applier names the caster
-    if (want(10)) {
+    if (want(10)) await section(10, async () => {
       // The cast lands the mark from a staled template, and the copy must name the CASTER — to the die's
       // reader and to the platform's `getSourceActor`, which "your next turn" clocks are judged against.
       await clearMarks();
@@ -296,15 +284,12 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         // The innate shape: the cast spends no slot the fixture lacks.
         await hmAttacker.update({ [slotKey]: false });
         victimToken.setTarget(true, { releaseOthers: true });
-        await sleep(120);
+        await until(() => (game.user.targets.size === 1) && game.user.targets.has(victimToken), { label: 'the Victim targeted' });
         const before = new Set(game.messages.contents.map(m => m.id));
         const used = await hmAttacker.system.activities.get(markActivity.id).use({}, { configure: false }, {});
-        let landed = null;
-        for (let i = 0; i < 40 && !landed; i++) {
-          landed = victim.effects.find(e => (e._stats?.duplicateSource === markerTemplate.uuid)
-            && e.getFlag(MOD, 'applied'));
-          if (!landed) await sleep(200);
-        }
+        // 10a reports a mark that never lands (and a refused use).
+        const landed = await until(() => victim.effects.find(e => (e._stats?.duplicateSource === markerTemplate.uuid)
+          && e.getFlag(MOD, 'applied')), { timeout: 8000 }).catch(() => null);
         created.messages.push(...game.messages.contents.filter(m => !before.has(m.id)).map(m => m.id));
         for (const e of attacker.effects.filter(e => e.statuses?.has?.('concentrating')))
           created.effects.push({ actorId: attacker.id, id: e.id });
@@ -318,7 +303,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         ok('10c. and the hit pays the die', (forceParts(rolls).length === 1)
           && (forceParts(rolls)[0].formula === expectDie()), JSON.stringify(rolls));
       }
-    }
+    });
 
     return { log, results, skips };
   } catch (err) {

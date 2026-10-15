@@ -36,16 +36,8 @@ announcePlan('styles', plan, pulled);
 
 const out = await f.evaluate(async ({ sections, titles }) => {
   const MOD = 'fvtt-mod-bythebooks';
-  const results = [];
-  const log = [];
-  const skips = [];
-  const ok = (name, pass, detail = '') => results.push({ name, pass, detail });
-  const want = id => {
-    if (!sections || sections.includes(String(id))) return true;
-    skips.push(`§${id} ${titles?.[id] ?? ''}`);
-    return false;
-  };
-  const sleep = ms => new Promise(r => setTimeout(r, ms));
+  const { sleep, until, watch, tokenOn, viewScene, snapshotSettings, faces, unrig } = window.__btb;
+  const { results, log, skips, ok, want, section } = window.__btb.begin({ sections, titles });
   const suiteStart = Date.now();
 
   const modDoc = game.modules.get(MOD);
@@ -53,20 +45,14 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   if (!game.settings.settings.has(`${MOD}.decisionTimer`)) return { fatal: 'decisionTimer not registered — OLD code (reload the box)' };
 
   const SETTING_KEYS = ['autoDamage', 'autoApply', 'riders', 'effectRiders', 'masteryRiders', 'holdTimer'];
-  const prior = Object.fromEntries(SETTING_KEYS.map(k => [k, game.settings.get(MOD, k)]));
-  const set = (k, v) => game.settings.set(MOD, k, v);
+  const settings = snapshotSettings(SETTING_KEYS);
+  const { set } = settings;
 
   const scene = game.scenes.getName('By the Books Test Range');
   const actor = game.actors.getName('BTB Test Fighter');
   const victim = game.actors.getName('BTB Test Victim');
   if (!scene || !actor || !victim) return { fatal: 'missing fixture: the range, BTB Test Fighter or BTB Test Victim — run tools/fixture-suite.mjs' };
 
-  const realPRNG = CONFIG.Dice.randomUniform;
-  const faces = spec => {
-    const queue = spec.map(([n, of]) => 1 - ((n - 0.5) / of));
-    let i = 0;
-    CONFIG.Dice.randomUniform = () => queue[Math.min(i++, queue.length - 1)];
-  };
   const realFloat = canvas.interface?.createScrollingText?.bind(canvas.interface);
   const floats = [];
   if (canvas.interface) canvas.interface.createScrollingText = (origin, text, opts) => { floats.push(String(text)); return realFloat?.(origin, text, opts); };
@@ -80,11 +66,10 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   const teardown = async () => {
     if (restored) return;
     restored = true;
-    CONFIG.Dice.randomUniform = realPRNG;
+    unrig();
     if (canvas.interface && realFloat) canvas.interface.createScrollingText = realFloat;
     Hooks.off('bythebooks.styleDice', diceHook);
-    try { for (const [k, v] of Object.entries(prior)) await set(k, v); }
-    catch (err) { log.push(`TEARDOWN settings ERROR: ${err?.message}`); }
+    for (const failed of await settings.restore()) log.push(`TEARDOWN settings ERROR: ${failed}`);
     try {
       const live = placed.filter(id => scene.tokens.get(id));
       if (live.length) await scene.deleteEmbeddedDocuments('Token', live);
@@ -92,7 +77,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       if (gone.length) await actor.deleteEmbeddedDocuments('Item', gone);
       const back = actor.items.filter(i => ('equipped' in (i.system ?? {}))).map(i => ({ _id: i.id, 'system.equipped': equippedBefore.includes(i.id) }));
       if (back.length) await actor.updateEmbeddedDocuments('Item', back);
-      await sleep(600);   // the faces' own sync after the list comes back
+      await sleep(600);   // clock: the faces' own sync after the list comes back (damage-rules.js scheduleSync, a 150 ms debounce)
       game.user.targets.forEach(t => { t.setTarget(false, { releaseOthers: true }); });
       const mine = game.messages.filter(m => (m.timestamp >= suiteStart) && ((m.speaker?.actor === actor.id) || Object.keys(m.flags?.[MOD] ?? {}).length));
       if (mine.length) await ChatMessage.deleteDocuments(mine.map(m => m.id));
@@ -135,18 +120,19 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     const gear = {};
     for (const name of ['Greatsword', 'Longsword', 'Dagger', 'Javelin', 'Unarmed Strike']) gear[name] = await lend(name, 'weapon');
     for (const name of ['Shield', 'Chain Mail']) gear[name] = await lend(name, 'equipment');
-    const equip = async (names) => {
+    // The faces follow on the elect's debounce (damage-rules.js scheduleSync). A roll reads the equipped
+    // boxes themselves; a step that reads a face passes `settled`, the face state the new gear writes.
+    const equip = async (names, settled = null) => {
       const writes = Object.values(gear).filter(i => 'equipped' in (i.system ?? {})).map(i => ({ _id: i.id, 'system.equipped': names.includes(i.name) }));
       await actor.updateEmbeddedDocuments('Item', writes);
-      await sleep(900);   // the faces follow on the elect's debounce
+      if (settled) await until(settled, { timeout: 5000, label: `the faces in step with ${names.join(', ') || 'empty hands'}` });
     };
 
-    if (canvas.scene?.id !== scene.id) await scene.view();
-    for (let i = 0; i < 40 && !canvas.ready; i++) await sleep(250);
+    await viewScene(scene);
     const [vdoc] = await scene.createEmbeddedDocuments('Token', [
       foundry.utils.mergeObject(victim.prototypeToken.toObject(), { x: 1400, y: 1900, actorId: victim.id, actorLink: true }, { inplace: false })]);
     placed.push(vdoc.id);
-    for (let i = 0; i < 40 && !canvas.tokens.get(vdoc.id); i++) await sleep(250);
+    await tokenOn(vdoc.id);
     canvas.tokens.get(vdoc.id)?.setTarget(true, { releaseOthers: true });
 
     // ---- helpers
@@ -160,25 +146,33 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     const chipsOf = id => [...(document.querySelector(`.message[data-message-id="${id}"]`)?.querySelectorAll('.bf-fighting-style-line .bf-chip') ?? [])]
       .map(e => `${e.classList.contains('up') ? '*' : ''}${(e.querySelector('.now') ?? e.querySelector('b'))?.textContent ?? ''}`).join(' ');
     const attackOf = item => item.system.activities.find(a => a.type === 'attack');
+    /** The damage message a roll made: the newest one not in `before` (the ids read before it). */
+    const newDamage = before => game.messages.contents.filter(x => !before.has(x.id) && (x.type === 'damage')).pop() ?? null;
     /** Roll a weapon's damage in one mode, the dice forced; returns the damage message. */
     const damage = async (item, mode, spec) => {
-      const t0 = Date.now();
+      const before = new Set(game.messages.keys());
       faces(spec);
       await attackOf(item).rollDamage({ attackMode: mode, isCritical: false }, { configure: false }, {});
-      CONFIG.Dice.randomUniform = realPRNG;
-      for (let i = 0; i < 30; i++) {
-        const m = game.messages.contents.filter(x => (x.timestamp >= t0) && (x.type === 'damage')).pop();
-        if (m) { await sleep(300); return m; }
-        await sleep(150);
-      }
-      return null;
+      unrig();
+      return until(() => newDamage(before), { label: `the ${item.name} damage card` });
     };
+    /** The card as the chat log draws it, once every line the module draws for it is on it (the lines come with the render, after the document). */
+    const drawn = msg => {
+      const lines = (msg?.getFlag(MOD, 'fightingStyle')?.styles ?? []).length + (msg?.getFlag(MOD, 'unarmedDice') ? 1 : 0);
+      return until(() => {
+        const el = document.querySelector(`.message[data-message-id="${msg?.id}"]`);
+        return (el && (el.querySelectorAll('.bf-fighting-style-line, .bf-unarmed-dice-line').length >= lines)) ? el : null;
+      }, { timeout: 5000, label: `the damage card ${msg?.id} drawn in the chat log` });
+    };
+    const defenseIs = live => () => face('Defense')?.disabled === !live;
     const style = (msg, key) => (msg?.getFlag(MOD, 'fightingStyle')?.styles ?? []).find(s => s.key === key) ?? null;
 
     // ---- 1. the faces
-    if (want(1)) {
+    if (want(1)) await section(1, async () => {
       const acBare = actor.system.attributes.ac.value;
-      await equip(['Chain Mail', 'Longsword', 'Shield']);
+      // the face batch (Defense live) and the pack effects it takes over, the sync's last writes
+      await equip(['Chain Mail', 'Longsword', 'Shield'], () => defenseIs(true)()
+        && (packEffect('Defense')?.getFlag(MOD, 'fightingStyleTakenOver') === true) && (packEffect('Dueling')?.disabled === true));
       const d = face('Defense'), du = face('Dueling'), g = face('Great Weapon Fighting'), t = face('Thrown Weapon Fighting'), w = face('Two-Weapon Fighting');
       ok('1a. Defense live: its face on, "Chain Mail", the pack\'s own effect switched off (flagged)',
         !!d && !d.disabled && /Chain Mail/.test(faceLine('Defense')) && packEffect('Defense')?.disabled === true
@@ -194,32 +188,33 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         && !!w && w.disabled && /not holding two weapons/.test(faceLine('Two-Weapon Fighting')),
         `thrown="${faceLine('Thrown Weapon Fighting')}" twf="${faceLine('Two-Weapon Fighting')}"`);
       log.push(`§1 AC bare=${acBare} armored=${actor.system.attributes.ac.value}`);
-    }
+    });
 
     // ---- 2. the gates close
-    if (want(2)) {
-      await equip(['Chain Mail', 'Longsword', 'Shield']);
+    if (want(2)) await section(2, async () => {
+      await equip(['Chain Mail', 'Longsword', 'Shield'], defenseIs(true));
       const acOn = actor.system.attributes.ac.value;
-      await equip(['Longsword', 'Dagger', 'Shield']);
+      await equip(['Longsword', 'Dagger', 'Shield'], defenseIs(false));
       const acShieldOnly = actor.system.attributes.ac.value;
-      await equip(['Chain Mail', 'Longsword', 'Dagger', 'Shield']);
+      await equip(['Chain Mail', 'Longsword', 'Dagger', 'Shield'], defenseIs(true));
       ok('2a. a Dagger joins: Dueling off, "a second weapon held (Dagger)"', face('Dueling')?.disabled === true
         && /a second weapon held \(Dagger\)/.test(faceLine('Dueling')), `line="${faceLine('Dueling')}"`);
-      await equip(['Longsword', 'Shield']);
+      await equip(['Longsword', 'Shield'], defenseIs(false));
       ok('2b. the armor off: Defense off, "no armor worn"', face('Defense')?.disabled === true && /no armor worn/.test(faceLine('Defense')),
         `line="${faceLine('Defense')}"`);
-      await equip(['Chain Mail', 'Longsword', 'Shield']);
+      await equip(['Chain Mail', 'Longsword', 'Shield'], defenseIs(true));
       const acBack = actor.system.attributes.ac.value;
-      await equip(['Longsword', 'Shield']);
+      await equip(['Longsword', 'Shield'], defenseIs(false));
       const acNoArmor = actor.system.attributes.ac.value;
       ok('2c. the AC follows: the face\'s +1 is in the armored AC and gone without it', (acBack === acOn) && Number.isFinite(acNoArmor) && (acNoArmor !== acBack),
         `armored=${acOn}/${acBack} shield only=${acShieldOnly} no armor=${acNoArmor}`);
-    }
+    });
 
     // ---- 3. Dueling's number
-    if (want(3)) {
+    if (want(3)) await section(3, async () => {
       await equip(['Longsword', 'Shield']);
       const one = await damage(gear.Longsword, 'oneHanded', [[5, 8]]);
+      await drawn(one);
       const s = style(one, 'dueling');
       ok('3a. one-handed: +2 on the roll, the record (gain 2), "Dueling — +2" on the card',
         (s?.gain === 2) && /(^|\D)2(\D|$)/.test(one?.rolls?.[0]?.formula ?? '') && /Dueling — \+2/.test(linesOf(one?.id)),
@@ -227,16 +222,18 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       ok('3b. the record carries the stats context', ('combat' in (one?.getFlag(MOD, 'fightingStyle') ?? {})) && (one?.getFlag(MOD, 'fightingStyle')?.sourceUuid === actor.uuid),
         JSON.stringify(one?.getFlag(MOD, 'fightingStyle')));
       const two = await damage(gear.Longsword, 'twoHanded', [[5, 10]]);
+      await drawn(two);
       const s2 = style(two, 'dueling');
       ok('3c. two-handed: nothing added, "Dueling off — two hands"', !s2?.gain && /Dueling off — two hands/.test(linesOf(two?.id)),
         `style=${JSON.stringify(s2)} formula="${two?.rolls?.[0]?.formula}"`);
-    }
+    });
 
     // ---- 4. Great Weapon Fighting's floor
-    if (want(4)) {
+    if (want(4)) await section(4, async () => {
       await equip(['Greatsword']);
       dicePlays.length = 0;
       const low = await damage(gear.Greatsword, 'twoHanded', [[1, 6], [5, 6]]);
+      await drawn(low);
       const s = style(low, 'great-weapon-fighting');
       const dice = low?.rolls?.[0]?.dice?.[0]?.results ?? [];
       ok('4a. the 1 counts as 3: the die kept its face and counts 3, the record raised 1 → 3, gain 2',
@@ -245,32 +242,35 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       ok('4b. the card: "Great Weapon Fighting — 1 → 3: +2", the dice as chips, the 1 turned to a gold-edged 3',
         /Great Weapon Fighting — 1 → 3: \+2/.test(linesOf(low?.id)) && /\*3/.test(chipsOf(low?.id)) && /(^| )5( |$)/.test(chipsOf(low?.id)),
         `lines="${linesOf(low?.id)}" chips="${chipsOf(low?.id)}"`);
-      await sleep(600);
+      await until(() => dicePlays.some(p => p.key === 'great-weapon-fighting'), { label: "Great Weapon Fighting's styleDice" });
       ok('4c. the dice rise off the fighter: 5 and the 1 turning to 3', dicePlays.some(p => (p.key === 'great-weapon-fighting')
         && p.chips.some(c => c.was === '1' && c.label === '3') && p.chips.some(c => c.label === '5' && !c.up)), JSON.stringify(dicePlays));
       dicePlays.length = 0;
       const high = await damage(gear.Greatsword, 'twoHanded', [[4, 6], [6, 6]]);
-      await sleep(600);
+      await drawn(high);
       // The fighter's own Great Weapon Master may ride this roll; only the style is asserted.
+      const strayDice = await watch(() => dicePlays.find(p => p.key !== 'great-weapon-master'), { ms: 600 });
       ok('4d. 4 and 6: no Great Weapon Fighting record, line or float (Dueling, off at the equipment, says nothing on a Greatsword)',
-        !style(high, 'great-weapon-fighting') && !/Great Weapon Fighting|Dueling/.test(textOf(high?.id)) && !dicePlays.some(p => p.key !== 'great-weapon-master'),
+        !style(high, 'great-weapon-fighting') && !/Great Weapon Fighting|Dueling/.test(textOf(high?.id)) && !strayDice && !dicePlays.some(p => p.key !== 'great-weapon-master'),
         `flag=${JSON.stringify(high?.getFlag(MOD, 'fightingStyle'))} dice=${JSON.stringify(dicePlays)}`);
-    }
+    });
 
     // ---- 5. Thrown Weapon Fighting
-    if (want(5)) {
+    if (want(5)) await section(5, async () => {
       await equip(['Javelin']);
       const thrown = await damage(gear.Javelin, 'thrown', [[3, 6]]);
+      await drawn(thrown);
       ok('5a. the Javelin thrown: +2, "Thrown Weapon Fighting — +2"', (style(thrown, 'thrown-weapon-fighting')?.gain === 2)
         && /Thrown Weapon Fighting — \+2/.test(linesOf(thrown?.id)), `style=${JSON.stringify(style(thrown, 'thrown-weapon-fighting'))}`);
       const melee = await damage(gear.Javelin, 'oneHanded', [[3, 6]]);
       ok('5b. the Javelin in melee: nothing', !style(melee, 'thrown-weapon-fighting'), JSON.stringify(melee?.getFlag(MOD, 'fightingStyle') ?? null));
-    }
+    });
 
     // ---- 6. Two-Weapon Fighting
-    if (want(6)) {
+    if (want(6)) await section(6, async () => {
       await equip(['Dagger', 'Longsword']);
       const offhand = await damage(gear.Dagger, 'offhand', [[2, 4]]);
+      await drawn(offhand);
       const s = style(offhand, 'two-weapon-fighting');
       const mod = Math.max(actor.system.abilities.str.mod, actor.system.abilities.dex.mod);
       ok('6a. the Dagger off-hand: the modifier back (+mod), "Two-Weapon Fighting — +N on the off-hand"',
@@ -279,34 +279,37 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         `style=${JSON.stringify(s)} formula="${offhand?.rolls?.[0]?.formula}" mod=${mod}`);
       const main = await damage(gear.Dagger, 'oneHanded', [[2, 4]]);
       ok('6b. the Dagger in the main hand: nothing added', !style(main, 'two-weapon-fighting'), JSON.stringify(main?.getFlag(MOD, 'fightingStyle') ?? null));
-    }
+    });
 
     // ---- 7. Unarmed Fighting's die
-    if (want(7)) {
+    if (want(7)) await section(7, async () => {
       const us = gear['Unarmed Strike'];
-      await equip([]);
+      // the face says hands empty first, so the Shield's change below is one to wait for
+      await equip([], () => /hands empty/.test(faceLine('Unarmed Fighting')));
       const empty = await damage(us, null, [[3, 8]]);
+      await drawn(empty);
       const flagE = empty?.getFlag(MOD, 'unarmedDice');
       ok('7a. hands empty: the d8, "Unarmed Fighting — 1d8 + N in place of … (hands empty)"',
         (flagE?.feature === 'Unarmed Fighting') && /1d8/.test(flagE?.formula ?? '') && /hands empty/.test(textOf(empty?.id)),
         `flag=${JSON.stringify(flagE)} text="${textOf(empty?.id).slice(-90)}"`);
-      await equip(['Shield']);
+      await equip(['Shield'], () => !!face('Unarmed Fighting') && !/hands empty/.test(faceLine('Unarmed Fighting')));
       const shield = await damage(us, null, [[3, 6]]);
+      await drawn(shield);
       const flagS = shield?.getFlag(MOD, 'unarmedDice');
       ok('7b. a Shield held: the d6, "(a weapon or Shield held)"', (flagS?.feature === 'Unarmed Fighting') && /1d6/.test(flagS?.formula ?? '')
         && /a weapon or Shield held/.test(textOf(shield?.id)), `flag=${JSON.stringify(flagS)}`);
       ok('7c. the face says which die', /d6 — a weapon or Shield held/.test(faceLine('Unarmed Fighting')), `line="${faceLine('Unarmed Fighting')}"`);
-    }
+    });
 
     // ---- 9. Blind Fighting
-    if (want(9)) {
+    if (want(9)) await section(9, async () => {
       const { judgeRoll } = await import('/modules/fvtt-mod-bythebooks/scripts/reminders.js');
       const [fdoc] = await scene.createEmbeddedDocuments('Token', [
         foundry.utils.mergeObject(actor.prototypeToken.toObject(), { x: 1500, y: 1900, actorId: actor.id, actorLink: true, disposition: 1 }, { inplace: false })]);
       placed.push(fdoc.id);
-      for (let i = 0; i < 40 && !canvas.tokens.get(fdoc.id); i++) await sleep(250);
+      await tokenOn(fdoc.id);
       await victim.toggleStatusEffect('invisible', { active: true });
-      await sleep(400);
+      await until(() => victim.statuses?.has('invisible'), { label: 'the victim Invisible' });
       log.push(`§9 senses=${JSON.stringify(actor.system.attributes.senses?.ranges ?? actor.system.attributes.senses)}`);
       const judge = (who, at) => judgeRoll(who, { activity: attackOf(gear.Longsword), attackMode: 'oneHanded', targets: [at] });
       const labels = j => JSON.stringify((j?.sources ?? []).map(x => [x.label, x.bend]));
@@ -315,22 +318,22 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       ok('9a. 5 ft: the Invisible victim is seen — listed with why, not counted; the net is Normal',
         !!seen && (seen.bend === null) && (near?.net === 'normal'), `net=${near?.net} sources=${labels(near)}`);
       await vdoc.update({ x: 1200 }, { animate: false });   // three squares from the fighter: 15 ft
-      await sleep(400);
+      await until(() => vdoc.x === 1200, { label: 'the victim at 15 ft' });   // the distance reads the document
       const far = judge(actor, canvas.tokens.get(vdoc.id));
       ok('9b. 15 ft: beyond the Blindsight — Invisible counts, Disadvantage',
         (far?.sources ?? []).some(x => /is Invisible/.test(x.label) && (x.bend === 'disadvantage')) && (far?.net === 'disadvantage'),
         `net=${far?.net} sources=${labels(far)}`);
       await vdoc.update({ x: 1400 }, { animate: false });
-      await sleep(400);
+      await until(() => vdoc.x === 1400, { label: 'the victim back at 5 ft' });
       const back = judgeRoll(victim, { targets: [canvas.tokens.get(fdoc.id)] });
       const seenYou = (back?.sources ?? []).find(x => /Invisible: .* sees you/.test(x.label));
       ok('9c. the Invisible victim attacking the fighter: its Advantage listed, not counted',
         !!seenYou && (seenYou.bend === null) && (back?.net !== 'advantage'), `net=${back?.net} sources=${labels(back)}`);
       await victim.toggleStatusEffect('invisible', { active: false });
-    }
+    });
 
     // ---- 10. Unarmed Fighting's grapple damage
-    if (want(10)) {
+    if (want(10)) await section(10, async () => {
       await set('autoDamage', 'all');
       await set('autoApply', true);
       await set('holdTimer', 0);
@@ -339,14 +342,14 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         ?? (await scene.createEmbeddedDocuments('Token', [foundry.utils.mergeObject(actor.prototypeToken.toObject(),
           { x: 1500, y: 1900, actorId: actor.id, actorLink: true, disposition: 1 }, { inplace: false })]))[0];
       if (!placed.includes(fdoc.id)) placed.push(fdoc.id);
-      for (let i = 0; i < 40 && !canvas.tokens.get(fdoc.id); i++) await sleep(250);
+      await tokenOn(fdoc.id);
       // A creature of its own, so no other token inherits the Grappled (the fixture's unlinked BTB Test
       // Victim wears its base actor's effects).
       const held = (await Actor.create({ ...victim.toObject(), _id: undefined, name: 'BTB Temp Grappled', folder: null }));
       const [hdoc] = await scene.createEmbeddedDocuments('Token', [foundry.utils.mergeObject(held.prototypeToken.toObject(),
         { x: 1600, y: 1900, actorId: held.id, actorLink: true, disposition: -1 }, { inplace: false })]);
       placed.push(hdoc.id);
-      for (let i = 0; i < 40 && !canvas.tokens.get(hdoc.id); i++) await sleep(250);
+      await tokenOn(hdoc.id);
       await held.update({ 'system.attributes.hp.max': 400, 'system.attributes.hp.value': 400 });
       await held.toggleStatusEffect('grappled', { active: true });
       const grappled = held.effects.find(e => e.statuses?.has?.('grappled'));
@@ -355,7 +358,6 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const grapplePopup = () => [...foundry.applications.instances.values()].find(a => a.rendered && /Unarmed Fighting/.test(a.element?.textContent ?? '')
         && a.element?.querySelector?.('button[data-action="deal"]')) ?? null;
       const cardOf = t0 => game.messages.contents.filter(m => (m.timestamp >= t0) && m.getFlag(MOD, 'grappleDamage')).pop() ?? null;
-      const waitFor = async (test, timeout = 8000) => { const until = Date.now() + timeout; while (Date.now() < until) { const v = test(); if (v) return v; await sleep(200); } return test(); };
       if (game.combat) await game.combat.delete();
       const combat = await Combat.create({ scene: scene.id });
       await combat.createEmbeddedDocuments('Combatant', [
@@ -364,40 +366,46 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       try {
         let t0 = Date.now();
         await combat.startCombat();
-        const pop = await waitFor(grapplePopup, 8000);
+        const pop = await until(grapplePopup, { timeout: 8000 });
         const card = cardOf(t0);
         ok('10a. the fighter\'s turn starts grappling the victim: a card and a popup "Deal 1d4 to the … you\'re grappling?"',
           !!pop && !!card && /Deal 1d4 to/.test(pop?.element?.textContent ?? '') && (card?.getFlag(MOD, 'grappleDamage')?.pick === held.uuid),
           `popup=${!!pop} flag=${JSON.stringify(card?.getFlag(MOD, 'grappleDamage') ?? null).slice(0, 300)}`);
         faces([[3, 4]]);
         pop?.element?.querySelector('button[data-action="deal"]')?.click();
-        const dealt = await waitFor(() => (hp() < 400) ? hp() : null, 10000);
-        CONFIG.Dice.randomUniform = realPRNG;
-        await sleep(600);
+        const dealt = await until(() => (hp() < 400) ? hp() : null, { timeout: 10000 });
+        unrig();
+        // the damage lands first, the card's answer after it (dealGrapple)
+        await until(() => game.messages.get(card?.id)?.getFlag(MOD, 'grappleDamage')?.answer, { timeout: 6000, label: "the grapple card's answer" });
         ok('10b. Deal it: the damage lands (1d4), the card resolves "deal"', (dealt !== null) && ((400 - hp()) <= 4)
           && (game.messages.get(card?.id)?.getFlag(MOD, 'grappleDamage')?.answer === 'deal'),
           `hp=${hp()} flag=${JSON.stringify(game.messages.get(card?.id)?.getFlag(MOD, 'grappleDamage')?.answer ?? null)}`);
         await held.update({ 'system.attributes.hp.value': 400 });
-        await combat.nextTurn(); await sleep(500);
+        await combat.nextTurn();
+        await until(() => combat.combatant?.actorId === held.id, { label: "the held creature's turn" });
         t0 = Date.now();
         await combat.nextTurn();
-        const pop2 = await waitFor(grapplePopup, 8000);
+        const pop2 = await until(() => { const p = grapplePopup(); return (p && (p !== pop)) ? p : null; }, { timeout: 8000, label: "the second turn's grapple popup" });
         pop2?.element?.querySelector('button[data-action="skip"]')?.click();
-        await sleep(1500);
-        ok('10c. next turn, Skip: nothing dealt, the card resolves "skip"', (hp() === 400) && (cardOf(t0)?.getFlag(MOD, 'grappleDamage')?.answer === 'skip'),
-          `hp=${hp()} answer=${cardOf(t0)?.getFlag(MOD, 'grappleDamage')?.answer}`);
+        // a window for a WRONG deal on Skip; the answer itself must come
+        const struck = await watch(() => (hp() < 400) ? hp() : null, { ms: 1500 });
+        await until(() => cardOf(t0)?.getFlag(MOD, 'grappleDamage')?.answer, { timeout: 6000, label: "the Skip card's answer" });
+        ok('10c. next turn, Skip: nothing dealt, the card resolves "skip"', !struck && (hp() === 400) && (cardOf(t0)?.getFlag(MOD, 'grappleDamage')?.answer === 'skip'),
+          `hp=${hp()}${struck ? ` (dealt, down to ${struck})` : ''} answer=${cardOf(t0)?.getFlag(MOD, 'grappleDamage')?.answer}`);
         await set('holdTimer', 2);
-        await combat.nextTurn(); await sleep(500);
+        await combat.nextTurn();
+        await until(() => combat.combatant?.actorId === held.id, { label: "the held creature's turn" });
         t0 = Date.now();
         faces([[2, 4]]);
         await combat.nextTurn();
-        const timed = await waitFor(() => { const f = cardOf(t0)?.getFlag(MOD, 'grappleDamage'); return (f?.status === 'resolved') ? f : null; }, 10000);
-        await waitFor(() => (hp() < 400) ? hp() : null, 6000);
-        CONFIG.Dice.randomUniform = realPRNG;
+        const timed = await until(() => { const f = cardOf(t0)?.getFlag(MOD, 'grappleDamage'); return (f?.status === 'resolved') ? f : null; }, { timeout: 10000 });
+        // the damage lands before the answer is written; a clock that skipped deals none, and 10d says so off the flag
+        await until(() => (hp() < 400) ? hp() : null, { timeout: 6000 }).catch(() => null);
+        unrig();
         ok('10d. with a clock and nobody answering: the clock deals it to the one creature held', (timed?.answer === 'deal') && !!timed?.timedOut && (hp() < 400),
           `flag=${JSON.stringify(timed ?? null).slice(0, 200)} hp=${hp()}`);
       } finally {
-        CONFIG.Dice.randomUniform = realPRNG;
+        unrig();
         await set('holdTimer', 0);
         await combat.delete().catch(() => {});
         const liveTok = placed.filter(id => scene.tokens.get(id)?.actorId === held.id);
@@ -405,10 +413,10 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         await held.delete().catch(() => {});
         for (const app of [...foundry.applications.instances.values()]) if ((app instanceof foundry.applications.api.DialogV2) && /Unarmed Fighting/.test(app.element?.textContent ?? '')) { try { await app.close(); } catch { /* gone */ } }
       }
-    }
+    });
 
     // ---- 11. Great Weapon Master's Heavy Weapon Mastery
-    if (want(11)) {
+    if (want(11)) await section(11, async () => {
       // the lines off the card's own render: after §10's combat the log on screen is not the chat
       const cardLines = async id => {
         const el = await game.messages.get(id)?.renderHTML?.().catch(() => null);
@@ -417,7 +425,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const gwm = await lend('Great Weapon Master', 'feat');
       const pb = Number(actor.system.attributes.prof);
       try {
-        await equip(['Greatsword']);
+        await equip(['Greatsword'], () => face('Great Weapon Master')?.disabled === false);
         const g = face('Great Weapon Master');
         ok('11a. the face: live off the Greatsword, titled by the feat alone (no "Fighting Style:")', !!g && !g.disabled && /Greatsword, Heavy/.test(faceLine('Great Weapon Master'))
           && (g?.getFlag(MOD, 'fightingStyle')?.feat === true), `face=${!!g} disabled=${g?.disabled} line="${faceLine('Great Weapon Master')}"`);
@@ -448,19 +456,18 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         } finally { await combat.delete().catch(() => {}); }
       } finally {
         if (lent.includes(gwm.id)) { await actor.deleteEmbeddedDocuments('Item', [gwm.id]).catch(() => {}); lent.splice(lent.indexOf(gwm.id), 1); }
-        await sleep(600);
       }
-    }
+    });
 
     // ---- 12. Heavy Armor Master's block
-    if (want(12)) {
+    if (want(12)) await section(12, async () => {
       const ham = await lend('Heavy Armor Master', 'feat');
       const pb = Number(actor.system.attributes.prof);
       const hp0 = Number(actor.system.attributes.hp.value);
       const hpMax = Number(actor.system.attributes.hp.max);
       try {
         await actor.update({ 'system.attributes.hp.value': hpMax });
-        await equip(['Chain Mail', 'Greatsword']);
+        await equip(['Chain Mail', 'Greatsword'], () => (face('Heavy Armor Master')?.disabled === false) && (packEffect('Heavy Armor Master')?.disabled === true));
         const h = face('Heavy Armor Master');
         ok(`12a. the face: live in Chain Mail; the pack's own reduction switched off (flagged)`, !!h && !h.disabled && /Chain Mail/.test(faceLine('Heavy Armor Master'))
           && packEffect('Heavy Armor Master')?.disabled === true, `face=${!!h} line="${faceLine('Heavy Armor Master')}" pack=${packEffect('Heavy Armor Master')?.disabled}`);
@@ -472,23 +479,24 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         const hpA = Number(actor.system.attributes.hp.value);
         const pops = [];
         const popHook = Hooks.on('bythebooks.armorBlock', p => pops.push(p));
+        // the pop rides the damage's own update, so it is in by the time applyDamage returns; a window for a second one
         await actor.applyDamage(nine, { originatingMessage: card });
-        await sleep(300);
+        const twice = await watch(() => pops.length > 1, { ms: 300 });
         const flag = actor.getFlag(MOD, 'armorBlock');
-        ok(`12c. applied: ${9 - pb} lands, and the actor's own update carries the pop`, (hpA - Number(actor.system.attributes.hp.value) === 9 - pb) && (flag?.amount === pb) && (pops.length === 1),
+        ok(`12c. applied: ${9 - pb} lands, and the actor's own update carries the pop`, (hpA - Number(actor.system.attributes.hp.value) === 9 - pb) && (flag?.amount === pb) && (pops.length === 1) && !twice,
           `took=${hpA - Number(actor.system.attributes.hp.value)} flag=${JSON.stringify(flag ?? null)} pops=${pops.length}`);
-        // A SECOND block of the same amount must pop too (only its time differs).
-        await sleep(20);
+        // A SECOND block of the same amount must pop too (only its time differs): a new millisecond for its `at`.
+        await until(() => Date.now() > Number(flag?.at ?? 0), { label: "a millisecond past the first block's time" });
         await actor.applyDamage(nine, { originatingMessage: card });
-        await sleep(300);
+        const thrice = await watch(() => pops.length > 2, { ms: 300 });
         Hooks.off('bythebooks.armorBlock', popHook);
-        ok('12c2. a second block of the same amount pops again', pops.length === 2, `pops=${JSON.stringify(pops)}`);
+        ok('12c2. a second block of the same amount pops again', (pops.length === 2) && !thrice, `pops=${JSON.stringify(pops)}`);
         const hpB = Number(actor.system.attributes.hp.value);
         await actor.applyDamage(nine, {});
         ok('12d. a bare 9 (no attack card behind it) lands whole', hpB - Number(actor.system.attributes.hp.value) === 9,
           `took=${hpB - Number(actor.system.attributes.hp.value)}`);
         await actor.update({ 'system.attributes.hp.value': hpMax });
-        await equip(['Greatsword']);
+        await equip(['Greatsword'], () => face('Heavy Armor Master')?.disabled === true);
         ok('12e. out of the armor: the face off, "no armor worn"', face('Heavy Armor Master')?.disabled === true && /no armor worn/.test(faceLine('Heavy Armor Master')),
           `line="${faceLine('Heavy Armor Master')}"`);
         const hpC = Number(actor.system.attributes.hp.value);
@@ -498,12 +506,11 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       } finally {
         await actor.update({ 'system.attributes.hp.value': hp0, [`flags.${MOD}.-=armorBlock`]: null }).catch(() => {});
         if (lent.includes(ham.id)) { await actor.deleteEmbeddedDocuments('Item', [ham.id]).catch(() => {}); lent.splice(lent.indexOf(ham.id), 1); }
-        await sleep(600);
       }
-    }
+    });
 
     // ---- 13. Elemental Adept and Poisoner
-    if (want(13)) {
+    if (want(13)) await section(13, async () => {
       const adept = await lend('Elemental Adept', 'feat');
       const poisoner = await lend('Poisoner', 'feat');
       const bolt = await lend('Fire Bolt', 'spell');
@@ -515,18 +522,17 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       try {
         await adept.update({ name: 'Elemental Adept (Fire)' });
         await victim.update({ 'system.traits.dr.value': ['fire', 'poison'] });
-        await sleep(900);
+        // a typeless copy's face is off; the rename's sync turns it on
+        await until(() => face('Elemental Adept')?.disabled === false, { timeout: 5000, label: "Elemental Adept's face after the rename" });
         const a = face('Elemental Adept');
         ok('13a. "Elemental Adept (Fire)": its face live, "Fire", titled by the feat', !!a && !a.disabled && (faceLine('Elemental Adept') === 'Fire')
           && (a?.getFlag(MOD, 'fightingStyle')?.feat === true), `face=${!!a} disabled=${a?.disabled} line="${faceLine('Elemental Adept')}"`);
         const dice = bolt.system.activities.find(x => x.type === 'attack');
-        const t0 = Date.now();
+        const before = new Set(game.messages.keys());
         faces([[1, 10], [1, 10], [1, 10], [1, 10]]);
         await dice.rollDamage({ isCritical: false }, { configure: false }, {});
-        CONFIG.Dice.randomUniform = realPRNG;
-        let card = null;
-        for (let i = 0; (i < 30) && !card; i++) { card = game.messages.contents.filter(x => (x.timestamp >= t0) && (x.type === 'damage')).pop() ?? null; if (!card) await sleep(150); }
-        await sleep(300);
+        unrig();
+        const card = await until(() => newDamage(before), { label: 'the Fire Bolt damage card' });
         const s = style(card, 'elemental-adept');
         const n = (card?.rolls?.[0]?.dice ?? []).reduce((k, t) => k + t.results.length, 0);
         ok('13b. Fire Bolt\'s 1s count as 2: the record, "Elemental Adept — 1 → 2" on the card', (s?.gain === n) && (n > 0) && /Elemental Adept — 1 → 2/.test(await cardLines(card?.id)),
@@ -544,25 +550,23 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         ok('13e. Poisoner: the weapon card\'s poison ignores Resistance to Poison (10 → 10), named', (poison?.amount === 10)
           && (poison?.bfIgnored ?? []).some(i => i.feature === 'Poisoner'), `amount=${poison?.amount} ignored=${JSON.stringify(poison?.bfIgnored ?? null)}`);
         await adept.update({ name: 'Elemental Adept' });
-        await sleep(900);
+        await until(() => face('Elemental Adept')?.disabled === true, { timeout: 5000, label: "Elemental Adept's face after the rename back" });
         const off = face('Elemental Adept');
         ok('13f. renamed with no type: the face off, and it says how to fix it', (off?.disabled === true) && /rename it/.test(faceLine('Elemental Adept')),
           `disabled=${off?.disabled} line="${faceLine('Elemental Adept')}"`);
         const bare = victim.calculateDamage(ten, { originatingMessage: card });
         ok('13g. with no type named, the Resistance stands (10 → 5)', bare?.amount === 5, `amount=${bare?.amount}`);
       } finally {
-        CONFIG.Dice.randomUniform = realPRNG;
+        unrig();
         await victim.update({ 'system.traits.dr.value': drBefore }).catch(() => {});
         for (const it of [adept, poisoner, bolt]) {
           if (lent.includes(it.id)) { await actor.deleteEmbeddedDocuments('Item', [it.id]).catch(() => {}); lent.splice(lent.indexOf(it.id), 1); }
         }
-        await sleep(600);
       }
-    }
+    });
 
     // ---- 15. Elemental Adept's type pick
-    if (want(15)) {
-      const waitFor = async (test, timeout = 8000) => { const until = Date.now() + timeout; while (Date.now() < until) { const v = test(); if (v) return v; await sleep(200); } return test(); };
+    if (want(15)) await section(15, async () => {
       const source = await findPHB('Elemental Adept', 'feat');
       const pickCard = item => game.messages.contents.filter(m => (m.timestamp >= suiteStart) && (m.getFlag(MOD, 'typePick')?.itemUuid === item?.uuid)).at(-1) ?? null;
       const pickPopup = () => [...foundry.applications.instances.values()]
@@ -579,34 +583,34 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         if (!source) throw new Error('the PHB ships no Elemental Adept this box can find');
         await closePicks();
         const first = await land();
-        const card1 = await waitFor(() => pickCard(first), 6000);
-        const pop1 = await waitFor(pickPopup, 6000);
+        const card1 = await until(() => pickCard(first), { timeout: 6000 });
+        const pop1 = await until(pickPopup, { timeout: 6000 });
         const buttons = [...(pop1?.element?.querySelectorAll('button[data-action]') ?? [])].map(b => b.dataset.action);
         ok('15a. a typeless copy lands: the pick card (five types left) and the popup (a button each, and Later)',
           !!card1 && (card1.getFlag(MOD, 'typePick')?.left?.length === 5) && ['acid', 'cold', 'fire', 'lightning', 'thunder', 'later'].every(a => buttons.includes(a)),
           `card=${!!card1} left=${JSON.stringify(card1?.getFlag(MOD, 'typePick')?.left)} buttons=${buttons.join(',')}`);
         pop1?.element?.querySelector('button[data-action="cold"]')?.click();
-        const chosen = await waitFor(() => (pickCard(first)?.getFlag(MOD, 'typePick')?.chosen === 'cold') && (actor.items.get(first.id)?.name === 'Elemental Adept (Cold)'), 6000);
-        await sleep(400);
+        const chosen = await until(() => (pickCard(first)?.getFlag(MOD, 'typePick')?.chosen === 'cold') && (actor.items.get(first.id)?.name === 'Elemental Adept (Cold)'), { timeout: 6000 });
+        await until(() => !pickPopup(), { timeout: 4000, label: 'the pick popup closed after Cold' });
         ok('15b. Cold: the copy renamed "Elemental Adept (Cold)", the card says chosen, the popup closed',
           !!chosen && !pickPopup(), `name="${actor.items.get(first.id)?.name}" chosen=${pickCard(first)?.getFlag(MOD, 'typePick')?.chosen} popup=${!!pickPopup()}`);
         const second = await land();
-        const card2 = await waitFor(() => pickCard(second), 6000);
+        const card2 = await until(() => pickCard(second), { timeout: 6000 });
         const left2 = card2?.getFlag(MOD, 'typePick')?.left ?? [];
         ok('15c. a second copy is offered four — Cold is already held', (left2.length === 4) && !left2.includes('cold'), `left=${JSON.stringify(left2)}`);
-        await waitFor(pickPopup, 4000);
+        await until(pickPopup, { timeout: 4000 });
         await second.update({ name: 'Elemental Adept (Acid)' });
-        const settled = await waitFor(() => pickCard(second)?.getFlag(MOD, 'typePick')?.chosen === 'acid', 6000);
-        await sleep(400);
+        const settled = await until(() => pickCard(second)?.getFlag(MOD, 'typePick')?.chosen === 'acid', { timeout: 6000 });
+        await until(() => !pickPopup(), { timeout: 4000, label: 'the pick popup closed after the rename' });
         ok('15d. renamed by hand "(Acid)": the card settles (chosen acid) and the popup closes', !!settled && !pickPopup(),
           `chosen=${pickCard(second)?.getFlag(MOD, 'typePick')?.chosen} popup=${!!pickPopup()}`);
         const third = await land();
-        await waitFor(() => pickCard(third), 6000);
+        await until(() => pickCard(third), { timeout: 6000 });
         await closePicks();
         const before = pickCard(third)?.id;
         await actor.items.get(third.id)?.displayCard?.();
-        const own = await waitFor(() => { const c = pickCard(third); return (c && (c.id !== before)) ? c : null; }, 6000);
-        const pop3 = await waitFor(pickPopup, 6000);
+        const own = await until(() => { const c = pickCard(third); return (c && (c.id !== before)) ? c : null; }, { timeout: 6000 });
+        const pop3 = await until(pickPopup, { timeout: 6000 });
         ok('15e. the third copy\'s own card (a click on the sheet) carries the pick and asks: two left, the popup open',
           !!own && (own.getFlag(MOD, 'typePick')?.left?.length === 3) && !!pop3,
           `card=${!!own} left=${JSON.stringify(own?.getFlag(MOD, 'typePick')?.left)} popup=${!!pop3}`);
@@ -617,12 +621,11 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         const gone = copies.map(c => c.id).filter(id => actor.items.get(id));
         if (gone.length) await actor.deleteEmbeddedDocuments('Item', gone).catch(() => {});
         for (const c of copies) if (lent.includes(c.id)) lent.splice(lent.indexOf(c.id), 1);
-        await sleep(600);
       }
-    }
+    });
 
     // ---- 14. Crossbow Expert's Dual Wielding
-    if (want(14)) {
+    if (want(14)) await section(14, async () => {
       const ce = await lend('Crossbow Expert', 'feat');
       const hand = await lend('Hand Crossbow', 'weapon');
       const cardLines = async id => {
@@ -634,7 +637,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         await actor.update({ 'system.abilities.dex.value': 16 });   // a modifier to give back
         await equip(['Dagger']);
         await actor.updateEmbeddedDocuments('Item', [{ _id: hand.id, 'system.equipped': true }]);
-        await sleep(900);
+        await until(() => face('Crossbow Expert')?.disabled === false, { timeout: 5000, label: "Crossbow Expert's face with both held" });
         const c = face('Crossbow Expert');
         ok('14a. a Hand Crossbow and a Dagger held: Crossbow Expert\'s face live, "the Light crossbow\'s extra attack"', !!c && !c.disabled
           && /Light crossbow/.test(faceLine('Crossbow Expert')), `face=${!!c} disabled=${c?.disabled} line="${faceLine('Crossbow Expert')}"`);
@@ -651,14 +654,13 @@ const out = await f.evaluate(async ({ sections, titles }) => {
             for (const i of twf) lent.splice(lent.indexOf(i.id), 1);
           }
           if (actor.items.some(i => i.name === 'Two-Weapon Fighting')) log.push('§14b ⚠ the fixture owns its own Two-Weapon Fighting — 14b cannot isolate Crossbow Expert');
-          await sleep(900);
+          // the roll reads the sheet's styles, not their faces: nothing to wait for
           const one = await damage(hand, 'offhand', [[3, 6]]);
           const s1 = style(one, 'crossbow-expert');
           ok(`14b. the Hand Crossbow off-hand: +${mod}, "Crossbow Expert — +${mod} on the off-hand"`, (mod > 0) && (s1?.gain === mod)
             && new RegExp(`Crossbow Expert — \\+${mod} on the off-hand`).test(await cardLines(one?.id)),
             `mod=${mod} style=${JSON.stringify(s1)} lines="${await cardLines(one?.id)}"`);
           await lend('Two-Weapon Fighting', 'feat');
-          await sleep(900);
           const two = await damage(hand, 'offhand', [[3, 6]]);
           const all = two?.getFlag(MOD, 'fightingStyle')?.styles ?? [];
           ok('14c. beside Two-Weapon Fighting the modifier is added ONCE', (all.filter(e => e.gain > 0).length === 1)
@@ -669,9 +671,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         for (const it of [ce, hand]) {
           if (lent.includes(it.id)) { await actor.deleteEmbeddedDocuments('Item', [it.id]).catch(() => {}); lent.splice(lent.indexOf(it.id), 1); }
         }
-        await sleep(600);
       }
-    }
+    });
 
     return { log, results, skips };
   } catch (err) {

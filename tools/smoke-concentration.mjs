@@ -47,17 +47,9 @@ announcePlan('conc', plan, pulled);
 
 const out = await f.evaluate(async ({ sections, titles }) => {
   const MOD = 'fvtt-mod-bythebooks';
-  const results = [];
-  const log = [];
-  const skips = [];
-  const ok = (name, pass, detail = '') => results.push({ name, pass, detail });
+  const { until, watch, tokenOn, snapshotSettings, faces, unrig } = window.__btb;
+  const { results, log, skips, ok, want, section } = window.__btb.begin({ sections, titles });
   // The section gate (tools/harness.mjs): the plan arrives as DATA in this serialized closure.
-  const want = id => {
-    if (!sections || sections.includes(String(id))) return true;
-    skips.push(`§${id} ${titles?.[id] ?? ''}`);
-    return false;
-  };
-  const sleep = ms => new Promise(r => setTimeout(r, ms));
   // Every moment payload published during the run, so a section can assert its resolve was heard.
   const moments = [];
   const momentHookId = Hooks.on('bythebooks.moment', p => moments.push(p));
@@ -83,8 +75,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   const SETTING_KEYS = ['concMode', 'concTimer', 'concBreak', 'concVisibility',
     'autoDamage', 'autoApply', 'dramaticBeat', 'requireTarget', 'reactionHold',
     'riders', 'effectRiders', 'masteryRiders', 'fightingStyleList', 'reminderList', 'd20FoldAsk', 'd20Folds'];
-  const prior = Object.fromEntries(SETTING_KEYS.map(k => [k, game.settings.get(MOD, k)]));
-  const set = (k, v) => game.settings.set(MOD, k, v);
+  const settings = snapshotSettings(SETTING_KEYS);
+  const { set } = settings;
 
   const scene = game.scenes.getName('By the Books Test Range');
   const shielder = game.actors.getName('BTB Test Shielder');
@@ -101,8 +93,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     if (restored) return;
     restored = true;
     // ⚠ Settings restore first, in its own guard: a later cleanup error must never leave suite settings on the table.
-    try { for (const [k, v] of Object.entries(prior)) await set(k, v); }
-    catch (err) { log.push(`TEARDOWN settings ERROR: ${err?.message}`); }
+    for (const failed of await settings.restore()) log.push(`TEARDOWN settings ERROR: ${failed}`);
     try {
       // End any concentration the run left (endConcentration cascades dependents, incl. the victim's rider).
       for (const e of [...(shielder.concentration?.effects ?? [])]) {
@@ -141,15 +132,6 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     }
   };
 
-  const waitFor = async (test, timeout = 8000) => {
-    const until = Date.now() + timeout;
-    while (Date.now() < until) {
-      const v = test();
-      if (v) return v;
-      await sleep(250);
-    }
-    return null;
-  };
 
   try {
     // Baseline: only the concentration machinery on.
@@ -226,7 +208,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const activity = shielder.items.get(spell.id).system.activities.contents[0];
       const r = await activity.use({ subsequentActions: false }, { configure: false }, {});
       if (r === undefined) return null; // the cast itself was refused (slots) — a fixture fact
-      return waitFor(() => concEffects()[0], 6000);
+      return until(() => concEffects()[0], { timeout: 6000, label: 'the concentration effect from the cast' });
     };
 
     // Direct damage, traits ignored: the DC is a function of the number chosen.
@@ -250,24 +232,31 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       .filter(app => app.rendered && (app.element?.querySelector?.('[data-bf-save-demand]')?.textContent ?? '').includes('Concentration check'))
       .map(app => app.element);
     const dialogButtons = popup => popup ? [...popup.querySelectorAll('[data-application-part="buttons"] button[data-action], footer button, .form-footer button, nav.dialog-buttons button')] : [];
-    // The dialog rebuilds its rolls on CHANGE, so a programmatic value must dispatch one.
+    // The dialog rebuilds its rolls on CHANGE, so a programmatic value must dispatch one; the
+    // re-rendered formula line shows the bonus once the rebuild has landed.
     const setSituational = async (popup, value) => {
       const input = popup?.querySelector('input[name="roll.0.situational"]');
-      if (input) { input.value = value; input.dispatchEvent(new Event('change', { bubbles: true })); await sleep(150); }
+      if (input) {
+        input.value = value;
+        input.dispatchEvent(new Event('change', { bubbles: true }));
+        const digits = String(value).replace(/\D/g, '');
+        await until(() => (popup.querySelector('.formulas .formula')?.textContent ?? '').includes(digits),
+          { timeout: 4000, label: `the situational ${value} in the dialog's formula` });
+      }
       return !!input;
     };
 
     // ================================================== 1. auto mode: the floor DC, and quiet good news
     let hpBefore;
-    if (want(1)) {
+    if (want(1)) await section(1, async () => {
       const eff = await ensureConc();
-      if (!eff) return { fatal: 'the fixture could not begin concentrating (cast refused?)' };
+      if (!eff) throw new Error('the fixture could not begin concentrating (cast refused?)');
       await saveBonus('+30');
       await setTemp(500);
       hpBefore = shielder.system.attributes.hp.value;
       const t0 = marker();
       await smack(7);
-      const askMsg = await waitFor(() => doneAskNew(t0));
+      const askMsg = await until(() => doneAskNew(t0), { timeout: 8000 });
       const ask = askMsg?.getFlag(MOD, 'concentration');
       ok('1. damage to a concentrating creature stamps an ask that auto-resolves',
         !!ask, ask ? '' : 'no resolved ask appeared');
@@ -277,7 +266,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         (ask?.outcome?.success === true) && (concEffects().length === 1),
         `success=${ask?.outcome?.success} effects=${concEffects().length}`);
       // The announcement posts AFTER the flag flips done: wait for it.
-      const holdsCard = await waitFor(() => contentNew(t0, 'holds'));
+      const holdsCard = await until(() => contentNew(t0, 'holds'), { timeout: 8000 });
       ok('1e. the table is told, quietly: a public "holds" card',
         !!holdsCard && (holdsCard.whisper?.length === 0),
         holdsCard ? `whisper=${holdsCard.whisper?.length}` : 'no holds card');
@@ -285,31 +274,31 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       ok('1f. the roll carries the ask\'s DC as its target, and the card\'s own marking agrees',
         (rollMsg?.rolls?.[0]?.options?.target === 10) && (rollMsg?.rolls?.[0]?.isSuccess === true),
         `target=${rollMsg?.rolls?.[0]?.options?.target} isSuccess=${rollMsg?.rolls?.[0]?.isSuccess}`);
-    }
+    });
 
     // ================================================== 2. the DC is half the damage…
-    if (want(2)) {
+    if (want(2)) await section(2, async () => {
       const t0 = marker();
       await smack(31);
-      const ask = (await waitFor(() => doneAskNew(t0)))?.getFlag(MOD, 'concentration');
+      const ask = (await until(() => doneAskNew(t0), { timeout: 8000 }))?.getFlag(MOD, 'concentration');
       ok('2. DC is half the damage, floored (31 → 15)', ask?.dc === 15, `dc=${ask?.dc}`);
-    }
+    });
 
     // ================================================== 3. …and caps at 30 under modern rules
-    if (want(3)) {
+    if (want(3)) await section(3, async () => {
       const t0 = marker();
       await smack(70);
-      const ask = (await waitFor(() => doneAskNew(t0)))?.getFlag(MOD, 'concentration');
+      const ask = (await until(() => doneAskNew(t0), { timeout: 8000 }))?.getFlag(MOD, 'concentration');
       const expected = modern ? 30 : 35;
       ok(`3. DC ${modern ? 'caps at 30' : 'is uncapped (legacy)'} (70 damage → ${expected})`,
         ask?.dc === expected, `dc=${ask?.dc}`);
       ok('3b. temp-HP damage triggers the check (the pool absorbed all 70, real HP never moved)',
         (ask?.damage === 70) && (shielder.system.attributes.hp.value === hpBefore),
         `damage=${ask?.damage} hp=${shielder.system.attributes.hp.value} was=${hpBefore}`);
-    }
+    });
 
     // ================================================== 4. failure breaks, and the cascade is native
-    if (want(4)) {
+    if (want(4)) await section(4, async () => {
       await saveBonus('');
       // A dependent is a row in the concentration effect's `flags.dnd5e.dependents`, honoured when
       // the dependent names it as origin.
@@ -320,11 +309,11 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       await conc.setFlag('dnd5e', 'dependents', [...(conc.getFlag('dnd5e', 'dependents') ?? []), { uuid: dep.uuid }]);
       const t0 = marker();
       await smack(70); // DC 30 vs a mortal modifier — deterministic failure
-      const askMsg = await waitFor(() => doneAskNew(t0));
+      const askMsg = await until(() => doneAskNew(t0), { timeout: 8000 });
       const ask = askMsg?.getFlag(MOD, 'concentration');
       ok('4. a failed save is a failure (DC 30 forced)', ask?.outcome?.success === false,
         `success=${ask?.outcome?.success} total=${ask?.outcome?.total}`);
-      const gone = await waitFor(() => concEffects().length === 0);
+      const gone = await until(() => concEffects().length === 0, { timeout: 8000 });
       ok('4b. the break is real: the concentration effect is gone', !!gone,
         `effects=${concEffects().length}`);
       // The verdict publishes `save` through the gate and the failure `break` beside it (one momentId).
@@ -334,37 +323,41 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         (cv.length === 1) && (bv.length === 1) && (cv[0].kind === 'concentration') && (cv[0].actorUuid === ask?.actorUuid) && !!ask?.actorUuid && (cv[0].details?.success === false)
           && (cv[0].details?.dc === ask?.dc) && (bv[0].momentId === cv[0].momentId) && Object.isFrozen(cv[0]) && plain(cv[0]) && plain(bv[0]),
         `save=${JSON.stringify(cv[0])} break=${JSON.stringify(bv[0])}`);
-      const depGone = await waitFor(() => !victim.effects.get(dep.id));
+      const depGone = await until(() => !victim.effects.get(dep.id), { timeout: 8000 });
       ok('4c. the dependent effect cascades away with it (native dependentOn)', !!depGone,
         depGone ? '' : 'dependent survived the break');
       // The break card posts after the whole endConcentration cascade.
-      const broke = await waitFor(() => contentNew(t0, 'loses concentration'));
+      const broke = await until(() => contentNew(t0, 'loses concentration'), { timeout: 8000 });
       ok('4d. the table is told, loudly and in public',
         !!broke && (broke.whisper?.length === 0),
         broke ? `whisper=${broke.whisper?.length}` : 'no break card');
       // Not concentrating any more ⇒ further damage asks nothing.
       const t1 = marker();
       await smack(9);
-      await sleep(1200);
-      ok('4e. damage without concentration asks nothing', asksNew(t1).length === 0,
+      const strayAsk = await watch(() => asksNew(t1)[0], { ms: 1200 });
+      ok('4e. damage without concentration asks nothing', !strayAsk && (asksNew(t1).length === 0),
         `asks=${asksNew(t1).length}`);
-    }
+    });
 
     // ================================================== 5. prompt mode: the popup, one control, the click
-    if (want(5)) {
+    if (want(5)) await section(5, async () => {
       await set('concMode', 'prompt');
       await saveBonus('+30');
       const eff = await ensureConc();
-      if (!eff) return { fatal: 'recast failed (slots?)' };
+      if (!eff) throw new Error('recast failed (slots?)');
       await setTemp(500);
       const t0 = marker();
       await smack(12);
-      const askMsg = await waitFor(() => asksNew(t0)[0]);
-      await sleep(1500);
+      const askMsg = await until(() => asksNew(t0)[0], { timeout: 8000 });
+      // A window: the ask must still be pending at its end, nothing rolled in its place.
+      const moved = await watch(() => {
+        const s = askMsg.getFlag(MOD, 'concentration')?.status;
+        return (s !== 'pending') ? (s ?? 'none') : null;
+      }, { ms: 1500 });
       const ask = askMsg?.getFlag(MOD, 'concentration');
       ok('5. prompt mode waits for a human (ask still pending, nothing auto-rolled)',
-        !!askMsg && (ask?.status === 'pending'), `status=${ask?.status}`);
-      const popup = await waitFor(() => concPopups()[0], 4000);
+        !!askMsg && (ask?.status === 'pending') && !moved, `status=${ask?.status} moved=${moved}`);
+      const popup = await until(() => concPopups()[0], { timeout: 4000 });
       ok('5b. the popup is on screen for whoever owns the decision', !!popup,
         popup ? '' : 'no popup found in DOM');
       const buttons = dialogButtons(popup);
@@ -375,7 +368,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           && !!popup?.querySelector('select[name="rollMode"]'),
         `buttons=[${labels.join('|')}] input=${!!popup?.querySelector('input[name="roll.0.situational"]')} rollMode=${!!popup?.querySelector('select[name="rollMode"]')}`);
       buttons.find(b => b.textContent.trim() === 'Normal')?.click();
-      const doneMsg = await waitFor(() => doneAskNew(t0));
+      const doneMsg = await until(() => doneAskNew(t0), { timeout: 8000 });
       const done = doneMsg?.getFlag(MOD, 'concentration');
       ok('5d. the click rolls, the elect folds, the save holds',
         (done?.outcome?.success === true) && (concEffects().length === 1),
@@ -384,243 +377,265 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       ok('5e. the roll answers THIS ask (respondsTo channel)',
         !!askMsg && !!rollMsg && (rollMsg.getFlag(MOD, 'respondsTo') === askMsg.id),
         `respondsTo=${rollMsg?.getFlag(MOD, 'respondsTo')} ask=${askMsg?.id}`);
-      await waitFor(() => concPopups().length === 0, 4000);
+      await until(() => concPopups().length === 0, { timeout: 4000 });
       ok('5f. the answered popup closed itself', concPopups().length === 0,
         `popups=${concPopups().length}`);
 
       // The situational bonus and Advantage must reach the dice: the sheet bonus comes off, so
       // +30 can only come through the input.
+      // The sheet bonus goes back in a finally: a wait that throws here must not leave it off for §6 on.
       await saveBonus('');
-      const t1 = marker();
-      await smack(12);
-      await waitFor(() => asksNew(t1)[0]);
-      const popup2 = await waitFor(() => concPopups()[0], 4000);
-      await setSituational(popup2, '+30');
-      dialogButtons(popup2).find(b => b.textContent.trim() === 'Advantage')?.click();
-      const done2 = await waitFor(() => doneAskNew(t1));
-      const o2 = done2?.getFlag(MOD, 'concentration')?.outcome;
-      const roll2 = (o2?.rollMessageId ? game.messages.get(o2.rollMessageId) : null)?.rolls?.[0];
-      ok('5g. the situational bonus reaches the formula and Advantage reaches the d20',
-        (roll2?.options?.advantageMode === 1) && /30/.test(roll2?.formula ?? '')
-          && (o2?.success === true),
-        `advMode=${roll2?.options?.advantageMode} formula=${roll2?.formula}`);
-      await saveBonus('+30');
-    }
+      try {
+        const t1 = marker();
+        await smack(12);
+        await until(() => asksNew(t1)[0], { timeout: 8000 });
+        const popup2 = await until(() => concPopups()[0], { timeout: 4000 });
+        await setSituational(popup2, '+30');
+        dialogButtons(popup2).find(b => b.textContent.trim() === 'Advantage')?.click();
+        const done2 = await until(() => doneAskNew(t1), { timeout: 8000 });
+        const o2 = done2?.getFlag(MOD, 'concentration')?.outcome;
+        const roll2 = (o2?.rollMessageId ? game.messages.get(o2.rollMessageId) : null)?.rolls?.[0];
+        ok('5g. the situational bonus reaches the formula and Advantage reaches the d20',
+          (roll2?.options?.advantageMode === 1) && /30/.test(roll2?.formula ?? '')
+            && (o2?.success === true),
+          `advMode=${roll2?.options?.advantageMode} formula=${roll2?.formula}`);
+      } finally {
+        await saveBonus('+30');
+      }
+    });
 
     // ================================================== 6. the timer rolls — expiry is the dice, not a pass
-    if (want(6)) {
+    if (want(6)) await section(6, async () => {
+      // The timer goes back off in a finally: a wait that throws here must not time §7's popups.
       await set('concTimer', 2);
-      const t0 = marker();
-      await smack(12);
-      const askMsg = await waitFor(() => asksNew(t0)[0]);
-      const pendingAsk = askMsg?.getFlag(MOD, 'concentration');
-      ok('6. a timed ask carries its deadline', !!pendingAsk?.deadline && (pendingAsk?.window === 2),
-        `window=${pendingAsk?.window}`);
-      const done = await waitFor(() => doneAskNew(t0), 8000);
-      const ask = done?.getFlag(MOD, 'concentration');
-      ok('6b. the buzzer rolled the save itself and marked it',
-        (ask?.status === 'done') && (ask?.outcome?.timedOut === true) && (ask?.outcome?.success === true),
-        `timedOut=${ask?.outcome?.timedOut} success=${ask?.outcome?.success}`);
-      const holdsCard = await waitFor(() => contentNew(t0, 'rolled by the timer'));
-      ok('6c. the announcement says the timer pressed the button', !!holdsCard,
-        holdsCard ? '' : 'no timer wording found');
-      const roll6 = (ask?.outcome?.rollMessageId ? game.messages.get(ask.outcome.rollMessageId) : null)
-        ?.rolls?.[0];
-      // A concentration save inherits the sheet's con-save mode, so "straight" = the sheet's mode
-      // and no ad-hoc input.
-      const sheetMode6 = shielder.system.abilities?.con?.save?.roll?.mode ?? 0;
-      ok('6d. the buzzer roll is straight — data-driven only (the sheet\x27s own con-save mode), no ad-hoc inputs',
-        (roll6?.options?.advantageMode === sheetMode6),   // the +30 in the formula is the SHEET's (saveBonus), not an input
-        `advMode=${roll6?.options?.advantageMode} sheetMode=${sheetMode6} formula=${roll6?.formula}`);
-      await set('concTimer', 0);
-    }
+      try {
+        const t0 = marker();
+        await smack(12);
+        const askMsg = await until(() => asksNew(t0)[0], { timeout: 8000 });
+        const pendingAsk = askMsg?.getFlag(MOD, 'concentration');
+        ok('6. a timed ask carries its deadline', !!pendingAsk?.deadline && (pendingAsk?.window === 2),
+          `window=${pendingAsk?.window}`);
+        const done = await until(() => doneAskNew(t0), { timeout: 8000 });
+        const ask = done?.getFlag(MOD, 'concentration');
+        ok('6b. the buzzer rolled the save itself and marked it',
+          (ask?.status === 'done') && (ask?.outcome?.timedOut === true) && (ask?.outcome?.success === true),
+          `timedOut=${ask?.outcome?.timedOut} success=${ask?.outcome?.success}`);
+        const holdsCard = await until(() => contentNew(t0, 'rolled by the timer'), { timeout: 8000 });
+        ok('6c. the announcement says the timer pressed the button', !!holdsCard,
+          holdsCard ? '' : 'no timer wording found');
+        const roll6 = (ask?.outcome?.rollMessageId ? game.messages.get(ask.outcome.rollMessageId) : null)
+          ?.rolls?.[0];
+        // A concentration save inherits the sheet's con-save mode, so "straight" = the sheet's mode
+        // and no ad-hoc input.
+        const sheetMode6 = shielder.system.abilities?.con?.save?.roll?.mode ?? 0;
+        ok('6d. the buzzer roll is straight — data-driven only (the sheet\x27s own con-save mode), no ad-hoc inputs',
+          (roll6?.options?.advantageMode === sheetMode6),   // the +30 in the formula is the SHEET's (saveBonus), not an input
+          `advMode=${roll6?.options?.advantageMode} sheetMode=${sheetMode6} formula=${roll6?.formula}`);
+      } finally {
+        await set('concTimer', 0);
+      }
+    });
 
     // ================================================== 7. multiple instances queue — RAW, one popup at a time
-    if (want(7)) {
+    if (want(7)) await section(7, async () => {
       const t0 = marker();
       await smack(10);
-      await waitFor(() => asksNew(t0).length === 1);
+      await until(() => asksNew(t0).length === 1, { timeout: 8000 });
       await smack(11);
-      await waitFor(() => asksNew(t0).length === 2);
+      await until(() => asksNew(t0).length === 2, { timeout: 8000 });
       const [first, second] = asksNew(t0);
       ok('7. two damage instances are two asks', !!first && !!second && (first.id !== second.id),
         `asks=${asksNew(t0).length}`);
       if (first && second) {
-        await sleep(1000);
-        ok('7b. only the oldest ask has a popup (the queue)', concPopups().length === 1,
-          `popups=${concPopups().length}`);
+        // The oldest ask's popup comes; a window for a second one that must not.
+        await until(() => concPopups().length >= 1, { timeout: 4000, label: 'the first ask\'s popup' });
+        const twoUp = await watch(() => concPopups().length > 1, { ms: 1000 });
+        ok('7b. only the oldest ask has a popup (the queue)', !twoUp && (concPopups().length === 1),
+          `popups=${concPopups().length}${twoUp ? ' (two were up at once)' : ''}`);
         dialogButtons(concPopups()[0]).find(b => b.textContent.trim() === 'Normal')?.click();
-        await waitFor(() => first.getFlag(MOD, 'concentration')?.status === 'done');
-        const secondPopup = await waitFor(() => (concPopups().length === 1)
-          && (second.getFlag(MOD, 'concentration')?.status === 'pending'), 5000);
+        await until(() => first.getFlag(MOD, 'concentration')?.status === 'done', { timeout: 8000 });
+        const secondPopup = await until(() => (concPopups().length === 1)
+          && (second.getFlag(MOD, 'concentration')?.status === 'pending'), { timeout: 5000 });
         ok('7c. resolving the first advances the queue to the second', !!secondPopup,
           `popups=${concPopups().length} second=${second.getFlag(MOD, 'concentration')?.status}`);
         dialogButtons(concPopups()[0]).find(b => b.textContent.trim() === 'Normal')?.click();
-        await waitFor(() => second.getFlag(MOD, 'concentration')?.status === 'done');
+        await until(() => second.getFlag(MOD, 'concentration')?.status === 'done', { timeout: 8000 });
         ok('7d. both asks resolved, concentration held through both',
           (second.getFlag(MOD, 'concentration')?.outcome?.success === true) && (concEffects().length === 1),
           `effects=${concEffects().length}`);
       } else {
         ok('7b-d. queue mechanics', false, 'skipped: the two asks never both appeared');
       }
-    }
+    });
 
     // ================================================== 8. a sheet-rolled save is the answer
-    if (want(8)) {
+    if (want(8)) await section(8, async () => {
       const t0 = marker();
       await smack(12);
-      const askMsg = await waitFor(() => asksNew(t0)[0]);
+      const askMsg = await until(() => asksNew(t0)[0], { timeout: 8000 });
       // A sheet roll has no respondsTo and no target: the fold matches actor + ability.
       await shielder.rollConcentration({}, { configure: false }, {});
-      const done = await waitFor(() => doneAskNew(t0));
+      const done = await until(() => doneAskNew(t0), { timeout: 8000 });
       const ask = done?.getFlag(MOD, 'concentration');
       ok('8. the fold catches a bare sheet roll as the answer',
         !!askMsg && (ask?.status === 'done') && (ask?.outcome?.success === true),
         `status=${ask?.status} success=${ask?.outcome?.success}`);
-      await waitFor(() => concPopups().length === 0, 4000);
+      await until(() => concPopups().length === 0, { timeout: 4000 });
       ok('8b. the sheet roll closes the popup too', concPopups().length === 0,
         `popups=${concPopups().length}`);
-    }
+    });
 
     // ================================================== 9. the native whisper card is ours
-    if (want(9)) {
+    if (want(9)) await section(9, async () => {
       await set('concMode', 'auto'); // prompt would leave the ask pending and the popup open
       const t0 = marker();
       await smack(9);
-      await waitFor(() => doneAskNew(t0));
-      await sleep(800);
+      await until(() => doneAskNew(t0), { timeout: 8000 });
+      // A window for the native request card to leak through.
+      const leaked = await watch(() => nativeNew(t0), { ms: 800 });
       // Drain this section's announcement: it lands seconds after the fold, and a public one would
       // leak into §10's window.
-      await waitFor(() => contentNew(t0, 'holds'));
+      await until(() => contentNew(t0, 'holds'), { timeout: 8000 });
       ok('9. the native request card is suppressed while the mode is on',
-        !nativeNew(t0),
+        !leaked && !nativeNew(t0),
         'a native concentration request card leaked through');
-    }
+    });
 
     // ================================================== 10. private visibility — and the break that never is
-    if (want(10)) {
+    if (want(10)) await section(10, async () => {
+      // Visibility goes back to public in a finally: a wait that throws here must not whisper §12 on.
       await set('concVisibility', false);
-      await set('concMode', 'auto');
-      // Let earlier sections' paused announcements land before this window opens.
-      await sleep(3500);
-      const t0 = marker();
-      await smack(12);
-      const done = await waitFor(() => doneAskNew(t0));
-      const ask = done?.getFlag(MOD, 'concentration');
-      const rollMsg = ask?.outcome?.rollMessageId ? game.messages.get(ask.outcome.rollMessageId) : null;
-      // Attribute the announcement by this ask's total-vs-DC signature, never by 'holds' alone.
-      const sig = `${ask?.outcome?.total} vs DC ${ask?.dc}`;
-      const holdsCard = await waitFor(() => newSince(t0).find(m =>
-        (m.speaker?.alias === 'By the Books') && m.content.includes('holds')
-        && m.content.includes(sig)) ?? null, 15000);
-      ok('10. private mode whispers the ask', (done?.whisper?.length ?? 0) > 0,
-        `whisper=${done?.whisper?.length}`);
-      ok('10b. private mode whispers the roll', (rollMsg?.whisper?.length ?? 0) > 0,
-        `whisper=${rollMsg?.whisper?.length}`);
-      ok('10c. private mode whispers the good news', (holdsCard?.whisper?.length ?? 0) > 0,
-        `whisper=${holdsCard?.whisper?.length}`);
-      // The break is never private: the cascade strips icons the whole table sees.
-      await saveBonus('');
-      const t1 = marker();
-      await smack(70);
-      await waitFor(() => doneAskNew(t1));
-      const broke = await waitFor(() => newSince(t1).find(m =>
-        (m.speaker?.alias === 'By the Books') && m.content.includes('loses concentration')));
-      ok('10d. the break card is public even in private mode',
-        !!broke && (broke.whisper?.length === 0), `whisper=${broke?.whisper?.length}`);
-      await set('concVisibility', true);
-    }
+      try {
+        await set('concMode', 'auto');
+        // Let earlier sections' paused announcements land before this window opens: each done ask's
+        // `applied` receipt lands after its card.
+        await until(() => newSince(suiteMark).every(m => {
+          const a = m.getFlag(MOD, 'concentration');
+          return (a?.status !== 'done') || (a.outcome?.applied === true);
+        }), { timeout: 10_000, label: 'every earlier ask\'s announcement posted (its applied receipt)' });
+        const t0 = marker();
+        await smack(12);
+        const done = await until(() => doneAskNew(t0), { timeout: 8000 });
+        const ask = done?.getFlag(MOD, 'concentration');
+        const rollMsg = ask?.outcome?.rollMessageId ? game.messages.get(ask.outcome.rollMessageId) : null;
+        // Attribute the announcement by this ask's total-vs-DC signature, never by 'holds' alone.
+        const sig = `${ask?.outcome?.total} vs DC ${ask?.dc}`;
+        const holdsCard = await until(() => newSince(t0).find(m =>
+          (m.speaker?.alias === 'By the Books') && m.content.includes('holds')
+          && m.content.includes(sig)) ?? null, { timeout: 15000 });
+        ok('10. private mode whispers the ask', (done?.whisper?.length ?? 0) > 0,
+          `whisper=${done?.whisper?.length}`);
+        ok('10b. private mode whispers the roll', (rollMsg?.whisper?.length ?? 0) > 0,
+          `whisper=${rollMsg?.whisper?.length}`);
+        ok('10c. private mode whispers the good news', (holdsCard?.whisper?.length ?? 0) > 0,
+          `whisper=${holdsCard?.whisper?.length}`);
+        // The break is never private: the cascade strips icons the whole table sees.
+        await saveBonus('');
+        const t1 = marker();
+        await smack(70);
+        await until(() => doneAskNew(t1), { timeout: 8000 });
+        const broke = await until(() => newSince(t1).find(m =>
+          (m.speaker?.alias === 'By the Books') && m.content.includes('loses concentration')), { timeout: 8000 });
+        ok('10d. the break card is public even in private mode',
+          !!broke && (broke.whisper?.length === 0), `whisper=${broke?.whisper?.length}`);
+      } finally {
+        await set('concVisibility', true);
+      }
+    });
 
     // ================================================== 12. the cause rides the real chain
-    if (want(12)) {
+    if (want(12)) await section(12, async () => {
       // Every machine is on: the Shielder's reaction hold and any hit offer wait on the decision
       // timer, so it is short here (they pass), and the section stands up its own concentration.
       await set('concMode', 'auto');
+      // The timer goes back off in a finally: a wait that throws here must not time §13 on.
       await set('concTimer', 2);
-      const eff12 = await ensureConc();
-      if (!eff12) return { fatal: 'recast failed for section 12 (slots?)' };
-      await saveBonus('+30');
-      await setTemp(500);
-      if (canvas.scene?.id !== scene.id) await scene.view();
-      // Use the shielder's linked token when it stands; create one only when missing.
-      let tokenDoc = scene.tokens.find(t => (t.actorId === shielder.id) && t.actorLink);
-      if (!tokenDoc) {
-        [tokenDoc] = await scene.createEmbeddedDocuments('Token', [
-          foundry.utils.mergeObject(shielder.prototypeToken.toObject(),
-            { x: 1000, y: 1400, actorId: shielder.id, actorLink: true }, { inplace: false })]);
-        created.tokens.push(tokenDoc.id);
+      try {
+        const eff12 = await ensureConc();
+        if (!eff12) throw new Error('recast failed for section 12 (slots?)');
+        await saveBonus('+30');
+        await setTemp(500);
+        if (canvas.scene?.id !== scene.id) await scene.view();
+        // Use the shielder's linked token when it stands; create one only when missing.
+        let tokenDoc = scene.tokens.find(t => (t.actorId === shielder.id) && t.actorLink);
+        if (!tokenDoc) {
+          [tokenDoc] = await scene.createEmbeddedDocuments('Token', [
+            foundry.utils.mergeObject(shielder.prototypeToken.toObject(),
+              { x: 1000, y: 1400, actorId: shielder.id, actorLink: true }, { inplace: false })]);
+          created.tokens.push(tokenDoc.id);
+        }
+        const token = await tokenOn(tokenDoc.id);
+        // AC 1 + advantage: a deterministic hit short of a double fumble.
+        await shielder.update({ 'system.attributes.ac.override': 1 });
+        const npcItem = npc.items.find(i => i.system.activities?.some?.(a => a.type === 'attack'));
+        const activity = npcItem?.system.activities.find(a => a.type === 'attack');
+        if (!activity) throw new Error('BTB Test Attacker has no attack activity');
+        // The attacker's name as the table sees it: the speaker resolves through the scene token
+        // ("Hobgoblin"), and an unlinked token's synthetic actor carries the token's name.
+        const npcTokenDoc = scene.tokens.find(t => t.actorId === npc.id);
+        const expectedAttacker = npcTokenDoc
+          ? (npcTokenDoc.actorLink ? npc.name : npcTokenDoc.name) : npc.name;
+        log.push(`expected attacker name at the table: ${expectedAttacker}`);
+        let ask = null; let t0 = null;
+        // A retry loop: a fumble swings again, and each try waits softly for its ask.
+        for (let attempt = 0; attempt < 2 && !ask; attempt++) {
+          t0 = marker();
+          token.setTarget(true, { releaseOthers: true });
+          await until(() => game.user.targets.has(token), { timeout: 2000, label: 'the shielder targeted' });
+          const results = await activity.use({ subsequentActions: false }, { configure: false }, {});
+          const usageId = results?.message?.id ?? null;
+          const rolls = await activity.rollAttack({ advantage: true }, { configure: false },
+            usageId ? { data: { 'system.origin': usageId } } : {});
+          if (rolls?.[0]?.isFumble) { log.push('12: fumble, retrying'); continue; }
+          ask = (await until(() => doneAskNew(t0), { timeout: 20_000 }).catch(() => null))?.getFlag(MOD, 'concentration');
+        }
+        ok('12. a real attack chain (auto-roll → auto-apply) raises the ask',
+          !!ask, ask ? '' : 'no ask from the attack chain');
+        ok('12b. the ask knows what hit them and who swung it',
+          (ask?.cause?.attacker === expectedAttacker) && (ask?.cause?.source === npcItem.name),
+          `cause=${JSON.stringify(ask?.cause ?? null)} expected=${expectedAttacker}`);
+        const askMsg = doneAskNew(t0);
+        ok('12c. the card tells the table the same story',
+          !!askMsg?.content?.includes(expectedAttacker) && !!askMsg?.content?.includes(npcItem.name),
+          'card content missing attacker or source');
+      } finally {
+        await set('concTimer', 0);
       }
-      for (let i = 0; i < 40 && !(canvas.ready && canvas.tokens.get(tokenDoc.id)); i++) await sleep(250);
-      const token = canvas.tokens.get(tokenDoc.id);
-      if (!token) return { fatal: 'shielder token never reached the canvas' };
-      // AC 1 + advantage: a deterministic hit short of a double fumble.
-      await shielder.update({ 'system.attributes.ac.override': 1 });
-      const npcItem = npc.items.find(i => i.system.activities?.some?.(a => a.type === 'attack'));
-      const activity = npcItem?.system.activities.find(a => a.type === 'attack');
-      if (!activity) return { fatal: 'BTB Test Attacker has no attack activity' };
-      // The attacker's name as the table sees it: the speaker resolves through the scene token
-      // ("Hobgoblin"), and an unlinked token's synthetic actor carries the token's name.
-      const npcTokenDoc = scene.tokens.find(t => t.actorId === npc.id);
-      const expectedAttacker = npcTokenDoc
-        ? (npcTokenDoc.actorLink ? npc.name : npcTokenDoc.name) : npc.name;
-      log.push(`expected attacker name at the table: ${expectedAttacker}`);
-      let ask = null; let t0 = null;
-      for (let attempt = 0; attempt < 2 && !ask; attempt++) {
-        t0 = marker();
-        token.setTarget(true, { releaseOthers: true });
-        await sleep(80);
-        const results = await activity.use({ subsequentActions: false }, { configure: false }, {});
-        const usageId = results?.message?.id ?? null;
-        const rolls = await activity.rollAttack({ advantage: true }, { configure: false },
-          usageId ? { data: { 'system.origin': usageId } } : {});
-        if (rolls?.[0]?.isFumble) { log.push('12: fumble, retrying'); continue; }
-        ask = (await waitFor(() => doneAskNew(t0), 20_000))?.getFlag(MOD, 'concentration');
-      }
-      ok('12. a real attack chain (auto-roll → auto-apply) raises the ask',
-        !!ask, ask ? '' : 'no ask from the attack chain');
-      ok('12b. the ask knows what hit them and who swung it',
-        (ask?.cause?.attacker === expectedAttacker) && (ask?.cause?.source === npcItem.name),
-        `cause=${JSON.stringify(ask?.cause ?? null)} expected=${expectedAttacker}`);
-      const askMsg = doneAskNew(t0);
-      ok('12c. the card tells the table the same story',
-        !!askMsg?.content?.includes(expectedAttacker) && !!askMsg?.content?.includes(npcItem.name),
-        'card content missing attacker or source');
-      await set('concTimer', 0);
-    }
+    });
 
     // ================================================== 13. a sheet edit is damage too — then zero HP is not a save
-    if (want(13)) {
+    if (want(13)) await section(13, async () => {
       await set('concMode', 'auto');
       const eff = concEffects()[0] ?? await ensureConc();
-      if (!eff) return { fatal: 'recast failed (slots?)' };
+      if (!eff) throw new Error('recast failed (slots?)');
       // Lowering HP by hand is damage to the system, so the edit's own ask must resolve (+30)
       // before the zero-HP half measures.
       const tSetup = marker();
       await shielder.update({
         'system.attributes.hp.value': 5, 'system.attributes.hp.temp': 0,
         'system.attributes.ac.override': priorActor[shielder.id]['system.attributes.ac.override'] });
-      const setupAsk = await waitFor(() => doneAskNew(tSetup));
+      const setupAsk = await until(() => doneAskNew(tSetup), { timeout: 8000 });
       ok('13. a GM hand-lowering HP on a concentrator raises the check too',
         !!setupAsk && (setupAsk.getFlag(MOD, 'concentration')?.outcome?.success === true),
         setupAsk ? '' : 'no ask from the sheet edit');
       const t0 = marker();
       await smack(50);
-      const gone = await waitFor(() => concEffects().length === 0);
+      const gone = await until(() => concEffects().length === 0, { timeout: 8000 });
       ok('13b. dropping to 0 ends concentration with no save', !!gone,
         `effects=${concEffects().length}`);
-      await sleep(1200);
-      ok('13c. no ask was stamped at 0 — there was nothing to roll', asksNew(t0).length === 0,
+      const strayAsk = await watch(() => asksNew(t0)[0], { ms: 1200 });
+      ok('13c. no ask was stamped at 0 — there was nothing to roll', !strayAsk && (asksNew(t0).length === 0),
         `asks=${asksNew(t0).length}`);
-      const card = await waitFor(() => contentNew(t0, 'no save at 0 HP'));
+      const card = await until(() => contentNew(t0, 'no save at 0 HP'), { timeout: 8000 });
       ok('13d. the break card says why (down, not a failed roll)',
         !!card && (card.whisper?.length === 0), card ? '' : 'no down-wording card');
       await healFull();
-    }
+    });
 
     // ================================================== 14. the crash-resume re-drives a dead fold
-    if (want(14)) {
+    if (want(14)) await section(14, async () => {
       const eff = concEffects()[0] ?? await ensureConc();
-      if (!eff) return { fatal: 'recast failed for section 14 (slots?)' };
+      if (!eff) throw new Error('recast failed for section 14 (slots?)');
       const t0 = marker();
       // Forge a crash's residue: an ask folded to done (failed), never applied, answeredAt past the
       // resume horizon. Any GM render must run the cascade, post the break card, write the receipt.
@@ -633,41 +648,41 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           outcome: { total: 3, success: false, rollMessageId: null, answeredAt: Date.now() - 30_000 }
         } } }
       });
-      const gone = await waitFor(() => concEffects().length === 0, 10_000);
-      const card14 = await waitFor(() => contentNew(t0, 'ends'));
+      const gone = await until(() => concEffects().length === 0, { timeout: 10_000 });
+      const card14 = await until(() => contentNew(t0, 'ends'), { timeout: 8000 });
       const askAfter = newSince(t0).find(m => m.getFlag(MOD, 'concentration')?.outcome);
       // The applied receipt lands AFTER the break card.
-      await waitFor(() => askAfter?.getFlag(MOD, 'concentration')?.outcome?.applied === true, 8000);
+      await until(() => askAfter?.getFlag(MOD, 'concentration')?.outcome?.applied === true, { timeout: 8000 });
       ok('14. a done-but-unapplied fold re-drives: cascade, break card, applied receipt',
         !!gone && !!card14 && (askAfter?.getFlag(MOD, 'concentration')?.outcome?.applied === true),
         `effects=${concEffects().length} card=${!!card14} `
           + `applied=${askAfter?.getFlag(MOD, 'concentration')?.outcome?.applied}`);
-    }
+    });
     // ================================================== 15. Incapacitated breaks concentration
     // dnd5e does not end concentration when the status lands; the module does.
-    if (want(15)) {
+    if (want(15)) await section(15, async () => {
       const eff = concEffects()[0] ?? await ensureConc();
-      if (!eff) return { fatal: 'recast failed for section 15 (slots?)' };
+      if (!eff) throw new Error('recast failed for section 15 (slots?)');
       const t0 = marker();
       const status = await ActiveEffect.implementation.fromStatusEffect('incapacitated');
       const [pressed] = await ActiveEffect.implementation.create(status.toObject(), { parent: shielder, keepId: true }).then(e => [e]);
-      const gone = await waitFor(() => concEffects().length === 0, 10_000);
-      const card15 = await waitFor(() => contentNew(t0, 'ends'));
+      const gone = await until(() => concEffects().length === 0, { timeout: 10_000 });
+      const card15 = await until(() => contentNew(t0, 'ends'), { timeout: 8000 });
       ok('15. the Incapacitated condition landing on a concentrator ends concentration — no save, the cascade, the card says why',
         !!gone && !!card15 && /Incapacitated/.test(card15?.content ?? ''),
         `effects=${concEffects().length} card=${!!card15} says=${/Incapacitated/.test(card15?.content ?? '')}`);
       if (pressed) await shielder.deleteEmbeddedDocuments('ActiveEffect', [pressed.id]).catch(() => {});
-      await sleep(300);
-    }
+      await until(() => !pressed || !shielder.effects.get(pressed.id), { timeout: 4000, label: 'the Incapacitated effect lifted' });
+    });
 
     // ================================================== 16. Mage Slayer's Concentration Breaker
     // The damage card speaks for the attacker (the dealer the ask reads); +30 keeps every verdict a
     // success, so the MODE is measured, against a control roll without the feat.
-    if (want(16)) {
+    if (want(16)) await section(16, async () => {
       await set('concMode', 'auto');
       await set('concTimer', 0);
       const eff = concEffects()[0] ?? await ensureConc();
-      if (!eff) return { fatal: 'recast failed for section 16 (slots?)' };
+      if (!eff) throw new Error('recast failed for section 16 (slots?)');
       await saveBonus('+30');
       await setTemp(500);
       const dealt = async (n = 12) => {
@@ -680,7 +695,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       // The control: the attacker without the feat.
       const tc = marker();
       await dealt();
-      const control = (await waitFor(() => doneAskNew(tc)))?.getFlag(MOD, 'concentration');
+      const control = (await until(() => doneAskNew(tc), { timeout: 8000 }))?.getFlag(MOD, 'concentration');
       const m0 = modeOf(control);
       ok('16. control: the attacker without Mage Slayer — the ask records no breaker',
         !!control && !control.breaker && Number.isFinite(m0), `ask=${!!control} breaker=${JSON.stringify(control?.breaker ?? null)} mode=${m0}`);
@@ -688,12 +703,12 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const pack = game.packs.get('dnd-players-handbook.feats');
       const entry = pack ? (await pack.getIndex()).find(e => e.name === 'Mage Slayer') : null;
       const source = entry ? await pack.getDocument(entry._id) : null;
-      if (!source) return { fatal: 'no Mage Slayer in dnd-players-handbook.feats' };
+      if (!source) throw new Error('no Mage Slayer in dnd-players-handbook.feats');
       const [lent] = await npc.createEmbeddedDocuments('Item', [source.toObject()]);
       created.items.push({ actorId: npc.id, id: lent.id });
       const t1 = marker();
       await dealt();
-      const askMsg = await waitFor(() => doneAskNew(t1));
+      const askMsg = await until(() => doneAskNew(t1), { timeout: 8000 });
       const ask = askMsg?.getFlag(MOD, 'concentration');
       // The dealer is whoever the card speaks for: the goblin's unlinked token's synthetic actor,
       // holding the lent feat through the base.
@@ -712,18 +727,18 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       await set('concMode', 'prompt');
       const t3 = marker();
       await dealt();
-      await waitFor(() => asksNew(t3)[0]);
-      const popup = await waitFor(() => concPopups()[0], 5000);
+      await until(() => asksNew(t3)[0], { timeout: 8000 });
+      const popup = await until(() => concPopups()[0], { timeout: 5000 });
       const gateText = popup?.querySelector('[data-bf-reminder]')?.textContent ?? '';
       ok('16f. prompt mode: the dialog\'s gate lists the attacker\'s Mage Slayer, counted as Disadvantage',
         /Mage Slayer/.test(gateText) && /Disadvantage/i.test(gateText), `gate="${gateText.replace(/\s+/g, ' ').slice(0, 200)}"`);
       dialogButtons(popup).find(b => b.textContent.trim() === 'Normal')?.click();
-      await waitFor(() => doneAskNew(t3));
+      await until(() => doneAskNew(t3), { timeout: 8000 });
       await set('concMode', 'auto');
-    }
+    });
 
     // ================================================== 17. the check owns its DC — a rescue only on a failure
-    if (want(17)) {
+    if (want(17)) await section(17, async () => {
       await set('concMode', 'auto');
       await set('concTimer', 0);
       await set('d20FoldAsk', true);
@@ -733,12 +748,12 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       try {
         await shielder.update({ 'system.attributes.inspiration': true });
         const eff = concEffects()[0] ?? await ensureConc();
-        if (!eff) return { fatal: 'recast failed for section 17 (slots?)' };
+        if (!eff) throw new Error('recast failed for section 17 (slots?)');
         await saveBonus('+30');
         await setTemp(500);
         const t0 = marker();
         await smack(12);
-        const passed = (await waitFor(() => doneAskNew(t0)))?.getFlag(MOD, 'concentration');
+        const passed = (await until(() => doneAskNew(t0), { timeout: 8000 }))?.getFlag(MOD, 'concentration');
         const passRoll = passed?.outcome?.rollMessageId ? game.messages.get(passed.outcome.rollMessageId) : null;
         ok('17a. a PASSED check offers no rescue — the ask knows the DC',
           (passed?.outcome?.success === true) && !passRoll?.getFlag(MOD, 'd20fold'),
@@ -746,33 +761,33 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         await saveBonus('');
         const t1 = marker();
         // DC 10 failed on a 2: a reroll's 20 can still win (an offer that cannot win is not made, RULINGS *Rescuing the hit*)
-        const priorUniform = CONFIG.Dice.randomUniform;
-        CONFIG.Dice.randomUniform = () => 1 - ((2 - 0.5) / 20);
+        faces([[2, 20]]);
         await smack(12);
-        const askMsg = await waitFor(() => asksNew(t1)[0]);
-        CONFIG.Dice.randomUniform = priorUniform;
-        const held = await waitFor(() => {
+        const askMsg = await until(() => asksNew(t1)[0], { timeout: 8000 });
+        unrig();
+        const held = await until(() => {
           const a = askMsg?.getFlag(MOD, 'concentration');
           const r = a?.withheld ? game.messages.get(a.withheld) : null;
           return (r?.getFlag(MOD, 'd20fold')?.status === 'pending') ? r : null;
-        }, 8000);
+        }, { timeout: 8000 });
         const offers = (held?.getFlag(MOD, 'd20fold')?.offers ?? []).map(o => o.kind);
         ok('17b. a FAILED check is withheld: Heroic Inspiration offered against the DC, the ask still pending, the spell still up',
           !!held && offers.includes('heroic') && (held.getFlag(MOD, 'd20fold')?.dc === askMsg?.getFlag(MOD, 'concentration')?.dc)
             && (askMsg?.getFlag(MOD, 'concentration')?.status === 'pending') && (concEffects().length === 1),
           `held=${!!held} offers=[${offers}] status=${askMsg?.getFlag(MOD, 'concentration')?.status} effects=${concEffects().length}`);
-        const pass = await waitFor(() => [...document.querySelectorAll('.application')]
-          .find(el => el.querySelector('[data-bf-rescue-action="heroic"]'))?.querySelector('button[data-action="pass"]'), 6000);
+        const pass = await until(() => [...document.querySelectorAll('.application')]
+          .find(el => el.querySelector('[data-bf-rescue-action="heroic"]'))?.querySelector('button[data-action="pass"]'), { timeout: 6000 });
         pass?.click();
-        const done = await waitFor(() => (askMsg?.getFlag(MOD, 'concentration')?.status === 'done') ? askMsg.getFlag(MOD, 'concentration') : null, 10000);
-        const gone = await waitFor(() => concEffects().length === 0, 8000);
+        const done = await until(() => (askMsg?.getFlag(MOD, 'concentration')?.status === 'done') ? askMsg.getFlag(MOD, 'concentration') : null, { timeout: 10000 });
+        const gone = await until(() => concEffects().length === 0, { timeout: 8000 });
         ok('17c. Pass: the verdict lands — failed, and the concentration breaks', (done?.outcome?.success === false) && !!gone,
           `pass=${!!pass} success=${done?.outcome?.success} effects=${concEffects().length}`);
       } finally {
+        unrig();
         await shielder.update({ 'system.attributes.inspiration': priorInsp });
         await saveBonus('+30');
       }
-    }
+    });
   } catch (err) {
     ok('SUITE', false, `unhandled: ${err?.message}\n${err?.stack}`);
   } finally {

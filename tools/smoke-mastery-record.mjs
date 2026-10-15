@@ -34,21 +34,8 @@ announcePlan('mastery-record', plan, pulled);
 const out = await f.evaluate(async ({ sections, titles }) => {
   const MOD = 'fvtt-mod-bythebooks';
   const LIST = 'system.traits.weaponProf.mastery.value';
-  const results = [];
-  const log = [];
-  const skips = [];
-  const ok = (name, pass, detail = '') => results.push({ name, pass, detail });
-  const want = id => {
-    if (!sections || sections.includes(String(id))) return true;
-    skips.push(`§${id} ${titles?.[id] ?? ''}`);
-    return false;
-  };
-  const sleep = ms => new Promise(r => setTimeout(r, ms));
-  const waitFor = async (test, timeout = 8000) => {
-    const until = Date.now() + timeout;
-    while (Date.now() < until) { const v = await test(); if (v) return v; await sleep(200); }
-    return test();
-  };
+  const { until, watch } = window.__btb;
+  const { results, log, skips, ok, want, section } = window.__btb.begin({ sections, titles });
 
   const modDoc = game.modules.get(MOD);
   if (!modDoc?.active) return { fatal: `module active=${modDoc?.active}` };
@@ -115,12 +102,12 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     ok('0. the fixture: a Fighter 5 whose class rows allow 4 kinds (the PHB\'s Weapon Mastery advancements, 3 at 1 and +1 at 4)', r0.allowance === 4, `allowance=${r0.allowance}`);
 
     // ================================================== 1. the fill
-    if (want(1)) {
+    if (want(1)) await section(1, async () => {
       await setList([]);
       await lend('Longsword'); await lend('Longbow');
       const t0 = Date.now();
       await api.fillActors([fighter], 'suite');
-      const card = await waitFor(() => game.messages.contents.find(m => (m.timestamp >= t0) && m.getFlag(MOD, 'masteryFill')) ?? null, 8000);
+      const card = await until(() => game.messages.contents.find(m => (m.timestamp >= t0) && m.getFlag(MOD, 'masteryFill')) ?? null, { timeout: 8000 });
       const fill = card?.getFlag(MOD, 'masteryFill');
       const row = fill?.filled?.find(x => x.actorUuid === fighter.uuid);
       ok('1a. the list written from what is equipped, in sheet order: longsword, longbow', JSON.stringify(listNow()) === JSON.stringify(['longsword', 'longbow']), `list=${listNow().join(',')}`);
@@ -135,10 +122,10 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const live = lent.filter(id => fighter.items.get(id));
       if (live.length) await fighter.deleteEmbeddedDocuments('Item', live);
       lent.length = 0;
-    }
+    });
 
     // ================================================== 2. the line and Master it
-    if (want(2)) {
+    if (want(2)) await section(2, async () => {
       if (!(await asPartyMember())) {
         skips.push('§2 — no player test user on this box: the line is gated to party members');
       } else {
@@ -147,23 +134,23 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         const activity = dagger.system.activities.find(a => a.type === 'attack');
         const rolls = await activity.rollAttack({}, { configure: false }, {});
         const msg = rolls?.[0]?.parent ?? null;
-        const row = await waitFor(() => msg ? rowUnder(msg.id) : null, 8000);
+        const row = await until(() => msg ? rowUnder(msg.id) : null, { timeout: 8000 });
         ok('2a. the attack card carries the line: "Dagger: Nick — not mastered by BTB Test Fighter", 2 of 4 open — pick at your next Long Rest', !!row && /not mastered by BTB Test Fighter/.test(row.textContent) && /2 of 4 open — pick at your next Long Rest/.test(row.textContent), `row=${row?.textContent?.trim().slice(0, 160)}`);
         ok('2b. no button: a pick is the Long Rest\'s (RAW), and the list is untouched', ![...(row?.querySelectorAll('button') ?? [])].length && (JSON.stringify(listNow()) === JSON.stringify(['longsword', 'longbow'])), `buttons=${[...(row?.querySelectorAll('button') ?? [])].map(b => b.textContent).join('|')} list=${listNow().join(',')}`);
         await setList(['rapier', 'shortbow', 'longsword', 'longbow']);
         const rolls2 = await activity.rollAttack({}, { configure: false }, {});
         const msg2 = rolls2?.[0]?.parent ?? null;
-        const row2 = await waitFor(() => msg2 ? rowUnder(msg2.id) : null, 8000);
+        const row2 = await until(() => msg2 ? rowUnder(msg2.id) : null, { timeout: 8000 });
         ok('2e. a full list: the line says 4 of 4 chosen and offers nothing', !!row2 && /4 of 4 chosen/.test(row2.textContent) && ![...(row2.querySelectorAll('button'))].some(b => b.textContent === 'Master it'), `row=${row2?.textContent?.trim().slice(0, 160)}`);
         await setList([]);
         const live = lent.filter(id => fighter.items.get(id));
         if (live.length) await fighter.deleteEmbeddedDocuments('Item', live);
         lent.length = 0;
       }
-    }
+    });
 
     // ================================================== 3. the long-rest swap
-    if (want(3)) {
+    if (want(3)) await section(3, async () => {
       if (!(await asPartyMember())) {
         skips.push('§3 — no player test user on this box: the swap is gated to party members');
       } else {
@@ -171,10 +158,10 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         await lend('Longsword'); await lend('Longbow'); await lend('Greatsword', { equipped: false });
         const t0 = Date.now();
         await fighter.longRest({ dialog: false, chat: true, newDay: false });
-        const card = await waitFor(() => game.messages.contents.find(m => (m.timestamp >= t0) && (m.getFlag(MOD, 'masterySwap')?.status === 'pending')) ?? null, 10000);
+        const card = await until(() => game.messages.contents.find(m => (m.timestamp >= t0) && (m.getFlag(MOD, 'masterySwap')?.status === 'pending')) ?? null, { timeout: 10000, label: 'a masterySwap card after the Long Rest' });
         const flag = card?.getFlag(MOD, 'masterySwap');
         ok('3a. the Long Rest posts the ask: pending, the chosen two, the pool holds greatsword and nothing chosen', !!flag && (flag.chosen?.length === 2) && flag.pool?.some(p => p.base === 'greatsword') && !flag.pool?.some(p => ['longsword', 'longbow'].includes(p.base)), `flag=${JSON.stringify(flag)}`);
-        const popup = await waitFor(() => dialogs().find(a => /Choose your masteries|Swap a mastery/.test(a.element?.textContent ?? '')) ?? null, 6000);
+        const popup = await until(() => dialogs().find(a => /Choose your masteries|Swap a mastery/.test(a.element?.textContent ?? '')) ?? null, { timeout: 6000 });
         ok('3b. the popup opened for the answerer: the grid — two chosen rows with a remove box, two open rows, one available row (Greatsword) with a pick box', !!popup && /You have these masteries/.test(popup.element.textContent) && (popup.element.querySelectorAll('input[name="bf-mastery-remove"]').length === 2) && (popup.element.querySelectorAll('input[name="bf-mastery-pick"]').length === 1) && ![...popup.element.querySelectorAll('input[name="bf-mastery-remove"]')].some(i => i.checked), `popup=${!!popup} removes=${popup?.element?.querySelectorAll('input[name="bf-mastery-remove"]').length} picks=${popup?.element?.querySelectorAll('input[name="bf-mastery-pick"]').length} text=${popup?.element?.textContent?.replace(/\s+/g, ' ').slice(0, 200)}`);
         if (popup) {
           const pick = popup.element.querySelector('input[name="bf-mastery-pick"]');
@@ -186,79 +173,88 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         }
         if (!card) throw new Error('§3: no masterySwap card rose after the Long Rest');
         await api.answerSwap(card, { out: 'longbow', into: 'greatsword' });
-        const done = await waitFor(() => game.messages.get(card.id)?.getFlag(MOD, 'masterySwap')?.applied ? game.messages.get(card.id) : null, 10000);
+        const done = await until(() => game.messages.get(card.id)?.getFlag(MOD, 'masterySwap')?.applied ? game.messages.get(card.id) : null, { timeout: 10000 });
         const after = done?.getFlag(MOD, 'masterySwap');
         ok('3c. the elect lands it: longbow → greatsword on the sheet, the record applied with outcome changed', (after?.outcome === 'changed') && (JSON.stringify(listNow()) === JSON.stringify(['longsword', 'greatsword'])), `outcome=${after?.outcome} list=${listNow().join(',')}`);
-        const row = await waitFor(() => rowUnder(card.id), 8000);
+        // The answered row replaces the pending one on the re-render after the flag lands: wait for its
+        // "Now:" line; absent, the check reads the row as it stands.
+        const row = await until(() => { const r = rowUnder(card.id); return /Now:/.test(r?.textContent ?? '') ? r : null; },
+          { timeout: 8000, label: 'the swap card\'s answered row' }).catch(() => rowUnder(card.id));
         ok('3d. the card says so, with the list as it stands now', !!row && /Swapped Longbow → Greatsword/.test(row.textContent) && /Now:.*Longsword.*Greatsword/.test(row.textContent.replace(/\s+/g, ' ')), `row=${row?.textContent?.trim().replace(/\s+/g, ' ').slice(0, 160)}`);
-        const confirm = await waitFor(() => dialogs().find(a => /Swapped Longbow → Greatsword/.test(a.element?.textContent ?? '')) ?? null, 6000);
+        const confirm = await until(() => dialogs().find(a => /Swapped Longbow → Greatsword/.test(a.element?.textContent ?? '')) ?? null, { timeout: 6000 });
         ok('3d2. the confirmation popup: "You now have these masteries", the swap named, OK', !!confirm && /Swapped Longbow → Greatsword/.test(confirm.element.textContent) && !!confirm.element.querySelector('button[data-action="ok"]'), `popup=${!!confirm} buttons=${[...(confirm?.element?.querySelectorAll('button') ?? [])].map(b => `${b.dataset.action}:${b.textContent.trim()}`).join('|')} text=${confirm?.element?.textContent?.replace(/\s+/g, ' ').slice(0, 200)}`);
-        if (confirm) { confirm.element.querySelector('button[data-action="ok"]')?.click(); await waitFor(() => game.messages.get(card.id)?.getFlag(MOD, 'masterySwap')?.acknowledged === true, 6000); }
+        if (confirm) { confirm.element.querySelector('button[data-action="ok"]')?.click(); await until(() => game.messages.get(card.id)?.getFlag(MOD, 'masterySwap')?.acknowledged === true, { timeout: 6000 }); }
         ok('3d3. OK acknowledges on the card', game.messages.get(card.id)?.getFlag(MOD, 'masterySwap')?.acknowledged === true, `ack=${game.messages.get(card.id)?.getFlag(MOD, 'masterySwap')?.acknowledged}`);
         // a second answer on the same card changes nothing
         await api.answerSwap(card, { out: 'longsword', into: 'longbow' });
-        await sleep(600);
-        ok('3e. the card answers once', JSON.stringify(listNow()) === JSON.stringify(['longsword', 'greatsword']), `list=${listNow().join(',')}`);
+        const changed = await watch(() => (JSON.stringify(listNow()) !== JSON.stringify(['longsword', 'greatsword'])) && listNow(), { ms: 600 });
+        ok('3e. the card answers once', !changed && (JSON.stringify(listNow()) === JSON.stringify(['longsword', 'greatsword'])),
+          `list=${listNow().join(',')}${changed ? ` (became ${changed.join(',')} in the window)` : ''}`);
         // the open slots: a second rest, two kinds chosen into the two open slots, no swap
         await setList(['longsword']);
         const t1 = Date.now();
         await fighter.longRest({ dialog: false, chat: true, newDay: false });
-        const card2 = await waitFor(() => game.messages.contents.find(m => (m.timestamp >= t1) && (m.getFlag(MOD, 'masterySwap')?.status === 'pending')) ?? null, 10000);
-        const p2 = await waitFor(() => dialogs().find(a => /Choose your masteries/.test(a.element?.textContent ?? '')) ?? null, 6000);
+        const card2 = await until(() => game.messages.contents.find(m => (m.timestamp >= t1) && (m.getFlag(MOD, 'masterySwap')?.status === 'pending')) ?? null, { timeout: 10000, label: 'a masterySwap card after the second Long Rest' });
+        const p2 = await until(() => dialogs().find(a => /Choose your masteries/.test(a.element?.textContent ?? '')) ?? null, { timeout: 6000 });
         ok('3f. with open slots the ask is "Choose your masteries": two available rows (Longbow, Greatsword) with pick boxes', !!card2 && (card2.getFlag(MOD, 'masterySwap')?.open === 3) && !!p2 && (p2.element.querySelectorAll('input[name="bf-mastery-pick"]').length === 2), `open=${card2?.getFlag(MOD, 'masterySwap')?.open} popup=${!!p2}`);
         if (p2) { try { await p2.close(); } catch { /* gone */ } }
         if (!card2) throw new Error('§3f: no masterySwap card rose after the second Long Rest');
         await api.answerSwap(card2, { adds: ['longbow', 'greatsword'] });
-        const landed2 = await waitFor(() => game.messages.get(card2.id)?.getFlag(MOD, 'masterySwap')?.applied ? game.messages.get(card2.id) : null, 10000);
+        const landed2 = await until(() => game.messages.get(card2.id)?.getFlag(MOD, 'masterySwap')?.applied ? game.messages.get(card2.id) : null, { timeout: 10000 });
         ok('3g. the elect fills the two slots, one stays open; the confirmation says "Chose Longbow, Greatsword"', (landed2?.getFlag(MOD, 'masterySwap')?.outcome === 'changed') && (JSON.stringify(listNow()) === JSON.stringify(['longsword', 'longbow', 'greatsword'])), `outcome=${landed2?.getFlag(MOD, 'masterySwap')?.outcome} list=${listNow().join(',')}`);
-        const c2 = await waitFor(() => dialogs().find(a => /Chose Longbow, Greatsword/.test(a.element?.textContent ?? '')) ?? null, 6000);
+        const c2 = await until(() => dialogs().find(a => /Chose Longbow, Greatsword/.test(a.element?.textContent ?? '')) ?? null, { timeout: 6000 });
         ok('3h. …with OK', !!c2, `popup=${!!c2}`);
-        if (c2) { c2.element.querySelector('button[data-action="ok"]')?.click(); await waitFor(() => game.messages.get(card2.id)?.getFlag(MOD, 'masterySwap')?.acknowledged === true, 6000); }
+        // The acknowledgement settles the card before the cleanup; nothing reads it.
+        if (c2) { c2.element.querySelector('button[data-action="ok"]')?.click(); await until(() => game.messages.get(card2.id)?.getFlag(MOD, 'masterySwap')?.acknowledged === true, { timeout: 6000 }).catch(() => null); }
         await setList([]);
         const live = lent.filter(id => fighter.items.get(id));
         if (live.length) await fighter.deleteEmbeddedDocuments('Item', live);
         lent.length = 0;
       }
-    }
+    });
 
     // ================================================== 4. the party view's door
-    if (want(4)) {
+    if (want(4)) await section(4, async () => {
       await asPartyMember();
       await setList(['longsword']);
       // The view reads the PRIMARY party group when the world has one: lend the fixture a seat for the section.
       const primary = game.actors.party ?? null;
       const seated = !!primary && !(primary.system?.members ?? []).some(m => (m.actor?.id ?? m.actor) === fighter.id);
       if (seated) await primary.system.addMember(fighter);
-      const group = await Actor.create({ name: 'BTB Test Party (mastery)', type: 'group' });
-      made.push(group);
-      const sheet = await group.sheet.render({ force: true });
-      await waitFor(() => sheet.rendered, 6000);
-      const controls = [...sheet._headerControlButtons()];
-      const door = controls.find(c => c.action === 'bfMasteryRecord');
-      ok('4a. the group sheet\'s header controls carry "Weapon masteries" — the getHeaderControlsGroupActorSheet hook FIRED', !!door && (door.label === 'Weapon masteries'), `controls=${controls.map(c => c.action).join(',')}`);
-      try { await sheet.close(); } catch { /* gone */ }
-      const view = await api.openPartyView();
-      await waitFor(() => view.rendered, 6000);
-      const text = view.element?.textContent ?? '';
-      ok('4b. the view lists the Fighter against its allowance: 4, longsword chosen, 3 open', /BTB Test Fighter/.test(text) && /3 open/.test(text), `text=${text.replace(/\s+/g, ' ').slice(0, 240)}`);
-      try { await view.close(); } catch { /* gone */ }
-      if (seated) await primary.system.removeMember(fighter.id);
+      // The seat is given back even when a wait below throws: teardown does not touch the party.
+      try {
+        const group = await Actor.create({ name: 'BTB Test Party (mastery)', type: 'group' });
+        made.push(group);
+        const sheet = await group.sheet.render({ force: true });
+        await until(() => sheet.rendered, { timeout: 6000 });
+        const controls = [...sheet._headerControlButtons()];
+        const door = controls.find(c => c.action === 'bfMasteryRecord');
+        ok('4a. the group sheet\'s header controls carry "Weapon masteries" — the getHeaderControlsGroupActorSheet hook FIRED', !!door && (door.label === 'Weapon masteries'), `controls=${controls.map(c => c.action).join(',')}`);
+        try { await sheet.close(); } catch { /* gone */ }
+        const view = await api.openPartyView();
+        await until(() => view.rendered, { timeout: 6000 });
+        const text = view.element?.textContent ?? '';
+        ok('4b. the view lists the Fighter against its allowance: 4, longsword chosen, 3 open', /BTB Test Fighter/.test(text) && /3 open/.test(text), `text=${text.replace(/\s+/g, ' ').slice(0, 240)}`);
+        try { await view.close(); } catch { /* gone */ }
+      } finally {
+        if (seated) await primary.system.removeMember(fighter.id);
+      }
       await setList([]);
-    }
+    });
 
 
     // ================================================== 5. the trim at the Long Rest
-    if (want(5)) {
+    if (want(5)) await section(5, async () => {
       if (!(await asPartyMember())) {
         skips.push('§5 — no player test user on this box: the swap is gated to party members');
       } else {
         await setList(['longsword', 'longbow', 'dagger', 'greatsword', 'mace']);   // 5 on an allowance of 4
         const t0 = Date.now();
         await fighter.longRest({ dialog: false, chat: true, newDay: false });
-        const card = await waitFor(() => game.messages.contents.find(m => (m.timestamp >= t0) && (m.getFlag(MOD, 'masterySwap')?.status === 'pending')) ?? null, 10000);
+        const card = await until(() => game.messages.contents.find(m => (m.timestamp >= t0) && (m.getFlag(MOD, 'masterySwap')?.status === 'pending')) ?? null, { timeout: 10000, label: 'a masterySwap card after the Long Rest' });
         const flag = card?.getFlag(MOD, 'masterySwap');
         ok('5a. the Long Rest posts the ask as a trim: over 1, the five chosen', !!flag && (flag.over === 1) && (flag.chosen?.length === 5), `flag=${JSON.stringify(flag)}`);
-        const popup = await waitFor(() => dialogs().find(a => /too many/.test(a.element?.textContent ?? '')) ?? null, 6000);
+        const popup = await until(() => dialogs().find(a => /too many/.test(a.element?.textContent ?? '')) ?? null, { timeout: 6000 });
         const okBtn = popup?.element?.querySelector('button[data-action="ok"]');
         ok('5b. the popup: "You have these masteries", "Drop 1 to continue", OK held until one is ticked', !!popup && /You have these masteries/.test(popup.element.textContent) && !!okBtn && (okBtn.disabled === true), `popup=${!!popup} disabled=${okBtn?.disabled}`);
         if (popup) {
@@ -269,18 +265,19 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         }
         if (!card) throw new Error('§5: no masterySwap card rose after the Long Rest');
         await api.answerSwap(card, { drop: ['mace'] });
-        const landed = await waitFor(() => game.messages.get(card.id)?.getFlag(MOD, 'masterySwap')?.applied ? game.messages.get(card.id) : null, 10000);
+        const landed = await until(() => game.messages.get(card.id)?.getFlag(MOD, 'masterySwap')?.applied ? game.messages.get(card.id) : null, { timeout: 10000 });
         const after = landed?.getFlag(MOD, 'masterySwap');
         ok('5d. the elect trims the list to the allowance, outcome trimmed, the list after on the record', (after?.outcome === 'trimmed') && (listNow().length === 4) && !listNow().includes('mace') && (after?.after?.length === 4), `outcome=${after?.outcome} list=${listNow().join(',')}`);
-        const confirm = await waitFor(() => dialogs().find(a => /Dropped Mace/.test(a.element?.textContent ?? '')) ?? null, 6000);
+        const confirm = await until(() => dialogs().find(a => /Dropped Mace/.test(a.element?.textContent ?? '')) ?? null, { timeout: 6000 });
         ok('5e. the confirmation names the drop, and OK acknowledges it', !!confirm && /You now have these masteries/.test(confirm.element.textContent), `popup=${!!confirm}`);
-        if (confirm) { confirm.element.querySelector('button[data-action="ok"]')?.click(); await waitFor(() => game.messages.get(card.id)?.getFlag(MOD, 'masterySwap')?.acknowledged === true, 6000); }
+        // The acknowledgement settles the card before the cleanup; nothing reads it.
+        if (confirm) { confirm.element.querySelector('button[data-action="ok"]')?.click(); await until(() => game.messages.get(card.id)?.getFlag(MOD, 'masterySwap')?.acknowledged === true, { timeout: 6000 }).catch(() => null); }
         await setList([]);
       }
-    }
+    });
 
     // ================================================== 6. the Weapon Master feat
-    if (want(6)) {
+    if (want(6)) await section(6, async () => {
       const pack = game.packs.get('dnd-players-handbook.feats');
       const hit = pack ? (await pack.getIndex()).find(e => e.name === 'Weapon Master') : null;
       if (!hit) { skips.push('§6 — the PHB feats pack or its Weapon Master is not on this box'); }
@@ -293,10 +290,10 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         lent.splice(lent.indexOf(feat.id), 1);
         ok('6b. …and 4 again without it', api.recordOf(fighter).allowance === 4, `allowance=${api.recordOf(fighter).allowance}`);
       }
-    }
+    });
 
     // ================================================== 7. Tactical Master
-    if (want(7)) {
+    if (want(7)) await section(7, async () => {
       if (!(await asPartyMember())) {
         skips.push('§7 — no player test user on this box: the line is gated to party members');
       } else {
@@ -314,19 +311,20 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           const activity = fighter.items.get(sword.id).system.activities.find(a => a.type === 'attack');
           const rolls = await activity.rollAttack({}, { configure: false }, {});
           const msg = rolls?.[0]?.parent ?? null;
-          await waitFor(() => msg && document.querySelector(`[data-message-id="${msg.id}"]`), 6000);
-          await sleep(400);   // ⚠ load-bearing: a wrong line would be appended after the first paint
-          ok('7b. a Longsword attack (a chosen kind): the system stamps a mastery and the module draws no line', (msg?.system?.mastery === 'sap') && !rowUnder(msg.id), `stamped=${msg?.system?.mastery} row=${!!rowUnder(msg?.id)}`);
+          await until(() => msg && document.querySelector(`[data-message-id="${msg.id}"]`), { timeout: 6000, label: 'the attack card painted' });
+          // ⚠ load-bearing: a wrong line would be appended after the first paint
+          const strayRow = await watch(() => rowUnder(msg.id), { ms: 400 });
+          ok('7b. a Longsword attack (a chosen kind): the system stamps a mastery and the module draws no line', (msg?.system?.mastery === 'sap') && !strayRow && !rowUnder(msg.id), `stamped=${msg?.system?.mastery} row=${!!(strayRow || rowUnder(msg?.id))}`);
           await setList([]);
           const live = lent.filter(id => fighter.items.get(id));
           if (live.length) await fighter.deleteEmbeddedDocuments('Item', live);
           lent.length = 0;
         }
       }
-    }
+    });
 
     // ================================================== 8. the feature's card
-    if (want(8)) {
+    if (want(8)) await section(8, async () => {
       const pack = game.packs.get('dnd-players-handbook.classes');
       const hit = pack ? (await pack.getIndex()).find(e => (e.name === 'Weapon Mastery') && /^phbftr/.test(e._id)) : null;
       if (!hit) { skips.push('§8 — the PHB classes pack or the Fighter\'s Weapon Mastery is not on this box'); }
@@ -336,9 +334,9 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         const [feature] = await fighter.createEmbeddedDocuments('Item', [(await pack.getDocument(hit._id)).toObject()]);
         lent.push(feature.id);
         const cardMsg = await feature.displayCard();
-        const row = await waitFor(() => cardMsg ? rowUnder(cardMsg.id) : null, 8000);
+        const row = await until(() => cardMsg ? rowUnder(cardMsg.id) : null, { timeout: 8000 });
         ok('8a. the feature\'s card carries the record: "has these masteries", Longsword (Sap), Longbow (Slow), 2 of 4 · 2 open', !!row && /has these masteries/.test(row.textContent) && /Longsword\s*— Sap/.test(row.textContent) && /2 open/.test(row.textContent), `row=${row?.textContent?.replace(/\s+/g, ' ').trim().slice(0, 160)}`);
-        const popup = await waitFor(() => dialogs().find(a => /You have these masteries/.test(a.element?.textContent ?? '')) ?? null, 6000);
+        const popup = await until(() => dialogs().find(a => /You have these masteries/.test(a.element?.textContent ?? '')) ?? null, { timeout: 6000 });
         ok('8b. the popup opened for the owner, with OK', !!popup && !!popup.element.querySelector('button[data-action="ok"]'), `popup=${!!popup}`);
         if (popup) { try { await popup.close(); } catch { /* gone */ } }
         await setList([]);
@@ -346,7 +344,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         if (live.length) await fighter.deleteEmbeddedDocuments('Item', live);
         lent.length = 0;
       }
-    }
+    });
 
     return { log, results, skips };
   } catch (err) {

@@ -15,6 +15,7 @@
 //
 // Run:  node tools/smoke-nogm.mjs [--section runs,chip,told,rejoin] [--list]
 import { announcePlan, disposeSafely, loadEnv, report, sectionPlan } from './harness.mjs';
+import { installPrelude } from './prelude.mjs';
 import { playerConfig, foundryConfig } from './target.mjs';
 import { Foundry } from 'fvtt-mcp-dnd5e/client';
 
@@ -47,6 +48,7 @@ const ok = (name, pass, detail = '') => out.results.push({ name, pass, detail })
 console.log('[nogm] player connecting (no GM session is opened by this suite)…');
 const player = new Foundry(playerConfig(env));
 await player.connect();
+await installPrelude(player);
 announcePlan('nogm', plan, pulled);
 
 // The player page's own errors for the WHOLE run, with the STACK (pageerror carries it; a
@@ -104,16 +106,13 @@ try {
   // ------------------------------------------------------------------------ drive one hit
   // ⚠ EVERYTHING HERE RUNS ON THE PLAYER'S CLIENT, fixture prep included: a player may grant an
   // item to their own actor and roll their own attack, never touch the monster.
+  // ⚠ No section() runs these bodies and their oks are made here, in Node: a wait that throws inside one ends the
+  // run with no report. Where the old poll fell through and an ok reads the result, the wait is soft.
   const hit = await player.evaluate(async modId => {
+    const { until, viewScene, tokenOn } = window.__btb;
     const log = [];
     const pc = game.actors.getName('BTB Test PC Attacker');
     const victim = game.actors.getName('BTB Test Victim');
-    const sleep = ms => new Promise(r => setTimeout(r, ms));
-    const until = async (fn, ms = 12_000) => {
-      const t0 = Date.now();
-      while (Date.now() - t0 < ms) { const v = fn(); if (v) return v; await sleep(200); }
-      return fn();
-    };
 
     // A weapon with a mastery, found by SHAPE from the packs (names and pack ids shift).
     let weapon = pc.items.find(i => (i.type === 'weapon') && i.system.mastery
@@ -152,11 +151,12 @@ try {
     // ⚠ NAME THE MISSING FIXTURE instead of crashing inside page.evaluate: the scene is invisible
     // without OBSERVER, and other suites sweep the victim token off the range.
     if (!scene) return { error: 'the test scene is not visible to this player — run tools/fixture-suite.mjs (it grants OBSERVER)' };
-    if (canvas.scene?.id !== scene.id) await scene.view();
-    await until(() => canvas.ready, 20_000);
+    // Soft: the token's own wait below names a canvas that never readied.
+    await viewScene(scene, { timeout: 20_000 }).catch(() => null);
     const tokenDoc = scene.tokens.find(t => t.actorId === victim.id);
     if (!tokenDoc) return { error: 'no BTB Test Victim token on the range — a previous suite swept it; run tools/fixture-suite.mjs (a player cannot place one)' };
-    const token = await until(() => canvas.tokens.get(tokenDoc.id), 10_000);
+    // Soft: the error below names it.
+    const token = await tokenOn(tokenDoc.id).catch(() => null);
     if (!token) return { error: 'the victim token never reached the canvas' };
     token.setTarget(true, { releaseOthers: true });
 
@@ -167,6 +167,7 @@ try {
 
     let attackMsg = null;
     let hitLanded = false;
+    // A retry loop: a miss posts nothing the next swing waits on, so it swings again at once.
     for (let tryN = 0; tryN < 8 && !hitLanded; tryN++) {
       const use = await activity.use({ subsequentActions: false }, { configure: false }, {});
       const usageId = use?.message?.id ?? null;
@@ -176,7 +177,6 @@ try {
       const targets = (attackMsg?.system?.targets ?? []).map(t => ({ ...t, uuid: t.actor }));
       const total = rolls?.[0]?.total ?? 0;
       hitLanded = targets.some(t => total >= (t.ac ?? 99));
-      if (!hitLanded) await sleep(250);
     }
     if (!hitLanded) return { error: 'could not land a hit in 8 attempts', madeWeapon };
 
@@ -191,25 +191,29 @@ try {
       && ((m.getFlag(modId, 'attackFor') === attackMsg.id) || (m._source.system?.origin === attackMsg.id)
         || (m._source.system?.origin === attackMsg._source.system?.origin))) ?? null;
     let dmg = null;
-    const offer = await until(liveOffer, 6_000);
+    // Soft: no offer falls back to the programmatic roll below.
+    const offer = await until(liveOffer, { timeout: 6_000, label: "the player's damage offer" }).catch(() => null);
     if (offer) {
       offer.querySelector('button[data-action="roll"]')?.click();
       log.push('answered the damage offer (Roll)');
-      dmg = await until(damageOf, 12_000);
+      // Soft: the damage card is read only as an id for §rejoin's diagnostics.
+      dmg = await until(damageOf, { timeout: 12_000, label: "the offer's damage card" }).catch(() => null);
     } else if (activity.damage) {
       log.push('no damage offer opened — rolled the damage programmatically');
       dmg = (await activity.rollDamage({}, { configure: false },
         { data: { 'system.origin': attackMsg.id } }).catch(() => null))?.[0]?.parent ?? null;
     }
 
+    // Soft: no notice is §runs' failure, and §chip and §told still read this hit.
     const notice = await until(() => game.messages.contents
       .filter(m => !before.has(m.id))
-      .find(m => m.getFlag(modId, 'masteryNotice')?.key === 'sap') ?? null, 15_000);
+      .find(m => m.getFlag(modId, 'masteryNotice')?.key === 'sap') ?? null, { timeout: 15_000, label: 'the Sap reminder card' }).catch(() => null);
 
     // ⚠ EVERY no-GM whisper, not the first: damage speaks for the target, mastery for the chip.
+    // Soft: no whisper is §told's failure.
     await until(() => game.messages.contents.filter(m => !before.has(m.id))
       .some(m => (m.whisper ?? []).includes(game.user.id)
-        && /no gm is connected/i.test(m.content ?? '')), 8_000);
+        && /no gm is connected/i.test(m.content ?? '')), { timeout: 8_000, label: 'a no-GM whisper' }).catch(() => null);
     const whispers = game.messages.contents
       .filter(m => !before.has(m.id) && (m.whisper ?? []).includes(game.user.id)
         && /no gm is connected/i.test(m.content ?? ''))
@@ -272,12 +276,7 @@ try {
    * they roll the save, and ending concentration is a write to their own actor. */
   if (want('conc')) {
     const conc = await player.evaluate(async modId => {
-      const sleep = ms => new Promise(r => setTimeout(r, ms));
-      const until = async (fn, ms = 15_000) => {
-        const t0 = Date.now();
-        while (Date.now() - t0 < ms) { const v = fn(); if (v) return v; await sleep(200); }
-        return fn();
-      };
+      const { until } = window.__btb;
       const pc = game.actors.getName('BTB Test PC Attacker');
       if (!pc) return { error: 'no PC fixture' };
       // ⚠ This page has no retired-key shim (no connectSuite): read only the ten real settings.
@@ -293,7 +292,10 @@ try {
           statuses: ['concentrating'],
           flags: { dnd5e: { item: { name: 'BTB NoGM Focus' } } }
         }]);
-        await sleep(400);
+        // The effect and dnd5e's concentration record of it, both read below. Soft: the error below and the
+        // precondition ok name what is missing.
+        await until(() => pc.effects.some(e => e.name === 'BTB NoGM Concentration') && ((pc.concentration?.effects?.size ?? 0) > 0),
+          { timeout: 2000, label: 'the seeded concentration effect' }).catch(() => null);
         const eff = pc.effects.find(e => e.name === 'BTB NoGM Concentration');
         if (!eff) return { error: 'could not seed a concentration effect' };
         const concentrating = (pc.concentration?.effects?.size ?? 0) > 0;
@@ -302,8 +304,9 @@ try {
         const before = new Set(game.messages.contents.map(m => m.id));
         const hp = pc.system.attributes.hp;
         await pc.update({ 'system.attributes.hp.value': Math.max(1, hp.value - 5) });
+        // Soft: no ask is §conc's failure (askPosted).
         const ask = await until(() => game.messages.contents.filter(m => !before.has(m.id))
-          .find(m => m.getFlag(modId, 'concentration')?.actorUuid === pc.uuid) ?? null, 12_000);
+          .find(m => m.getFlag(modId, 'concentration')?.actorUuid === pc.uuid) ?? null, { timeout: 12_000, label: 'the concentration ask' }).catch(() => null);
 
         return {
           concentrating,
@@ -344,6 +347,7 @@ try {
     console.log('[nogm] §spent: a GM plants a Vexed chip, then leaves…');
     const planter = new Foundry(foundryConfig(env));
     await planter.connect();
+    await installPrelude(planter);
     const planted = await planter.evaluate(async ({ modId, weaponUuid }) => {
       const victim = game.actors.getName('BTB Test Victim');
       const scene = game.scenes.getName('By the Books Test Range');
@@ -365,22 +369,17 @@ try {
     } else {
       // The player page's errors, so a swing that finds no dialog says WHY.
       const errorsBefore = pageErrors.length;
+      // A wait that throws in here fails §spent by name (the catch at its end) and the sweeper still runs.
       const spent = await player.evaluate(async ({ modId, chipId, tokenId, weaponUuid }) => {
-        const sleep = ms => new Promise(r => setTimeout(r, ms));
-        const until = async (fn, ms = 15_000) => {
-          const t0 = Date.now();
-          while (Date.now() - t0 < ms) { const v = fn(); if (v) return v; await sleep(200); }
-          return fn();
-        };
+        const { until, watch } = window.__btb;
         const log = [];
-        // The planter must be GONE and the chip replicated here.
-        const noGM = await until(() => !game.users.activeGM, 20_000);
+        // The planter must be GONE and the chip replicated here. Soft: the errors below name each.
+        const noGM = await until(() => !game.users.activeGM, { timeout: 20_000, label: 'the planter gone' }).catch(() => false);
         const token = canvas.tokens.get(tokenId);
-        const chip = await until(() => token?.actor?.effects?.get(chipId), 10_000);
+        const chip = await until(() => token?.actor?.effects?.get(chipId), { timeout: 10_000, label: 'the planted chip on the player client' }).catch(() => null);
         if (!noGM) return { error: `a GM is still active: ${game.users.activeGM?.name}` };
         if (!chip) return { error: 'the planted chip never reached the player' };
-        token.setTarget(true, { releaseOthers: true });
-        await sleep(100);
+        token.setTarget(true, { releaseOthers: true });   // synchronous: the swing reads game.user.targets
         const weapon = await fromUuid(weaponUuid);
         const activity = weapon?.system?.activities?.find(a => a.type === 'attack');
         if (!activity) return { error: 'the weapon has no attack activity' };
@@ -399,8 +398,7 @@ try {
         const buttonSwing = async () => {
           const use = await activity.use({ subsequentActions: false }, { configure: false }, {});
           const usageId = use?.message?.id ?? null;
-          const li = await until(() => document.querySelector(`.message[data-message-id="${usageId}"]`), 5000);
-          if (!li) throw new Error('the usage card never reached the DOM');
+          const li = await until(() => document.querySelector(`.message[data-message-id="${usageId}"]`), { timeout: 5000, label: 'the usage card in the DOM' });
           const event = { target: li.querySelector('button[data-action="rollAttack"]') ?? li, clientY: 200,
             altKey: false, ctrlKey: false, metaKey: false, shiftKey: false };
           const attacksBefore = game.messages.contents.filter(m => m.type === 'attack').length;
@@ -413,13 +411,14 @@ try {
 
         // Swing 1: the gate lists the Vex; press Advantage; the spend is RECORDED and the chip stays.
         const first = await buttonSwing();
-        const gate1 = await until(gateOpen, 8000);
+        const gate1 = await until(gateOpen, { timeout: 8000, label: 'the gate on the first swing' });
         const text1 = (gate1?.element?.querySelector('[data-bf-reminder]')?.textContent ?? '').replace(/\s+/g, ' ');
         gate1?.element?.querySelector('button[data-action="advantage"]')?.click();
-        const msg1 = await until(() => { const m = lastAttack(); return (m && (m._source.system?.origin === first.usageId)) ? m : null; }, 8000);
-        const record = await until(() => game.messages.get(msg1?.id ?? '')?.getFlag(modId, 'chipSpend')?.spent?.find(s => s.id === chipId) ?? null, 8000);
-        await sleep(1500);
-        const chipStillThere = !!token.actor.effects.get(chipId);
+        const msg1 = await until(() => { const m = lastAttack(); return (m && (m._source.system?.origin === first.usageId)) ? m : null; }, { timeout: 8000, label: "the first swing's attack card" });
+        const record = await until(() => game.messages.get(msg1.id)?.getFlag(modId, 'chipSpend')?.spent?.find(s => s.id === chipId) ?? null, { timeout: 8000, label: 'the spend recorded on the attack card' });
+        // ⚠ A window: a delete of the chip the player cannot make lands within it.
+        const chipGone = await watch(() => !token.actor.effects.get(chipId), { ms: 1500 });
+        const chipStillThere = !chipGone && !!token.actor.effects.get(chipId);
         const system1 = systemOpen();
         log.push(`swing 1: gate=${!!gate1} system=${system1} record=${JSON.stringify(record)} chipStillThere=${chipStillThere}`
           + ` attackMsg=${!!msg1} dialogs=${[...foundry.applications.instances.values()].filter(a => /Dialog/.test(a.constructor?.name ?? '')).map(a => a.constructor.name).join('|')}`);
@@ -427,7 +426,8 @@ try {
         // and closeAll closes only the roll dialogs, so its buzzer stayed armed. Its deadline fell after
         // §rejoin's GM connected, the buzzer rolled a fresh damage, and the GM rightly paid it: a Sapped
         // chip and a second notice read as a rejoin re-pay. #8's fix answered §runs' offer, not this one.
-        const offer1 = await until(liveOffer, 3000);
+        // Soft: a swing that opened no offer leaves nothing armed.
+        const offer1 = await until(liveOffer, { timeout: 3000, label: "the first swing's damage offer" }).catch(() => null);
         if (offer1) {
           offer1.querySelector('button[data-action="roll"]')?.click();
           log.push('swing 1 hit: answered its damage offer (Roll), so no buzzer is left armed for §rejoin');
@@ -436,26 +436,34 @@ try {
 
         // Swing 2: the same chip must NOT be offered again — nothing else bends, so the SYSTEM's own dialog opens.
         await buttonSwing();
-        const system2 = await until(systemOpen, 6000);
-        await sleep(300);
+        const attackDialog = await until(() => rollDialogs().find(app => /AttackRollConfigurationDialog/.test(app.constructor?.name ?? '')),
+          { timeout: 6000, label: "the system's own attack dialog on the second swing" });
+        const system2 = !!attackDialog;
+        // The gate rides on the dialog's options from preRoll and is drawn at render only when it has a source
+        // (reminders.js): the wait is the gate drawn, or none to draw.
+        await until(() => { const g = attackDialog?.options?.bfReminder; return !attackDialog || !g || !((g.sources?.length > 0) || g.sneak) || attackDialog.element?.querySelector('[data-bf-reminder]'); },
+          { label: 'the gate drawn in the roll dialog' });
         const gate2 = gateOpen();
         const text2 = (gate2?.element?.querySelector('[data-bf-reminder]')?.textContent ?? '').replace(/\s+/g, ' ');
         await closeAll();
         // ⚠ Let the swing's consequences LAND (damage, then no-GM whispers) before returning, or they
         // become §cast's: wait for the log to go quiet, not a fixed beat.
-        { const t0 = Date.now(); let last = game.messages.size, quietSince = Date.now();
-          while ((Date.now() - t0 < 10_000) && (Date.now() - quietSince < 1500)) {
-            await sleep(200);
+        // Soft: past ten seconds of a busy log the run goes on, as it always has.
+        { let last = game.messages.size, quietSince = Date.now();
+          await until(() => {
             if (game.messages.size !== last) { last = game.messages.size; quietSince = Date.now(); }
-          } }
+            return (Date.now() - quietSince) >= 1500;
+          }, { timeout: 10_000, every: 200, label: 'the log quiet for 1.5 s' }).catch(() => null); }
         return { log, gate1: !!gate1, text1: text1.slice(0, 200), record, chipStillThere,
           gate2: !!gate2, text2: text2.slice(0, 200), system2, whisperedStays: game.messages.contents.some(m =>
             (m.whisper ?? []).includes(game.user.id) && /records the spend/i.test(m.content ?? '')) };
-      }, { modId: MOD, chipId: planted.chipId, tokenId: planted.tokenId, weaponUuid: hit.weaponUuid });
+      }, { modId: MOD, chipId: planted.chipId, tokenId: planted.tokenId, weaponUuid: hit.weaponUuid })
+        .catch(err => ({ error: `threw — ${String(err?.message ?? err).slice(0, 400)}` }));
 
       // The planted chip is the GM's to remove — reconnect just long enough to take it back.
       const sweeper = new Foundry(foundryConfig(env));
       await sweeper.connect();
+      await installPrelude(sweeper);
       await sweeper.evaluate(async ({ modId, actorUuid }) => {
         const actor = await fromUuid(actorUuid);
         const ids = (actor?.effects ?? []).filter(e => e.getFlag(modId, 'mastery') === 'vex').map(e => e.id);
@@ -486,12 +494,7 @@ try {
    * or whispered. The driver table in ARCHITECTURE §3 is the contract. */
   if (want('cast')) {
     const cast = await player.evaluate(async modId => {
-      const sleep = ms => new Promise(r => setTimeout(r, ms));
-      const until = async (fn, ms = 12_000) => {
-        const t0 = Date.now();
-        while (Date.now() - t0 < ms) { const v = fn(); if (v) return v; await sleep(200); }
-        return fn();
-      };
+      const { until, watch } = window.__btb;
       const pc = game.actors.getName('BTB Test PC Attacker');
       if (!pc) return { error: 'no PC fixture' };
       const EFF = 'bfnogmfavor00000';
@@ -525,17 +528,19 @@ try {
         }]);
         const activity = [...item.system.activities].find(a => a.type === 'utility');
         if (!activity) return { error: 'the fixture spell has no utility activity' };
-        game.user.targets.forEach(t => { t.setTarget(false, { releaseOthers: false }); });
-        await sleep(100);
+        game.user.targets.forEach(t => { t.setTarget(false, { releaseOthers: false }); });   // synchronous
         const use = await activity.use({}, { configure: false }, {});
         if (use === undefined) return { error: 'the fixture cast was refused' };
+        // The card must come for §cast to mean anything; a throw lands in this body's catch.
         const card = await until(() => game.messages.contents.filter(m => !before.has(m.id))
-          .find(m => m.getFlag(modId, 'castApply')) ?? null, 12_000);
-        const done = await until(() => (card?.getFlag(modId, 'effectReceipt')?.castDone ? card : null), 12_000);
-        await sleep(300);
-        const chip = pc.effects.find(e => e.name === 'BTB NoGM Favored') ?? null;
-        const whispers = game.messages.contents.filter(m => !before.has(m.id)
-          && (m.whisper ?? []).includes(game.user.id) && /no gm is connected/i.test(m.content ?? ''))
+          .find(m => m.getFlag(modId, 'castApply')) ?? null, { timeout: 12_000, label: 'the cast card stamped castApply' });
+        // Soft: no castDone, and no chip, are §cast's own failures; the receipt and whisper oks still read.
+        const done = await until(() => (card.getFlag(modId, 'effectReceipt')?.castDone ? card : null), { timeout: 12_000, label: 'the receipt marks the cast done' }).catch(() => null);
+        const chip = await until(() => pc.effects.find(e => e.name === 'BTB NoGM Favored'), { timeout: 2000, label: "the effect on the caster's sheet" }).catch(() => null);
+        const noGmWhispers = () => game.messages.contents.filter(m => !before.has(m.id)
+          && (m.whisper ?? []).includes(game.user.id) && /no gm is connected/i.test(m.content ?? ''));
+        // ⚠ A window: a whisper for a write that was degraded shows within it.
+        const whispers = ((await watch(() => { const w = noGmWhispers(); return w.length ? w : null; }, { ms: 300 })) ?? [])
           .map(m => (m.content ?? '').replace(/<[^>]+>/g, '').trim());
         return {
           pcUuid: pc.uuid,
@@ -588,17 +593,18 @@ try {
     // fresh damage at its deadline, and with the GM back that roll is rightly paid — which this section
     // would misread as a re-pay. Answer any still open, let the log go quiet, then count.
     const preRejoin = await player.evaluate(async ({ modId, beforeIds }) => {
-      const sleep = ms => new Promise(r => setTimeout(r, ms));
+      const { until } = window.__btb;
       const before = new Set(beforeIds);
       const open = [...foundry.applications.instances.values()]
         .filter(a => a.rendered && a.element && (a.element.innerHTML ?? '').includes('Damage — your roll'));
       for (const a of open) a.element.querySelector('button[data-action="roll"]')?.click();
       if (open.length) {
-        const t0 = Date.now(); let last = game.messages.size, quietSince = Date.now();
-        while ((Date.now() - t0 < 10_000) && (Date.now() - quietSince < 1500)) {
-          await sleep(200);
+        // Soft: past ten seconds of a busy log the run goes on, as it always has.
+        let last = game.messages.size, quietSince = Date.now();
+        await until(() => {
           if (game.messages.size !== last) { last = game.messages.size; quietSince = Date.now(); }
-        }
+          return (Date.now() - quietSince) >= 1500;
+        }, { timeout: 10_000, every: 200, label: 'the log quiet for 1.5 s' }).catch(() => null);
       }
       return { answered: open.length,
         count: game.messages.contents.filter(m => !before.has(m.id) && (m.getFlag(modId, 'masteryNotice')?.key === 'sap')).length };
@@ -608,19 +614,26 @@ try {
     });
     gm = new Foundry(foundryConfig(env));
     await gm.connect();
-    // Give the GM's client time to render the log and run every resume path it owns.
-    await new Promise(r => setTimeout(r, 6000));
-    const after = await gm.evaluate(async ({ modId, noticeId, beforeIds, attackId, damageId }) => {
+    await installPrelude(gm);
+    const after = await gm.evaluate(async ({ modId, noticeId, beforeIds, attackId, damageId, preRejoin }) => {
+      const { watch } = window.__btb;
       const before = new Set(beforeIds);
-      const notice = game.messages.get(noticeId);
-      const notices = game.messages.contents
+      const sapNotices = () => game.messages.contents
         .filter(m => !before.has(m.id) && (m.getFlag(modId, 'masteryNotice')?.key === 'sap')).length;
       // A GM re-running the payout would also land the Sapped chip late.
       const victim = game.actors.getName('BTB Test Victim');
       const scene = game.scenes.getName('By the Books Test Range');
       const tok = scene?.tokens.find(t => t.actorId === victim?.id);
-      const chips = (tok?.actor?.effects ?? [])
-        .filter(e => e.getFlag(modId, 'mastery') === 'sap').length;
+      const sapChips = () => (tok?.actor?.effects ?? []).filter(e => e.getFlag(modId, 'mastery') === 'sap').length;
+      // ⚠ Two windows, each its whole length: the GM's client renders the log and runs every resume path it
+      // owns, and neither a new reminder nor a late chip may land within them.
+      const [strayNotice, strayChip] = await Promise.all([
+        watch(() => sapNotices() !== preRejoin, { ms: 6000 }),
+        watch(() => sapChips() > 0, { ms: 6000 })
+      ]);
+      const notice = game.messages.get(noticeId);
+      const notices = sapNotices();
+      const chips = sapChips();
       // Diagnostics: the flags the resume paths judged, on the run's attack and damage messages.
       const flagsOf = id => { const m = game.messages.get(id); return m ? { type: m.type, flags: m.flags?.[modId] ?? null } : null; };
       const lateNotices = game.messages.contents
@@ -628,7 +641,7 @@ try {
         .map(m => ({ id: m.id, author: m.author?.name ?? null, ts: m.timestamp }));
       return {
         activeGM: game.users.activeGM?.name ?? null,
-        noticeStillThere: !!notice, sapNotices: notices, chips,
+        noticeStillThere: !!notice, sapNotices: notices, chips, strayNotice: !!strayNotice, strayChip: !!strayChip,
         diag: { now: Date.now(), attack: flagsOf(attackId), damage: flagsOf(damageId), notices: lateNotices,
           chips: (tok?.actor?.effects ?? []).filter(e => e.getFlag(modId, 'mastery') === 'sap')
             .map(e => ({ id: e.id, origin: e.origin, created: e._stats?.createdTime, by: game.users.get(e._stats?.lastModifiedBy)?.name ?? e._stats?.lastModifiedBy, flags: e.flags?.[modId] })),
@@ -636,16 +649,16 @@ try {
             author: m.author?.name ?? null, ts: m.timestamp, attackFor: m.getFlag(modId, 'attackFor') ?? m._source.system?.origin ?? null,
             receipt: m.getFlag(modId, 'effectReceipt') })) }
       };
-    }, { modId: MOD, noticeId: hit.noticeId, beforeIds: hit.beforeIds, attackId: hit.attackId, damageId: hit.damageId });
+    }, { modId: MOD, noticeId: hit.noticeId, beforeIds: hit.beforeIds, attackId: hit.attackId, damageId: hit.damageId, preRejoin });
     console.log(`[nogm] rejoin diag: ${JSON.stringify(after.diag)}`);
 
     ok('§rejoin a GM really did reconnect', !!after.activeGM, `activeGM=${after.activeGM}`);
     // ⚠ THE DOUBLE-PAYOUT GUARD: the GM's render-resume paths must recognise finished work.
     ok('§rejoin the rejoining GM adds no new reminder — the run\'s count is unchanged',
-      after.sapNotices === preRejoin,
-      `sap notices during the run: at §hit=${hit.sapNotices} before rejoin=${preRejoin} after=${after.sapNotices}`);
+      (after.sapNotices === preRejoin) && !after.strayNotice,
+      `sap notices during the run: at §hit=${hit.sapNotices} before rejoin=${preRejoin} after=${after.sapNotices} stray=${after.strayNotice}`);
     ok('§rejoin …and no chip lands late — the resume never re-pays the payout',
-      after.chips === 0, `sapped chips on the victim=${after.chips}`);
+      (after.chips === 0) && !after.strayChip, `sapped chips on the victim=${after.chips} stray=${after.strayChip}`);
     ok('§rejoin the original card survives the rejoin', after.noticeStillThere,
       `notice present=${after.noticeStillThere}`);
   }

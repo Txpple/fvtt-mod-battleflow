@@ -1363,10 +1363,16 @@ an added die, a reaction that moves AC):
 2. Does it need `game`, `canvas`, a document or the DOM? → a live suite, and then it must join
    an existing **section** or declare a new one (`SECTIONS` + `DEPENDS` at the head of the file),
    so it can be run alone by `--section`.
-3. **Never `sleep()` for a thing you can wait for.** Use the suite's `until()` and wait on
-   **what the next assertion reads** (the card, the banner and the rendered line arrive
-   separately). ⚠ A sleep that gives a WRONG behaviour time to appear is load-bearing: keep it,
-   and say so in a comment beside it.
+3. **Never `sleep()` for a thing you can wait for.** Every wait is the prelude's
+   ([tools/prelude.mjs](tools/prelude.mjs), `window.__btb`, installed by the harness before any
+   suite body): `until()` on **what the next assertion reads** (the card, the banner and the
+   rendered line arrive separately), which THROWS with its label when the thing never comes, and
+   `section(id, fn)` so that throw fails one section by name. A window in which a WRONG behaviour
+   must not appear is `watch(test, { ms })` on that behaviour. A bare `sleep` is left only for a
+   module clock (a decision timer, a buzzer, a module's own setTimeout window) and carries a
+   `clock:` comment naming it. `npm run harness` ([check-harness.mjs](tools/check-harness.mjs))
+   holds it: no suite on the prelude defines its own sleep, poll, `ok`, `want`, settings
+   snapshot or dice rigging, and each suite's bare waits stay under a ceiling that only goes down.
 4. The full live battery of 2026-09-23 ran 30 rows in 62 minutes (`battery.mjs`). Without rule
    1, test time grows in lockstep with feature count forever.
 5. **A change runs its own suites, not the battery (2026-09-23, user ruling).** Every live suite

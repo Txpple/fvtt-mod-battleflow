@@ -55,16 +55,8 @@ announcePlan('splat', plan, pulled);
 
 const out = await f.evaluate(async ({ sections, titles }) => {
   const MOD = 'fvtt-mod-bythebooks';
-  const results = [];
-  const log = [];
-  const skips = [];
-  const ok = (name, pass, detail = '') => results.push({ name, pass, detail });
-  const want = id => {
-    if (!sections || sections.includes(String(id))) return true;
-    skips.push(`§${id} ${titles?.[id] ?? ''}`);
-    return false;
-  };
-  const sleep = ms => new Promise(r => setTimeout(r, ms));
+  const { until, watch, canvasReady, tokenOn, snapshotSettings, faces, unrig } = window.__btb;
+  const { results, log, skips, ok, want, section } = window.__btb.begin({ sections, titles });
   const suiteStart = Date.now();
   const errors = [];
   const realError = console.error;
@@ -77,8 +69,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
 
   const SETTING_KEYS = ['autoDamage', 'autoApply', 'playerRollDamage', 'damageTimer', 'dramaticBeat', 'requireTarget',
     'reactionHold', 'holdTimer', 'holdReveal', 'holdSkipFutile', 'riders', 'effectRiders', 'masteryRiders', 'masteryAsk', 'castApply', 'concMode', 'saveRolls', 'decisionTimer'];
-  const prior = Object.fromEntries(SETTING_KEYS.map(k => [k, game.settings.get(MOD, k)]));
-  const set = (k, v) => game.settings.set(MOD, k, v);
+  const settings = snapshotSettings(SETTING_KEYS);
+  const { set } = settings;
 
   const scene = game.scenes.getName('By the Books Test Range');
   const attacker = game.actors.getName('BTB Test Attacker');
@@ -92,12 +84,6 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   const priorActor = {};
   const keep = (actor, data) => { priorActor[actor.id] = { ...data, ...(priorActor[actor.id] ?? {}) }; };
   let restored = false;
-  const realPRNG = CONFIG.Dice.randomUniform;
-  const faces = spec => {
-    const queue = spec.map(([n, of]) => 1 - ((n - 0.5) / of));
-    let i = 0;
-    CONFIG.Dice.randomUniform = () => queue[Math.min(i++, queue.length - 1)];
-  };
   // ⚠ Never the UI singletons (smoke-classes' lesson): a text match on "every rendered app" once closed the chat log.
   const popups = () => [...foundry.applications.instances.values()].filter(app => app.rendered && !Object.entries(ui).some(([k, v]) => (k !== 'activeWindow') && (v === app)));
   const titleOf = app => String(app?.title ?? app?.options?.window?.title ?? '');
@@ -113,11 +99,10 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   const teardown = async () => {
     if (restored) return;
     restored = true;
-    CONFIG.Dice.randomUniform = realPRNG;
+    unrig();
     console.error = realError;
     if (errors.length) log.push(`console errors: ${JSON.stringify(errors.slice(0, 6))}`);
-    try { for (const [k, v] of Object.entries(prior)) await set(k, v); }
-    catch (err) { log.push(`TEARDOWN settings ERROR: ${err?.message}`); }
+    for (const failed of await settings.restore()) log.push(`TEARDOWN settings ERROR: ${failed}`);
     try {
       await closeOurs();
       for (const id of created.combats) { const c = game.combats.get(id); if (c) await c.delete(); }
@@ -184,14 +169,14 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     const PHB = 'Compendium.dnd-players-handbook.equipment.Item.';
 
     if (canvas.scene?.id !== scene.id) await scene.view();
-    for (let i = 0; i < 40 && !canvas.ready; i++) await sleep(250);
+    await canvasReady();
     const strays = scene.tokens.filter(t => t.actorLink && [attacker.id, halfling.id, pcAttacker.id, victim.id].includes(t.actorId)).map(t => t.id);
     if (strays.length) await scene.deleteEmbeddedDocuments('Token', strays);
     const placeToken = async (actor, x, y, disposition) => {
       const [doc] = await scene.createEmbeddedDocuments('Token', [
         foundry.utils.mergeObject(actor.prototypeToken.toObject(), { x, y, actorId: actor.id, actorLink: true, disposition }, { inplace: false })]);
       created.tokens.push(doc.id);
-      for (let i = 0; i < 40 && !(canvas.ready && canvas.tokens.get(doc.id)); i++) await sleep(250);
+      await tokenOn(doc.id);
       const token = canvas.tokens.get(doc.id);
       if (!token) throw new Error(`${actor.name}'s token never reached the canvas`);
       return { doc, token };
@@ -203,11 +188,6 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     const { token: victimToken } = await placeToken(victim, 1500, 1500, -1);
 
     // ---- helpers
-    const waitFor = async (test, timeout = 8000) => {
-      const until = Date.now() + timeout;
-      while (Date.now() < until) { const v = test(); if (v) return v; await sleep(200); }
-      return test();
-    };
     const since = (t, key) => game.messages.contents.filter(m => (m.timestamp >= t) && m.getFlag(MOD, key));
     const clearTargets = () => game.user.targets.forEach(t => { t.setTarget(false, { releaseOthers: true }); });
     const hp = actor => Number(actor.system.attributes.hp.value);
@@ -217,23 +197,24 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     const hitBox = (offer, key) => offer?.element?.querySelector(`input[name="bf-hit"][value="${key}"]`) ?? null;
     const hitRow = (offer, key) => textOf(offer?.element?.querySelector(`[data-bf-hit-row="${key}"]`));
     const groupText = (offer, key) => textOf(offer?.element?.querySelector(`div[data-bf-hit-group="${key}"]`));
-    const tick = async (offer, ...keys) => { for (const k of keys) { hitBox(offer, k)?.click(); await sleep(60); } };
-    const rollOffer = (offer, msg) => { offer?.element?.querySelector('button[data-action="roll"]')?.click(); return waitFor(() => { const d = damageFor(msg?.id); return d?.getFlag(MOD, 'receipt') ? d : null; }, 12000); };
+    // a box's change handler runs inside the click: the pick is recorded when it returns
+    const tick = (offer, ...keys) => { for (const k of keys) hitBox(offer, k)?.click(); };
+    const rollOffer = (offer, msg) => { offer?.element?.querySelector('button[data-action="roll"]')?.click(); return until(() => { const d = damageFor(msg?.id); return d?.getFlag(MOD, 'receipt') ? d : null; }, { timeout: 12000 }); };
     const attackOf = (actor, w) => actor.items.get(w.id).system.activities.find(a => a.type === 'attack');
     /** `token` attacks `target` with `activity`, the d20 pinned to `face` (a second d20 if the gate adds one); the attack message and any new damage offer. */
     const strike = async (token, activity, target, face = 19, { offerWait = 4000 } = {}) => {
       token.control({ releaseOthers: true });
       target.setTarget(true, { releaseOthers: true });
-      await sleep(80);
       const before = new Set(popups());
       faces([[face, 20], [face, 20], [3, 6], [3, 6], [3, 6]]);
       const usage = await activity.use({ subsequentActions: false }, { configure: false }, {});
       const rolls = await activity.rollAttack({}, { configure: false }, usage?.message?.id ? { data: { 'system.origin': usage.message.id } } : {});
       const msg = rolls?.[0]?.parent ?? null;
-      const offer = await waitFor(() => offerApp(before), offerWait);
+      // the offer opens only for a hit with a pick to make: no offer within the wait is an answer (the damage rolls alone)
+      const offer = await until(() => offerApp(before), { timeout: offerWait, label: 'the damage offer' }).catch(() => null);
       return { msg, offer };
     };
-    const settleDamage = msg => waitFor(() => { const d = damageFor(msg?.id); return d?.getFlag(MOD, 'receipt') ? d : null; }, 12000);
+    const settleDamage = msg => until(() => { const d = damageFor(msg?.id); return d?.getFlag(MOD, 'receipt') ? d : null; }, { timeout: 12000 });
     const saveCardFor = (key, t) => game.messages.contents.find(m => (m.timestamp >= t) && (m.getFlag(MOD, 'hitManeuverCard')?.key === key)) ?? null;
     const outcomeOn = (card, actor) => card?.getFlag(MOD, 'saves')?.targets?.find(x => x.uuid === actor.uuid)?.outcome ?? null;
     const rebukePopup = () => popups().find(app => /^Reaction — /.test(titleOf(app))) ?? null;
@@ -257,7 +238,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     const refillLuck = async () => { for (const [id, spent] of priorLuck) await halfling.items.get(id)?.update({ 'system.uses.spent': spent }).catch(() => {}); };
 
     // ---- 1. The Survivor collision
-    if (want(1)) {
+    if (want(1)) await section(1, async () => {
       const t0 = Date.now();
       const rav = await lendUuid(halfling, 'Compendium.dnd-ravenloft-horrors-within.options.Item.rhwSurvivor2zrM3');
       let combat = null;
@@ -270,32 +251,36 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           combat = c; created.combats.push(c.id);
           await c.createEmbeddedDocuments('Combatant', [{ tokenId: halflingToken.document.id, sceneId: scene.id, actorId: halfling.id, initiative: 20 }]);
           await c.startCombat();
-          await sleep(2000);
+          // the window for a WRONG Heroic Rally at the turn start: its heal, or its card
+          const rally = await watch(() => ((hp(halfling) !== 150) || since(t0, 'turnGrant').some(m => m.getFlag(MOD, 'turnGrant')?.row === 'Heroic Rally'))
+            ? `hp=${hp(halfling)} cards=${since(t0, 'turnGrant').length}` : null, { ms: 2000 });
           ok('1b. the Bloodied turn start pays NO Heroic Rally (150 of 400 stays 150, no turnGrant card for the row)',
-            (hp(halfling) === 150) && !since(t0, 'turnGrant').some(m => m.getFlag(MOD, 'turnGrant')?.row === 'Heroic Rally'), `hp=${hp(halfling)} cards=${since(t0, 'turnGrant').length}`);
+            !rally && (hp(halfling) === 150) && !since(t0, 'turnGrant').some(m => m.getFlag(MOD, 'turnGrant')?.row === 'Heroic Rally'),
+            `hp=${hp(halfling)} cards=${since(t0, 'turnGrant').length} rally=${rally}`);
           await c.delete(); combat = null;
           await halfling.update({ 'system.attributes.hp.value': 0, 'system.attributes.hp.temp': 0, 'system.attributes.death.success': 0, 'system.attributes.death.failure': 0 });
           faces([[18, 20], [18, 20]]);
           const rolls = await halfling.rollDeathSave({}, { configure: false }, {});
-          CONFIG.Dice.randomUniform = realPRNG;
+          unrig();
           const r0 = rolls?.[0];
-          await sleep(1200);
+          // the window for a WRONG critical success: its 1 Hit Point landing
+          const rose = await watch(() => (hp(halfling) !== 0) ? `hp=${hp(halfling)}` : null, { ms: 1200 });
           // dnd5e's own death-save threshold is 20; Defy Death would have lowered it to 18.
           ok('1c. a Death Saving Throw of 18 is an ordinary success — no Defy Death (no critical, the threshold the platform\'s 20, 0 Hit Points still)',
-            !!r0 && (r0.isCritical !== true) && !(Number(r0.options?.criticalSuccess) < 20) && (hp(halfling) === 0),
-            `critical=${r0?.isCritical} threshold=${r0?.options?.criticalSuccess} hp=${hp(halfling)}`);
+            !rose && !!r0 && (r0.isCritical !== true) && !(Number(r0.options?.criticalSuccess) < 20) && (hp(halfling) === 0),
+            `critical=${r0?.isCritical} threshold=${r0?.options?.criticalSuccess} hp=${hp(halfling)} rose=${rose}`);
         }
       } finally {
         if (combat && game.combats.get(combat.id)) await combat.delete();
         for (const e of halfling.effects.filter(e => ['Dead', 'Unconscious'].includes(e.name))) await e.delete().catch(() => {});
         await halfling.update({ 'system.attributes.hp.value': 400, 'system.attributes.hp.temp': 0, 'system.attributes.death.success': 0, 'system.attributes.death.failure': 0 }).catch(() => {});
         if (rav) await unlend(halfling, rav);
-        CONFIG.Dice.randomUniform = realPRNG; clearTargets();
+        unrig(); clearTargets();
       }
-    }
+    });
 
     // ---- 2. Arcane Shot
-    if (want(2)) {
+    if (want(2)) await section(2, async () => {
       const shot = await lendUuid(pcAttacker, `${AUN}aunArcaneShot000`, { 'system.uses.max': '2', 'system.uses.spent': 0 });
       const beguile = await lendUuid(pcAttacker, `${AUN}aunBeguilingShot`);
       const burst = await lendUuid(pcAttacker, `${AUN}aunBurstingShot0`);
@@ -321,19 +306,18 @@ const out = await f.evaluate(async ({ sections, titles }) => {
             { tokenId: pcToken.document.id, sceneId: scene.id, actorId: pcAttacker.id, initiative: 20 },
             { tokenId: victimToken.document.id, sceneId: scene.id, actorId: victim.id, initiative: 10 }]);
           await c.startCombat();
-          await sleep(500);
+          await until(() => c.started && (c.combatant?.actorId === pcAttacker.id), { label: 'the PC Attacker\'s turn' });
           const t1 = Date.now();
           const r1 = await strike(pcToken, attackOf(pcAttacker, bow), victimToken);
           ok('2a. a Longbow hit opens the damage offer with the group "Arcane Shot" (2 uses left), Beguiling Shot and Bursting Shot rows',
             !!r1.offer && !!hitBox(r1.offer, 'beguiling-shot') && !!hitBox(r1.offer, 'bursting-shot') && /2 (of 2 )?uses left/.test(groupText(r1.offer, 'arcane-shot')),
             `offer=${!!r1.offer} group="${groupText(r1.offer, 'arcane-shot').slice(0, 160)}" row="${hitRow(r1.offer, 'beguiling-shot')}"`);
-          await tick(r1.offer, 'beguiling-shot');
+          tick(r1.offer, 'beguiling-shot');
           await rollOffer(r1.offer, r1.msg);
-          const card = await waitFor(() => { const k = saveCardFor('beguiling-shot', t1); return outcomeOn(k, victim) ? k : null; }, 12000);
+          const card = await until(() => { const k = saveCardFor('beguiling-shot', t1); return outcomeOn(k, victim) ? k : null; }, { timeout: 12000 });
           const isCharmed = () => victim.effects.some(e => e.active && (e.statuses?.has?.('charmed') || /Beguiling Shot/.test(e.name)));
-          await waitFor(isCharmed, 6000);
-          await sleep(400);
-          const charmed = isCharmed();
+          const charmed = await until(isCharmed, { timeout: 6000, label: 'Charmed on the Victim' });
+          await until(() => spent() > 0, { label: 'an Arcane Shot use spent' });
           ok('2b. Beguiling Shot ticked: the Wisdom save demanded at the Victim and FAILED, Charmed landed, ONE Arcane Shot use spent',
             !!card && (outcomeOn(card, victim) === 'failed') && charmed && (spent() === 1),
             `card=${!!card} outcome=${outcomeOn(card, victim)} charmed=${charmed} spent=${spent()} fx=${JSON.stringify(victim.effects.map(e => e.name))} saves=${JSON.stringify(card?.getFlag(MOD, 'saves') ?? null).slice(0, 500)} receipt=${JSON.stringify(card?.getFlag(MOD, 'effectReceipt') ?? null).slice(0, 300)}`);
@@ -342,10 +326,13 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           // or, with another pick on the sheet, the group's rows read "used this turn". Either way no second use is spent.
           const greyed = !r2.offer || (/used this turn/.test(hitRow(r2.offer, 'beguiling-shot')) && /used this turn/.test(hitRow(r2.offer, 'bursting-shot')));
           if (r2.offer) await rollOffer(r2.offer, r2.msg); else await settleDamage(r2.msg);
-          await sleep(500);
+          // the window for a WRONG second use spent
+          const spentAgain = await watch(() => (spent() !== 1) ? `spent=${spent()}` : null, { ms: 500 });
           ok('2c. a second Longbow hit this turn: the group is spent for the turn (no offer, or its rows "used this turn" — one chit for the whole group); the uses stay at 1 spent',
-            greyed && (spent() === 1), `offer=${!!r2.offer} rows="${hitRow(r2.offer, 'beguiling-shot')}" / "${hitRow(r2.offer, 'bursting-shot')}" spent=${spent()}`);
-          await c.nextRound(); await sleep(400);
+            !spentAgain && greyed && (spent() === 1), `offer=${!!r2.offer} rows="${hitRow(r2.offer, 'beguiling-shot')}" / "${hitRow(r2.offer, 'bursting-shot')}" spent=${spent()} spentAgain=${spentAgain}`);
+          const round = c.round;
+          await c.nextRound();
+          await until(() => c.round > round, { label: 'the next round' });
           const r3 = await strike(pcToken, attackOf(pcAttacker, sword), victimToken, 19, { offerWait: 2500 });
           ok('2d. a Longsword hit (melee, no Ammunition): no Arcane Shot group',
             !r3.offer || (!hitBox(r3.offer, 'beguiling-shot') && !hitBox(r3.offer, 'bursting-shot')), `offer=${!!r3.offer}`);
@@ -358,12 +345,12 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         if (fx.length) await victim.deleteEmbeddedDocuments('ActiveEffect', fx).catch(() => {});
         await victim.update({ 'system.attributes.hp.value': 400, 'system.abilities.wis.save.roll.bonus': priorActor[victim.id]['system.abilities.wis.save.roll.bonus'] }).catch(() => {});
         for (const it of [shot, beguile, burst, bow, sword]) if (it) await unlend(pcAttacker, it);
-        CONFIG.Dice.randomUniform = realPRNG; clearTargets();
+        unrig(); clearTargets();
       }
-    }
+    });
 
     // ---- 3. Harvest Undead — the Bloodied moment
-    if (want(3)) {
+    if (want(3)) await section(3, async () => {
       const harvest = await lendUuid(halfling, `${AUN}aunHarvestUndead`);
       try {
         if (!harvest) log.push('§3 skipped: no Harvest Undead');
@@ -372,33 +359,34 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           const t0 = Date.now();
           const r0 = await strike(attackerToken, attackOf(attacker, hWeapon), halflingToken, 19, { offerWait: 2500 });
           if (r0.offer) await rollOffer(r0.offer, r0.msg); else await settleDamage(r0.msg);
-          await sleep(1200);
-          ok('3a. a hit at 400 of 400 (not Bloodied after): no Harvest Undead rebuke', !rebukeCards(t0, halfling).length && (hp(halfling) < 400) && (hp(halfling) > 200),
-            `hp=${hp(halfling)} cards=${rebukeCards(t0, halfling).length}`);
+          // the window for a WRONG rebuke card
+          const wrong = await watch(() => rebukeCards(t0, halfling).length || null, { ms: 1200 });
+          ok('3a. a hit at 400 of 400 (not Bloodied after): no Harvest Undead rebuke', !wrong && !rebukeCards(t0, halfling).length && (hp(halfling) < 400) && (hp(halfling) > 200),
+            `hp=${hp(halfling)} cards=${rebukeCards(t0, halfling).length} seen=${wrong}`);
           await closeOurs();
           await halfling.update({ 'system.attributes.hp.value': 201, 'system.attributes.hp.temp': 0 });
           const t1 = Date.now();
           const r1 = await strike(attackerToken, attackOf(attacker, hWeapon), halflingToken, 19, { offerWait: 2500 });
           if (r1.offer) await rollOffer(r1.offer, r1.msg); else await settleDamage(r1.msg);
-          const card = await waitFor(() => rebukeCards(t1, halfling)[0] ?? null, 8000);
+          const card = await until(() => rebukeCards(t1, halfling)[0] ?? null, { timeout: 8000 });
           const flag = card?.getFlag(MOD, 'rebuke');
           ok('3b. the hit that takes the Halfling to half or fewer: the rebuke card offers "Harvest Undead" (a Reaction, aimed at nobody)',
             !!card && (flag?.status === 'pending') && (flag.options ?? []).some(o => o.name === 'Harvest Undead') && (hp(halfling) <= 200) && (hp(halfling) > 0),
             `hp=${hp(halfling)} options=${JSON.stringify(flag?.options?.map(o => o.name) ?? null)}`);
-          const pop = await waitFor(rebukePopup, 5000);
+          const pop = await until(rebukePopup, { timeout: 5000 });
           pop?.element?.querySelector('button[data-action="pass"]')?.click();
-          await sleep(300);
+          await until(() => card?.getFlag(MOD, 'rebuke')?.status === 'resolved', { label: 'the rebuke passed' });
         }
       } finally {
         await closeOurs();
         await halfling.update({ 'system.attributes.hp.value': 400, 'system.attributes.hp.temp': 0 }).catch(() => {});
         if (harvest) await unlend(halfling, harvest);
-        CONFIG.Dice.randomUniform = realPRNG; clearTargets();
+        unrig(); clearTargets();
       }
-    }
+    });
 
     // ---- 4. Instinctive Charm
-    if (want(4)) {
+    if (want(4)) await section(4, async () => {
       const charm = await lendUuid(halfling, `${AUN}aunInstinctiveCh`, { 'system.uses.max': '1', 'system.uses.spent': 0 });
       try {
         if (!charm) log.push('§4 skipped: no Instinctive Charm');
@@ -408,16 +396,17 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           const t0 = Date.now();
           const r0 = await strike(attackerToken, attackOf(attacker, hWeapon), halflingToken, 19, { offerWait: 2500 });
           if (r0.offer) await rollOffer(r0.offer, r0.msg); else await settleDamage(r0.msg);
-          const card = await waitFor(() => rebukeCards(t0, halfling)[0] ?? null, 8000);
+          const card = await until(() => rebukeCards(t0, halfling)[0] ?? null, { timeout: 8000 });
           const flag = card?.getFlag(MOD, 'rebuke');
           const idx = (flag?.options ?? []).findIndex(o => o.name === 'Instinctive Charm');
           ok('4a. the Attacker\'s hit 5 ft away offers the rebuke "Instinctive Charm" (within 30 ft, a use left)',
             !!card && (idx >= 0) && (flag.distance <= 30), `options=${JSON.stringify(flag?.options?.map(o => [o.name, o.reach, o.cost]) ?? null)} distance=${flag?.distance}`);
-          const pop = await waitFor(rebukePopup, 5000);
+          const pop = await until(rebukePopup, { timeout: 5000 });
           pop?.element?.querySelector(`button[data-action="use-${Math.max(idx, 0)}"]`)?.click();
-          const demanded = await waitFor(() => game.messages.contents.find(m => (m.timestamp >= t0) && m.getFlag(MOD, 'saves')?.targets?.some(x => x.uuid === attacker.uuid)) ?? null, 10000);
-          await waitFor(() => outcomeOn(demanded, attacker), 10000);
-          await sleep(500);
+          const demanded = await until(() => game.messages.contents.find(m => (m.timestamp >= t0) && m.getFlag(MOD, 'saves')?.targets?.some(x => x.uuid === attacker.uuid)) ?? null, { timeout: 10000 });
+          await until(() => outcomeOn(demanded, attacker), { timeout: 10000 });
+          // a use the module spends by hand lands after the use's own card
+          await until(() => Number(halfling.items.get(charm.id)?.system?.uses?.spent ?? 0) === 1, { label: 'the Instinctive Charm use spent' });
           ok('4b. Use: the Wisdom save demanded of the ATTACKER through the saves machine (it fails); the use spent',
             !!demanded && (outcomeOn(demanded, attacker) === 'failed') && (Number(halfling.items.get(charm.id)?.system?.uses?.spent ?? 0) === 1),
             `card=${!!demanded} outcome=${outcomeOn(demanded, attacker)} spent=${halfling.items.get(charm.id)?.system?.uses?.spent}`);
@@ -427,12 +416,12 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         await attacker.update({ 'system.abilities.wis.save.roll.bonus': priorActor[attacker.id]['system.abilities.wis.save.roll.bonus'] }).catch(() => {});
         await halfling.update({ 'system.attributes.hp.value': 400, 'system.attributes.hp.temp': 0 }).catch(() => {});
         if (charm) await unlend(halfling, charm);
-        CONFIG.Dice.randomUniform = realPRNG; clearTargets();
+        unrig(); clearTargets();
       }
-    }
+    });
 
     // ---- 5. Ever-Ready Shot
-    if (want(5)) {
+    if (want(5)) await section(5, async () => {
       const shot = await lendUuid(pcAttacker, `${AUN}aunArcaneShot000`, { 'system.uses.max': '3', 'system.uses.spent': 2 });
       const ready = await lendUuid(pcAttacker, `${AUN}aunEverreadyShot`);
       let combat = null;
@@ -446,14 +435,14 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           const pcC = c.combatants.find(x => x.actorId === pcAttacker.id);
           const t0 = Date.now();
           await c.setInitiative(pcC.id, 15);
-          const card = await waitFor(() => since(t0, 'initiativeGrant').find(m => m.getFlag(MOD, 'initiativeGrant')?.row === 'Ever-Ready Shot') ?? null, 8000);
-          const pop = await waitFor(() => titled(/^Ever-Ready Shot — /), 6000);
+          const card = await until(() => since(t0, 'initiativeGrant').find(m => m.getFlag(MOD, 'initiativeGrant')?.row === 'Ever-Ready Shot') ?? null, { timeout: 8000 });
+          const pop = await until(() => titled(/^Ever-Ready Shot — /), { timeout: 6000 });
           ok('5a. the PC Attacker\'s Initiative asks "Ever-Ready Shot — use it now?" (1 of 3 Arcane Shot uses left)',
             !!card && (card.getFlag(MOD, 'initiativeGrant')?.status === 'pending') && !!pop && (card.getFlag(MOD, 'initiativeGrant')?.back === 1),
             `card=${!!card} pop=${!!pop} flag=${JSON.stringify(card?.getFlag(MOD, 'initiativeGrant') ?? null).slice(0, 300)}`);
           pop?.element?.querySelector('button[data-action="yes"]')?.click();
-          const done = await waitFor(() => card?.getFlag(MOD, 'initiativeGrant')?.applied ? card : null, 8000);
-          await sleep(300);
+          // `applied` is written after the uses move: what 5b reads is in place when it is set
+          const done = await until(() => card?.getFlag(MOD, 'initiativeGrant')?.applied ? card : null, { timeout: 8000 });
           ok('5b. Yes: ONE use back — Arcane Shot at 2 of 3 (spent 1), the record says 1 regained',
             !!done && (spent() === 1) && (Number(done.getFlag(MOD, 'initiativeGrant')?.regained) === 1),
             `spent=${spent()} record=${JSON.stringify(done?.getFlag(MOD, 'initiativeGrant') ?? null).slice(0, 300)}`);
@@ -462,9 +451,9 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         await closeOurs();
         if (combat && game.combats.get(combat.id)) await combat.delete();
         for (const it of [shot, ready]) if (it) await unlend(pcAttacker, it);
-        CONFIG.Dice.randomUniform = realPRNG; clearTargets();
+        unrig(); clearTargets();
       }
-    }
+    });
 
     // ==== HEROES OF FAERÛN ====
     const HOF = 'Compendium.dnd-heroes-faerun.options.Item.';
@@ -475,12 +464,12 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     };
 
     // ---- 6. Bloodthirst — the Bloodied moment, watched
-    if (want(6)) {
+    if (want(6)) await section(6, async () => {
       const thirst = await lendUuid(halfling, `${HOF}hofSotBloodthirs`, { 'system.uses.max': '2', 'system.uses.spent': 0 });
       const sword = await lendUuid(pcAttacker, `${PHB}phbwepLongsword0`);
       // The Halfling 10 ft from the Victim (two squares east), on the PC Attacker's side: the Victim is its enemy.
       await halflingToken.document.update({ x: 1700, y: 1500 });
-      await sleep(300);
+      await until(() => (halflingToken.document.x === 1700) && (halflingToken.document.y === 1500), { label: 'the Halfling 10 ft from the Victim' });
       try {
         if (!thirst || !sword) log.push(`§6 skipped: thirst=${!!thirst} sword=${!!sword}`);
         else {
@@ -488,22 +477,24 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           const t0 = Date.now();
           const r0 = await strike(pcToken, attackOf(pcAttacker, sword), victimToken, 19, { offerWait: 2500 });
           if (r0.offer) await rollOffer(r0.offer, r0.msg); else await settleDamage(r0.msg);
-          await sleep(1200);
-          ok('6a. a hit that leaves the Victim above half: no Bloodthirst card for the Halfling', !rebukeCards(t0, halfling).length && (hp(victim) > 200), `hp=${hp(victim)} cards=${rebukeCards(t0, halfling).length}`);
+          // the window for a WRONG Bloodthirst card
+          const wrong = await watch(() => rebukeCards(t0, halfling).length || null, { ms: 1200 });
+          ok('6a. a hit that leaves the Victim above half: no Bloodthirst card for the Halfling', !wrong && !rebukeCards(t0, halfling).length && (hp(victim) > 200), `hp=${hp(victim)} cards=${rebukeCards(t0, halfling).length} seen=${wrong}`);
           await closeOurs();
           await victim.update({ 'system.attributes.hp.value': 201, 'system.attributes.hp.temp': 0 });
           const t1 = Date.now();
           const r1 = await strike(pcToken, attackOf(pcAttacker, sword), victimToken, 19, { offerWait: 2500 });
           if (r1.offer) await rollOffer(r1.offer, r1.msg); else await settleDamage(r1.msg);
-          const card = await waitFor(() => rebukeCards(t1, halfling)[0] ?? null, 8000);
+          const card = await until(() => rebukeCards(t1, halfling)[0] ?? null, { timeout: 8000 });
           const flag = card?.getFlag(MOD, 'rebuke');
           ok('6b. the hit that makes the Victim Bloodied: the Halfling\'s rebuke card "BTB Test Victim is Bloodied" offers Bloodthirst (the Victim its target, 10 ft)',
             !!card && flag?.watch && (flag.sourceUuid === victim.uuid) && (flag.options ?? []).some(o => o.name === 'Bloodthirst') && (flag.distance === 10) && (hp(victim) <= 200) && (hp(victim) > 0),
             `hp=${hp(victim)} flag=${JSON.stringify(flag ?? null).slice(0, 300)}`);
-          const pop = await waitFor(rebukePopup, 5000);
+          const pop = await until(rebukePopup, { timeout: 5000 });
           pop?.element?.querySelector('button[data-action="use-0"]')?.click();
-          await waitFor(() => card?.getFlag(MOD, 'rebuke')?.answer === 'use', 6000);
-          await sleep(600);
+          await until(() => card?.getFlag(MOD, 'rebuke')?.answer === 'use', { timeout: 6000 });
+          // the answer is written first; the use (and its spend) is driven after it
+          await until(() => Number(halfling.items.get(thirst.id)?.system?.uses?.spent ?? 0) === 1, { label: 'the Bloodthirst use spent' });
           ok('6c. Use: the answer recorded, a Bloodthirst use spent', (card?.getFlag(MOD, 'rebuke')?.answer === 'use') && (Number(halfling.items.get(thirst.id)?.system?.uses?.spent ?? 0) === 1),
             `answer=${card?.getFlag(MOD, 'rebuke')?.answer} spent=${halfling.items.get(thirst.id)?.system?.uses?.spent}`);
         }
@@ -513,12 +504,12 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         await victim.update({ 'system.attributes.hp.value': 400 }).catch(() => {});
         if (thirst) await unlend(halfling, thirst);
         if (sword) await unlend(pcAttacker, sword);
-        CONFIG.Dice.randomUniform = realPRNG; clearTargets();
+        unrig(); clearTargets();
       }
-    }
+    });
 
     // ---- 7. Elemental Rebuke
-    if (want(7)) {
+    if (want(7)) await section(7, async () => {
       const rebuke = await lendUuid(halfling, `${HOF}hofOngElementalR`, { 'system.uses.max': '1', 'system.uses.spent': 0 });
       try {
         if (!rebuke) log.push('§7 skipped: no Elemental Rebuke');
@@ -530,26 +521,25 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           const t0 = Date.now();
           attackerToken.control({ releaseOthers: true });
           halflingToken.setTarget(true, { releaseOthers: true });
-          await sleep(80);
           faces([[19, 20], [4, 6], [4, 6], [4, 6]]);
           const act = attackOf(attacker, hWeapon);
           const usage = await act.use({ subsequentActions: false }, { configure: false }, {});
           const rolls = await act.rollAttack({}, { configure: false }, usage?.message?.id ? { data: { 'system.origin': usage.message.id } } : {});
           const msg = rolls?.[0]?.parent ?? null;
-          CONFIG.Dice.randomUniform = realPRNG;
-          const hold = await waitFor(() => holdOf(msg), 6000);
-          const pop = await waitFor(() => popups().find(app => /Elemental Rebuke/.test(textOf(app.element))
-            && (app.element?.querySelector?.('input[name="bf-rescue"][value="Elemental Rebuke"]') || app.element?.querySelector?.('button[data-action="cast"]'))) ?? null, 8000);
+          unrig();
+          const hold = await until(() => holdOf(msg), { timeout: 6000 });
+          const pop = await until(() => popups().find(app => /Elemental Rebuke/.test(textOf(app.element))
+            && (app.element?.querySelector?.('input[name="bf-rescue"][value="Elemental Rebuke"]') || app.element?.querySelector?.('button[data-action="cast"]'))) ?? null, { timeout: 8000 });
           ok('7a. the Attacker hits the Halfling: the hold and the Halfling\'s popup with Elemental Rebuke', !!hold && !!pop && (hold.targets?.[0]?.uuid === halfling.uuid), `hold=${!!hold} pop=${!!pop}`);
           const box = pop?.element?.querySelector('input[name="bf-rescue"][value="Elemental Rebuke"]');
-          if (box) { if (!box.checked) box.click(); await sleep(50); pop.element.querySelector('button[data-action="answer"]')?.click(); }
+          if (box) { if (!box.checked) box.click(); pop.element.querySelector('button[data-action="answer"]')?.click(); }
           else pop?.element?.querySelector('button[data-action="cast"]')?.click();
-          const target = await waitFor(() => { const h = holdOf(msg); return (h?.status === 'resolved') ? (h.targets.find(x => x.uuid === halfling.uuid) ?? null) : null; }, 12000);
-          const dmg = await waitFor(() => { const d = damageFor(msg?.id); const r = d?.getFlag(MOD, 'receipt')?.targets?.find(x => x.uuid === halfling.uuid); return r ? { d, r } : null; }, 12000);
-          const saveCard = await waitFor(() => game.messages.contents.find(m => (m.timestamp >= t0) && m.getFlag(MOD, 'saves')?.targets?.some(x => x.uuid === attacker.uuid)) ?? null, 12000);
-          await waitFor(() => outcomeOn(saveCard, attacker), 12000);
-          await waitFor(() => hp(attacker) < atkHp, 8000);
-          await sleep(400);
+          const target = await until(() => { const h = holdOf(msg); return (h?.status === 'resolved') ? (h.targets.find(x => x.uuid === halfling.uuid) ?? null) : null; }, { timeout: 12000 });
+          const dmg = await until(() => { const d = damageFor(msg?.id); const r = d?.getFlag(MOD, 'receipt')?.targets?.find(x => x.uuid === halfling.uuid); return r ? { d, r } : null; }, { timeout: 12000 });
+          const saveCard = await until(() => game.messages.contents.find(m => (m.timestamp >= t0) && m.getFlag(MOD, 'saves')?.targets?.some(x => x.uuid === attacker.uuid)) ?? null, { timeout: 12000 });
+          await until(() => outcomeOn(saveCard, attacker), { timeout: 12000 });
+          await until(() => hp(attacker) < atkHp, { timeout: 8000 });
+          await until(() => Number(halfling.items.get(rebuke.id)?.system?.uses?.spent) === 1, { label: 'the Elemental Rebuke use spent' });
           ok('7b. Cast: the damage HALVED on the receipt, the use spent, the Rebuke\'s Dexterity save demanded of the Attacker — failed, its own damage lands on the Attacker',
             (target?.answer === 'cast') && (dmg?.r?.multiplier === 0.5) && (Number(halfling.items.get(rebuke.id)?.system?.uses?.spent) === 1)
               && (outcomeOn(saveCard, attacker) === 'failed') && (hp(attacker) < atkHp),
@@ -564,19 +554,19 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         const dead = attacker.effects.filter(e => e.statuses?.has?.('dead') || e.statuses?.has?.('unconscious')).map(e => e.id);
         if (dead.length) await attacker.deleteEmbeddedDocuments('ActiveEffect', dead).catch(() => {});
         if (rebuke) await unlend(halfling, rebuke);
-        CONFIG.Dice.randomUniform = realPRNG; clearTargets();
+        unrig(); clearTargets();
       }
-    }
+    });
 
     // ---- 8. Shared Resilience
-    if (want(8)) {
+    if (want(8)) await section(8, async () => {
       const shared = await lendUuid(pcAttacker, `${HOF}hofPdkSharedResi`);
       const indomitable = await lendUuid(pcAttacker, 'Compendium.dnd-players-handbook.classes.Item.phbftrIndomitabl', { 'system.uses.max': '2', 'system.uses.spent': 0 });
       const fighter = await lendUuid(pcAttacker, 'Compendium.dnd-players-handbook.classes.Item.phbftrFighter000', { 'system.levels': 15 });
       let combat = null;
       // The Halfling beside the fighter (10 ft), its save a demanded one: the Attacker casts at it.
       await halflingToken.document.update({ x: 1600, y: 1500 });
-      await sleep(300);
+      await until(() => (halflingToken.document.x === 1600) && (halflingToken.document.y === 1500), { label: 'the Halfling 10 ft from the fighter' });
       const spentIndom = () => Number(pcAttacker.items.get(indomitable?.id)?.system?.uses?.spent ?? NaN);
       try {
         if (!shared || !indomitable || !fighter) log.push(`§8 skipped: shared=${!!shared} indomitable=${!!indomitable} fighter=${!!fighter}`);
@@ -591,7 +581,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
             { tokenId: halflingToken.document.id, sceneId: scene.id, actorId: halfling.id, initiative: 15 },
             { tokenId: pcToken.document.id, sceneId: scene.id, actorId: pcAttacker.id, initiative: 10 }]);
           await c.startCombat();
-          await sleep(400);
+          await until(() => c.started && (c.combatant?.actorId === attacker.id), { label: 'the Attacker\'s turn' });
           // The Attacker lent Hold Person (at will): the Halfling fails its Wisdom save.
           const hold = await lendUuid(attacker, 'Compendium.dnd-players-handbook.spells.Item.phbsplHoldPerson', { 'system.prepared': 1, 'system.method': 'atwill' });
           // -8, not -30: the margin gate asks only when a reroll CAN turn the verdict (a 1 - 8 fails DC 10; 15 + 15 - 8 passes).
@@ -600,15 +590,14 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           const saveAct = hold?.system?.activities?.find(a => a.type === 'save');
           attackerToken.control({ releaseOthers: true });
           halflingToken.setTarget(true, { releaseOthers: true });
-          await sleep(100);
           const use = await saveAct?.use({ consume: { spellSlot: false } }, { configure: false }, {});
           const card = use?.message ?? null;
-          await waitFor(() => card?.getFlag(MOD, 'saves'), 6000);
+          await until(() => card?.getFlag(MOD, 'saves'), { timeout: 6000 });
           // The demanded save rolled by the Halfling (saveRolls prompt): a 1 — it fails; the fighter is asked before the verdict.
           faces([[1, 20]]);
           const rolls = await halfling.rollSavingThrow({ ability: 'wis' }, { configure: false }, {});
           const rolled = rolls?.[0]?.parent ?? null;
-          const pop = await waitFor(() => popups().find(app => /Shared Resilience/.test(textOf(app.element)) && app.element?.querySelector?.('button[data-action="answer"]')) ?? null, 8000);
+          const pop = await until(() => popups().find(app => /Shared Resilience/.test(textOf(app.element)) && app.element?.querySelector?.('button[data-action="answer"]')) ?? null, { timeout: 8000 });
           const bflag = rolled?.getFlag(MOD, 'bystanderRoll');
           const { poolOf } = await import('/modules/fvtt-mod-bythebooks/scripts/shared.js');
           const { bystanderRows } = await import('/modules/fvtt-mod-bythebooks/scripts/lookup.js');
@@ -619,12 +608,12 @@ const out = await f.evaluate(async ({ sections, titles }) => {
             `card=${!!card} pop=${!!pop} guards=${JSON.stringify(bflag?.guards?.map(g => [g.row, g.name]) ?? null)} text="${textOf(pop?.element).slice(0, 200)}" ${debug}`);
           faces([[15, 20]]);   // the reroll's d20
           const guardBox = [...(pop?.element?.querySelectorAll?.('input[name="bf-bystander-roll"]') ?? [])][0] ?? null;
-          if (guardBox && !guardBox.checked) { guardBox.click(); await sleep(50); }
+          if (guardBox && !guardBox.checked) guardBox.click();
           pop?.element?.querySelector('button[data-action="answer"]')?.click();
-          const done = await waitFor(() => (rolled?.getFlag(MOD, 'bystanderRoll')?.status === 'resolved') ? rolled.getFlag(MOD, 'bystanderRoll') : null, 12000);
-          const rerollMsg = await waitFor(() => game.messages.contents.find(m => (m.timestamp >= t0) && (m.getFlag(MOD, 'respondsTo') === rolled?.id)) ?? null, 8000);
-          CONFIG.Dice.randomUniform = realPRNG;
-          await sleep(500);
+          const done = await until(() => (rolled?.getFlag(MOD, 'bystanderRoll')?.status === 'resolved') ? rolled.getFlag(MOD, 'bystanderRoll') : null, { timeout: 12000 });
+          const rerollMsg = await until(() => game.messages.contents.find(m => (m.timestamp >= t0) && (m.getFlag(MOD, 'respondsTo') === rolled?.id)) ?? null, { timeout: 8000 });
+          unrig();
+          // the Indomitable use is spent and the reroll posted before the answer is written
           const bent = done?.bent ?? null;
           ok('8b. Answer: the Halfling\'s d20 rerolled (15) with "+ 15" (the fighter\'s level) in the flavor and the total, an Indomitable use spent',
             !!done && (done.answer === 'roll') && (bent?.how === 'reroll') && !!rerollMsg && /\+ 15/.test(rerollMsg.flavor ?? '') && (Number(bent?.total) >= 15 + 15 - 8) && (spentIndom() === 1),
@@ -641,12 +630,12 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         const fx = halfling.effects.filter(e => /Paralyzed|Hold Person/.test(e.name) || e.statuses?.has?.('paralyzed')).map(e => e.id);
         if (fx.length) await halfling.deleteEmbeddedDocuments('ActiveEffect', fx).catch(() => {});
         for (const it of [shared, indomitable, fighter]) if (it) await unlend(pcAttacker, it);
-        CONFIG.Dice.randomUniform = realPRNG; clearTargets();
+        unrig(); clearTargets();
       }
-    }
+    });
 
     // ---- 9. Frigid Explorer — Polar Strikes and Biting Cold
-    if (want(9)) {
+    if (want(9)) await section(9, async () => {
       const frigid = await lendUuid(pcAttacker, `${HOF}hofWiwFrigidExpl`);
       // Polar Strike's die is the Winter Walker's scale value (@scale.frigid-explorer.die) — the lent feature has no subclass
       // behind it, so the part is pinned to the level-3 die by hand: 1d4 cold.
@@ -663,8 +652,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           const box = r0.offer?.element?.querySelector('input[name="bf-rider"][value="frigid-explorer-polar-strikes"]');
           ok('9a. a Longsword hit: the offer\'s TICKED row "Polar Strikes — 1d4 cold"', !!r0.offer && !!row && !!box?.checked && /Polar Strikes/.test(textOf(row)) && /1d4/.test(textOf(row)),
             `offer=${!!r0.offer} row="${textOf(row)}" ticked=${box?.checked}`);
+          // the receipt is written after the damage lands: the Hit Points are in place
           const dmg = await rollOffer(r0.offer, r0.msg);
-          await sleep(400);
           const receipt = dmg?.getFlag(MOD, 'receipt')?.targets?.find(t => t.uuid === victim.uuid);
           // A rolled part's type sits in `options.type` or `options.types` (a rider's part); the receipt's parts say what landed.
           const typesOf = r => [...(r.options?.types ?? []), r.options?.type].filter(Boolean);
@@ -680,12 +669,12 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         await closeOurs();
         await victim.update({ 'system.attributes.hp.value': 400, 'system.traits.dr.value': priorActor[victim.id]['system.traits.dr.value'] }).catch(() => {});
         for (const it of [frigid, sword]) if (it) await unlend(pcAttacker, it);
-        CONFIG.Dice.randomUniform = realPRNG; clearTargets();
+        unrig(); clearTargets();
       }
-    }
+    });
 
     // ---- 10. Chilling Retribution
-    if (want(10)) {
+    if (want(10)) await section(10, async () => {
       const chill = await lendUuid(halfling, `${HOF}hofWiwChillingRe`, { 'system.uses.max': '1', 'system.uses.spent': 0 });
       try {
         if (!chill) log.push('§10 skipped: no Chilling Retribution');
@@ -695,15 +684,15 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           const t0 = Date.now();
           const r0 = await strike(attackerToken, attackOf(attacker, hWeapon), halflingToken, 19, { offerWait: 2500 });
           if (r0.offer) await rollOffer(r0.offer, r0.msg); else await settleDamage(r0.msg);
-          const card = await waitFor(() => rebukeCards(t0, halfling)[0] ?? null, 8000);
+          const card = await until(() => rebukeCards(t0, halfling)[0] ?? null, { timeout: 8000 });
           const flag = card?.getFlag(MOD, 'rebuke');
           const idx = (flag?.options ?? []).findIndex(o => o.name === 'Chilling Retribution');
           ok('10a. the Attacker\'s hit offers the rebuke "Chilling Retribution"', !!card && (idx >= 0), `options=${JSON.stringify(flag?.options?.map(o => o.name) ?? null)}`);
-          const pop = await waitFor(rebukePopup, 5000);
+          const pop = await until(rebukePopup, { timeout: 5000 });
           pop?.element?.querySelector(`button[data-action="use-${Math.max(idx, 0)}"]`)?.click();
-          const demanded = await waitFor(() => game.messages.contents.find(m => (m.timestamp >= t0) && m.getFlag(MOD, 'saves')?.targets?.some(x => x.uuid === attacker.uuid)) ?? null, 10000);
-          await waitFor(() => outcomeOn(demanded, attacker), 10000);
-          const stunned = await waitFor(() => attacker.effects.some(e => e.active && (e.statuses?.has?.('stunned') || /Chilled/.test(e.name))), 6000);
+          const demanded = await until(() => game.messages.contents.find(m => (m.timestamp >= t0) && m.getFlag(MOD, 'saves')?.targets?.some(x => x.uuid === attacker.uuid)) ?? null, { timeout: 10000 });
+          await until(() => outcomeOn(demanded, attacker), { timeout: 10000 });
+          const stunned = await until(() => attacker.effects.some(e => e.active && (e.statuses?.has?.('stunned') || /Chilled/.test(e.name))), { timeout: 6000 });
           ok('10b. Use: the Attacker\'s Wisdom save demanded and failed — Stunned (Chilled) lands on the Attacker, the use spent',
             !!demanded && (outcomeOn(demanded, attacker) === 'failed') && !!stunned && (Number(halfling.items.get(chill.id)?.system?.uses?.spent ?? 0) === 1),
             `card=${!!demanded} outcome=${outcomeOn(demanded, attacker)} stunned=${!!stunned} fx=${JSON.stringify(attacker.effects.map(e => e.name))}`);
@@ -715,9 +704,9 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         await attacker.update({ 'system.abilities.wis.save.roll.bonus': priorActor[attacker.id]['system.abilities.wis.save.roll.bonus'] }).catch(() => {});
         await halfling.update({ 'system.attributes.hp.value': 400, 'system.attributes.hp.temp': 0 }).catch(() => {});
         if (chill) await unlend(halfling, chill);
-        CONFIG.Dice.randomUniform = realPRNG; clearTargets();
+        unrig(); clearTargets();
       }
-    }
+    });
 
     // ==== RAVENLOFT: THE HORRORS WITHIN ====
     const RHW = 'Compendium.dnd-ravenloft-horrors-within.options.Item.';
@@ -733,10 +722,11 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       lentBy.set(actor, [...(lentBy.get(actor) ?? []), item.id]);
       return actor.items.get(item.id);
     };
-    const setStatus = async (actor, id, active) => { if (actor.statuses.has(id) !== active) await actor.toggleStatusEffect(id, { active }); await sleep(200); };
+    // the toggle resolves once its effect is created or deleted, the actor's statuses with it
+    const setStatus = async (actor, id, active) => { if (actor.statuses.has(id) !== active) await actor.toggleStatusEffect(id, { active }); };
 
     // ---- 11. The mishaps — a 1 on the d20
-    if (want(11)) {
+    if (want(11)) await section(11, async () => {
       const gift = await lendUuid(halfling, `${RHW}rhwAberrantAnato`);
       try {
         if (!gift) log.push('§11 skipped: no Aberrant Anatomy on this box');
@@ -745,10 +735,10 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           const t0 = Date.now();
           faces([[1, 20], [15, 20]]);   // the test's 1, then the mishap save's 15
           await halfling.rollSavingThrow({ ability: 'dex' }, { configure: false }, {});
-          const card = await waitFor(() => game.messages.contents.find(m => (m.timestamp >= t0) && m.getFlag(MOD, 'mishap')) ?? null, 8000);
+          const card = await until(() => game.messages.contents.find(m => (m.timestamp >= t0) && m.getFlag(MOD, 'mishap')) ?? null, { timeout: 8000 });
           const mish = card?.getFlag(MOD, 'mishap');
-          const saves = await waitFor(() => card?.getFlag(MOD, 'saves') ?? null, 6000);
-          CONFIG.Dice.randomUniform = realPRNG;
+          const saves = await until(() => card?.getFlag(MOD, 'saves') ?? null, { timeout: 6000 });
+          unrig();
           ok('11a. a Dexterity save rolling a 1: Warping Flesh demanded of the Halfling — the mishap card names the test, a Constitution save at the pack\'s DC',
             !!card && (mish?.row === 'Aberrant Anatomy') && (mish?.face === 1) && /saving throw/.test(mish?.test ?? '') && !!saves && (saves.abilities?.[0] === 'con')
               && (Number(saves.dc) > 0) && !!saves.targets?.some(x => x.uuid === halfling.uuid),
@@ -756,21 +746,22 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           const t1 = Date.now();
           faces([[12, 20]]);
           await halfling.rollSavingThrow({ ability: 'dex' }, { configure: false }, {});
-          CONFIG.Dice.randomUniform = realPRNG;
-          await sleep(1500);
+          unrig();
+          // the window for a WRONG mishap card
+          const wrong = await watch(() => game.messages.contents.find(m => (m.timestamp >= t1) && m.getFlag(MOD, 'mishap')) ?? null, { ms: 1500 });
           const extra = game.messages.contents.filter(m => (m.timestamp >= t1) && m.getFlag(MOD, 'mishap')).length;
-          ok('11b. a save rolling a 12: no mishap', extra === 0, `cards=${extra}`);
+          ok('11b. a save rolling a 12: no mishap', !wrong && (extra === 0), `cards=${extra} seen=${!!wrong}`);
         }
       } finally {
         await closeOurs();
         for (const e of halfling.effects.filter(e => /Warping Flesh/.test(e.name) || e.statuses?.has?.('stunned'))) await e.delete().catch(() => {});
         if (gift) await unlend(halfling, gift);
-        CONFIG.Dice.randomUniform = realPRNG; clearTargets();
+        unrig(); clearTargets();
       }
-    }
+    });
 
     // ---- 12. Strength of the Grave — the drop held by the dice, the use spent on the success alone
-    if (want(12)) {
+    if (want(12)) await section(12, async () => {
       const power = await lendUuid(halfling, `${RHW}rhwSSPowerofShNG`, { 'system.uses.max': '1', 'system.uses.spent': 0 });
       keep(halfling, { 'system.abilities.cha.save.roll.bonus': halfling.system._source.abilities?.cha?.save?.roll?.bonus ?? '' });
       try {
@@ -783,8 +774,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
             const t0 = Date.now();
             const r0 = await strike(attackerToken, attackOf(attacker, hWeapon), halflingToken, 19, { offerWait: 2500 });
             if (r0.offer) await rollOffer(r0.offer, r0.msg); else await settleDamage(r0.msg);
-            const drop = await waitFor(() => since(t0, 'dropToOne').find(m => m.getFlag(MOD, 'dropToOne')?.row === 'Power of Shadow') ?? null, 10000);
-            await sleep(800);
+            // the save's card posts after its spend and its 0: what 12a/12b read is in place when it exists
+            const drop = await until(() => since(t0, 'dropToOne').find(m => m.getFlag(MOD, 'dropToOne')?.row === 'Power of Shadow') ?? null, { timeout: 10000 });
             return drop?.getFlag(MOD, 'dropToOne') ?? null;
           };
           const failed = await dropOnce('-30');
@@ -792,7 +783,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
             !!failed && (failed.answer === 'failed') && (failed.save?.ability === 'cha') && (hp(halfling) === 0) && (spent() === 0),
             `flag=${JSON.stringify(failed).slice(0, 240)} hp=${hp(halfling)} spent=${spent()}`);
           const saved = await dropOnce('+30');
-          await waitFor(() => spent() === 1, 6000);
+          await until(() => spent() === 1, { timeout: 6000 });
           ok('12b. the same drop, the save SUCCEEDS: the Halfling stays up (its Hit Points set to Cha + the sorcerer level — at least the held 1), the use spent',
             !!saved && (saved.answer === 'saved') && (hp(halfling) >= 1) && (spent() === 1),
             `flag=${JSON.stringify(saved).slice(0, 240)} hp=${hp(halfling)} spent=${spent()}`);
@@ -802,12 +793,12 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         for (const e of halfling.effects.filter(e => ['Dead', 'Unconscious'].includes(e.name))) await e.delete().catch(() => {});
         await halfling.update({ 'system.attributes.hp.value': 400, 'system.attributes.hp.temp': 0, 'system.abilities.cha.save.roll.bonus': priorActor[halfling.id]['system.abilities.cha.save.roll.bonus'] }).catch(() => {});
         if (power) await unlend(halfling, power);
-        CONFIG.Dice.randomUniform = realPRNG; clearTargets();
+        unrig(); clearTargets();
       }
-    }
+    });
 
     // ---- 13. Ominous Strikes — the Wisdom modifier against a Frightened target
-    if (want(13)) {
+    if (want(13)) await section(13, async () => {
       const might = await lendUuid(pcAttacker, `${RHW}rhwHWAncientMibA`);
       const sword = await lendUuid(pcAttacker, `${PHB}phbwepLongsword0`);
       keep(pcAttacker, { 'system.abilities.wis.value': pcAttacker.system._source.abilities?.wis?.value ?? 10 });
@@ -822,8 +813,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           ok('13a. a Longsword hit on the FRIGHTENED Victim: the offer\'s ticked row "Ominous Strikes — +3" (the Wisdom modifier, the weapon\'s type)',
             !!r0.offer && !!row && /Ominous Strikes/.test(textOf(row)) && /\+?3\b/.test(textOf(row)),
             `offer=${!!r0.offer} row="${textOf(row).slice(0, 160)}"`);
+          // the clockRiders record rides the damage message from its creation
           const dmg = await rollOffer(r0.offer, r0.msg);
-          await sleep(400);
           const rode = (dmg?.getFlag(MOD, 'clockRiders')?.riders ?? []).some(r => r.key === 'ancient-might-ominous-strikes');
           ok('13b. the +3 rides the damage (the clockRiders record names it)', !!dmg && rode, `dmg=${!!dmg} riders=${JSON.stringify(dmg?.getFlag(MOD, 'clockRiders')?.riders?.map(r => r.key) ?? null)}`);
           await setStatus(victim, 'frightened', false);
@@ -838,12 +829,12 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         await victim.update({ 'system.attributes.hp.value': 400 }).catch(() => {});
         await pcAttacker.update({ 'system.abilities.wis.value': priorActor[pcAttacker.id]['system.abilities.wis.value'] }).catch(() => {});
         for (const it of [might, sword]) if (it) await unlend(pcAttacker, it);
-        CONFIG.Dice.randomUniform = realPRNG; clearTargets();
+        unrig(); clearTargets();
       }
-    }
+    });
 
     // ---- 14. Hungering Might — the heal on the ranger's own hit while the form stands, Bloodied, once per turn
-    if (want(14)) {
+    if (want(14)) await section(14, async () => {
       const wrath = await lendUuid(pcAttacker, `${RHW}rhwHWWrathofth3C`);
       const sword = await lendUuid(pcAttacker, `${PHB}phbwepLongsword0`);
       keep(pcAttacker, { 'system.attributes.hp.value': pcAttacker.system._source.attributes.hp.value });
@@ -863,7 +854,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
               const data = template.toObject(); delete data._id;
               data.origin = transform?.uuid ?? item.uuid; data.disabled = false;
               await item.createEmbeddedDocuments('ActiveEffect', [data]);
-              await sleep(300);
+              await until(applied, { label: 'Ghastly Form applied' });
             }
           }
           const form = applied();
@@ -875,12 +866,12 @@ const out = await f.evaluate(async ({ sections, titles }) => {
             { tokenId: pcToken.document.id, sceneId: scene.id, actorId: pcAttacker.id, initiative: 20 },
             { tokenId: victimToken.document.id, sceneId: scene.id, actorId: victim.id, initiative: 10 }]);
           await c.startCombat();
-          await sleep(400);
+          await until(() => c.started && (c.combatant?.actorId === pcAttacker.id), { label: 'the PC Attacker\'s turn' });
           const t0 = Date.now();
           const r0 = await strike(pcToken, attackOf(pcAttacker, sword), victimToken);
           if (r0.offer) await rollOffer(r0.offer, r0.msg); else await settleDamage(r0.msg);
-          const heal = await waitFor(() => game.messages.contents.find(m => (m.timestamp >= t0) && m.getFlag(MOD, 'healOnHit')?.hit && (m.getFlag(MOD, 'healOnHit')?.casterUuid === pcAttacker.uuid)) ?? null, 8000);
-          await waitFor(() => hp(pcAttacker) > 5, 6000);
+          const heal = await until(() => game.messages.contents.find(m => (m.timestamp >= t0) && m.getFlag(MOD, 'healOnHit')?.hit && (m.getFlag(MOD, 'healOnHit')?.casterUuid === pcAttacker.uuid)) ?? null, { timeout: 8000 });
+          await until(() => hp(pcAttacker) > 5, { timeout: 6000 });
           const f = heal?.getFlag(MOD, 'healOnHit');
           ok('14a. Ghastly Form on, Bloodied: the Longsword hit heals the ranger 1d10 + Wis (the heal-on-hit card, the receipt on it)',
             !!form && !!heal && (f?.key === 'Wrath of the Wild') && (Number(f?.amount) > 0) && (hp(pcAttacker) === Math.min(20, 5 + Number(f?.amount))),
@@ -889,9 +880,11 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           const t1 = Date.now();
           const r1 = await strike(pcToken, attackOf(pcAttacker, sword), victimToken);
           if (r1.offer) await rollOffer(r1.offer, r1.msg); else await settleDamage(r1.msg);
-          await sleep(1500);
+          // the window for a WRONG second heal: its card, or the Hit Points moving
+          const wrong = await watch(() => (game.messages.contents.some(m => (m.timestamp >= t1) && m.getFlag(MOD, 'healOnHit')?.hit) || (hp(pcAttacker) !== before))
+            ? `hp=${hp(pcAttacker)}` : null, { ms: 1500 });
           const second = game.messages.contents.filter(m => (m.timestamp >= t1) && m.getFlag(MOD, 'healOnHit')?.hit).length;
-          ok('14b. a second hit the same turn: once per turn — no second heal, the Hit Points unchanged', (second === 0) && (hp(pcAttacker) === before), `cards=${second} hp=${before}→${hp(pcAttacker)}`);
+          ok('14b. a second hit the same turn: once per turn — no second heal, the Hit Points unchanged', !wrong && (second === 0) && (hp(pcAttacker) === before), `cards=${second} hp=${before}→${hp(pcAttacker)} seen=${wrong}`);
         }
       } finally {
         await closeOurs();
@@ -902,12 +895,12 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         await pcAttacker.update({ 'system.attributes.hp.value': priorActor[pcAttacker.id]['system.attributes.hp.value'] }).catch(() => {});
         await victim.update({ 'system.attributes.hp.value': 400 }).catch(() => {});
         for (const it of [wrath, sword]) if (it) await unlend(pcAttacker, it);
-        CONFIG.Dice.randomUniform = realPRNG; clearTargets();
+        unrig(); clearTargets();
       }
-    }
+    });
 
     // ---- 15. Terrorizer — Advantage against a Frightened target (the attack gate's bend)
-    if (want(15)) {
+    if (want(15)) await section(15, async () => {
       const terror = await lendTrait(attacker, 'Dullahan', 'Terrorizer');
       try {
         if (!terror) log.push('§15 skipped: no Terrorizer on this box');
@@ -919,18 +912,20 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           // section and presses its highlighted default, as a hand would (smoke-reminders' pattern).
           attackerToken.control({ releaseOthers: true });
           halflingToken.setTarget(true, { releaseOthers: true });
-          await sleep(80);
           faces([[19, 20], [19, 20], [3, 6], [3, 6], [3, 6]]);
           const act = attackOf(attacker, hWeapon);
           const usage = await act.use({ subsequentActions: false }, { configure: false }, {});
           const rolling = act.rollAttack({}, { configure: true }, usage?.message?.id ? { data: { 'system.origin': usage.message.id } } : {});
-          const dialog = await waitFor(() => [...foundry.applications.instances.values()].find(app => /RollConfigurationDialog/.test(app.constructor?.name ?? '') && app.rendered && app.element?.querySelector('[data-bf-reminder]')) ?? null, 6000);
+          const dialog = await until(() => [...foundry.applications.instances.values()].find(app => /RollConfigurationDialog/.test(app.constructor?.name ?? '') && app.rendered && app.element?.querySelector('[data-bf-reminder]')) ?? null, { timeout: 6000 });
           const gateText = textOf(dialog?.element?.querySelector('[data-bf-reminder]'));
           const def = dialog?.element?.querySelector('button[autofocus]')?.dataset?.action ?? null;
           ok('15a. the Attacker\'s attack on the FRIGHTENED Halfling: the gate opens with Terrorizer, Advantage the highlighted default',
             !!dialog && /Terrorizer/.test(gateText) && /Advantage/.test(gateText) && (def === 'advantage'), `dialog=${!!dialog} default=${def} text="${gateText.slice(0, 160)}"`);
           (dialog?.element?.querySelector('button[autofocus]') ?? dialog?.element?.querySelector('[data-application-part="buttons"] button[data-action="advantage"]'))?.click();
-          const rolls = await Promise.race([rolling, sleep(15000)]);
+          // the configured roll settles once the gate's button is pressed; one that never settles leaves no message to read
+          let settled = null;
+          rolling.then(r => { settled = { rolls: r }; }, () => { settled = { rolls: null }; });
+          const rolls = (await until(() => settled, { timeout: 15000, label: 'the configured attack roll' }).catch(() => null))?.rolls ?? null;
           const msg = rolls?.[0]?.parent ?? null;
           const r0 = { msg, offer: null };
           if (msg) await settleDamage(msg);
@@ -949,12 +944,12 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         await setStatus(halfling, 'frightened', false);
         await halfling.update({ 'system.attributes.hp.value': 400, 'system.attributes.hp.temp': 0 }).catch(() => {});
         if (terror) await unlend(attacker, terror);
-        CONFIG.Dice.randomUniform = realPRNG; clearTargets();
+        unrig(); clearTargets();
       }
-    }
+    });
 
     // ---- 16. Hypervigilance — the Initiative d20 of 9 or lower offered a reroll
-    if (want(16)) {
+    if (want(16)) await section(16, async () => {
       const surv = await lendUuid(pcAttacker, `${RHW}rhwSurvivor2zrM3`);
       let combat = null;
       try {
@@ -967,14 +962,14 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           const mod = Number(pcAttacker.system.attributes.init.total) || 0;
           const t0 = Date.now();
           await c.setInitiative(pcC.id, mod + 4);   // the d20 reads as a 4
-          const card = await waitFor(() => since(t0, 'initiativeGrant').find(m => m.getFlag(MOD, 'initiativeGrant')?.row === 'Survivor (Ravenloft)') ?? null, 8000);
-          const pop = await waitFor(() => titled(/^Survivor \(Ravenloft\) — /), 6000);
+          const card = await until(() => since(t0, 'initiativeGrant').find(m => m.getFlag(MOD, 'initiativeGrant')?.row === 'Survivor (Ravenloft)') ?? null, { timeout: 8000 });
+          const pop = await until(() => titled(/^Survivor \(Ravenloft\) — /), { timeout: 6000 });
           const f = card?.getFlag(MOD, 'initiativeGrant');
           ok('16a. the PC Attacker\'s Initiative (the d20 a 4) asks "reroll the Initiative?" — the card pending, the face recorded',
             !!card && (f?.status === 'pending') && (f?.reroll?.face === 4) && !!pop, `card=${!!card} pop=${!!pop} flag=${JSON.stringify(f ?? null).slice(0, 240)}`);
           pop?.element?.querySelector('button[data-action="yes"]')?.click();
-          const done = await waitFor(() => card?.getFlag(MOD, 'initiativeGrant')?.applied ? card : null, 8000);
-          await sleep(300);
+          // `applied` is written after the reroll lands on the combatant
+          const done = await until(() => card?.getFlag(MOD, 'initiativeGrant')?.applied ? card : null, { timeout: 8000 });
           const d = done?.getFlag(MOD, 'initiativeGrant');
           ok('16b. Yes: the Initiative rerolled — the record says from → to, the combatant\'s Initiative is the new roll',
             !!done && (d?.answer === 'yes') && (d?.rerolled?.from === mod + 4) && Number.isFinite(d?.rerolled?.to) && (Number(c.combatants.get(pcC.id)?.initiative) === d?.rerolled?.to),
@@ -984,12 +979,12 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         await closeOurs();
         if (combat && game.combats.get(combat.id)) await combat.delete();
         if (surv) await unlend(pcAttacker, surv);
-        CONFIG.Dice.randomUniform = realPRNG; clearTargets();
+        unrig(); clearTargets();
       }
-    }
+    });
 
     // ---- 17. Steel Yourself — the roller's own failed save against Frightened lifted by the Proficiency Bonus
-    if (want(17)) {
+    if (want(17)) await section(17, async () => {
       const surv = await lendUuid(pcAttacker, `${RHW}rhwSurvivor2zrM3`);
       const fear = await lendUuid(attacker, 'Compendium.dnd-players-handbook.spells.Item.phbsplFear000000', { 'system.prepared': 1, 'system.method': 'atwill' });
       keep(pcAttacker, { 'system.abilities.wis.save.roll.bonus': pcAttacker.system._source.abilities?.wis?.save?.roll?.bonus ?? '' });
@@ -1005,15 +1000,14 @@ const out = await f.evaluate(async ({ sections, titles }) => {
             { tokenId: attackerToken.document.id, sceneId: scene.id, actorId: attacker.id, initiative: 20 },
             { tokenId: pcToken.document.id, sceneId: scene.id, actorId: pcAttacker.id, initiative: 10 }]);
           await c.startCombat();
-          await sleep(400);
+          await until(() => c.started && (c.combatant?.actorId === attacker.id), { label: 'the Attacker\'s turn' });
           const saveAct = fear.system.activities.find(a => a.type === 'save');
           attackerToken.control({ releaseOthers: true });
           pcToken.setTarget(true, { releaseOthers: true });
-          await sleep(100);
           // no cone placed (the template would wait on a hand): the save demanded of the targeted PC alone
           const use = await saveAct?.use({ consume: { spellSlot: false }, create: { measuredTemplate: false } }, { configure: false }, {});
           const card = use?.message ?? null;
-          await waitFor(() => card?.getFlag(MOD, 'saves'), 6000);
+          await until(() => card?.getFlag(MOD, 'saves'), { timeout: 6000 });
           const dc = Number(card?.getFlag(MOD, 'saves')?.dc);
           const prof = Number(pcAttacker.system.attributes.prof) || 2;
           // a total one short of the DC: the d20 face that lands it, the save bonus zeroed; the Proficiency Bonus then passes it
@@ -1023,17 +1017,18 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           faces([[face, 20]]);
           const rolls = await pcAttacker.rollSavingThrow({ ability: 'wis' }, { configure: false }, {});
           const rolled = rolls?.[0]?.parent ?? null;
-          CONFIG.Dice.randomUniform = realPRNG;
-          const pop = await waitFor(() => popups().find(app => /Steel Yourself|Survivor/.test(textOf(app.element)) && app.element?.querySelector?.('button[data-action="answer"]')) ?? null, 8000);
+          unrig();
+          const pop = await until(() => popups().find(app => /Steel Yourself|Survivor/.test(textOf(app.element)) && app.element?.querySelector?.('button[data-action="answer"]')) ?? null, { timeout: 8000 });
           const bflag = rolled?.getFlag(MOD, 'bystanderRoll');
           ok('17a. the Fear save fails by 1 (the Frightened demand): the PC Attacker is asked — Steel Yourself, its own save lifted by the Proficiency Bonus',
             !!card && (dc > 0) && !!pop && !!bflag && (bflag.guards ?? []).some(g => (g.row === 'Survivor (Ravenloft)') && (g.uuid === pcAttacker.uuid)),
             `dc=${dc} face=${face} mod=${mod} total=${rolls?.[0]?.total} pop=${!!pop} guards=${JSON.stringify(bflag?.guards?.map(g => [g.row, g.name, g.die]) ?? null)} text="${textOf(pop?.element).slice(0, 160)}"`);
           const guardBox = [...(pop?.element?.querySelectorAll?.('input[name="bf-bystander-roll"]') ?? [])][0] ?? null;
-          if (guardBox && !guardBox.checked) { guardBox.click(); await sleep(50); }
+          if (guardBox && !guardBox.checked) guardBox.click();
           pop?.element?.querySelector('button[data-action="answer"]')?.click();
-          const done = await waitFor(() => (rolled?.getFlag(MOD, 'bystanderRoll')?.status === 'resolved') ? rolled.getFlag(MOD, 'bystanderRoll') : null, 12000);
-          await sleep(600);
+          const done = await until(() => (rolled?.getFlag(MOD, 'bystanderRoll')?.status === 'resolved') ? rolled.getFlag(MOD, 'bystanderRoll') : null, { timeout: 12000 });
+          // the Reaction is spent before the answer; the withheld save's verdict is finished after it
+          await until(() => card?.getFlag(MOD, 'saves')?.targets?.find(x => x.uuid === pcAttacker.uuid)?.outcome === 'saved', { label: 'the Fear save passed' });
           const bent = done?.bent ?? null;
           const reaction = pcAttacker.effects.some(e => e.getFlag(MOD, 'mastery') === 'reaction');
           ok('17b. Answer: + the Proficiency Bonus on the roll — the total reaches the DC, the save passes, the Reaction spent',
@@ -1050,9 +1045,9 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         await pcAttacker.update({ 'system.abilities.wis.save.roll.bonus': priorActor[pcAttacker.id]['system.abilities.wis.save.roll.bonus'] }).catch(() => {});
         if (fear) await unlend(attacker, fear);
         if (surv) await unlend(pcAttacker, surv);
-        CONFIG.Dice.randomUniform = realPRNG; clearTargets();
+        unrig(); clearTargets();
       }
-    }
+    });
 
     await refillLuck();
     await teardown();

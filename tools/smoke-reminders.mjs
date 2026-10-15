@@ -39,16 +39,8 @@ announcePlan('reminders', plan, pulled);
 
 const out = await f.evaluate(async ({ sections, titles }) => {
   const MOD = 'fvtt-mod-bythebooks';
-  const results = [];
-  const log = [];
-  const skips = [];
-  const ok = (name, pass, detail = '') => results.push({ name, pass, detail });
-  const want = id => {
-    if (!sections || sections.includes(String(id))) return true;
-    skips.push(`§${id} ${titles?.[id] ?? ''}`);
-    return false;
-  };
-  const sleep = ms => new Promise(r => setTimeout(r, ms));
+  const { until, watch, tokenOn, snapshotSettings } = window.__btb;
+  const { results, log, skips, ok, want, section } = window.__btb.begin({ sections, titles });
   const suiteStart = Date.now();
   const ledger = globalThis.__bfHookLedger ?? null;
   const count = name => ledger?.[name] ?? 0;
@@ -64,8 +56,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   const SETTING_KEYS = ['autoDamage', 'autoApply', 'dramaticBeat', 'requireTarget', 'reactionHold',
     'riders', 'effectRiders', 'masteryRiders', 'masteryAsk', 'holdTimer', 'saveTimer', 'castApply',
     'noticeTimer'];
-  const prior = Object.fromEntries(SETTING_KEYS.map(k => [k, game.settings.get(MOD, k)]));
-  const set = (k, v) => game.settings.set(MOD, k, v);
+  const settings = snapshotSettings(SETTING_KEYS);
+  const { set } = settings;
 
   const scene = game.scenes.getName('By the Books Test Range');
   const victim = game.actors.getName('BTB Test Victim');
@@ -100,8 +92,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   const teardown = async () => {
     if (restored) return;
     restored = true;
-    try { for (const [k, v] of Object.entries(prior)) await set(k, v); }
-    catch (err) { log.push(`TEARDOWN settings ERROR: ${err?.message}`); }
+    for (const failed of await settings.restore()) log.push(`TEARDOWN settings ERROR: ${failed}`);
     try {
       await closeGates();
       if (priorBlade && pc) await pc.items.get(priorBlade.id)?.update({ 'system.mastery': priorBlade.mastery });
@@ -193,7 +184,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         foundry.utils.mergeObject(actor.prototypeToken.toObject(),
           { x, y, actorId: actor.id, actorLink: true }, { inplace: false })]);
       created.tokens.push(doc.id);
-      for (let i = 0; i < 40 && !(canvas.ready && canvas.tokens.get(doc.id)); i++) await sleep(250);
+      await tokenOn(doc.id);
       const token = canvas.tokens.get(doc.id);
       if (!token) throw new Error(`${actor.name}'s token never reached the canvas`);
       return { doc, token };
@@ -218,26 +209,17 @@ const out = await f.evaluate(async ({ sections, titles }) => {
 
     // -------------------------------------------------- helpers
     const pcAttack = () => pc.items.get(blade.id).system.activities.find(a => a.type === 'attack');
-    const waitFor = async (test, timeout = 8000) => {
-      const until = Date.now() + timeout;
-      while (Date.now() < until) {
-        const v = test();
-        if (v) return v;
-        await sleep(250);
-      }
-      return test();
-    };
-    const waitDamage = async (originId, { flag = 'receipt', timeout = 10_000 } = {}) => waitFor(() =>
+    const waitDamage = async (originId, { flag = 'receipt', timeout = 10_000 } = {}) => until(() =>
       game.messages.contents.find(x => (x.type === 'damage')
         && (x._source.system?.origin === originId)
-        && (!flag || x.getFlag(MOD, flag))), timeout);
+        && (!flag || x.getFlag(MOD, flag))), { timeout: timeout });
+    // ⚠ `setTarget` and `control` are synchronous: the roll reads the targets at once, nothing to wait for.
     const target = token => { token.setTarget(true, { releaseOthers: true }); };
     /** A programmatic swing (no dialog): use + rollAttack with configure:false — never gated. */
     const swing = async (key, { advantage = false } = {}) => {
       await healFull();
       await setMastery(key);
       target(victimToken);
-      await sleep(80);
       const before = new Set([victim, pc].flatMap(a => a.effects.map(e => e.id)));
       const results = await pcAttack().use({ subsequentActions: false }, { configure: false }, {});
       const usageId = results?.message?.id ?? null;
@@ -245,11 +227,11 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         usageId ? { data: { 'system.origin': usageId } } : {});
       const attackMsg = rolls?.[0]?.parent ?? null;
       const originId = attackMsg?._source.system?.origin ?? attackMsg?.id;
-      await waitDamage(originId);
+      // soft: a fumble rolls no damage, and a swing that pays no chip is the caller's to retry (`chip: null`)
+      await waitDamage(originId).catch(() => null);
       const bearer = (key === 'cleave') ? pc : victim;
       const chip = rolls?.[0]?.isFumble ? null
-        : await waitFor(() => bearer.effects.find(e => (e.getFlag(MOD, 'mastery') === key) && !before.has(e.id)), 12_000);
-      await sleep(300);
+        : await until(() => bearer.effects.find(e => (e.getFlag(MOD, 'mastery') === key) && !before.has(e.id)), { timeout: 12_000 }).catch(() => null);
       return { attackMsg, roll: rolls?.[0] ?? null, chip: chip ?? null, fumble: !!rolls?.[0]?.isFumble };
     };
     // ⚠ Vex lands on a HIT: two plain swings both missed one run in five (2026-10-07). Up to six, with Advantage.
@@ -266,7 +248,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
      * ⚠ The table's shape: a gated attack must still link to its card.
      */
     const buttonEvent = async usageId => {
-      const li = await waitFor(() => document.querySelector(`.message[data-message-id="${usageId}"]`), 4000);
+      const li = await until(() => document.querySelector(`.message[data-message-id="${usageId}"]`), { timeout: 4000 });
       if (!li) throw new Error(`usage card ${usageId} never reached the chat DOM`);
       return { target: li.querySelector('button[data-action="rollAttack"]') ?? li, clientY: 200,
         altKey: false, ctrlKey: false, metaKey: false, shiftKey: false };
@@ -277,9 +259,14 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     /** …and the gate is that dialog carrying By the Books' section. */
     const gateOf = app => (app?.element?.querySelector('[data-bf-reminder]') ? app : null);
     const findGate = async () => {
-      const app = await waitFor(rollDialog, 6000);
+      // soft: no system dialog at all is `system: false`
+      const app = await until(rollDialog, { timeout: 6000 }).catch(() => null);
       if (!app) return { dialog: null, system: false };
-      await sleep(150); // the section rides the render hook — same tick, but let the DOM settle
+      // the section rides the render hook: the gate is carried from the pre-roll, and drawn only when it has a box to show
+      await until(() => {
+        const g = app?.options?.bfReminder;
+        return !app || !g || !((g.sources?.length > 0) || g.sneak) || app.element?.querySelector('[data-bf-reminder]');
+      }, { label: 'the gate drawn in the roll dialog' });
       return { dialog: gateOf(app), system: true };
     };
     /** The HUMAN-style roll: the dialog is allowed, so the gate stands in. Returns the dialog
@@ -288,7 +275,6 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     const gatedSwing = async ({ activity = null, token = null, flat = false, heal = true } = {}) => {
       if (heal) await healFull();
       target(token ?? victimToken);
-      await sleep(80);
       const act = activity ?? pcAttack();
       const results = await act.use({ subsequentActions: false }, { configure: false }, {});
       const usageId = results?.message?.id ?? null;
@@ -312,16 +298,22 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       return !!btn;
     };
     const lastAttack = () => game.messages.contents.filter(m => (m.timestamp >= suiteStart) && (m.type === 'attack')).pop() ?? null;
-    const waitAttackAfter = async id => waitFor(() => { const m = lastAttack(); return (m && (m.id !== id)) ? m : null; }, 8000);
+    const waitAttackAfter = async id => until(() => { const m = lastAttack(); return (m && (m.id !== id)) ? m : null; }, { timeout: 8000 });
+    /** The attacks whose chains `settle` has waited out: each is waited for once. */
+    const settledChains = new Set();
     /** Let a re-issued roll's whole chain land (damage, receipt, the mastery payout after it) before
-     * the next section clears chips. */
+     * the next section clears chips. The payout's effect receipt is the chain's last write. */
     const settle = async msg => {
+      if (!msg || settledChains.has(msg.id)) return;
+      settledChains.add(msg.id);
       const originId = msg?._source.system?.origin ?? msg?.id;
-      const dmg = await waitDamage(originId, { flag: 'receipt', timeout: 8000 });
-      if (dmg) await waitFor(() => game.messages.get(dmg.id)?.getFlag(MOD, 'effectReceipt'), 5000);
-      await sleep(600);
+      // soft: a miss rolls no damage, and a weapon whose mastery pays nothing writes no effect receipt
+      const dmg = await waitDamage(originId, { flag: 'receipt', timeout: 8000 }).catch(() => null);
+      if (dmg) await until(() => game.messages.get(dmg.id)?.getFlag(MOD, 'effectReceipt'), { timeout: 5000 }).catch(() => null);
     };
-    const gone = async (actor, id) => waitFor(() => !actor.effects.get(id), 6000);
+    /** A section's start: any payout from the section before (the last attack's chain) lands before the clear. */
+    const settleLast = () => settle(lastAttack());
+    const gone = async (actor, id) => until(() => !actor.effects.get(id), { timeout: 6000 });
     const setStatus = async (actor, id, on) => {
       const carriers = actor.effects.filter(e => e.statuses?.has?.(id));
       if (on && !carriers.length) {
@@ -330,12 +322,12 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       } else if (!on && carriers.length) {
         await actor.deleteEmbeddedDocuments('ActiveEffect', carriers.map(e => e.id));
       }
-      await sleep(150);
+      await until(() => actor.effects.some(e => e.statuses?.has?.(id)) === on, { label: `${actor.name} ${on ? 'carrying' : 'clear of'} ${id}` });
     };
     const cardText = id => (document.querySelector(`.message[data-message-id="${id}"]`)?.textContent ?? '').replace(/\s+/g, ' ');
 
     // ================================================== 1. Vex: the gate stands in
-    if (want(1)) {
+    if (want(1)) await section(1, async () => {
       await clearChips();
       const vexed = await ensureVexed();
       ok('1. (setup) the victim is Vexed by the PC', !!vexed, `vexed=${!!vexed}`);
@@ -374,12 +366,12 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         !!rem && (rem.sources?.[0]?.kind === 'vex') && (rem.net === 'advantage') && (rem.mode === 'advantage')
           && (rem.honoured === true) && ('combat' in rem) && (rem.sourceUuid === pc.uuid),
         JSON.stringify(rem));
-      const spend = await waitFor(() => game.messages.get(msg?.id ?? '')?.getFlag(MOD, 'chipSpend'));
+      const spend = await until(() => game.messages.get(msg?.id ?? '')?.getFlag(MOD, 'chipSpend'));
       const vexGone = await gone(victim, vexed?.id);
       ok('1e. …and the spend: the Vexed chip spent by this roll, honoured against the net',
         !!spend?.spent?.some(s => (s.id === vexed?.id) && (s.honoured === true)) && vexGone,
         `${JSON.stringify(spend?.spent)} gone=${vexGone}`);
-      await waitFor(() => /Reminded/.test(cardText(msg?.id)), 4000);
+      await until(() => /Reminded/.test(cardText(msg?.id)), { timeout: 4000 });
       ok('1f. the card SAYS it was reminded (R5): net Advantage, rolled with Advantage',
         /Reminded — net Advantage, rolled with Advantage/.test(cardText(msg?.id)), cardText(msg?.id).slice(0, 240));
       await settle(msg);
@@ -396,25 +388,27 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           `originating=${m2?._source.system?.origin} usage=${u2}`);
         await settle(m2);
       }
-    }
+    });
 
     // ================================================== 2. programmatic rolls never gate
-    if (want(2)) {
+    if (want(2)) await section(2, async () => {
       await clearChips();
       const vexed = await ensureVexed();
       const second = await swing('sap');
+      // a window: no gate pops for the programmatic roll
+      const strayGate = await watch(() => [...foundry.applications.instances.values()].some(app => /Before you roll/.test(app.title ?? '')), { ms: 300 });
       ok('2. a configure:false roll at a Vexed target is NOT gated — it rolled, no popup',
-        !!second.roll && !second.fumble !== undefined
+        !strayGate && !!second.roll && !second.fumble !== undefined
           && ![...foundry.applications.instances.values()].some(app => /Before you roll/.test(app.title ?? '')),
         `rolled=${!!second.roll}`);
-      const spend = await waitFor(() => game.messages.get(second.attackMsg?.id ?? '')?.getFlag(MOD, 'chipSpend'));
+      const spend = await until(() => game.messages.get(second.attackMsg?.id ?? '')?.getFlag(MOD, 'chipSpend'));
       ok('2a. …and the chip is still spent, honoured by its own bend (no net was shown)',
         !!spend?.spent?.some(s => (s.id === vexed?.id) && (s.honoured === false)) && !second.attackMsg?.getFlag(MOD, 'reminder'),
         JSON.stringify(spend?.spent));
-    }
+    });
 
     // ================================================== 3. multiple sources net to NORMAL
-    if (want(3)) {
+    if (want(3)) await section(3, async () => {
       await clearChips();
       const vexed = await ensureVexed();
       // A Sapped chip on the PC — as the victim's Sap would have written it.
@@ -423,7 +417,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         duration: { value: 1, units: 'rounds', expiry: 'turnStart' }, transfer: false,
         flags: { [MOD]: { mastery: 'sap' } }
       }, { parent: pc }).then(e => [e]);
-      await sleep(200);
+      await until(() => pc.effects.get(sapped.id), { label: 'the Sapped chip on the PC' });
       const before = lastAttack()?.id ?? null;
       const { dialog } = await gatedSwing();
       const text = popupText(dialog);
@@ -440,7 +434,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       if (rollModeSelect && gmOption) {
         rollModeSelect.value = gmOption.value;
         rollModeSelect.dispatchEvent(new Event('change', { bubbles: true })); // the dialog reads its form on change
-        await sleep(300);
+        await until(() => dialog.message?.rollMode === gmOption.value, { label: 'the dialog took the GM roll mode' });
       }
       await press(dialog, 'normal');
       const msg = await waitAttackAfter(before);
@@ -451,7 +445,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         JSON.stringify({ mode: msg?.rolls?.[0]?.options?.advantageMode, rem }));
       ok('3b2. the roll-mode pick travelled with the re-issue — a GM roll is whispered',
         !!rollModeSelect && (msg?.whisper?.length ?? 0) > 0, `select=${!!rollModeSelect} whisper=${JSON.stringify(msg?.whisper)}`);
-      const spend = await waitFor(() => game.messages.get(msg?.id ?? '')?.getFlag(MOD, 'chipSpend'));
+      const spend = await until(() => game.messages.get(msg?.id ?? '')?.getFlag(MOD, 'chipSpend'));
       const sapRec = spend?.spent?.find(s => s.id === sapped.id);
       const vexRec = spend?.spent?.find(s => s.id === vexed?.id);
       const bothGone = (await gone(pc, sapped.id)) && (await gone(victim, vexed?.id));
@@ -459,11 +453,11 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         !!sapRec && !!vexRec && (sapRec.honoured === true) && (vexRec.honoured === true) && bothGone,
         `${JSON.stringify(spend?.spent)} gone=${bothGone}`);
       await settle(msg);
-    }
+    });
 
     // ================================================== 4. Prone, both roles, geometry
-    if (want(4)) {
-      await sleep(1500); // any payout from the section before lands before the clear
+    if (want(4)) await section(4, async () => {
+      await settleLast(); // any payout from the section before lands before the clear
       await clearChips();
       await clearStatuses();
       await setStatus(victim, 'prone', true);
@@ -487,7 +481,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       }
       await scene.deleteEmbeddedDocuments('Token', [farDoc.id]);
       created.tokens.splice(created.tokens.indexOf(farDoc.id), 1);
-      await sleep(300);
+      await until(() => !scene.tokens.get(farDoc.id) && !canvas.tokens.get(farDoc.id), { label: 'the far token gone from the scene and the canvas' });
       await setStatus(victim, 'prone', false);
       await setStatus(pc, 'prone', true);
       {
@@ -505,11 +499,11 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         await closeGates();
       }
       await clearStatuses();
-    }
+    });
 
     // ================================================== 5. the condition table
-    if (want(5)) {
-      await sleep(1000);
+    if (want(5)) await section(5, async () => {
+      await settleLast(); // any payout from the section before lands before the clear
       await clearChips();
       await clearStatuses();
       await setStatus(pc, 'poisoned', true);
@@ -571,44 +565,46 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         await closeGates();
       }
       await clearStatuses();
-    }
+    });
 
     // ================================================== 7. closing the popup rolls nothing
-    if (want(7)) {
+    if (want(7)) await section(7, async () => {
       await clearChips();
       const vexed = await ensureVexed();
       const before = lastAttack()?.id ?? null;
       const { dialog } = await gatedSwing();
       ok('7. (setup) the gate is up', !!dialog && !!vexed, `dialog=${!!dialog}`);
       await dialog?.close();
-      await sleep(2500);
+      // a window: no attack rolls off the closed popup, and the chip is not spent
+      const stray = await watch(() => ((lastAttack()?.id ?? null) !== before) || !victim.effects.get(vexed?.id), { ms: 2500 });
       ok('7a. closed with the X: no attack roll was made, the Vexed chip still stands',
-        (lastAttack()?.id ?? null) === before && !!victim.effects.get(vexed?.id),
-        `newAttack=${(lastAttack()?.id ?? null) !== before} vexed=${!!victim.effects.get(vexed?.id)}`);
-    }
+        !stray && ((lastAttack()?.id ?? null) === before) && !!victim.effects.get(vexed?.id),
+        `newAttack=${(lastAttack()?.id ?? null) !== before} vexed=${!!victim.effects.get(vexed?.id)} stray=${!!stray}`);
+    });
 
     // ================================================== 8. the registration FIRED
-    if (want(8)) {
+    if (want(8)) await section(8, async () => {
       ok('8. dnd5e.preRollAttack fired during this suite (the gate\'s pre-roll hook)',
         count('dnd5e.preRollAttack') > 0, `count=${count('dnd5e.preRollAttack')}`);
       ok('8a. dnd5e.postRollConfiguration fired (the record\'s hook, after the dialog closed with rolls)',
         count('dnd5e.postRollConfiguration') > 0, `count=${count('dnd5e.postRollConfiguration')}`);
       ok('8b. renderRollConfigurationDialog fired (the section\'s hook)',
         count('renderRollConfigurationDialog') > 0, `count=${count('renderRollConfigurationDialog')}`);
-    }
+    });
 
     // ================================================== 9. a metric grid
-    if (want(9)) {
+    if (want(9)) await section(9, async () => {
       // ⚠ `measurePath` answers in the SCENE's units: on a 1.5 m grid two squares must not read "within
       // 5 feet". `canvas.grid` rebuilds from the scene document on update; restored whatever happens.
-      await sleep(1000);
+      await settleLast(); // any payout from the section before lands before the clear
       await clearChips();
       await clearStatuses();
       const priorGrid = { distance: scene.grid.distance, units: scene.grid.units };
       let farDoc = null;
       try {
         await scene.update({ 'grid.distance': 1.5, 'grid.units': 'm' });
-        const metric = await waitFor(() => (canvas.grid?.distance === 1.5) && (canvas.grid?.units === 'm'), 6000);
+        // soft: the log line says "NOT live" when the canvas grid never rebuilt
+        const metric = await until(() => (canvas.grid?.distance === 1.5) && (canvas.grid?.units === 'm'), { timeout: 6000 }).catch(() => null);
         log.push(`metric grid: ${canvas.grid?.distance} ${canvas.grid?.units} per square (${metric ? 'live' : 'NOT live'})`);
         await setStatus(victim, 'prone', true);
         ({ doc: farDoc } = await placeToken(victim, 1500 - (squarePx * 2), 1400));
@@ -636,13 +632,13 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         await scene.update({ 'grid.distance': priorGrid.distance, 'grid.units': priorGrid.units });
         await clearStatuses();
       }
-    }
+    });
 
     // ================================================== 10. range, and the dropdown
     // Any RANGED attack roll — a dart (20/60) — against both glossary rules: an enemy within 5 feet,
     // beyond normal range, beyond long range. Then the dagger: melee or thrown by the dialog's dropdown.
-    if (want(10)) {
-      await sleep(1000);
+    if (want(10)) await section(10, async () => {
+      await settleLast(); // any payout from the section before lands before the clear
       await clearChips();
       await clearStatuses();
       const findRanged = async () => {
@@ -682,7 +678,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         try {
           await pcTokenDoc.update({ disposition: 1 });
           await victimTokenDoc.update({ disposition: -1 });   // an ENEMY, adjacent
-          await sleep(200);
+          await until(() => (pcTokenDoc.disposition === 1) && (victimTokenDoc.disposition === -1), { label: 'the two sides set' });
           {
             const { dialog } = await gatedSwing({ activity: dartAttack() });
             const text = popupText(dialog);
@@ -699,7 +695,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
             const { doc, token } = await placeToken(victim, 1500 - (squarePx * squares), 1400);
             await doc.update({ disposition: -1 });
             far.push(doc.id);
-            await sleep(200);
+            await until(() => doc.disposition === -1, { label: 'the far token an enemy' });
             return token;
           };
           {
@@ -743,7 +739,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
             } else {
               select.value = thrown.value;
               select.dispatchEvent(new Event('change', { bubbles: true }));
-              const grown = await waitFor(() => app.element?.querySelector('[data-bf-reminder]'), 4000);
+              const grown = await until(() => app.element?.querySelector('[data-bf-reminder]'), { timeout: 4000 });
               const text = (grown?.textContent ?? '').replace(/\s+/g, ' ');
               ok('10f. switched to Thrown: the section GROWS a range box — beyond normal range, Disadvantage — and the default moves to it',
                 !!grown && /beyond normal range/.test(text) && /1 Modifier — Net Disadvantage/.test(text) && (defaultButton(app) === 'disadvantage'),
@@ -751,7 +747,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
               const back = [...select.options].find(o => !/^thrown/.test(o.value));
               select.value = back.value;
               select.dispatchEvent(new Event('change', { bubbles: true }));
-              const gone = await waitFor(() => !app.element?.querySelector('[data-bf-reminder]'), 4000);
+              const gone = await until(() => !app.element?.querySelector('[data-bf-reminder]'), { timeout: 4000 });
               ok('10g. …and switched back to melee the section goes, the default back to Normal',
                 gone && (defaultButton(app) === 'normal'), `gone=${gone} default=${defaultButton(app)}`);
             }
@@ -766,13 +762,13 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           await clearStatuses();
         }
       }
-    }
+    });
 
     // ================================================== 11. effect sources
     // An ability on either sheet by NAME — an active effect or a feature — read against the effect
     // table: in scope or not, counted or listed, judged on a fact, spent where the rules spend it.
-    if (want(11)) {
-      await sleep(600);
+    if (want(11)) await section(11, async () => {
+      await settleLast(); // any payout from the section before lands before the clear
       await clearChips();
       await clearStatuses();
       const plant = async (actor, name) => ActiveEffect.implementation.create({
@@ -857,7 +853,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         try {
           await pcTokenDoc.update({ disposition: 1 });
           await victimTokenDoc.update({ disposition: -1 });
-          await sleep(200);
+          await until(() => (pcTokenDoc.disposition === 1) && (victimTokenDoc.disposition === -1), { label: 'the two sides set' });
           {
             const { dialog, system } = await gatedSwing();
             ok('11e. Pack Tactics with no ally of the attacker within 5 feet of the target: nothing — the row is judged on the map',
@@ -868,7 +864,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
             foundry.utils.mergeObject(victim.prototypeToken.toObject(),
               { x: 1400, y: 1400 + squarePx, actorId: victim.id, actorLink: false, disposition: 1, name: 'BTB Test Ally' }, { inplace: false })]);
           created.tokens.push(allyDoc.id);
-          for (let i = 0; i < 40 && !(canvas.ready && canvas.tokens.get(allyDoc.id)); i++) await sleep(250);
+          await tokenOn(allyDoc.id);
           pcToken.control({ releaseOthers: true });
           {
             const { dialog } = await gatedSwing();
@@ -879,7 +875,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
             await closeGates();
           }
           await canvas.tokens.get(allyDoc.id)?.actor?.toggleStatusEffect('incapacitated', { active: true });
-          await sleep(200);
+          await until(() => canvas.tokens.get(allyDoc.id)?.actor?.statuses?.has?.('incapacitated'), { label: 'the ally Incapacitated' });
           {
             const { dialog, system } = await gatedSwing();
             ok("11e3. …and that ally Incapacitated: nothing — \"the ally doesn't have the Incapacitated condition\"",
@@ -940,13 +936,13 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           const i = created.items.findIndex(x => x.id === it.id); if (i >= 0) created.items.splice(i, 1);
         }
       }
-    }
+    });
 
     // ================================================== 12. the check gate
     // A check or skill rolled WITH the dialog meets the roller's statuses against CHECK_BENDS inside the
     // system's check dialog. Poisoned is a bend the platform already rolls; Frightened is the gate's own.
     // 12a green also proves dnd5e.preRollAbilityCheck FIRED.
-    if (want(12)) {
+    if (want(12)) await section(12, async () => {
       await clearStatuses();
       await closeGates();
       const pressCheck = app => app?.element?.querySelector('[data-application-part="buttons"] button[autofocus]')
@@ -955,8 +951,13 @@ const out = await f.evaluate(async ({ sections, titles }) => {
        * note its absence), press the named button, and hand back the roll's message and record. */
       const gatedCheck = async ({ skill = null, action = 'normal' } = {}) => {
         const p = skill ? pc.rollSkill({ skill }, { configure: true }, {}) : pc.rollAbilityCheck({ ability: 'str' }, { configure: true }, {});
-        const sys = await waitFor(rollDialog, 6000);
-        await sleep(150);
+        // soft: no dialog at all is read as `sys` absent
+        const sys = await until(rollDialog, { timeout: 6000 }).catch(() => null);
+        // the check gate is carried from the pre-roll and drawn at render, only when it has a source
+        await until(() => {
+          const g = sys?.options?.bfCheckGate;
+          return !sys || !(g?.sources?.length > 0) || sys.element?.querySelector('[data-bf-reminder]');
+        }, { label: 'the check gate drawn in the check dialog' });
         const app = gateOf(sys);
         const text = app ? popupText(app) : '';
         const def = sys ? defaultButton(sys) : null;
@@ -991,11 +992,11 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         !!d.sys && !d.app && !d.record, `dialog=${!!d.sys} gate=${!!d.app} record=${!!d.record}`);
       await clearStatuses();
       await closeGates();
-    }
+    });
 
     // ================================================== 13. the range cancellers
-    if (want(13)) {
-      await sleep(600);
+    if (want(13)) await section(13, async () => {
+      await settleLast(); // any payout from the section before lands before the clear
       await clearChips();      // an earlier section's Vex on the target would count in the net
       await clearStatuses();
       await closeGates();
@@ -1030,7 +1031,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         const attackOf = item => pc.items.get(item.id).system.activities.find(a => a.type === 'attack');
         await pcTokenDoc.update({ disposition: 1 });
         await victimTokenDoc.update({ disposition: -1 });   // an ENEMY, adjacent
-        await sleep(200);
+        await until(() => (pcTokenDoc.disposition === 1) && (victimTokenDoc.disposition === -1), { label: 'the two sides set' });
         // 13a — Crossbow Expert
         let ce = await feat('Crossbow Expert');
         {
@@ -1056,7 +1057,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           const { doc, token } = await placeToken(victim, 1500 - (squarePx * squares), 1400);
           await doc.update({ disposition: -1 });
           far.push(doc.id);
-          await sleep(200);
+          await until(() => doc.disposition === -1, { label: 'the far token an enemy' });
           return token;
         };
         const at30 = await placeFar(6);
@@ -1072,20 +1073,21 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         const at15 = await placeFar(3);
         const coverTarget = at15.actor;
         await coverTarget.toggleStatusEffect('coverHalf', { active: true });
-        await sleep(300);
+        await until(() => coverTarget.statuses?.has?.('coverHalf'), { label: 'Half Cover on the target' });
         const acWith = Number(coverTarget.system.attributes.ac.value);
         const cover = Number(coverTarget.system.attributes.ac.cover);
+        // The attack's AC and its cover flags are written on the message before it is created; its lines are the card's render.
         const shoot = async () => {
           target(at15);
-          await sleep(80);
           const rolls = await attackOf(dartItem).rollAttack({}, { configure: false }, {});
           const msg = rolls?.[0]?.parent ?? null;
-          await sleep(400);
+          if (msg) await until(() => document.querySelector(`.message[data-message-id="${msg.id}"]`), { label: 'the attack card in the chat log' });
           return msg;
         };
         const shot = await shoot();
         const recorded = shot?.system?.targets?.[0]?.ac;
-        const line = document.querySelector(`.message[data-message-id="${shot?.id}"] .bf-cover-line`)?.dataset?.bfCoverLine ?? '';
+        // soft: no line reads as '' in 13d
+        const line = (await until(() => document.querySelector(`.message[data-message-id="${shot?.id}"] .bf-cover-line`), { timeout: 4000 }).catch(() => null))?.dataset?.bfCoverLine ?? '';
         ok(`13d. Half Cover (+${cover}): Sharpshooter's attack RECORDS AC ${acWith - cover}, not ${acWith}; the card says "Sharpshooter — ignores …'s cover (+${cover} AC)"`,
           (cover === 2) && (recorded === acWith - cover) && (shot?.getFlag(MOD, 'coverIgnored')?.feature === 'Sharpshooter')
             && /Sharpshooter — ignores .*cover \(\+2 AC\)/.test(line), `cover=${cover} acWith=${acWith} recorded=${recorded} line="${line}"`);
@@ -1098,8 +1100,9 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         }
         await drop(ss); ss = null;
         const plain = await shoot();
-        ok(`13f. without the feat the cover stands: the attack records AC ${acWith}, no line`, (plain?.system?.targets?.[0]?.ac === acWith)
-          && !plain?.getFlag(MOD, 'coverIgnored'), `recorded=${plain?.system?.targets?.[0]?.ac}`);
+        const stray13f = await watch(() => game.messages.get(plain?.id ?? '')?.getFlag(MOD, 'coverIgnored'), { ms: 400 });   // a window: nothing ignores the cover
+        ok(`13f. without the feat the cover stands: the attack records AC ${acWith}, no line`, !stray13f && (plain?.system?.targets?.[0]?.ac === acWith)
+          && !plain?.getFlag(MOD, 'coverIgnored'), `recorded=${plain?.system?.targets?.[0]?.ac} stray=${!!stray13f}`);
         await coverTarget.toggleStatusEffect('coverHalf', { active: false });
         // 13g — Spell Sniper answers a cantrip's point-blank row
         await victimTokenDoc.update({ disposition: -1 });
@@ -1134,10 +1137,10 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         for (const it of [xbowItem, dartItem, cantrip]) await drop(it);
         await clearStatuses();
       }
-    }
+    });
 
-    if (want(14)) {
-      await sleep(600);
+    if (want(14)) await section(14, async () => {
+      await settleLast(); // any payout from the section before lands before the clear
       await clearChips();
       await clearStatuses();
       await closeGates();
@@ -1160,14 +1163,15 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       };
       const coverScene = victimTokenDoc.parent;
       const priorNoCover = coverScene.getFlag(MOD, 'noCover') ?? null;
-      const priorHover = game.settings.get(MOD, 'effectHover');
+      // the hover card's setting, put back to what the run had at this section's start
+      const hover = snapshotSettings(['effectHover']);
       const priorOverride = victim.system._source.attributes.ac.override ?? null;
       const priorVictimAt = { x: victimTokenDoc.x, y: victimTokenDoc.y };
       const walls = [];
       let farDoc = null, dartItem = null, ss = null;
       try {
         await coverScene.unsetFlag(MOD, 'noCover');
-        await game.settings.set(MOD, 'effectHover', true);
+        await hover.set('effectHover', true);
         await victim.update({ 'system.attributes.ac.override': null });
         const dartSrc = await findPHB('Dart', 'weapon');
         if (!dartSrc) throw new Error('the PHB Dart is not on this box');
@@ -1179,37 +1183,40 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         const far = placed.token;
         const others = canvas.tokens.placeables.filter(t => ![far, pcToken, victimToken].includes(t)).map(t => `${t.name}@${t.document.x},${t.document.y}`);
         log.push(`§14 other tokens on the scene: ${others.join('; ') || 'none'}`);
-        await sleep(300);
         const baseAC = Number(victim.system.attributes.ac.value);
         // the section labels are drawn in capitals (text-transform), so innerText reads "COVER" — match the label /i
+        // ⚠ The hover card is drawn inside the `hoverToken` call (effect-view.js), and cover is measured off the token
+        // documents and the walls' edges: nothing to wait for once the hook returns.
         const hoverText = async () => {
           pcToken.control({ releaseOthers: true });
           Hooks.callAll('hoverToken', far, true);
-          await sleep(150);
           const card = document.querySelector('.bf-ev-card');
           const text = card?.innerText?.replace(/\s+/g, ' ') ?? '';
           Hooks.callAll('hoverToken', far, false);
           return text;
         };
+        // The attack's AC and its cover flags are written on the message before it is created; its rows are the card's render.
         const shoot = async () => {
           far.setTarget(true, { releaseOthers: true });
-          await sleep(80);
           const rolls = await dart().rollAttack({}, { configure: false }, {});
           const msg = rolls?.[0]?.parent ?? null;
-          await sleep(400);
+          if (msg) await until(() => document.querySelector(`.message[data-message-id="${msg.id}"]`), { label: 'the attack card in the chat log' });
           return msg;
         };
         const lineOf = msg => document.querySelector(`.message[data-message-id="${msg?.id}"] .bf-cover-measured`)?.dataset?.bfCoverMeasured ?? '';
+        /** The cover row once it is drawn; soft: no row reads as ''. */
+        const lineSoon = msg => until(() => lineOf(msg) || null, { timeout: 4000 }).catch(() => '');
+        // a wall's edge is set as the document is created and dropped as it is deleted (WallDocument#initializeEdge)
         const addWall = async c => {
           const [w] = await scene.createEmbeddedDocuments('Wall', [{ c }]);
           walls.push(w.id);
-          await sleep(400);
+          await until(() => scene.walls.get(w.id)?.edge, { label: 'the wall\'s edge in place' });
         };
         const clearWalls = async () => {
           const live = walls.filter(id => scene.walls.get(id));
           if (live.length) await scene.deleteEmbeddedDocuments('Wall', live);
           walls.length = 0;
-          await sleep(400);
+          await until(() => live.every(id => !scene.walls.get(id)), { label: 'the walls gone' });
         };
 
         // 14a/b — a creature in the way: Half, on the card and on the attack
@@ -1219,19 +1226,21 @@ const out = await f.evaluate(async ({ sections, titles }) => {
             /Cover Half Cover \(\+2 AC\) .*in the way/i.test(text) && /Effects/i.test(text), text.slice(0, 200));
           const shot = await shoot();
           const rec = shot?.system?.targets?.[0]?.ac;
+          const line = await lineSoon(shot);
           ok(`14b. …and the attack RECORDS AC ${baseAC + 2} (base ${baseAC} + 2); the card says "Cover — the …: Half Cover (+2 AC)"`,
-            (rec === baseAC + 2) && (shot?.getFlag(MOD, 'coverMeasured')?.targets?.[0]?.bonus === 2) && /Cover — .*Half Cover \(\+2 AC\)/.test(lineOf(shot)),
-            `recorded=${rec} base=${baseAC} line="${lineOf(shot)}"`);
+            (rec === baseAC + 2) && (shot?.getFlag(MOD, 'coverMeasured')?.targets?.[0]?.bonus === 2) && /Cover — .*Half Cover \(\+2 AC\)/.test(line),
+            `recorded=${rec} base=${baseAC} line="${line}"`);
         }
         // 14c — the line cleared: No Cover, the base AC, no line
         await victimTokenDoc.update({ y: 1400 + (squarePx * 3) });
-        await sleep(500);
+        await until(() => victimTokenDoc.y === 1400 + (squarePx * 3), { label: 'the adjacent victim stepped down' });
         {
           const text = await hoverText();
           const shot = await shoot();
+          const stray = await watch(() => lineOf(shot), { ms: 400 });   // a window: no cover row drawn
           ok('14c. the adjacent victim stepped out of the line: "No Cover" on the card; the attack records the base AC and its card draws NO cover row',
-            /Cover No Cover/i.test(text) && (shot?.system?.targets?.[0]?.ac === baseAC) && !shot?.getFlag(MOD, 'coverMeasured') && !lineOf(shot),
-            `card="${text.slice(0, 120)}" recorded=${shot?.system?.targets?.[0]?.ac}`);
+            !stray && /Cover No Cover/i.test(text) && (shot?.system?.targets?.[0]?.ac === baseAC) && !shot?.getFlag(MOD, 'coverMeasured') && !lineOf(shot),
+            `card="${text.slice(0, 120)}" recorded=${shot?.system?.targets?.[0]?.ac} stray=${!!stray}`);
         }
         // 14d — a wall across the whole row between them: Total, the attack records no AC, Sharpshooter or not
         const midX = 1500 - (squarePx * 1.5);
@@ -1240,9 +1249,10 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         {
           const text = await hoverText();
           const shot = await shoot();
+          const line = await lineSoon(shot);
           ok('14d. a wall across the line: "Total Cover" over "a wall in the way"; the attack records NO AC (a miss) even with Sharpshooter, and says why',
-            /Total Cover a wall in the way/.test(text) && (shot?.system?.targets?.[0]?.ac === null) && /the .*: Total Cover$/.test(lineOf(shot))
-              && !shot?.getFlag(MOD, 'coverIgnored'), `card="${text.slice(0, 120)}" recorded=${shot?.system?.targets?.[0]?.ac} line="${lineOf(shot)}"`);
+            /Total Cover a wall in the way/.test(text) && (shot?.system?.targets?.[0]?.ac === null) && /the .*: Total Cover$/.test(line)
+              && !shot?.getFlag(MOD, 'coverIgnored'), `card="${text.slice(0, 120)}" recorded=${shot?.system?.targets?.[0]?.ac} line="${line}"`);
         }
         await clearWalls();
         // 14e — a wall's corner: two of the best corner's four lines blocked, Half; Sharpshooter takes it off
@@ -1258,12 +1268,13 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         await drop(ss); ss = null;
         // 14f — a hand-set Three-Quarters over a measured Half: the most protective stands, nothing added
         await victim.toggleStatusEffect('coverThreeQuarters', { active: true });
-        await sleep(300);
+        await until(() => victim.statuses?.has?.('coverThreeQuarters'), { label: 'Three-Quarters Cover on the victim' });
         {
           const acWith = Number(victim.system.attributes.ac.value);
           const shot = await shoot();
+          const line = await lineSoon(shot);
           ok(`14f. a hand-set Three-Quarters Cover (AC ${acWith}) over a measured Half: the attack records AC ${acWith} — the degrees never add — and the card names the one that stands`,
-            (acWith === baseAC + 5) && (shot?.system?.targets?.[0]?.ac === acWith) && /the .*: Three-Quarters Cover \(\+5 AC\)$/.test(lineOf(shot)),
+            (acWith === baseAC + 5) && (shot?.system?.targets?.[0]?.ac === acWith) && /the .*: Three-Quarters Cover \(\+5 AC\)$/.test(line),
             `acWith=${acWith} recorded=${shot?.system?.targets?.[0]?.ac}`);
         }
         await victim.toggleStatusEffect('coverThreeQuarters', { active: false });
@@ -1279,10 +1290,10 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         await drop(ss);
         await drop(dartItem);
         if (priorNoCover) await coverScene.setFlag(MOD, 'noCover', priorNoCover).catch(() => {});
-        await game.settings.set(MOD, 'effectHover', priorHover).catch(() => {});
+        for (const failed of await hover.restore()) log.push(`§14 settings ERROR: ${failed}`);
         pcToken.control({ releaseOthers: true });
       }
-    }
+    });
 
     return { log, results, skips };
   } catch (err) {

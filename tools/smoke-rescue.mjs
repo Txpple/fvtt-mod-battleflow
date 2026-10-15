@@ -42,16 +42,8 @@ announcePlan('rescue', plan, pulled);
 
 const out = await f.evaluate(async ({ sections, titles }) => {
   const MOD = 'fvtt-mod-bythebooks';
-  const results = [];
-  const log = [];
-  const skips = [];
-  const ok = (name, pass, detail = '') => results.push({ name, pass, detail });
-  const want = id => {
-    if (!sections || sections.includes(String(id))) return true;
-    skips.push(`§${id} ${titles?.[id] ?? ''}`);
-    return false;
-  };
-  const sleep = ms => new Promise(r => setTimeout(r, ms));
+  const { until, watch, canvasReady, tokenOn, snapshotSettings, faces, unrig } = window.__btb;
+  const { results, log, skips, ok, want, section } = window.__btb.begin({ sections, titles });
   const suiteStart = Date.now();
   const ledger = globalThis.__bfHookLedger ?? null;
   const count = name => ledger?.[name] ?? 0;
@@ -64,8 +56,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   const SETTING_KEYS = ['autoDamage', 'autoApply', 'playerRollDamage', 'damageTimer', 'dramaticBeat', 'requireTarget',
     'reactionHold', 'interruptList', 'holdTimer', 'holdReveal', 'holdSkipFutile', 'holdApplyEffect', 'riders', 'effectRiders',
     'masteryRiders', 'masteryAsk', 'castApply', 'concMode', 'reminderList', 'damageEitherList'];
-  const prior = Object.fromEntries(SETTING_KEYS.map(k => [k, game.settings.get(MOD, k)]));
-  const set = (k, v) => game.settings.set(MOD, k, v);
+  const settings = snapshotSettings(SETTING_KEYS);
+  const { prior, set } = settings;
 
   const scene = game.scenes.getName('By the Books Test Range');
   const attacker = game.actors.getName('BTB Test Attacker');
@@ -77,13 +69,6 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   const created = { tokens: [], items: [] };
   const priorActor = {};
   let restored = false;
-  const realPRNG = CONFIG.Dice.randomUniform;
-  /** The PRNG as a queue of faces: each die takes the next; past the end, the last. */
-  const faces = spec => {
-    const queue = spec.map(([n, of]) => 1 - ((n - 0.5) / of));
-    let i = 0;
-    CONFIG.Dice.randomUniform = () => queue[Math.min(i++, queue.length - 1)];
-  };
   const refillLuck = async () => { const l = lucky(); if (l) await l.update({ 'system.uses.spent': 0 }); };
   const clearChips = async () => {
     for (const a of [attacker, halfling]) {
@@ -102,9 +87,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   const teardown = async () => {
     if (restored) return;
     restored = true;
-    CONFIG.Dice.randomUniform = realPRNG;
-    try { for (const [k, v] of Object.entries(prior)) await set(k, v); }
-    catch (err) { log.push(`TEARDOWN settings ERROR: ${err?.message}`); }
+    unrig();
+    for (const failed of await settings.restore()) log.push(`TEARDOWN settings ERROR: ${failed}`);
     try {
       await closeDialogs();
       await clearChips();
@@ -149,7 +133,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
 
     // -------------------------------------------------- fixtures
     if (canvas.scene?.id !== scene.id) await scene.view();
-    for (let i = 0; i < 40 && !canvas.ready; i++) await sleep(250);
+    await canvasReady();
     // ⚠ Sweep LINKED strays only: the shared fixture's UNLINKED Attacker token belongs to every other
     // suite, whose distance reads assume that topology.
     const strays = scene.tokens.filter(t => t.actorLink && [attacker.id, halfling.id].includes(t.actorId)).map(t => t.id);
@@ -158,7 +142,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const [doc] = await scene.createEmbeddedDocuments('Token', [
         foundry.utils.mergeObject(actor.prototypeToken.toObject(), { x, y, actorId: actor.id, actorLink: true }, { inplace: false })]);
       created.tokens.push(doc.id);
-      for (let i = 0; i < 40 && !(canvas.ready && canvas.tokens.get(doc.id)); i++) await sleep(250);
+      await tokenOn(doc.id);
       const token = canvas.tokens.get(doc.id);
       if (!token) throw new Error(`${actor.name}'s token never reached the canvas`);
       return { doc, token };
@@ -167,11 +151,6 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     const { token: halflingToken } = await placeToken(halfling, 1500, 1700);
 
     // -------------------------------------------------- helpers
-    const waitFor = async (test, timeout = 8000) => {
-      const until = Date.now() + timeout;
-      while (Date.now() < until) { const v = test(); if (v) return v; await sleep(200); }
-      return test();
-    };
     const textOf = el => (el?.textContent ?? '').replace(/\s+/g, ' ').trim();
     const cardText = id => textOf(document.querySelector(`.message[data-message-id="${id}"]`));
     const weapon = attacker.items.find(i => (i.type === 'weapon') && i.system.activities?.some?.(a => a.type === 'attack'));
@@ -196,31 +175,29 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       await healFull();
       attackerToken.control({ releaseOthers: true });
       halflingToken.setTarget(true, { releaseOthers: true });
-      await sleep(80);
       faces([...d20.map(n => [n, 20]), [3, 6]]);
       const usage = await act().use({ subsequentActions: false }, { configure: false }, {});
       const rolls = await act().rollAttack(advantage ? { advantage: true } : {}, { configure: false },
         usage?.message?.id ? { data: { 'system.origin': usage.message.id } } : {});
       const msg = rolls?.[0]?.parent ?? null;
-      await waitFor(() => msg?.getFlag(MOD, 'hold') || damageFor(msg?.id), 4000);
+      await until(() => msg?.getFlag(MOD, 'hold') || damageFor(msg?.id), { timeout: 4000 });
       return msg;
     };
     const holdOf = msg => game.messages.get(msg?.id)?.getFlag(MOD, 'hold') ?? null;
     const targetOf = msg => holdOf(msg)?.targets?.find(t => t.uuid === halfling.uuid) ?? null;
     const tickAndAnswer = async (popup, name) => {
       const box = [...(popup?.element?.querySelectorAll('input[name="bf-rescue"]') ?? [])].find(b => b.value === name);
-      if (box && !box.checked) box.click();
-      await sleep(50);
+      if (box && !box.checked) box.click();   // the tick's change handler lights Answer as it runs
       popup?.element?.querySelector('button[data-action="answer"]')?.click();
     };
     const luckLeft = () => Number(lucky()?.system?.uses?.value ?? 0);
 
     // ================================================== 1. Lucky turns the hit
-    if (want(1)) {
+    if (want(1)) await section(1, async () => {
       await clearChips(); await refillLuck();
       const before = luckLeft();
       const msg = await swing({ d20: [12] });
-      const popup = await waitFor(rescuePopup, 6000);
+      const popup = await until(rescuePopup, { timeout: 6000 });
       const answerBtn = popup?.element?.querySelector('button[data-action="answer"]');
       ok('1a. one row, one title: "Lucky — BTB Test Halfling", the row "Disadvantage" with "1 Luck Point · N left" as its tag; Answer dark until the tick',
         !!popup && /Lucky — BTB Test Halfling/.test(popup.title ?? popup.options?.window?.title ?? '')
@@ -228,35 +205,36 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         `popup=${!!popup} title="${popup?.title}" text="${textOf(popup?.element).slice(0, 200)}" disabled=${answerBtn?.disabled}`);
       faces([[8, 20]]);
       await tickAndAnswer(popup, 'Lucky');
-      const resolved = await waitFor(() => (holdOf(msg)?.status === 'resolved') ? holdOf(msg) : null, 12000);
+      const resolved = await until(() => (holdOf(msg)?.status === 'resolved') ? holdOf(msg) : null, { timeout: 12000 });
       const t = targetOf(msg);
       ok('1b. the second d20 (8) is lower: it stands, the verdict is a MISS against the live AC', !!resolved && (t?.answer === 'roll') && (t?.verdict === 'miss')
         && (t?.bent?.how === 'lower') && (t?.bent?.stood === 8), JSON.stringify({ answer: t?.answer, verdict: t?.verdict, bent: t?.bent }));
       ok('1c. one Luck Point spent by hand, the record on the hold target', (luckLeft() === before - 1) && (t?.poolSpend?.pool === 'Luck Points'),
         `luck ${before}→${luckLeft()} poolSpend=${JSON.stringify(t?.poolSpend)}`);
-      const text = await waitFor(() => { const c = cardText(msg?.id); return /bent the roll/.test(c) ? c : null; }, 4000);
+      const text = await until(() => { const c = cardText(msg?.id); return /bent the roll/.test(c) ? c : null; }, { timeout: 4000 });
       ok('1d. the attacker\'s card: "Lucky bent the roll — Disadvantage, … MISS"', /Lucky bent the roll — Disadvantage, \d+ → \d+, MISS/.test(text ?? ''), (text ?? '').slice(0, 240));
-      await sleep(1500);
+      // The window a receipt naming a target must NOT arrive in.
+      const applied = await watch(() => damageFor(msg?.id)?.getFlag(MOD, 'receipt')?.targets?.length, { ms: 1500 });
       const dmg = damageFor(msg?.id);
-      ok('1e. the held damage was released and applies to NOBODY (the miss drops the target)', !dmg?.getFlag(MOD, 'receipt')?.targets?.length,
+      ok('1e. the held damage was released and applies to NOBODY (the miss drops the target)', !applied && !dmg?.getFlag(MOD, 'receipt')?.targets?.length,
         `dmg=${!!dmg} receipt=${JSON.stringify(dmg?.getFlag(MOD, 'receipt')?.targets?.map(x => x.name))}`);
-    }
+    });
 
     // ================================================== 2. the second die higher
-    if (want(2)) {
+    if (want(2)) await section(2, async () => {
       await clearChips(); await refillLuck();
       const before = luckLeft();
       const msg = await swing({ d20: [12] });
-      const popup = await waitFor(rescuePopup, 6000);
+      const popup = await until(rescuePopup, { timeout: 6000 });
       faces([[16, 20]]);
       await tickAndAnswer(popup, 'Lucky');
-      await waitFor(() => holdOf(msg)?.status === 'resolved', 12000);
+      await until(() => holdOf(msg)?.status === 'resolved', { timeout: 12000 });
       const t = targetOf(msg);
       ok('2a. the second d20 higher: the first stands, still a HIT; the point is spent anyway', (t?.verdict === 'hit') && (t?.bent?.changed === false) && (luckLeft() === before - 1),
         JSON.stringify({ verdict: t?.verdict, bent: t?.bent, luck: luckLeft() }));
-      const dmg = await waitFor(() => { const d = damageFor(msg?.id); return d?.getFlag(MOD, 'receipt') ? d : null; }, 10000);
+      const dmg = await until(() => { const d = damageFor(msg?.id); return d?.getFlag(MOD, 'receipt') ? d : null; }, { timeout: 10000 });
       ok('2b. the damage lands', !!dmg, '');
-    }
+    });
 
     const addFromPack = async name => {
       const pack = game.packs.get('dnd-players-handbook.classes');
@@ -270,15 +248,15 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     };
 
     // ================================================== 3. three rows
-    if (want(3) || want(4)) {
+    if (want(3) || want(4)) await section('3-4', async () => {
       const flare = await addFromPack('Warding Flare');
       const dodge = await addFromPack('Shadowy Dodge');
       if (!flare || !dodge) ok('3-. Warding Flare and Shadowy Dodge found in dnd-players-handbook.classes', false, `flare=${!!flare} dodge=${!!dodge}`);
-      if (want(3) && flare && dodge) {
+      if (want(3) && flare && dodge) await section(3, async () => {
         await clearChips(); await refillLuck();
         const usesBefore = Number(flare.system.uses.value);
         const msg = await swing({ d20: [12] });
-        const popup = await waitFor(rescuePopup, 6000);
+        const popup = await until(rescuePopup, { timeout: 6000 });
         const rows = [...(popup?.element?.querySelectorAll('[data-bf-tick-row]') ?? [])].map(r => textOf(r));
         ok('3a. "Rescue the hit — BTB Test Halfling", three rows with their cost tags (a Reaction · N uses left / a Reaction / 1 Luck Point · N left)',
           /Rescue the hit — BTB Test Halfling/.test(popup?.title ?? '') && (rows.length === 3)
@@ -286,19 +264,19 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           `title="${popup?.title}" rows=${JSON.stringify(rows)}`);
         faces([[8, 20]]);
         await tickAndAnswer(popup, 'Warding Flare');
-        await waitFor(() => holdOf(msg)?.status === 'resolved', 12000);
+        await until(() => holdOf(msg)?.status === 'resolved', { timeout: 12000 });
         const t = targetOf(msg);
         const reaction = halfling.effects.find(e => e.getFlag(MOD, 'mastery') === 'reaction');
         ok('3b. Warding Flare answers: the roll bent (a MISS) and a use spent (the Reaction chip is written only in combat — out of combat there is no turn to bring it back)',
           (t?.rescue === 'Warding Flare') && (t?.verdict === 'miss') && (Number(halfling.items.get(flare.id)?.system?.uses?.value) === usesBefore - 1),
           JSON.stringify({ rescue: t?.rescue, verdict: t?.verdict, uses: halfling.items.get(flare.id)?.system?.uses?.value, reaction: !!reaction }));
-      }
-      if (want(4) && flare && dodge) {
+      });
+      if (want(4) && flare && dodge) await section(4, async () => {
         await clearChips(); await refillLuck();
         // The Reaction spent by hand: the reaction chip (clockless).
         await halfling.createEmbeddedDocuments('ActiveEffect', [{ name: 'Reaction — used', img: 'icons/svg/clockwork.svg', transfer: false, flags: { [MOD]: { mastery: 'reaction' } } }]);
         await swing({ d20: [12] });
-        const popup = await waitFor(rescuePopup, 6000);
+        const popup = await until(rescuePopup, { timeout: 6000 });
         const rows = [...(popup?.element?.querySelectorAll('[data-bf-tick-row]') ?? [])];
         const off = rows.filter(r => r.querySelector('input')?.disabled).map(r => textOf(r));
         const live = rows.filter(r => !r.querySelector('input')?.disabled).map(r => textOf(r));
@@ -307,93 +285,98 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           `off=${JSON.stringify(off)} live=${JSON.stringify(live)}`);
         popup?.element?.querySelector('button[data-action="pass"]')?.click();
         await clearChips();
-      }
-    }
+      });
+    });
 
     // ================================================== 5. every row spent: no popup
-    if (want(5)) {
+    if (want(5)) await section(5, async () => {
       await clearChips();
       const l = lucky();
       await l.update({ 'system.uses.spent': Number(l.system.uses.max) });
       const extra = created.items.filter(id => halfling.items.get(id));
       if (extra.length) { await halfling.deleteEmbeddedDocuments('Item', extra); }
-      const msg = await swing({ d20: [12] });
-      await sleep(1500);
-      const dmg = await waitFor(() => { const d = damageFor(msg?.id); return d?.getFlag(MOD, 'receipt') ? d : null; }, 10000);
-      ok('5a. no Luck Points left and nothing else: no hold, no popup — the damage lands at once', !holdOf(msg) && !rescuePopup() && !!dmg,
-        `hold=${JSON.stringify(holdOf(msg)?.status)} popup=${!!rescuePopup()} dmg=${!!dmg}`);
-      await refillLuck();
-    }
+      try {
+        const msg = await swing({ d20: [12] });
+        // The window a hold or a popup must NOT arrive in.
+        const stray = await watch(() => (holdOf(msg) ? 'hold' : null) ?? (rescuePopup() ? 'popup' : null), { ms: 1500 });
+        const dmg = await until(() => { const d = damageFor(msg?.id); return d?.getFlag(MOD, 'receipt') ? d : null; }, { timeout: 10000 });
+        ok('5a. no Luck Points left and nothing else: no hold, no popup — the damage lands at once', !stray && !holdOf(msg) && !rescuePopup() && !!dmg,
+          `hold=${JSON.stringify(holdOf(msg)?.status)} popup=${!!rescuePopup()} stray=${stray} dmg=${!!dmg}`);
+      } finally {
+        await refillLuck();
+      }
+    });
 
     // ================================================== 6. a natural 20 can be undone
-    if (want(6)) {
+    if (want(6)) await section(6, async () => {
       await clearChips(); await refillLuck();
       const msg = await swing({ d20: [20] });
-      const popup = await waitFor(rescuePopup, 6000);
-      await sleep(1200);
+      const popup = await until(rescuePopup, { timeout: 6000 });
+      // The window a damage roll must NOT arrive in while the crit is asked.
+      const early = await watch(() => damageFor(msg?.id), { ms: 1200 });
       ok('6a. a crit with a live row is ASKED (the crit skip does not apply to the `roll` kind), and its dice WAIT — no damage rolled yet (critAtStake)',
-        !!popup && (holdOf(msg)?.critAtStake === true) && !damageFor(msg?.id) && /natural 20/.test(textOf(popup?.element)),
-        `popup=${!!popup} critAtStake=${holdOf(msg)?.critAtStake} dmg=${!!damageFor(msg?.id)}`);
+        !!popup && !early && (holdOf(msg)?.critAtStake === true) && !damageFor(msg?.id) && /natural 20/.test(textOf(popup?.element)),
+        `popup=${!!popup} critAtStake=${holdOf(msg)?.critAtStake} dmg=${!!damageFor(msg?.id)} early=${!!early}`);
       faces([[14, 20], [3, 6], [3, 6]]);
       await tickAndAnswer(popup, 'Lucky');
-      await waitFor(() => holdOf(msg)?.status === 'resolved', 12000);
+      await until(() => holdOf(msg)?.status === 'resolved', { timeout: 12000 });
       const t = targetOf(msg);
-      const dmg = await waitFor(() => damageFor(msg?.id), 10000);
+      const dmg = await until(() => damageFor(msg?.id), { timeout: 10000 });
       const dieCount = (dmg?.rolls?.[0]?.dice ?? []).reduce((n, d) => n + d.number, 0);
       const baseCount = weapon.system.damage?.base?.number ?? 1;
       ok('6b. the lower die stood: "a hit, no longer a crit", and the damage rolled ONCE, not doubled',
         (t?.verdict === 'hit') && (t?.bent?.isCritical === false) && !!dmg && (dieCount === baseCount) && !dmg.rolls?.[0]?.isCritical,
         JSON.stringify({ verdict: t?.verdict, bent: t?.bent, dice: dieCount, base: baseCount, crit: dmg?.rolls?.[0]?.isCritical }));
-      const text = await waitFor(() => { const c = cardText(msg?.id); return /no longer a crit/.test(c) ? c : null; }, 4000);
+      const text = await until(() => { const c = cardText(msg?.id); return /no longer a crit/.test(c) ? c : null; }, { timeout: 4000 });
       ok('6c. the attacker\'s card says "a hit, no longer a crit"', /no longer a crit/.test(text ?? ''), (text ?? '').slice(0, 240));
-    }
+    });
 
     // ================================================== 7. Advantage cancels
-    if (want(7)) {
+    if (want(7)) await section(7, async () => {
       await clearChips(); await refillLuck();
       const since = Date.now();
       const msg = await swing({ d20: [6, 13], advantage: true });   // kh keeps the 13; the first die (6) is the plain roll
-      const popup = await waitFor(rescuePopup, 6000);
+      const popup = await until(rescuePopup, { timeout: 6000 });
       await tickAndAnswer(popup, 'Lucky');
-      await waitFor(() => holdOf(msg)?.status === 'resolved', 12000);
+      await until(() => holdOf(msg)?.status === 'resolved', { timeout: 12000 });
       const t = targetOf(msg);
       const seconds = game.messages.contents.filter(m => (m.timestamp >= since) && /the second d20/.test(m.flavor ?? ''));
       ok('7a. Advantage and Disadvantage cancel: no second d20 rolled, the first die (6) stands — a MISS',
         (t?.bent?.how === 'cancelled') && (t?.bent?.stood === 6) && (t?.verdict === 'miss') && (seconds.length === 0),
         JSON.stringify({ bent: t?.bent, verdict: t?.verdict, seconds: seconds.length }));
-    }
+    });
 
     // ================================================== 8. pass
-    if (want(8)) {
+    if (want(8)) await section(8, async () => {
       await clearChips(); await refillLuck();
       const before = luckLeft();
       const msg = await swing({ d20: [12] });
-      const popup = await waitFor(rescuePopup, 6000);
+      const popup = await until(rescuePopup, { timeout: 6000 });
       popup?.element?.querySelector('button[data-action="pass"]')?.click();
-      await waitFor(() => holdOf(msg)?.status === 'resolved', 12000);
-      const dmg = await waitFor(() => { const d = damageFor(msg?.id); return d?.getFlag(MOD, 'receipt') ? d : null; }, 10000);
+      await until(() => holdOf(msg)?.status === 'resolved', { timeout: 12000 });
+      const dmg = await until(() => { const d = damageFor(msg?.id); return d?.getFlag(MOD, 'receipt') ? d : null; }, { timeout: 10000 });
       ok('8a. Pass: nothing spent, the hit lands', (targetOf(msg)?.answer === 'pass') && (luckLeft() === before) && !!dmg, `luck=${luckLeft()} dmg=${!!dmg}`);
-    }
+    });
 
     // ================================================== 9. the sheet's use answers
-    if (want(9)) {
+    if (want(9)) await section(9, async () => {
       await clearChips(); await refillLuck();
       const msg = await swing({ d20: [12] });
-      await waitFor(rescuePopup, 6000);
+      await until(rescuePopup, { timeout: 6000 });
       faces([[8, 20]]);
       const dis = [...(lucky()?.system?.activities ?? [])].find(a => a.name === 'Disadvantage');
       await dis?.use({}, { configure: false }, {});
-      await waitFor(() => holdOf(msg)?.status === 'resolved', 12000);
+      await until(() => holdOf(msg)?.status === 'resolved', { timeout: 12000 });
       const t = targetOf(msg);
       ok('9a. Lucky\'s "Disadvantage" used from the sheet answers the hold: the roll bent, a MISS', (t?.answer === 'roll') && (t?.rescue === 'Lucky') && (t?.verdict === 'miss'),
         JSON.stringify({ answer: t?.answer, rescue: t?.rescue, verdict: t?.verdict }));
-    }
+    });
 
     // ================================================== 10. FIRED
-    if (want(10)) {
+    if (want(10)) await section(10, async () => {
       ok('10a. dnd5e.rollAttack and dnd5e.postUseActivity fired', (count('dnd5e.rollAttack') > 0) && (count('dnd5e.postUseActivity') > 0),
         `attack=${count('dnd5e.rollAttack')} use=${count('dnd5e.postUseActivity')}`);
-    }
+    });
 
     return { log, results, skips };
   } catch (err) {

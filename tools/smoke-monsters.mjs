@@ -47,16 +47,8 @@ announcePlan('monsters', plan, pulled);
 
 const out = await f.evaluate(async ({ sections, titles }) => {
   const MOD = 'fvtt-mod-bythebooks';
-  const results = [];
-  const log = [];
-  const skips = [];
-  const ok = (name, pass, detail = '') => results.push({ name, pass, detail });
-  const want = id => {
-    if (!sections || sections.includes(String(id))) return true;
-    skips.push(`§${id} ${titles?.[id] ?? ''}`);
-    return false;
-  };
-  const sleep = ms => new Promise(r => setTimeout(r, ms));
+  const { until, watch, canvasReady, tokenOn, snapshotSettings, faces, unrig } = window.__btb;
+  const { results, log, skips, ok, want, section } = window.__btb.begin({ sections, titles });
   const suiteStart = Date.now();
   // The module's own errors, into the log (they say what failed and where).
   const realError = console.error;
@@ -67,8 +59,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   if (!game.settings.settings.has(`${MOD}.decisionTimer`)) return { fatal: 'decisionTimer not registered — OLD code (reload the box)' };
 
   const SETTING_KEYS = ['decisionTimer', 'dramaticBeat', 'saveRolls', 'playerRollDamage'];
-  const prior = Object.fromEntries(SETTING_KEYS.map(k => [k, game.settings.get(MOD, k)]));
-  const set = (k, v) => game.settings.set(MOD, k, v);
+  const settings = snapshotSettings(SETTING_KEYS);
+  const { set } = settings;
 
   const scene = game.scenes.getName('By the Books Test Range');
   const monster = game.actors.getName('BTB Test Monster');
@@ -88,16 +80,14 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   const priorMonsterEffects = new Set(monster.effects.map(e => e.id));
   const priorMonsterHp = monster.system._source.attributes.hp.value;
   // ⚠ Every die a 5: a natural 20 SUCCEEDS a 2024 save whatever the bonus, and the saves here are steered by ±30.
-  const realPRNG = CONFIG.Dice.randomUniform;
-  CONFIG.Dice.randomUniform = () => 1 - ((5 - 0.5) / 20);
+  faces([[5, 20]]);
   let restored = false;
   const teardown = async () => {
     if (restored) return;
     restored = true;
-    CONFIG.Dice.randomUniform = realPRNG;
+    unrig();
     console.error = realError;
-    try { for (const [k, v] of Object.entries(prior)) await set(k, v); }
-    catch (err) { log.push(`TEARDOWN settings ERROR: ${err?.message}`); }
+    for (const failed of await settings.restore()) log.push(`TEARDOWN settings ERROR: ${failed}`);
     try {
       try { if (combat && game.combats.get(combat.id)) await combat.delete(); } catch { /* gone */ }
       for (const id of priorActiveCombats) { try { await game.combats.get(id)?.update({ active: true }); } catch { /* gone */ } }
@@ -151,7 +141,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       .find(a => (name ? (a.name === name) : true) && (type ? (a.type === type) : true)) ?? null;
 
     if (canvas.scene?.id !== scene.id) await scene.view();
-    for (let i = 0; i < 40 && !canvas.ready; i++) await sleep(250);
+    await canvasReady();
     const g = scene.grid.size;
     const monsterToken = canvas.tokens.placeables.find(t => t.actor?.uuid === monster.uuid) ?? null;
     if (!monsterToken) return { fatal: 'BTB Test Monster has no token on the range — run tools/fixture-suite.mjs', results, log, skips };
@@ -160,17 +150,12 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const [doc] = await scene.createEmbeddedDocuments('Token', [foundry.utils.mergeObject(victim.prototypeToken.toObject(),
         { x: monsterToken.document.x + squares * g, y: monsterToken.document.y, actorId: victim.id, actorLink: true }, { inplace: false })]);
       placed.push(doc.id);
-      for (let i = 0; i < 40 && !(canvas.ready && canvas.tokens.get(doc.id)); i++) await sleep(250);
+      await tokenOn(doc.id);
       return canvas.tokens.get(doc.id);
     };
     const victimToken = await placeVictim(1);
     if (!victimToken) return { fatal: 'the Victim\'s token never reached the canvas', results, log, skips };
 
-    const waitFor = async (test, timeout = 8000) => {
-      const until = Date.now() + timeout;
-      while (Date.now() < until) { const v = test(); if (v) return v; await sleep(200); }
-      return test();
-    };
     const target = () => { game.user.targets.forEach(t => { t.setTarget(false, { releaseOthers: true }); }); victimToken.setTarget(true, { releaseOthers: true }); };
     const saveBonus = (ability, v) => victim.update({ [`system.abilities.${ability}.save.roll.bonus`]: v });
     const healFull = () => victim.update({ 'system.attributes.hp.value': victim.system.attributes.hp.max, 'system.attributes.hp.temp': 0 });
@@ -183,22 +168,21 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     const cardsWith = flag => game.messages.contents.filter(m => (m.timestamp >= suiteStart) && m.getFlag(MOD, flag));
     const repeatCards = () => cardsWith('repeatSave');
     const grantCards = () => cardsWith('turnGrant');
-    const settledRepeat = async (n, timeout = 15000) => waitFor(() => {
+    const settledRepeat = async (n, timeout = 15000) => until(() => {
       const cards = repeatCards();
       const c = cards[n - 1];
       return (cards.length >= n) && c?.getFlag(MOD, 'repeatSave')?.says ? c : null;
-    }, timeout);
+    }, { timeout });
 
     /** The Monster uses a save activity at the Victim with the save steered: the demand card, its verdict done. */
     const useAt = async (activity, bonus) => {
       const ability = [...(activity?.save?.ability ?? [])][0] ?? 'con';
       await saveBonus(ability, bonus);
       target();
-      await sleep(120);
       const use = await activity.use({ consume: { resources: false, uses: false } }, { configure: false }, {});
       const card = use?.message instanceof ChatMessage ? use.message : null;
       if (!card) return null;
-      await waitFor(() => card.getFlag(MOD, 'saves')?.targets?.[0]?.applied ? true : null, 15000);
+      await until(() => card.getFlag(MOD, 'saves')?.targets?.[0]?.applied ? true : null, { timeout: 15000 });
       return card;
     };
 
@@ -208,7 +192,13 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       await combat.createEmbeddedDocuments('Combatant', [{ tokenId: monsterToken.id, actorId: monster.id, initiative: 20 }, { tokenId: victimToken.id, actorId: victim.id, initiative: 10 }]);
       await combat.startCombat();   // the Monster's turn
       if (game.combat?.id !== combat.id) { try { ui.combat.viewed = combat; } catch { /* the tracker */ } }
-      await sleep(300);
+      await until(() => combat.started && (combat.combatant?.actorId === monster.id), { label: 'the Monster\'s turn' });
+    };
+    /** The combat's next turn, the tracker on it before the next step. */
+    const advance = async () => {
+      const at = `${combat.round}.${combat.turn}`;
+      await combat.nextTurn();
+      await until(() => `${combat.round}.${combat.turn}` !== at, { label: 'the next turn' });
     };
     const endCombat = async () => {
       try { if (combat && game.combats.get(combat.id)) await combat.delete(); } catch { /* gone */ }
@@ -227,20 +217,21 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     };
 
     // ================================================== 1. Pacifying Spores
-    if (want(1)) {
+    if (want(1)) await section(1, async () => {
       await healFull();
       const spores = await lendTrait('Pacifying Spores');
       const save = actOf(spores, { type: 'save' });
       const card = await useAt(save, '-30');
-      const stunned = await waitFor(() => effectNamed('Stunned'), 8000);
+      const stunned = await until(() => effectNamed('Stunned'), { timeout: 8000 });
       ok('1a. the Monster\'s Pacifying Spores fails the Victim: Stunned stands, its origin the trait\'s activity',
         !!card && !!stunned && /Pacifying Spores/.test(String(stunned?.origin ?? '')) || (!!stunned && (stunned.origin ?? '').includes(spores.id)),
         `card=${!!card} stunned=${!!stunned} origin=${stunned?.origin}`);
       await startCombat();
       const n0 = repeatCards().length;
       await combat.nextTurn();   // → the Victim's turn
-      await sleep(400);
-      ok('1b. the Victim\'s turn START raises nothing', repeatCards().length === n0, `cards=${repeatCards().length}`);
+      // the window for a WRONG repeat at the turn start
+      const early = await watch(() => (repeatCards().length !== n0) ? `cards=${repeatCards().length}` : null, { ms: 400 });
+      ok('1b. the Victim\'s turn START raises nothing', !early && (repeatCards().length === n0), `cards=${repeatCards().length} seen=${early}`);
       await combat.nextTurn();   // the Victim's turn ENDS
       const first = await settledRepeat(n0 + 1);
       const f1 = first?.getFlag(MOD, 'saves');
@@ -253,60 +244,59 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         (f1?.targets?.[0]?.outcome === 'failed') && !!effectNamed('Stunned') && (r1?.says === 'Stunned holds — the save failed') && (r1?.ended === false),
         `outcome=${f1?.targets?.[0]?.outcome} stunned=${!!effectNamed('Stunned')} says="${r1?.says}"`);
       await saveBonus('con', '+30');
-      await combat.nextTurn();   // the Monster
-      await sleep(300);
-      await combat.nextTurn();   // the Victim
-      await sleep(300);
+      await advance();   // the Monster
+      await advance();   // the Victim
       await combat.nextTurn();   // the Victim's turn ends again
       const second = await settledRepeat(n0 + 2);
       const r2 = second?.getFlag(MOD, 'repeatSave');
-      await waitFor(() => effectNamed('Stunned') ? null : true, 6000);
+      await until(() => effectNamed('Stunned') ? null : true, { timeout: 6000 });
       ok('1e. the save succeeded (+30): Stunned is gone, the card says it ended',
         (second?.getFlag(MOD, 'saves')?.targets?.[0]?.outcome === 'saved') && !effectNamed('Stunned') && (r2?.ended === true) && (r2?.says === 'Stunned ended — the save succeeded'),
         `stunned=${!!effectNamed('Stunned')} says="${r2?.says}"`);
       await endCombat();
       await clearVictim();
       await takeBack('Pacifying Spores');
-    }
+    });
 
     // ================================================== 2. Petrifying Bite — the escalation
-    if (want(2)) {
+    if (want(2)) await section(2, async () => {
       await healFull();
       const bite = await lendTrait('Petrifying Bite');
       const first = actOf(bite, { type: 'save', name: 'First Save' });
       const second = actOf(bite, { type: 'save', name: 'Second Save' });
       ok('2-pre. the pack ships the two saves', !!first && !!second, `first=${!!first} second=${!!second}`);
       await useAt(first, '-30');
-      const restrained = await waitFor(() => effectNamed('Restrained'), 8000);
+      const restrained = await until(() => effectNamed('Restrained'), { timeout: 8000 });
       ok('2a. the First Save fails the Victim: Restrained stands from the trait', !!restrained, `restrained=${!!restrained}`);
       await startCombat();
       const n0 = repeatCards().length;
-      await combat.nextTurn();   // → the Victim
-      await sleep(300);
+      await advance();   // → the Victim
       await combat.nextTurn();   // the Victim's turn ends — the second failure
       const card = await settledRepeat(n0 + 1);
       const fs = card?.getFlag(MOD, 'saves');
       const rs = card?.getFlag(MOD, 'repeatSave');
-      const petrified = await waitFor(() => victim.statuses?.has?.('petrified') ? true : null, 6000);
-      await waitFor(() => effectNamed('Restrained') ? null : true, 6000);
+      const petrified = await until(() => victim.statuses?.has?.('petrified') ? true : null, { timeout: 6000 });
+      await until(() => effectNamed('Restrained') ? null : true, { timeout: 6000 });
       ok('2b. the repeat runs on the SECOND Save (its activity), the Victim failing it',
         !!card && (fs?.activityUuid === second?.uuid) && (fs?.targets?.[0]?.outcome === 'failed') && (rs?.key === 'Petrifying Bite'),
         `activity=${fs?.activityUuid === second?.uuid} outcome=${fs?.targets?.[0]?.outcome}`);
       ok('2c. the failure presses Petrified INSTEAD of Restrained: the status on, the Restrained gone, the card says "instead"',
         !!petrified && !effectNamed('Restrained') && (rs?.ended === true) && /first failure: Petrified instead/.test(rs?.says ?? ''),
         `petrified=${!!petrified} restrained=${!!effectNamed('Restrained')} says="${rs?.says}"`);
+      // the window for a WRONG repeat across the next turn end
+      const asked = () => (repeatCards().length !== n0 + 1) ? `cards=${repeatCards().length}` : null;
       await combat.nextTurn();
-      await sleep(300);
+      const early = await watch(asked, { ms: 300 });
       await combat.nextTurn();
-      await sleep(800);
-      ok('2d. with the Restrained gone, the next turn end asks nothing', repeatCards().length === n0 + 1, `cards=${repeatCards().length}`);
+      const late = await watch(asked, { ms: 800 });
+      ok('2d. with the Restrained gone, the next turn end asks nothing', !early && !late && (repeatCards().length === n0 + 1), `cards=${repeatCards().length} seen=${early ?? late}`);
       await endCombat();
       await clearVictim();
       await takeBack('Petrifying Bite');
-    }
+    });
 
     // ================================================== 3. Constricting Vine / Swarm of Proboscises — the grappled target's turns
-    if (want(3)) {
+    if (want(3)) await section(3, async () => {
       await healFull();
       const vine = await lendTrait('Constricting Vine');
       const grappled = await grappleFrom(vine, 'Grappled');
@@ -315,21 +305,23 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const n0 = grantCards().length;
       const hp0 = hpNow();
       await combat.nextTurn();   // → the Victim's turn START
-      const card = await waitFor(() => grantCards()[n0] ?? null, 10000);
-      await waitFor(() => card?.getFlag(MOD, 'receipt'), 8000);
+      const card = await until(() => grantCards()[n0] ?? null, { timeout: 10000 });
+      await until(() => card?.getFlag(MOD, 'receipt'), { timeout: 8000 });
       const tg = card?.getFlag(MOD, 'turnGrant');
       ok('3a. the Victim\'s turn start deals the vine\'s "Damage: Grappled" (1d8 bludgeoning) to the Victim, receipted, the card naming the grapple',
         !!card && (tg?.key === 'Constricting Vine') && (tg?.deals === true) && (tg?.type === 'bludgeoning') && (tg?.total > 0) && (hpNow() === hp0 - tg.total) && !!card?.getFlag(MOD, 'receipt') && new RegExp(`takes ${tg?.total} bludgeoning`).test(card?.content ?? ''),
         `card=${!!card} flag=${JSON.stringify(tg && { key: tg.key, deals: tg.deals, type: tg.type, total: tg.total })} hp=${hpNow()} vs ${hp0}`);
       await combat.nextTurn();   // the Victim's turn ends
-      await sleep(600);
-      ok('3b. the turn END pays nothing for the vine (its clock is the turn start)', grantCards().length === n0 + 1, `cards=${grantCards().length}`);
+      // the windows for a WRONG grant card: at the turn end, then across the next turn start
+      const paid = () => (grantCards().length !== n0 + 1) ? `cards=${grantCards().length}` : null;
+      const atEnd = await watch(paid, { ms: 600 });
+      ok('3b. the turn END pays nothing for the vine (its clock is the turn start)', !atEnd && (grantCards().length === n0 + 1), `cards=${grantCards().length} seen=${atEnd}`);
       await grappled.delete();
       await combat.nextTurn();   // the Monster
-      await sleep(300);
+      const early = await watch(paid, { ms: 300 });
       await combat.nextTurn();   // the Victim, no longer grappled
-      await sleep(800);
-      ok('3c. the grapple ended: the next turn start deals nothing', grantCards().length === n0 + 1, `cards=${grantCards().length}`);
+      const late = await watch(paid, { ms: 800 });
+      ok('3c. the grapple ended: the next turn start deals nothing', !early && !late && (grantCards().length === n0 + 1), `cards=${grantCards().length} seen=${early ?? late}`);
       await endCombat();
       await takeBack('Constricting Vine');
       // The swarm: the damage at the END of the target's turn.
@@ -339,11 +331,12 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const n1 = grantCards().length;
       const hp1 = hpNow();
       await combat.nextTurn();   // → the Victim's turn start
-      await sleep(600);
-      ok('3d. the swarm pays nothing at the Victim\'s turn START', grantCards().length === n1, `cards=${grantCards().length}`);
+      // the window for a WRONG grant card at the turn start
+      const atStart = await watch(() => (grantCards().length !== n1) ? `cards=${grantCards().length}` : null, { ms: 600 });
+      ok('3d. the swarm pays nothing at the Victim\'s turn START', !atStart && (grantCards().length === n1), `cards=${grantCards().length} seen=${atStart}`);
       await combat.nextTurn();   // the Victim's turn END
-      const c2 = await waitFor(() => grantCards()[n1] ?? null, 10000);
-      await waitFor(() => c2?.getFlag(MOD, 'receipt'), 8000);
+      const c2 = await until(() => grantCards()[n1] ?? null, { timeout: 10000 });
+      await until(() => c2?.getFlag(MOD, 'receipt'), { timeout: 8000 });
       const t2 = c2?.getFlag(MOD, 'turnGrant');
       ok('3e. the Victim\'s turn end deals the swarm\'s "Damage: Grappled" (2d6 necrotic), receipted, the card an end-of-turn one',
         !!c2 && (t2?.key === 'Swarm of Proboscises') && (t2?.type === 'necrotic') && (t2?.on === 'turnEnd') && (t2?.total > 0) && (hpNow() === hp1 - t2.total) && !!c2?.getFlag(MOD, 'receipt'),
@@ -352,10 +345,10 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       await endCombat();
       await clearVictim();
       await takeBack('Swarm of Proboscises');
-    }
+    });
 
     // ================================================== 4. Barbed Hide — the grappler's own turn start
-    if (want(4)) {
+    if (want(4)) await section(4, async () => {
       await healFull();
       await lendTrait('Barbed Hide');
       // The Victim Grappled BY the Monster: the module's own stamp names the grappler (Unarmed Fighting's finder).
@@ -364,36 +357,38 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       await startCombat();   // the Monster's turn START (round 1) — its own deal lands first; the measured one is round 2's
       // ⚠ Round 1's card and receipt arrive on their own clock: read the baseline only once they have landed, or round 2's
       // damage reads as double (the suite's own race, not the machine's).
-      await waitFor(() => (grantCards().length > nBefore) && grantCards().at(-1)?.getFlag(MOD, 'receipt'), 8000);
-      await sleep(300);
+      // the receipt is written after the damage lands: the count and the Hit Points are the baseline once it stands
+      await until(() => (grantCards().length > nBefore) && grantCards().at(-1)?.getFlag(MOD, 'receipt'), { timeout: 8000 });
       const n0 = grantCards().length;
       const hp0 = hpNow();
-      await combat.nextTurn();   // the Victim
-      await sleep(300);
+      await advance();   // the Victim
       await combat.nextTurn();   // → the Monster's turn start, round 2
-      const card = await waitFor(() => grantCards()[n0] ?? null, 10000);
-      await waitFor(() => card?.getFlag(MOD, 'receipt'), 8000);
+      const card = await until(() => grantCards()[n0] ?? null, { timeout: 10000 });
+      await until(() => card?.getFlag(MOD, 'receipt'), { timeout: 8000 });
       const tg = card?.getFlag(MOD, 'turnGrant');
       ok('4a. the Monster\'s turn start deals Barbed Hide\'s 1d10 piercing to the Victim it grapples, receipted, the card naming it',
         !!card && (tg?.key === 'Barbed Hide') && (tg?.deals === 'grappled') && (tg?.type === 'piercing') && (tg?.total > 0) && (tg?.targets?.[0]?.uuid === victim.uuid) && (hpNow() === hp0 - tg.total) && !!card?.getFlag(MOD, 'receipt'),
         `card=${!!card} flag=${JSON.stringify(tg && { key: tg.key, deals: tg.deals, total: tg.total, targets: tg.targets?.map(t => t.name) })} hp=${hpNow()} vs ${hp0}`);
       await fx.delete();
+      // the window for a WRONG grant card across the Monster's next turn start
+      const paid = () => (grantCards().length !== n0 + 1) ? `cards=${grantCards().length}` : null;
       await combat.nextTurn();
-      await sleep(300);
+      const early = await watch(paid, { ms: 300 });
       await combat.nextTurn();   // the Monster again, grappling no one
-      await sleep(800);
-      ok('4b. grappling no one, its turn start deals nothing', grantCards().length === n0 + 1, `cards=${grantCards().length}`);
+      const late = await watch(paid, { ms: 800 });
+      ok('4b. grappling no one, its turn start deals nothing', !early && !late && (grantCards().length === n0 + 1), `cards=${grantCards().length} seen=${early ?? late}`);
       await endCombat();
       await clearVictim();
       await takeBack('Barbed Hide');
-    }
+    });
 
     // ================================================== the rings — helpers
     const TYPE = `${MOD}.emanation`;
     const mv = () => ({ teleport: true, animate: false });
     const featureRegion = key => scene.regions.find(r => { const f = r.getFlag(MOD, 'emanation'); return f?.kind === 'feature' && f.tokenId === monsterToken.document.id && f.key === key; }) ?? null;
-    const ringOf = async key => waitFor(() => { const r = featureRegion(key); return r?.behaviors?.find(b => b.type === TYPE) ? r : null; }, 12000);
-    const moveVictim = async squares => { await victimToken.document.update({ x: monsterToken.document.x + squares * g, y: monsterToken.document.y }, mv()); await sleep(400); };
+    const ringOf = async key => until(() => { const r = featureRegion(key); return r?.behaviors?.find(b => b.type === TYPE) ? r : null; }, { timeout: 12000 });
+    // the move's own update carries the token's regions: the membership the rings read stands once it resolves
+    const moveVictim = async squares => { await victimToken.document.update({ x: monsterToken.document.x + squares * g, y: monsterToken.document.y }, mv()); };
     const triggerCards = () => cardsWith('emanationTrigger');
     const pulseCards = () => cardsWith('emanationPulse');
     const notices = label => game.messages.filter(m => (m.timestamp >= suiteStart) && (m.getFlag(MOD, 'hewNotice')?.label === label));
@@ -401,17 +396,16 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const carriers = actor.effects.filter(e => e.statuses?.has?.('incapacitated'));
       if (on && !carriers.length) { const eff = await ActiveEffect.implementation.fromStatusEffect('incapacitated'); await ActiveEffect.implementation.create(eff.toObject(), { parent: actor, keepId: true }); }
       else if (!on && carriers.length) await actor.deleteEmbeddedDocuments('ActiveEffect', carriers.map(e => e.id));
-      await sleep(300);
     };
     const ringWanted = [5, 6, 7].some(n => want(n));
     if (ringWanted) {
       // The Victim turned FRIENDLY for the ring sections: the Monster's enemy (a harmful reach).
       await victimToken.document.update({ disposition: 1 });
-      await sleep(200);
+      await until(() => victimToken.document.disposition === 1, { label: 'the Victim friendly' });
     }
 
     // ================================================== 5. Flame Aura — the pulse
-    if (want(5)) {
+    if (want(5)) await section(5, async () => {
       await healFull();
       const t5 = Date.now();
       const aura = await lendTrait('Flame Aura');
@@ -423,31 +417,34 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       await startCombat();   // the Monster's turn
       const hp0 = hpNow();
       await combat.nextTurn();   // the Monster's turn ENDS → the pulse
-      const card = await waitFor(() => pulseCards().find(m => (m.timestamp >= t5) && (m.getFlag(MOD, 'emanationPulse')?.key === 'Flame Aura')) ?? null, 10000);
-      await waitFor(() => card?.getFlag(MOD, 'receipt'), 8000);
+      const card = await until(() => pulseCards().find(m => (m.timestamp >= t5) && (m.getFlag(MOD, 'emanationPulse')?.key === 'Flame Aura')) ?? null, { timeout: 10000 });
+      await until(() => card?.getFlag(MOD, 'receipt'), { timeout: 8000 });
       const p = card?.getFlag(MOD, 'emanationPulse');
       ok('5b. the Monster\'s turn end rolls the aura\'s fire once and lands it on the Victim inside, receipted',
         !!card && (p?.type === 'fire') && (p?.total > 0) && (p?.targets?.some(t => t.uuid === victim.uuid)) && (hpNow() === hp0 - p.total) && !!card?.getFlag(MOD, 'receipt'),
         `card=${!!card} flag=${JSON.stringify(p && { type: p.type, total: p.total, targets: p.targets?.map(t => t.name) })} hp=${hpNow()} vs ${hp0}`);
       await moveVictim(-6);   // 30 ft away on the near side, outside (a stray token may still sit inside the ring — the range is shared)
-      await sleep(1500);      // the ring re-bases and the region's membership settles
+      await until(() => !featureRegion('Flame Aura')?.tokens?.has?.(victimToken.document), { label: 'the Victim outside the Flame Aura ring' });
       const hp1 = hpNow();
       const n1 = pulseCards().length;
+      // the windows for a WRONG pulse on the Victim outside: its card naming it, or its Hit Points moving
+      const struck = () => (pulseCards().slice(n1).some(m => m.getFlag(MOD, 'emanationPulse')?.targets?.some(x => x.uuid === victim.uuid)) || (hpNow() !== hp1))
+        ? `hp=${hpNow()}` : null;
       await combat.nextTurn();   // the Victim
-      await sleep(300);
+      const early = await watch(struck, { ms: 300 });
       await combat.nextTurn();   // the Monster's turn ends again, the Victim outside
-      await sleep(1000);
+      const late = await watch(struck, { ms: 1000 });
       const later = pulseCards().slice(n1);
-      ok('5c. the Victim outside: the next turn end names it in no pulse and its Hit Points stand', !later.some(m => m.getFlag(MOD, 'emanationPulse')?.targets?.some(x => x.uuid === victim.uuid)) && (hpNow() === hp1),
-        `later=${later.length} targets=${later.map(m => m.getFlag(MOD, 'emanationPulse')?.targets?.map(x => x.name).join('+')).join(';')} hp=${hpNow()} vs ${hp1}`);
+      ok('5c. the Victim outside: the next turn end names it in no pulse and its Hit Points stand', !early && !late && !later.some(m => m.getFlag(MOD, 'emanationPulse')?.targets?.some(x => x.uuid === victim.uuid)) && (hpNow() === hp1),
+        `later=${later.length} targets=${later.map(m => m.getFlag(MOD, 'emanationPulse')?.targets?.map(x => x.name).join('+')).join(';')} hp=${hpNow()} vs ${hp1} seen=${early ?? late}`);
       await endCombat();
       await aura.delete();
-      await waitFor(() => featureRegion('Flame Aura') ? null : true, 8000);
+      await until(() => featureRegion('Flame Aura') ? null : true, { timeout: 8000 });
       await moveVictim(1);
-    }
+    });
 
     // ================================================== 6. Gibbering — the turn-start ring
-    if (want(6)) {
+    if (want(6)) await section(6, async () => {
       await healFull();
       await saveBonus('wis', '-30');
       const t6 = Date.now();
@@ -458,29 +455,31 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       await startCombat();
       const n0 = triggerCards().length;
       await combat.nextTurn();   // the Victim's turn STARTS inside
-      const card = await waitFor(() => triggerCards().find(m => (m.timestamp >= t6) && (m.getFlag(MOD, 'emanationTrigger')?.cause === 'turnStart') && (m.getFlag(MOD, 'emanationTrigger')?.key === 'Gibbering')) ?? null, 10000);
+      const card = await until(() => triggerCards().find(m => (m.timestamp >= t6) && (m.getFlag(MOD, 'emanationTrigger')?.cause === 'turnStart') && (m.getFlag(MOD, 'emanationTrigger')?.key === 'Gibbering')) ?? null, { timeout: 10000 });
       const sv = card?.getFlag(MOD, 'saves');
       ok('6b. the Victim starting its turn inside is demanded the Wisdom save — cause turnStart, the trait\'s DC, pinned to it',
         !!card && (sv?.abilities?.[0] === 'wis') && (sv?.targets?.length === 1) && (sv.targets[0].uuid === victim.uuid) && /started its turn inside/.test(card?.content ?? ''),
         `card=${!!card} saves=${JSON.stringify(sv && { abilities: sv.abilities, dc: sv.dc, targets: sv.targets.map(t => t.name) })}`);
-      await waitFor(() => game.messages.get(card?.id)?.getFlag(MOD, 'saves')?.targets?.[0]?.applied ? true : null, 15000);
+      await until(() => game.messages.get(card?.id)?.getFlag(MOD, 'saves')?.targets?.[0]?.applied ? true : null, { timeout: 15000 });
       await setIncapacitated(monster, true);
-      await waitFor(() => featureRegion('Gibbering')?.behaviors?.find(b => b.type === TYPE)?.disabled ? true : null, 8000);
+      await until(() => featureRegion('Gibbering')?.behaviors?.find(b => b.type === TYPE)?.disabled ? true : null, { timeout: 8000 });
       const n1 = triggerCards().length;
+      // the windows for a WRONG demand at the Victim's turn start, the ring disabled
+      const asked = () => (triggerCards().length !== n1) ? `cards=${triggerCards().length}` : null;
       await combat.nextTurn();   // the Monster
-      await sleep(300);
+      const early = await watch(asked, { ms: 300 });
       await combat.nextTurn();   // the Victim again — the ring disabled
-      await sleep(1000);
-      ok('6c. the Monster Incapacitated: the ring stands disabled and the next turn start asks nothing', (triggerCards().length === n1) && !!featureRegion('Gibbering')?.behaviors?.find(b => b.type === TYPE)?.disabled, `cards=${triggerCards().length} (was ${n1}, before ${n0})`);
+      const late = await watch(asked, { ms: 1000 });
+      ok('6c. the Monster Incapacitated: the ring stands disabled and the next turn start asks nothing', !early && !late && (triggerCards().length === n1) && !!featureRegion('Gibbering')?.behaviors?.find(b => b.type === TYPE)?.disabled, `cards=${triggerCards().length} (was ${n1}, before ${n0}) seen=${early ?? late}`);
       await setIncapacitated(monster, false);
       await endCombat();
       await gib.delete();
-      await waitFor(() => featureRegion('Gibbering') ? null : true, 8000);
+      await until(() => featureRegion('Gibbering') ? null : true, { timeout: 8000 });
       await clearVictim();
-    }
+    });
 
     // ================================================== 7. the alerts — Watery Rebuke (move-in), Unnerving Gaze (turn start)
-    if (want(7)) {
+    if (want(7)) await section(7, async () => {
       await moveVictim(4);   // 20 ft away: outside a 5-ft ring
       const rebuke = await lendTrait('Watery Rebuke');
       const ring = await ringOf('Watery Rebuke');
@@ -488,13 +487,13 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       ok('7a. Watery Rebuke lent: a quiet 5-foot ring rises, harmful, no effect', !!ring && (beh?.system?.reach === 'harmful') && (beh?.system?.effect === null), `ring=${!!ring} reach=${beh?.system?.reach}`);
       const t7 = Date.now();
       await victimToken.document.update({ x: monsterToken.document.x + g, y: monsterToken.document.y }, { animate: false });   // a real move, into the ring
-      const card = await waitFor(() => notices('Watery Rebuke').find(m => m.timestamp >= t7) ?? null, 10000);
+      const card = await until(() => notices('Watery Rebuke').find(m => m.timestamp >= t7) ?? null, { timeout: 10000 });
       const n = card?.getFlag(MOD, 'hewNotice');
       ok('7b. the Victim moving within 5 feet raises the Monster\'s reminder: the trait, the swing, the Reaction from the sheet',
         !!card && (n?.attackerUuid === monster.uuid) && (n?.itemName === 'Watery Rebuke') && (n?.cause === 'moveIn') && /Watery Rebuke — .* entered/.test(card?.content ?? '') && /Trait — Watery Rebuke/.test(card?.content ?? ''),
         `card=${!!card} flag=${JSON.stringify(n && { attacker: n.attackerUuid === monster.uuid, item: n.itemName, cause: n.cause })}`);
       await rebuke.delete();
-      await waitFor(() => featureRegion('Watery Rebuke') ? null : true, 8000);
+      await until(() => featureRegion('Watery Rebuke') ? null : true, { timeout: 8000 });
       // Unnerving Gaze: the turn start inside 30 feet.
       const gaze = await lendTrait('Unnerving Gaze');
       await ringOf('Unnerving Gaze');
@@ -502,25 +501,24 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       await startCombat();
       const t7b = Date.now();
       await combat.nextTurn();   // the Victim's turn starts inside
-      const c2 = await waitFor(() => notices('Unnerving Gaze').find(m => m.timestamp >= t7b) ?? null, 10000);
+      const c2 = await until(() => notices('Unnerving Gaze').find(m => m.timestamp >= t7b) ?? null, { timeout: 10000 });
       const n2 = c2?.getFlag(MOD, 'hewNotice');
       ok('7c. the Victim STARTING its turn within 30 feet raises Unnerving Gaze\'s reminder — cause turnStart, the card says so',
         !!c2 && (n2?.cause === 'turnStart') && (n2?.itemName === 'Unnerving Gaze') && /started its turn within/.test(c2?.content ?? ''),
         `card=${!!c2} flag=${JSON.stringify(n2 && { cause: n2.cause, item: n2.itemName })}`);
       const k = notices('Unnerving Gaze').length;
-      await combat.nextTurn();   // the Monster
-      await sleep(300);
+      await advance();   // the Monster
       await combat.nextTurn();   // the Victim again: a second turn, a second reminder
-      await waitFor(() => notices('Unnerving Gaze').length > k ? true : null, 8000);
+      await until(() => notices('Unnerving Gaze').length > k ? true : null, { timeout: 8000 });
       ok('7d. the next turn start raises it again — once per turn, not once ever', notices('Unnerving Gaze').length === k + 1, `notices=${notices('Unnerving Gaze').length} (was ${k})`);
       await endCombat();
       await gaze.delete();
-      await waitFor(() => featureRegion('Unnerving Gaze') ? null : true, 8000);
+      await until(() => featureRegion('Unnerving Gaze') ? null : true, { timeout: 8000 });
       await moveVictim(1);
-    }
+    });
 
     // ================================================== 8. Chaos Blade — the random condition on a hit
-    if (want(8)) {
+    if (want(8)) await section(8, async () => {
       await healFull();
       await moveVictim(1);
       const priorAc = { calc: victim.system._source.attributes.ac.calc, flat: victim.system._source.attributes.ac.flat };
@@ -533,20 +531,20 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const swing = async act => {
         monsterToken.control({ releaseOthers: true });
         target();
-        await sleep(80);
         const results = await act.use({ subsequentActions: false, consume: { uses: false, resources: false } }, { configure: false }, {});
         const rolls = await act.rollAttack({}, { configure: false }, results?.message?.id ? { data: { 'system.origin': results.message.id } } : {});
         const attackMsg = rolls?.[0]?.parent ?? null;
         const originId = attackMsg?._source.system?.origin ?? attackMsg?.id;
-        const offer = await waitFor(offerEl, 2500);
+        // the offer opens only for a hit with a pick to make (playerRollDamage is off): without one the damage rolls alone
+        const offer = await until(offerEl, { timeout: 2500, label: 'the damage offer' }).catch(() => null);
         offer?.querySelector('button[data-action="roll"]')?.click();
-        const dmg = await waitFor(() => { const d = damageFor(originId); return d?.getFlag(MOD, 'receipt') ? d : null; }, 12000);
+        const dmg = await until(() => { const d = damageFor(originId); return d?.getFlag(MOD, 'receipt') ? d : null; }, { timeout: 12000 });
         return { attackMsg, dmg };
       };
       const before = new Set(victim.effects.map(e => e.id));
       const { attackMsg, dmg } = await swing(attack);
       const hit = attackMsg?.rolls?.[0]?.total >= 1;
-      await waitFor(() => dmg?.getFlag(MOD, 'clockRiders')?.riders?.[0]?.random?.face ? true : null, 10000);
+      await until(() => dmg?.getFlag(MOD, 'clockRiders')?.riders?.[0]?.random?.face ? true : null, { timeout: 10000 });
       const cr = game.messages.get(dmg?.id)?.getFlag(MOD, 'clockRiders');
       const rider = cr?.riders?.find(r => r.key === 'chaos-blade');
       log.push(`§8 attack clockPick=${JSON.stringify(attackMsg?.getFlag(MOD, 'clockPick'))} attackFlags=${Object.keys(attackMsg?.flags?.[MOD] ?? {}).join(',')} dmgFlags=${Object.keys(game.messages.get(dmg?.id)?.flags?.[MOD] ?? {}).join(',')} riders=${JSON.stringify(cr?.riders?.map(r => r.key))}`);
@@ -562,18 +560,23 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const other = await lendTrait('Claw');
       const before2 = new Set(victim.effects.map(e => e.id));
       const { dmg: dmg2 } = await swing(actOf(other, { type: 'attack' }));
-      await sleep(800);
+      // the window for a WRONG Chaos Blade on the Claw: its rider record, or a condition landing
+      const stray = await watch(() => {
+        const rode = game.messages.get(dmg2?.id)?.getFlag(MOD, 'clockRiders')?.riders?.some(r => r.key === 'chaos-blade');
+        const landed = victim.effects.filter(e => !before2.has(e.id) && !e.statuses?.has?.('bloodied')).length;
+        return (rode || landed) ? `rode=${!!rode} landed=${landed}` : null;
+      }, { ms: 800 });
       ok('8c. a Claw hit rides no Chaos Blade: no rider record, nothing landed',
-        !!dmg2 && !game.messages.get(dmg2.id)?.getFlag(MOD, 'clockRiders')?.riders?.some(r => r.key === 'chaos-blade') && (victim.effects.filter(e => !before2.has(e.id) && !e.statuses?.has?.('bloodied')).length === 0),
-        `dmg=${!!dmg2} riders=${JSON.stringify(game.messages.get(dmg2?.id)?.getFlag(MOD, 'clockRiders')?.riders?.map(r => r.key))} landed=${victim.effects.filter(e => !before2.has(e.id) && !e.statuses?.has?.('bloodied')).length}`);
+        !stray && !!dmg2 && !game.messages.get(dmg2.id)?.getFlag(MOD, 'clockRiders')?.riders?.some(r => r.key === 'chaos-blade') && (victim.effects.filter(e => !before2.has(e.id) && !e.statuses?.has?.('bloodied')).length === 0),
+        `dmg=${!!dmg2} riders=${JSON.stringify(game.messages.get(dmg2?.id)?.getFlag(MOD, 'clockRiders')?.riders?.map(r => r.key))} landed=${victim.effects.filter(e => !before2.has(e.id) && !e.statuses?.has?.('bloodied')).length} seen=${stray}`);
       await victim.update({ 'system.attributes.ac.calc': priorAc.calc, 'system.attributes.ac.flat': priorAc.flat });
       await clearVictim();
       await takeBack('Chaos Blade');
       await takeBack('Claw');
-    }
+    });
 
     // ================================================== 9. the drain — Life Drain, Draining Swipe
-    if (want(9)) {
+    if (want(9)) await section(9, async () => {
       await healFull();
       await moveVictim(1);
       const priorAc = { calc: victim.system._source.attributes.ac.calc, flat: victim.system._source.attributes.ac.flat };
@@ -585,14 +588,14 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const swing = async act => {
         monsterToken.control({ releaseOthers: true });
         target();
-        await sleep(80);
         const results = await act.use({ subsequentActions: false, consume: { uses: false, resources: false } }, { configure: false }, {});
         const rolls = await act.rollAttack({}, { configure: false }, results?.message?.id ? { data: { 'system.origin': results.message.id } } : {});
         const attackMsg = rolls?.[0]?.parent ?? null;
         const originId = attackMsg?._source.system?.origin ?? attackMsg?.id;
-        const offer = await waitFor(offerEl, 2500);
+        // the offer opens only for a hit with a pick to make (playerRollDamage is off): without one the damage rolls alone
+        const offer = await until(offerEl, { timeout: 2500, label: 'the damage offer' }).catch(() => null);
         offer?.querySelector('button[data-action="roll"]')?.click();
-        const dmg = await waitFor(() => { const d = damageFor(originId); return d?.getFlag(MOD, 'receipt') ? d : null; }, 12000);
+        const dmg = await until(() => { const d = damageFor(originId); return d?.getFlag(MOD, 'receipt') ? d : null; }, { timeout: 12000 });
         return { attackMsg, dmg };
       };
       const maxNow = () => Number(victim.system.attributes.hp.effectiveMax ?? victim.system.attributes.hp.max);   // dnd5e: max + tempmax
@@ -601,8 +604,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const n0 = drainCards().length;
       const { dmg } = await swing(actOf(life, { type: 'attack' }));
       const taken = dmg?.getFlag(MOD, 'receipt')?.targets?.find(t => t.uuid === victim.uuid)?.taken ?? null;
-      const card = await waitFor(() => drainCards()[n0] ?? null, 10000);
-      await waitFor(() => card?.getFlag(MOD, 'effectReceipt'), 8000);
+      const card = await until(() => drainCards()[n0] ?? null, { timeout: 10000 });
+      await until(() => card?.getFlag(MOD, 'effectReceipt'), { timeout: 8000 });
       const d1 = card?.getFlag(MOD, 'drain');
       const fx1 = victim.effects.find(e => e.getFlag(MOD, 'drain')?.key === 'Life Drain') ?? null;
       ok('9a. Life Drain\'s hit lowers the Victim\'s maximum by what landed: a drain card, the effect on the Victim (tempmax), receipted; the dealing card latched',
@@ -611,8 +614,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       await healFull();
       const { dmg: dmg2 } = await swing(actOf(life, { type: 'attack' }));
       const taken2 = dmg2?.getFlag(MOD, 'receipt')?.targets?.find(t => t.uuid === victim.uuid)?.taken ?? null;
-      const card2 = await waitFor(() => drainCards()[n0 + 1] ?? null, 10000);
-      await waitFor(() => card2?.getFlag(MOD, 'effectReceipt'), 8000);
+      const card2 = await until(() => drainCards()[n0 + 1] ?? null, { timeout: 10000 });
+      await until(() => card2?.getFlag(MOD, 'effectReceipt'), { timeout: 8000 });
       const d2 = card2?.getFlag(MOD, 'drain');
       const copies = victim.effects.filter(e => e.getFlag(MOD, 'drain')?.key === 'Life Drain');
       ok('9b. a second hit refreshes the ONE copy with the total: the card says the fall and the total, the maximum down by both',
@@ -625,8 +628,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const swipe = await lendTrait('Draining Swipe');
       const n1 = drainCards().length;
       const { dmg: dmg3 } = await swing(actOf(swipe, { type: 'attack' }));
-      const card3 = await waitFor(() => drainCards()[n1] ?? null, 10000);
-      await waitFor(() => card3?.getFlag(MOD, 'effectReceipt'), 8000);
+      const card3 = await until(() => drainCards()[n1] ?? null, { timeout: 10000 });
+      await until(() => card3?.getFlag(MOD, 'effectReceipt'), { timeout: 8000 });
       const d3 = card3?.getFlag(MOD, 'drain');
       const fx3 = victim.effects.find(e => e.getFlag(MOD, 'drain')?.key === 'Draining Swipe') ?? null;
       ok('9c. Draining Swipe\'s hit rolls the text\'s 1d4 on the Monster and lands the pack\'s "Hit: STR Score −N" on the Victim, receipted; the score down by the roll',
@@ -635,7 +638,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       await victim.update({ 'system.attributes.ac.calc': priorAc.calc, 'system.attributes.ac.flat': priorAc.flat });
       await clearVictim();
       await takeBack('Draining Swipe');
-    }
+    });
 
     // ================================================== the Monster's own damage — helpers (smoke-drop's)
     const mHp = () => Number(monster.system.attributes.hp.value);
@@ -650,57 +653,57 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     };
 
     // ================================================== 10. the vampire's drop
-    if (want(10)) {
+    if (want(10)) await section(10, async () => {
       const t10 = Date.now();
       const spite = await lendTrait('Spiteful Escape');
       await mSetHp(20);
       await mHit(30);
-      await sleep(600);
-      const card = await waitFor(() => cardsWith('dropToOne').find(m => (m.timestamp >= t10) && (m.getFlag(MOD, 'dropToOne')?.row === 'Spiteful Escape')) ?? null, 8000);
+      // the hold's card posts after the use is spent; the 1 lands with the damage itself
+      const card = await until(() => cardsWith('dropToOne').find(m => (m.timestamp >= t10) && (m.getFlag(MOD, 'dropToOne')?.row === 'Spiteful Escape')) ?? null, { timeout: 8000 });
       const f = card?.getFlag(MOD, 'dropToOne');
       ok('10a. Spiteful Escape: the Monster is held at 1 on the drop, automatically, the card saying so',
         (mHp() === 1) && !!card && (f?.answer === 'auto') && (f?.applied === true) && /drops to 1 Hit Point instead/.test(card?.content ?? ''),
         `hp=${mHp()} flag=${JSON.stringify(f && { row: f.row, answer: f.answer })}`);
       await mSetHp(5);
       await mHit(90);   // 90 − 5 ≥ the maximum of 50: killed outright
-      await sleep(600);
+      await until(() => mHp() === 1, { label: 'the Monster held at 1' });
       ok('10b. killed outright too (outright: true): held at 1 again', mHp() === 1, `hp=${mHp()}`);
       await spite.delete();
       const misty = await lendTrait('Misty Escape');
       await mSetHp(5);
       const t10b = Date.now();
       await mHit(30);
-      const notice = await waitFor(() => cardsWith('deathThroes').find(m => (m.timestamp >= t10b) && (m.getFlag(MOD, 'deathThroes')?.key === 'Misty Escape')) ?? null, 8000);
+      const notice = await until(() => cardsWith('deathThroes').find(m => (m.timestamp >= t10b) && (m.getFlag(MOD, 'deathThroes')?.key === 'Misty Escape')) ?? null, { timeout: 8000 });
       const n = notice?.getFlag(MOD, 'deathThroes');
       ok('10c. Misty Escape: the 0 lands and the notice card rises — the mist, nothing used, no demand',
         (mHp() === 0) && !!notice && (n?.notice === true) && (n?.count === 0) && !notice?.getFlag(MOD, 'saves') && /becomes mist/.test(notice?.content ?? ''),
         `hp=${mHp()} card=${!!notice} flag=${JSON.stringify(n && { key: n.key, notice: n.notice, count: n.count })}`);
       await misty.delete();
       await mSetHp(50);
-    }
+    });
 
     // ================================================== 11. the curse on a rest
-    if (want(11)) {
+    if (want(11)) await section(11, async () => {
       const touch = await lendTrait('Cursed Touch');
       const cursed = await grappleFrom(touch, 'Cursed');   // the pack's Cursed, its origin the touch's attack
       await victim.update({ 'system.attributes.hp.value': 1 });
       const t11 = Date.now();
       await victim.longRest({ dialog: false, chat: true, newDay: false, advanceTime: false });
-      const card = await waitFor(() => game.messages.contents.find(m => (m.timestamp >= t11) && m.getFlag(MOD, 'restBlock')) ?? null, 8000);
+      const card = await until(() => game.messages.contents.find(m => (m.timestamp >= t11) && m.getFlag(MOD, 'restBlock')) ?? null, { timeout: 8000 });
       const blocks = card?.getFlag(MOD, 'restBlock');
       ok('11a. Cursed standing: the Long Rest regains nothing — the Hit Points stay at 1, the rest card carries the block line naming Cursed Touch',
         (hpNow() === 1) && !!card && (blocks?.[0]?.name === 'Cursed Touch') && (blocks?.[0]?.effect === 'Cursed'),
         `hp=${hpNow()} card=${!!card} blocks=${JSON.stringify(blocks)}`);
       await cursed.delete();
       await victim.longRest({ dialog: false, chat: true, newDay: false, advanceTime: false });
-      await sleep(400);
+      await until(() => hpNow() === Number(victim.system.attributes.hp.max), { label: 'the Long Rest healed' });
       ok('11b. the curse gone: the next Long Rest heals', hpNow() === Number(victim.system.attributes.hp.max), `hp=${hpNow()} max=${victim.system.attributes.hp.max}`);
       await clearVictim();
       await takeBack('Cursed Touch');
-    }
+    });
 
     // ================================================== 12. Corrosive Form — the defender's own trait
-    if (want(12)) {
+    if (want(12)) await section(12, async () => {
       await healFull();
       await moveVictim(1);
       const form = await lendTrait('Corrosive Form');
@@ -718,16 +721,16 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       victimToken.control({ releaseOthers: true });
       game.user.targets.forEach(t => { t.setTarget(false, { releaseOthers: true }); });
       monsterToken.setTarget(true, { releaseOthers: true });
-      await sleep(80);
       const results = await act.use({ subsequentActions: false, consume: { uses: false, resources: false } }, { configure: false }, {});
       const rolls = await act.rollAttack({}, { configure: false }, results?.message?.id ? { data: { 'system.origin': results.message.id } } : {});
       const attackMsg = rolls?.[0]?.parent ?? null;
       const originId = attackMsg?._source.system?.origin ?? attackMsg?.id;
-      const offer = await waitFor(offerEl, 2500);
+      // the offer opens only for a hit with a pick to make (playerRollDamage is off): without one the damage rolls alone
+      const offer = await until(offerEl, { timeout: 2500, label: 'the damage offer' }).catch(() => null);
       offer?.querySelector('button[data-action="roll"]')?.click();
-      const dmg = await waitFor(() => { const d = damageFor(originId); return d?.getFlag(MOD, 'receipt') ? d : null; }, 12000);
-      const shield = await waitFor(() => game.messages.contents.find(m => (m.timestamp >= t12) && (m.getFlag(MOD, 'damageShield')?.key === 'Corrosive Form') && m.getFlag(MOD, 'damageShield')?.rolled) ?? null, 12000);
-      await waitFor(() => shield?.getFlag(MOD, 'receipt'), 8000);
+      const dmg = await until(() => { const d = damageFor(originId); return d?.getFlag(MOD, 'receipt') ? d : null; }, { timeout: 12000 });
+      const shield = await until(() => game.messages.contents.find(m => (m.timestamp >= t12) && (m.getFlag(MOD, 'damageShield')?.key === 'Corrosive Form') && m.getFlag(MOD, 'damageShield')?.rolled) ?? null, { timeout: 12000 });
+      await until(() => shield?.getFlag(MOD, 'receipt'), { timeout: 8000 });
       const s = shield?.getFlag(MOD, 'damageShield');
       ok('12a. the Victim\'s melee hit lands and the Monster\'s Corrosive Form strikes back: the acid rolled as the Monster\'s, landed on the Victim, receipted',
         !!dmg && !!shield && (s?.type === 'acid') && (s?.attackerUuid === victim.uuid) && (s?.total > 0) && !!shield?.getFlag(MOD, 'receipt') && (hpNow() === hp0 - s.total),
@@ -737,30 +740,32 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       await form.delete();
       await healFull();
       await mSetHp(50);
-    }
+    });
 
     // ================================================== 13. Fiendish Blood — offered on the types it names
-    if (want(13)) {
+    if (want(13)) await section(13, async () => {
       await moveVictim(1);
       const blood = await lendTrait('Fiendish Blood');
       await mSetHp(50);
       const t13 = Date.now();
       await mHit(10, 'slashing', victim);
-      const offer = await waitFor(() => cardsWith('rebuke').find(m => (m.timestamp >= t13) && (m.getFlag(MOD, 'rebuke')?.options ?? []).some(o => o.name === 'Fiendish Blood')) ?? null, 8000);
+      const offer = await until(() => cardsWith('rebuke').find(m => (m.timestamp >= t13) && (m.getFlag(MOD, 'rebuke')?.options ?? []).some(o => o.name === 'Fiendish Blood')) ?? null, { timeout: 8000 });
       const r = offer?.getFlag(MOD, 'rebuke');
       ok('13a. slashing damage from the Victim offers Fiendish Blood — the rebuke card pending, the Victim the damager',
         !!offer && (r?.status === 'pending') && (r?.sourceUuid === victim.uuid) && (r?.actorUuid === monster.uuid),
         `offer=${!!offer} flag=${JSON.stringify(r && { status: r.status, options: r.options?.map(o => o.name) })}`);
       const k = cardsWith('rebuke').length;
       await mHit(10, 'fire', victim);
-      await sleep(1200);
-      ok('13b. fire damage offers nothing (piercing or slashing alone)', !cardsWith('rebuke').slice(k).some(m => (m.getFlag(MOD, 'rebuke')?.options ?? []).some(o => o.name === 'Fiendish Blood')), `cards=${cardsWith('rebuke').length} (was ${k})`);
+      // the window for a WRONG Fiendish Blood offer
+      const offered = () => cardsWith('rebuke').slice(k).some(m => (m.getFlag(MOD, 'rebuke')?.options ?? []).some(o => o.name === 'Fiendish Blood'));
+      const stray = await watch(() => offered() || null, { ms: 1200 });
+      ok('13b. fire damage offers nothing (piercing or slashing alone)', !stray && !offered(), `cards=${cardsWith('rebuke').length} (was ${k})`);
       await blood.delete();
       await mSetHp(50);
-    }
+    });
 
     // ================================================== 14. Object Slam — the gate's judge on the map
-    if (want(14)) {
+    if (want(14)) await section(14, async () => {
       await healFull();
       const slam = await lendTrait('Object Slam');
       const claw = await lendTrait('Claw');
@@ -773,20 +778,25 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         }
       };
       const popupText = dlg => ((dlg?.element?.querySelector('[data-bf-reminder]') ?? dlg?.element?.querySelector('.window-content'))?.textContent ?? '').replace(/\s+/g, ' ').trim();
+      const openRolls = () => [...foundry.applications.instances.values()].some(app => app.rendered
+        && (((app instanceof foundry.applications.api.DialogV2) && /Before you roll/.test(app.title ?? '')) || /RollConfigurationDialog/.test(app.constructor?.name ?? '')));
       const gateOf = async act => {
         monsterToken.control({ releaseOthers: true });
         target();
-        await sleep(80);
         const results = await act.use({ subsequentActions: false, consume: { uses: false, resources: false } }, { configure: false }, {});
         const usageId = results?.message?.id ?? null;
-        const li = await waitFor(() => document.querySelector(`.message[data-message-id="${usageId}"]`), 4000);
+        const li = await until(() => document.querySelector(`.message[data-message-id="${usageId}"]`), { timeout: 4000 });
         const event = { target: li?.querySelector('button[data-action="rollAttack"]') ?? li, clientY: 200, altKey: false, ctrlKey: false, metaKey: false, shiftKey: false };
         act.rollAttack({ event }, {}, {}).catch(() => { /* the dialog is closed below: the roll is cancelled */ });
-        const dlg = await waitFor(rollDialog, 6000);
-        await sleep(250);
+        const dlg = await until(rollDialog, { timeout: 6000 });
+        // the gate is set before the dialog renders; its fieldset is drawn only when the gate has a source
+        await until(() => {
+          const gate = dlg?.options?.bfReminder;
+          return !dlg || !gate || !((gate.sources?.length > 0) || gate.sneak) || dlg.element?.querySelector('[data-bf-reminder]');
+        }, { label: 'the gate drawn in the roll dialog' });
         const text = popupText(dlg);
         await closeGates();
-        await sleep(200);
+        await until(() => !openRolls(), { label: 'the roll dialogs closed' });
         return { dialog: dlg, text };
       };
       // Beside the Monster: nothing.
@@ -803,10 +813,10 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       game.user.targets.forEach(t => { t.setTarget(false, { releaseOthers: true }); });
       await takeBack('Object Slam');
       await takeBack('Claw');
-    }
+    });
 
     // ================================================== 15. Reflective Carapace — the hold turns the spell aside
-    if (want(15)) {
+    if (want(15)) await section(15, async () => {
       await healFull();
       await moveVictim(2);
       const shell = await lendTrait('Reflective Carapace');
@@ -825,28 +835,30 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         victimToken.control({ releaseOthers: true });
         game.user.targets.forEach(t => { t.setTarget(false, { releaseOthers: true }); });
         monsterToken.setTarget(true, { releaseOthers: true });
-        await sleep(80);
         const results = await act.use({ subsequentActions: false, consume: { spellSlot: false, uses: false, resources: false } }, { configure: false }, {});
         const rolls = await act.rollAttack({}, { configure: false }, results?.message?.id ? { data: { 'system.origin': results.message.id } } : {});
         return rolls?.[0]?.parent ?? null;
       };
       const hp0 = mHp();
       const attackMsg = await cast(bolt.system.activities.find(a => a.type === 'attack'));
-      const hold = await waitFor(() => { const h = game.messages.get(attackMsg?.id)?.getFlag(MOD, 'hold'); return (h?.status === 'resolved') ? h : null; }, 15000);
+      const hold = await until(() => { const h = game.messages.get(attackMsg?.id)?.getFlag(MOD, 'hold'); return (h?.status === 'resolved') ? h : null; }, { timeout: 15000 });
       const t = hold?.targets?.find(x => x.uuid === monster.uuid);
       ok('15a. the Fire Bolt hit is held and rolled against the carapace: one d6, the hit ABSORBED, the entry a feature (no duplicate destroyed)',
         !!hold && (t?.verdict === 'absorbed') && (t?.duplicates?.feature === true) && (t?.duplicates?.faces?.length === 1) && (t?.duplicates?.took === null) && (t?.duplicates?.left === 1),
         `hold=${hold?.status} verdict=${t?.verdict} dup=${JSON.stringify(t?.duplicates && { feature: t.duplicates.feature, faces: t.duplicates.faces, left: t.duplicates.left, reflected: t.duplicates.reflected })}`);
-      await sleep(1500);
-      const said = game.messages.contents.find(m => (m.timestamp >= (attackMsg?.timestamp ?? 0)) && /turns the spell aside/.test(m.content ?? '')) ?? null;
-      ok('15b. no damage lands on the Monster and the card says the spell is turned aside', (mHp() === hp0) && !!said, `hp=${mHp()} vs ${hp0} card=${!!said}`);
+      // the window for WRONG damage on the Monster; then the card that says the spell is turned aside
+      const struck = await watch(() => (mHp() !== hp0) ? `hp=${mHp()}` : null, { ms: 1500 });
+      const said = await until(() => game.messages.contents.find(m => (m.timestamp >= (attackMsg?.timestamp ?? 0)) && /turns the spell aside/.test(m.content ?? '')) ?? null,
+        { label: 'the card turning the spell aside' });
+      ok('15b. no damage lands on the Monster and the card says the spell is turned aside', !struck && (mHp() === hp0) && !!said, `hp=${mHp()} vs ${hp0} card=${!!said} seen=${struck}`);
       // A melee hit: not the carapace's.
       const sword = victim.items.find(i => (i.type === 'weapon') && i.system.activities?.some?.(a => (a.type === 'attack') && (a.attack?.type?.value === 'melee')));
       await moveVictim(1);
       const swing = await cast(sword.system.activities.find(a => a.type === 'attack'));
-      await sleep(800);
+      // the window for a WRONG carapace answer on the Longsword's hold
+      const answered = await watch(() => game.messages.get(swing?.id)?.getFlag(MOD, 'hold')?.targets?.some(x => x.duplicates) || null, { ms: 800 });
       const h2 = game.messages.get(swing?.id)?.getFlag(MOD, 'hold');
-      ok('15c. a Longsword hit is not answered by the carapace (no duplicates entry on the hold)', !!swing && !h2?.targets?.some(x => x.duplicates), `hold=${JSON.stringify(h2 && { status: h2.status, dup: h2.targets?.map(x => !!x.duplicates) })}`);
+      ok('15c. a Longsword hit is not answered by the carapace (no duplicates entry on the hold)', !answered && !!swing && !h2?.targets?.some(x => x.duplicates), `hold=${JSON.stringify(h2 && { status: h2.status, dup: h2.targets?.map(x => !!x.duplicates) })}`);
       await monster.update({ 'system.attributes.ac.calc': priorMon.calc, 'system.attributes.ac.flat': priorMon.flat });
       await victim.update({ 'system.attributes.spellcasting': priorCasting });
       if (bolt) await bolt.delete();
@@ -854,7 +866,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       await shell.delete();
       await mSetHp(50);
       await healFull();
-    }
+    });
 
     return { log, results, skips };
   } catch (err) {

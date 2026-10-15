@@ -570,7 +570,7 @@ Cutting Words; Combat Inspiration lent), **BTB Test Warlock** (Fiend, 6 — Dark
 Luck, Repelling Blast; Eldritch Smite lent), **BTB Test Druid** (Circle of the Stars, 6 — Starry Form, Cosmic
 Omen; Circle Forms lent). A feature the fixture's own subclass lacks is LENT by name from
 `dnd-players-handbook.classes` for the section and taken back (BTB Test Monster's pattern, `smoke-monsters`).
-One new suite, **`tools/smoke-classes.mjs`**, holds the sections that need those fixtures (the hit menu's
+One new suite, **`smoke-classes`** (one suite per class since, `tools/smoke-class-<class>.mjs` on `tools/class-kit.mjs`, the sections keeping their numbers), holds the sections that need those fixtures (the hit menu's
 groups, the bystander's bend on a save, the pools, the grants); rows on existing machines join the existing
 suite that covers the machine (the register's *how* names it). ⚠ The lessons of `smoke-monsters` apply: the
 pinned d20 (a 5) makes a d8 a 2 — assert totals, never faces; find the module's effect copies by FLAG; split

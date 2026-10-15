@@ -35,21 +35,8 @@ announcePlan('companions', plan, pulled);
 
 const out = await f.evaluate(async ({ sections, titles }) => {
   const MOD = 'fvtt-mod-bythebooks';
-  const results = [];
-  const log = [];
-  const skips = [];
-  const ok = (name, pass, detail = '') => results.push({ name, pass, detail });
-  const want = id => {
-    if (!sections || sections.includes(String(id))) return true;
-    skips.push(`§${id} ${titles?.[id] ?? ''}`);
-    return false;
-  };
-  const sleep = ms => new Promise(r => setTimeout(r, ms));
-  const waitFor = async (test, timeout = 8000) => {
-    const until = Date.now() + timeout;
-    while (Date.now() < until) { const v = await test(); if (v) return v; await sleep(200); }
-    return test();
-  };
+  const { until, viewScene } = window.__btb;
+  const { results, log, skips, ok, want, section } = window.__btb.begin({ sections, titles });
   const suiteStart = Date.now();
 
   const modDoc = game.modules.get(MOD);
@@ -64,8 +51,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   if (!caster) return { fatal: 'missing fixture: BTB Test Sorcerer — run tools/fixture-suite.mjs' };
   const range = game.scenes.getName('By the Books Test Range');
   if (!range) return { fatal: 'missing fixture: scene By the Books Test Range — run tools/fixture-suite.mjs' };
-  if (canvas.scene?.id !== range.id) await range.view();
-  for (let i = 0; i < 40 && !(canvas.ready && canvas.scene?.id === range.id); i++) await sleep(250);
+  await viewScene(range).catch(() => null);   // the fatal below names a canvas that never readied
   if (canvas.scene?.id !== range.id) return { fatal: 'the canvas never readied on the test range' };
   const casterToken = canvas.scene.tokens.find(t => t.actor?.id === caster.id) ?? null;
   if (!casterToken) return { fatal: 'the Sorcerer has no token on the scene — run tools/fixture-suite.mjs' };
@@ -101,8 +87,9 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   const companionEffects = () => caster.effects.filter(e => !!e.getFlag(MOD, 'companion'));
   const state = () => ({ effects: companionEffects().map(e => e.name), tokens: familiarTokens().map(t => t.name), records: standingRecords().map(r => `${r.id}:${r.flag.summonName}:${r.flag.companion.state}`) });
   const invariant = async (section, { effects = 1, tokens = 1, records: n = 1, named = null, pocket = null } = {}) => {
-    // the old one's dismissal and the new one's landing are two writes: wait for the counts to settle
-    await waitFor(() => (companionEffects().length === effects) && (familiarTokens().length === tokens) && (standingRecords().length === n) ? true : null, 15000);
+    // the old one's dismissal and the new one's landing are two writes: wait for the counts to settle;
+    // counts that never settle are this ok's to report, with the state
+    await until(() => (companionEffects().length === effects) && (familiarTokens().length === tokens) && (standingRecords().length === n) ? true : null, { timeout: 15000 }).catch(() => null);
     const s = state();
     const nameOk = named ? s.effects.some(e => e.includes(named)) : true;
     const pocketOk = (pocket === null) ? true : s.effects.every(e => e.includes('in the pocket') === pocket);
@@ -120,7 +107,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     const result = await summon.use({ [MOD]: { toCard: true }, create: { measuredTemplate: false, summons: false }, consume: { spellSlot: false } }, { configure: false }, { create: true });
     const message = result?.message instanceof ChatMessage ? result.message : null;
     if (message) madeMessages.push(message);
-    const flag = await waitFor(() => message?.getFlag(MOD, 'summon')?.status === 'asked' ? message.getFlag(MOD, 'summon') : null, 6000);
+    const flag = await until(() => message?.getFlag(MOD, 'summon')?.status === 'asked' ? message.getFlag(MOD, 'summon') : null, { timeout: 6000 });
     return { message, flag };
   };
   const answer = async (message, flag, name, { dx = 1, dy = 0, type = 'fey' } = {}) => {
@@ -133,7 +120,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       creatureType: (flag.creatureTypes ?? []).includes(type) ? type : (flag.creatureTypes?.[0] ?? null), intoPocket, placements }, SUMMON_CHOICES) : null;
     if (!patch) throw new Error(`the answer for ${name} was refused (beast=${!!b})`);
     await message.setFlag(MOD, 'summon', { ...flag, ...patch });
-    const landed = await waitFor(() => message.getFlag(MOD, 'summon')?.applied ? message.getFlag(MOD, 'summon') : null, 20000);
+    const landed = await until(() => message.getFlag(MOD, 'summon')?.applied ? message.getFlag(MOD, 'summon') : null, { timeout: 20000 });
     for (const l of landed?.landed ?? []) madeTokens.add(l.tokenId);
     for (const a of game.actors.filter(a => a.getFlag('dnd5e', 'isAutoImported') && (a.name === name))) if (!madeActors.includes(a)) madeActors.push(a);
     return landed;
@@ -145,10 +132,14 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     if (!patch) throw new Error(`the ${kind} ask was refused in state ${flag.companion?.state}`);
     await message.setFlag(MOD, 'summon', { ...flag, companion: { ...flag.companion, ...patch } });
     const want = (kind === 'away') ? 'pocket' : 'present';
-    await waitFor(() => (message.getFlag(MOD, 'summon')?.companion?.state === want) && !message.getFlag(MOD, 'summon')?.companion?.ask ? true : null, 15000);
-    await sleep(300);
+    await until(() => (message.getFlag(MOD, 'summon')?.companion?.state === want) && !message.getFlag(MOD, 'summon')?.companion?.ask ? true : null, { timeout: 15000 });
   };
-  const dismiss = async message => { await api.askDismiss(message); await waitFor(() => message.getFlag(MOD, 'summon')?.dismissed ? true : null, 15000); await sleep(300); };
+  const dismiss = async message => {
+    await api.askDismiss(message);
+    await until(() => message.getFlag(MOD, 'summon')?.dismissed ? true : null, { timeout: 15000 });
+    // the token and the effect go after the record: the invariant reports counts that never settle, the teardown sweeps them
+    await until(() => !familiarTokens().length && !companionEffects().length, { timeout: 8000 }).catch(() => null);
+  };
   const home = () => ({ x: casterToken.x + grid, y: casterToken.y, elevation: casterToken.elevation ?? 0, sceneId: canvas.scene.id });
 
   let current = null;
@@ -167,77 +158,77 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     if (!summon) return { fatal: 'the lent Find Familiar has no summon activity' };
 
     // ---- 1. the first landing
-    if (want(1)) {
+    if (want(1)) await section(1, async () => {
       const { message, landed } = await summonFamiliar('Owl');
       current = message;
       ok('§1 the Owl landed as a companion', landed?.outcome === 'landed' && !!landed.companion, JSON.stringify({ outcome: landed?.outcome, failure: landed?.failure, companion: landed?.companion?.state }));
       await invariant(1, { named: 'Owl', pocket: false });
-    }
+    });
 
     // ---- 2. a new form replaces the old
-    if (want(2) && current) {
+    if (want(2) && current) await section(2, async () => {
       const old = current;
       const { message, landed } = await summonFamiliar('Bat');
       current = message;
-      const oldGone = await waitFor(() => old.getFlag(MOD, 'summon')?.dismissed ? true : null, 15000);
+      const oldGone = await until(() => old.getFlag(MOD, 'summon')?.dismissed ? true : null, { timeout: 15000 });
       ok('§2 the Bat landed in the Owl\'s place and the Owl\'s record is dismissed', landed?.outcome === 'landed' && !!oldGone && (landed.replaced >= 1), JSON.stringify({ outcome: landed?.outcome, replaced: landed?.replaced, oldDismissed: !!oldGone }));
       await invariant(2, { named: 'Bat', pocket: false });
-    }
+    });
 
     // ---- 3. the pocket and back
-    if (want(3) && current) {
+    if (want(3) && current) await section(3, async () => {
       await ask(current, 'away');
       await invariant('3a', { tokens: 0, named: 'Bat', pocket: true });
       await ask(current, 'recall', home());
       await invariant('3b', { named: 'Bat', pocket: false });
-    }
+    });
 
     // ---- 4. a new form into the pocket
-    if (want(4) && current) {
+    if (want(4) && current) await section(4, async () => {
       await ask(current, 'away');
       const old = current;
       const { message, landed } = await summonFamiliar('Cat');
       current = message;
-      await waitFor(() => old.getFlag(MOD, 'summon')?.dismissed ? true : null, 15000);
+      await until(() => old.getFlag(MOD, 'summon')?.dismissed ? true : null, { timeout: 15000 });
       ok('§4 the Cat waits in the pocket as the Bat is dismissed', landed?.outcome === 'landed' && (landed.companion?.state === 'pocket') && !!old.getFlag(MOD, 'summon')?.dismissed, JSON.stringify({ outcome: landed?.outcome, state: landed?.companion?.state }));
       await invariant('4a', { tokens: 0, named: 'Cat', pocket: true });
       await ask(current, 'recall', home());
       await invariant('4b', { named: 'Cat', pocket: false });
-    }
+    });
 
     // ---- 5. dismiss forever
-    if (want(5) && current) {
+    if (want(5) && current) await section(5, async () => {
       await dismiss(current);
       await invariant(5, { effects: 0, tokens: 0, records: 0 });
       current = null;
-    }
+    });
 
     // ---- 6. two casts back to back
-    if (want(6)) {
+    if (want(6)) await section(6, async () => {
       const first = await cast();
       const second = await cast();
       ok('§6 two cards asked at once', first.flag?.status === 'asked' && second.flag?.status === 'asked', JSON.stringify({ first: first.flag?.status, second: second.flag?.status }));
       const a = await answer(first.message, first.flag, 'Rat', { dy: 1 });
       const b = await answer(second.message, second.flag, 'Owl', { dy: 2 });
-      await waitFor(() => first.message.getFlag(MOD, 'summon')?.dismissed ? true : null, 15000);
+      await until(() => first.message.getFlag(MOD, 'summon')?.dismissed ? true : null, { timeout: 15000 });
       ok('§6 the later cast stands, the earlier is dismissed', a?.outcome === 'landed' && b?.outcome === 'landed' && !!first.message.getFlag(MOD, 'summon')?.dismissed && !second.message.getFlag(MOD, 'summon')?.dismissed,
         JSON.stringify({ a: a?.outcome, b: b?.outcome, firstDismissed: !!first.message.getFlag(MOD, 'summon')?.dismissed, replaced: b?.replaced }));
       current = second.message;
       await invariant(6, { named: 'Owl', pocket: false });
-    }
+    });
 
     // ---- 7. the fall
-    if (want(7) && current) {
+    if (want(7) && current) await section(7, async () => {
       const tok = familiarTokens()[0] ?? null;
       await tok?.actor?.update({ 'system.attributes.hp.value': 0 });
-      const fell = await waitFor(() => current.getFlag(MOD, 'summon')?.dismissed ? current.getFlag(MOD, 'summon') : null, 15000);
+      const fell = await until(() => current.getFlag(MOD, 'summon')?.dismissed ? current.getFlag(MOD, 'summon') : null, { timeout: 15000 });
       ok('§7 at 0 HP the familiar disappears, the record says it fell', !!fell?.companion?.fell && !!fell?.dismissed, JSON.stringify({ fell: fell?.companion?.fell, dismissed: fell?.dismissed }));
       await invariant(7, { effects: 0, tokens: 0, records: 0 });
       current = null;
-    }
+    });
 
     // ---- 8. an orphan swept
-    if (want(8)) {
+    if (want(8)) await section(8, async () => {
       const [orphan] = await caster.createEmbeddedDocuments('ActiveEffect', [{ name: 'Familiar: Ghost (Fey)', type: 'base', transfer: false, flags: { [MOD]: { companion: 'nomessage000000' } } }]);
       ok('§8 an orphan companion effect stands on the caster', !!orphan && companionEffects().length === 1, JSON.stringify(state()));
       const { message, landed } = await summonFamiliar('Owl');
@@ -246,7 +237,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       await invariant(8, { named: 'Owl', pocket: false });
       await dismiss(current);
       current = null;
-    }
+    });
   } catch (err) {
     results.push({ name: 'suite threw', pass: false, detail: `${err?.message}\n${err?.stack}` });
   } finally {

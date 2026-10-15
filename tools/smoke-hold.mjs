@@ -69,11 +69,13 @@ const r = await f.evaluate(async ({ sections }) => {
   // A deliberate mark with NO clock — it stands until deleted (out of combat the module writes none).
   const spendReactionOf = async a => { await a.createEmbeddedDocuments('ActiveEffect', [{ name: 'Reaction — used', img: 'icons/svg/clockwork.svg', transfer: false, flags: { [MOD]: { mastery: 'reaction' } } }]); };
   const reactionSpentOf = async a => { const { reactionSpent } = await import('/modules/fvtt-mod-bythebooks/scripts/shared.js'); return reactionSpent(a); };
-  // The page-side section gate; the plan arrives as data.
-  const want = id => !sections || sections.includes(String(id));
-  const log = [];
+  const { until, watch, tokenOn, snapshotSettings } = window.__btb;
+  // The page-side section gate (the plan arrives as data) and the section runner: a section that
+  // throws lands in `thrown` by its id, and the next section runs.
+  const { results: thrown, log, want, section } = window.__btb.begin({ sections });
   const results = {};
   let restore = null;
+  let settings = null;
 
   // Out here so `finally` can sweep the statblock fixture even when a section throws.
   const CAST_FEATURE = 'BTB Test Spellcasting';
@@ -98,13 +100,6 @@ const r = await f.evaluate(async ({ sections }) => {
     if (ids.length) await actor.deleteEmbeddedDocuments('ActiveEffect', ids);
   };
 
-  const sleep = ms => new Promise(r => setTimeout(r, ms));
-  const waitFor = async (fn, ms = 12000) => {
-    const end = Date.now() + ms;
-    while (Date.now() < end) { const v = await fn(); if (v) return v; await sleep(200); }
-    return null;
-  };
-
   try {
     // ---- setup
     const mage = game.actors.getName('BTB Test Mage');
@@ -116,24 +111,10 @@ const r = await f.evaluate(async ({ sections }) => {
     const attacker = game.actors.getName('BTB Test Attacker');
     if (!scene || !attacker) return { ok: false, why: 'test scene/attacker missing — run smoke-bythebooks.mjs first' };
 
+    settings = snapshotSettings(['autoDamage', 'autoApply', 'dramaticBeat', 'reactionHold', 'blockList',
+      'holdSettle', 'holdReveal', 'holdTimer', 'interruptList', 'holdSkipFutile', 'holdApplyEffect',
+      'requireTarget', 'castApply', 'masteryRiders', 'volleys']);
     restore = {
-      settings: {
-        autoDamage: game.settings.get(MOD, 'autoDamage'),
-        autoApply: game.settings.get(MOD, 'autoApply'),
-        dramaticBeat: game.settings.get(MOD, 'dramaticBeat'),
-        reactionHold: game.settings.get(MOD, 'reactionHold'),
-        blockList: game.settings.get(MOD, 'blockList'),
-        holdSettle: game.settings.get(MOD, 'holdSettle'),
-        holdReveal: game.settings.get(MOD, 'holdReveal'),
-        holdTimer: game.settings.get(MOD, 'holdTimer'),
-        interruptList: game.settings.get(MOD, 'interruptList'),
-        holdSkipFutile: game.settings.get(MOD, 'holdSkipFutile'),
-        holdApplyEffect: game.settings.get(MOD, 'holdApplyEffect'),
-        requireTarget: game.settings.get(MOD, 'requireTarget'),
-        castApply: game.settings.get(MOD, 'castApply'),
-        masteryRiders: game.settings.get(MOD, 'masteryRiders'),
-        volleys: game.settings.get(MOD, 'volleys'),
-      },
       mageHP: foundry.utils.deepClone(mage.system._source.attributes.hp),
       mageAC: foundry.utils.deepClone(mage.system._source.attributes.ac),
       mageSlots: foundry.utils.deepClone(mage.system._source.spells),
@@ -181,8 +162,7 @@ const r = await f.evaluate(async ({ sections }) => {
         { x: 1300, y: 1000, actorId: mage.id, actorLink: true }, { inplace: false })]);
     }
     if (canvas.scene?.id !== scene.id) await scene.view();
-    await waitFor(() => canvas.ready && canvas.tokens.get(mageToken.id));
-    const mageTokenObj = canvas.tokens.get(mageToken.id);
+    const mageTokenObj = await tokenOn(mageToken.id, { timeout: 12000 }).catch(() => null);
     if (!mageTokenObj) return { ok: false, why: 'the Mage token never appeared on canvas' };
 
     const weapon = attacker.items.find(i => i.system.activities?.some?.(a => a.type === 'attack'));
@@ -208,6 +188,7 @@ const r = await f.evaluate(async ({ sections }) => {
     // [AC, AC+4], where Shield's +5 flips the outcome.
     // ⚠ `live` measures against the Mage's AC at roll time: under §4a2's standing Shield a hit by
     // the captured `baseAC` is a miss to the module, and the assert flakes.
+    // Each try reads only its own roll, so the next swing follows at once.
     const plainHitOnMage = async ({ window = false, live = false } = {}) => {
       const tries = (window || live) ? 40 : 12;
       for (let i = 0; i < tries; i++) {
@@ -217,7 +198,6 @@ const r = await f.evaluate(async ({ sections }) => {
         const flips = !window || (a.total < baseAC + 5);
         if (!a.crit && !a.fumble && hits && flips) return a;
         log.push(`discarded: total=${a.total} crit=${a.crit} fumble=${a.fumble} (AC ${floor})`);
-        await sleep(120);
       }
       throw new Error(`could not roll a plain hit${window ? ` in [${baseAC}, ${baseAC + 4}]` : ''}${live ? ' over the Mage\'s LIVE AC' : ''} in ${tries} attempts`);
     };
@@ -235,6 +215,25 @@ const r = await f.evaluate(async ({ sections }) => {
         pending: m ? (m.getFlag(MOD, 'attackHoldPending') ?? null) : null,
         applied: !!m?.getFlag(MOD, 'receipt') };
     };
+    const receiptFor = usageId => damageFor(usageId)?.getFlag(MOD, 'receipt') ?? null;
+
+    /**
+     * After a verdict: the held damage's release (the continuation's last write, after the verdict and
+     * its announcement), then the window something wrong would land in — `stray` names it (a receipt
+     * on a miss, a second effect, an AC that must not move); the reads after it see the same state.
+     * Returns what the window caught, or null.
+     */
+    const afterVerdict = async (usageId, stray, { ms = 1200, held = true } = {}) => {
+      if (held) {
+        await until(() => damageFor(usageId)?.getFlag(MOD, 'attackHoldPending') === false,
+          { timeout: 10_000, label: 'the held damage released by the verdict' });
+      }
+      return watch(stray, { ms });
+    };
+
+    // The messages carrying an effect receipt for `actor`.
+    const effectReceiptHolders = actor => game.messages.contents.filter(m =>
+      m.getFlag(MOD, 'effectReceipt')?.targets?.some(t => t.uuid === actor.uuid));
 
     // Why a damage assertion failed: live AC and effects show a stray Shield turning a hit into a miss.
     const diagnose = (usageId, total) => ({
@@ -273,7 +272,7 @@ const r = await f.evaluate(async ({ sections }) => {
           actor.prototypeToken.toObject(),
           { x: 1500, y: 1000, actorId: actor.id, actorLink: true }, { inplace: false })]);
       }
-      await waitFor(() => canvas.ready && canvas.tokens.get(doc.id));
+      await tokenOn(doc.id, { timeout: 12000 });
       // ⚠ Reset HP too: at 0 HP "took no damage" and "took the lot" read the same.
       await actor.update({
         'system.spells.spell1.value': actor.system.spells.spell1.max || 4,
@@ -333,8 +332,8 @@ const r = await f.evaluate(async ({ sections }) => {
       const castOf = () => actor.items.get(feature.id)?.system.activities?.contents
         .find(a => a.type === 'cast');
       if (!castOf()) throw new Error('the cast activity did not survive creation on the token actor');
-      const cast = await waitFor(() => castOf()?.cachedSpell ? castOf() : null, 8000);
-      if (!cast) throw new Error('the system never materialized the cast activity\'s cached spell');
+      const cast = await until(() => castOf()?.cachedSpell ? castOf() : null,
+        { timeout: 8000, label: 'the system materializing the cast activity\'s cached spell' });
 
       // ⚠ A flat AC ignores ac.bonus, the field Shield writes. `natural` (most statblocks) must
       // work end to end; `flatAC` is the broken statblock, where the module must SAY SO.
@@ -351,6 +350,7 @@ const r = await f.evaluate(async ({ sections }) => {
     };
 
     // Attack until one lands in [ac, ac+4], skipping crits and fumbles; `getActivity` is the attacker's.
+    // Each try reads only its own roll, so the next swing follows at once.
     const attackIntoFlipWindow = async (getActivity, tokenObj, ac, tries = 40) => {
       for (let i = 0; i < tries; i++) {
         tokenObj.setTarget(true, { releaseOthers: true });
@@ -361,9 +361,15 @@ const r = await f.evaluate(async ({ sections }) => {
         if (t && !t.isCritical && !t.isFumble && (t.total >= ac) && (t.total < ac + 5)) {
           return { usageId: usage?.message?.id, msg: t.parent, total: t.total };
         }
-        await sleep(100);
       }
       return null;
+    };
+
+    // One turn on, and the step read back on the combat (what the next read of the turn sees).
+    const advanceTurn = async combat => {
+      const was = `${combat.round}.${combat.turn}`;
+      await combat.nextTurn();
+      await until(() => `${combat.round}.${combat.turn}` !== was, { label: 'the combat\'s turn advanced' });
     };
 
     // Drive the popup's OWN Cast control (the only path using the hold's recorded itemId/activityId),
@@ -403,14 +409,15 @@ const r = await f.evaluate(async ({ sections }) => {
     };
 
     // ---- 1. the hold fires; the damage rolls while it is pending, claimed and unapplied
-    if (want('1')) {
+    if (want('1')) await section(1, async () => {
       const { usageId, msg, total } = await plainHitOnMage({ window: true });
-      const held = await waitFor(() => {
+      const held = await until(() => {
         const h = game.messages.get(msg.id)?.getFlag(MOD, 'hold');
         return h?.status === 'pending' ? h : null;
-      });
-      const rolled = await waitFor(() => damageFor(usageId), 8000);
-      await sleep(1200); // give a (wrong) premature application time to stamp its receipt
+      }, { timeout: 12000, label: 'the hold pending — the cast answer needs it' });
+      const rolled = await until(() => damageFor(usageId), { timeout: 8000, label: 'the held attack\'s damage card' });
+      // The window a (wrong) premature application would stamp its receipt in; `dmg` reads that receipt.
+      await watch(() => receiptFor(usageId), { ms: 1200 });
       results.holdFired = {
         pending: !!held,
         reaction: held?.targets?.[0]?.reaction,
@@ -432,8 +439,10 @@ const r = await f.evaluate(async ({ sections }) => {
       effectData.origin = shield.effects.contents[0].uuid;
       await mage.createEmbeddedDocuments('ActiveEffect', [effectData]);
       await holdDoc.setFlag(MOD, 'hold', merged);
-      await sleep(800);
-      const afterWrite = game.messages.get(msg.id)?.getFlag(MOD, 'hold');
+      const afterWrite = await until(() => {
+        const h = game.messages.get(msg.id)?.getFlag(MOD, 'hold');
+        return h?.targets?.find(t => t.uuid === mage.uuid)?.answer ? h : null;
+      }, { label: 'the cast answer read back on the hold' });
       results.diag = {
         targets: afterWrite?.targets,
         mageUuid: mage.uuid,
@@ -441,15 +450,17 @@ const r = await f.evaluate(async ({ sections }) => {
         statusNow: afterWrite?.status,
       };
 
-      if (!held) throw new Error('hold never went pending — cannot test the cast answer');
-      const resolved = await waitFor(() => {
+      const resolved = await until(() => {
         const h = game.messages.get(msg.id)?.getFlag(MOD, 'hold');
         return h?.status === 'resolved' ? h : null;
-      }, 25000);
+      }, { timeout: 25000, label: 'the hold resolved after the cast answer' });
       // Resolution releases the claim; the miss drops the Mage from hitTargets, so nothing applies.
-      const released = await waitFor(() =>
-        damageFor(usageId)?.getFlag(MOD, 'attackHoldPending') === false, 10000);
-      await sleep(1200);
+      const released = await until(() =>
+        damageFor(usageId)?.getFlag(MOD, 'attackHoldPending') === false,
+      { timeout: 10000, label: 'the held damage released by the verdict' });
+      // The window a wrong application would land in: a receipt, or the Mage's HP moving.
+      await watch(() => receiptFor(usageId)
+        || (mage.system._source.attributes.hp.value !== hpBefore), { ms: 1200 });
       results.castResolves = {
         resolved: !!resolved,
         verdict: resolved?.targets?.find(t => t.uuid === mage.uuid)?.verdict,
@@ -461,43 +472,44 @@ const r = await f.evaluate(async ({ sections }) => {
       };
       for (const e of mage.effects.filter(e => e.name === 'Imperceptible Barrier')) await e.delete();
       await clearReaction(mage);
-    }
+    });
 
     // ---- 3. PASS lets the attack through: the released dice APPLY (the receipt is the proof)
-    if (want('3')) {
+    if (want('3')) await section(3, async () => {
       const { usageId, msg } = await plainHitOnMage();
-      const held = await waitFor(() => {
+      const held = await until(() => {
         const h = game.messages.get(msg.id)?.getFlag(MOD, 'hold');
         return h?.status === 'pending' ? h : null;
-      });
-      if (!held) throw new Error('hold never went pending — cannot test the pass answer');
+      }, { timeout: 12000, label: 'the hold pending — the pass answer needs it' });
       const doc = game.messages.get(msg.id);
       const merged = foundry.utils.deepClone(doc.getFlag(MOD, 'hold'));
       merged.targets.find(t => t.uuid === mage.uuid).answer = 'pass';
       await doc.setFlag(MOD, 'hold', merged);
-      const dmg = await waitFor(() => damageFor(usageId), 15000);
-      const applied = await waitFor(() =>
-        damageFor(usageId)?.getFlag(MOD, 'receipt') ?? null, 15000);
+      const dmg = await until(() => damageFor(usageId), { timeout: 15000, label: 'the held attack\'s damage card' });
+      const applied = await until(() => receiptFor(usageId),
+        { timeout: 15000, label: 'the receipt on the released damage' });
       results.passProceeds = { held: !!held, damageRolled: !!dmg,
         released: dmg?.getFlag(MOD, 'attackHoldPending') === false, applied: !!applied };
       await clearReaction(mage);
-    }
+    });
 
     // ---- 4. reaction already spent ⇒ no hold at all
-    if (want('4')) {
+    if (want('4')) await section(4, async () => {
       await spendReactionOf(mage);
       const { usageId, msg, total } = await plainHitOnMage();
-      await sleep(2500);
+      // The window a (wrong) hold would stamp in; the damage rolls either way, and `why` says why when it does not.
+      const strayHold = await watch(() => game.messages.get(msg.id)?.getFlag(MOD, 'hold'), { ms: 2500 });
+      await until(() => damageFor(usageId), { timeout: 5000, label: 'the unheld damage card' }).catch(() => null);
       results.spentSuppresses = {
-        held: !!game.messages.get(msg.id)?.getFlag(MOD, 'hold'),
+        held: !!(strayHold || game.messages.get(msg.id)?.getFlag(MOD, 'hold')),
         damageRolled: !!damageFor(usageId),
         why: diagnose(usageId, total),
       };
       await clearReaction(mage);
-    }
+    });
 
     // ---- 4a2. an AC reaction ALREADY STANDING ⇒ no hold; independent of reactionSpent (out of combat)
-    if (want('4a2')) {
+    if (want('4a2')) await section('4a2', async () => {
       await clearReaction(mage);
       const shieldItem = mage.items.find(i => (i.name.toLowerCase() === 'shield')
         && i.effects.size);
@@ -511,20 +523,22 @@ const r = await f.evaluate(async ({ sections }) => {
       }
       // LIVE AC: the standing Shield just moved it +5.
       const { usageId, msg, total } = await plainHitOnMage({ live: true });
-      await sleep(2500);
+      // The window a (wrong) hold would stamp in; the damage rolls either way, and `why` says why when it does not.
+      const strayHold = await watch(() => game.messages.get(msg.id)?.getFlag(MOD, 'hold'), { ms: 2500 });
+      await until(() => damageFor(usageId), { timeout: 5000, label: 'the unheld damage card' }).catch(() => null);
       results.standingSuppresses = {
         hadSource: !!src,
         effectUp: !!(standing && mage.effects.get(standing.id)),
-        held: !!game.messages.get(msg.id)?.getFlag(MOD, 'hold'),
+        held: !!(strayHold || game.messages.get(msg.id)?.getFlag(MOD, 'hold')),
         damageRolled: !!damageFor(usageId),
         why: diagnose(usageId, total),
       };
       if (standing) await mage.effects.get(standing.id)?.delete();
       await clearReaction(mage);
-    }
+    });
 
     // ---- 4b. THE REAL CAST PATH on a GM-answerable stand-in: cast → effect → AC moves → re-test
-    if (want('4b')) {
+    if (want('4b')) await section('4b', async () => {
       const { actor: victimActor, token: victimTokenObj } = await ensureShielder();
       const vAC = victimActor.system.attributes.ac.value;
 
@@ -537,26 +551,28 @@ const r = await f.evaluate(async ({ sections }) => {
         const t = rolls?.[0];
         if (t && !t.isCritical && !t.isFumble && (t.total >= vAC) && (t.total < vAC + 5)) {
           atk = { usageId: usage?.message?.id, msg: t.parent, total: t.total };
-        } else await sleep(100);
+        }
       }
       if (!atk) throw new Error(`no attack landed in [${vAC}, ${vAC + 4}] against the stand-in`);
 
-      const pending = await waitFor(() => {
+      const pending = await until(() => {
         const h = game.messages.get(atk.msg.id)?.getFlag(MOD, 'hold');
         return h?.status === 'pending' ? h : null;
-      });
+      }, { timeout: 12000, label: 'the hold pending on the stand-in' });
 
       // Click the real Cast control: only that catches a button that answers without casting.
       const slotsBefore = victimActor.system.spells.spell1.value;
-      const castButton = await waitFor(() => castButtonFor(atk.msg.id), 8000);
-      if (!castButton) throw new Error('the hold popup rendered no Cast button for a GM-owned target');
+      const castButton = await until(() => castButtonFor(atk.msg.id),
+        { timeout: 8000, label: 'the hold popup\'s Cast button for a GM-owned target' });
       castButton.click();
 
-      const done = await waitFor(() => {
+      const done = await until(() => {
         const h = game.messages.get(atk.msg.id)?.getFlag(MOD, 'hold');
         return h?.status === 'resolved' ? h : null;
-      }, 25000);
-      await sleep(1200);
+      }, { timeout: 25000, label: 'the hold resolved after the real cast' });
+      // The miss applies nothing, and the one effect receipt stays one.
+      await afterVerdict(atk.usageId, () => receiptFor(atk.usageId)
+        || (effectReceiptHolders(victimActor).length > 1));
       results.realCast = {
         pending: !!pending,
         answered: done?.targets?.[0]?.answer,
@@ -572,8 +588,7 @@ const r = await f.evaluate(async ({ sections }) => {
         // The reaction's effect leaves one receipt, on the OLDEST pending hold the cast answered
         // (not necessarily this section's attack), so find it wherever it landed.
         effectReceipt: (() => {
-          const holders = game.messages.contents.filter(m =>
-            m.getFlag(MOD, 'effectReceipt')?.targets?.some(t => t.uuid === victimActor.uuid));
+          const holders = effectReceiptHolders(victimActor);
           const eff = holders
             .flatMap(m => m.getFlag(MOD, 'effectReceipt').targets)
             .filter(t => t.uuid === victimActor.uuid)
@@ -586,11 +601,11 @@ const r = await f.evaluate(async ({ sections }) => {
       };
       for (const e of victimActor.effects.filter(e => e.name === 'Imperceptible Barrier')) await e.delete();
       await clearReaction(victimActor);
-    }
+    });
 
     // ---- 4b2. ONE casting answers MANY holds and lands exactly ONE effect (RAW one Shield
     // covers both hits; concurrent per-hold work would stack +10)
-    if (want('4b2')) {
+    if (want('4b2')) await section('4b2', async () => {
       const { actor: victimActor, token: victimTokenObj } = await ensureShielder();
       const vAC = victimActor.system.attributes.ac.value;
       const slotsBefore = victimActor.system.spells.spell1.value;
@@ -603,22 +618,26 @@ const r = await f.evaluate(async ({ sections }) => {
         const rolls = await activity().rollAttack({ advantage: true }, { configure: false },
           { data: { 'system.origin': usage?.message?.id } });
         const t = rolls?.[0];
-        if (!t || t.isCritical || t.isFumble || (t.total < vAC)) { await sleep(100); continue; }
+        if (!t || t.isCritical || t.isFumble || (t.total < vAC)) continue;
         const msg = t.parent;
-        const ok = await waitFor(() =>
-          game.messages.get(msg.id)?.getFlag(MOD, 'hold')?.status === 'pending', 6000)
+        const ok = await until(() =>
+          game.messages.get(msg.id)?.getFlag(MOD, 'hold')?.status === 'pending', { timeout: 6000 })
           .catch(() => null);
         if (ok) held.push(msg.id);
       }
       if (held.length < 2) throw new Error(`only ${held.length} hold(s) stamped; need 2`);
 
-      const castButton = await waitFor(() => castButtonFor(held[0]), 8000);
-      if (!castButton) throw new Error('no Cast button on the first of the two holds');
+      const castButton = await until(() => castButtonFor(held[0]),
+        { timeout: 8000, label: 'a Cast button on the first of the two holds' });
       castButton.click();
 
-      await waitFor(() => game.messages.get(held[0])?.getFlag(MOD, 'hold')?.status === 'resolved',
-        25000);
-      await sleep(1500);
+      await until(() => game.messages.get(held[0])?.getFlag(MOD, 'hold')?.status === 'resolved',
+        { timeout: 25000, label: 'the first hold resolved after the cast' });
+      await until(() => game.messages.get(held[1])?.getFlag(MOD, 'hold')?.targets?.[0]?.answer,
+        { timeout: 10_000, label: 'the second hold answered by the same casting' });
+      // The window a second effect or a second slot would land in.
+      await watch(() => (victimActor.effects.filter(e => e.name === 'Imperceptible Barrier' && !e.disabled).length > 1)
+        || ((slotsBefore - victimActor.system.spells.spell1.value) > 1), { ms: 1500 });
       const barriers = victimActor.effects.filter(e =>
         e.name === 'Imperceptible Barrier' && !e.disabled);
       results.oneCastOneEffect = {
@@ -631,11 +650,11 @@ const r = await f.evaluate(async ({ sections }) => {
       };
       for (const e of victimActor.effects.filter(e => e.name === 'Imperceptible Barrier')) await e.delete();
       await clearReaction(victimActor);
-    }
+    });
 
     // ---- 4c. THE SAFETY NET: a "cast" answer with no effect applied; the continuing client
     // must land the effect itself and reach a miss
-    if (want('4c')) {
+    if (want('4c')) await section('4c', async () => {
       const { actor: victimActor, token: victimTokenObj } = await ensureShielder();
       const vAC = victimActor.system.attributes.ac.value;
 
@@ -648,21 +667,23 @@ const r = await f.evaluate(async ({ sections }) => {
         const t = rolls?.[0];
         if (t && !t.isCritical && !t.isFumble && (t.total >= vAC) && (t.total < vAC + 5)) {
           atk = { usageId: usage?.message?.id, msg: t.parent, total: t.total };
-        } else await sleep(100);
+        }
       }
       if (!atk) throw new Error(`no attack landed in [${vAC}, ${vAC + 4}] for the safety-net test`);
-      await waitFor(() => game.messages.get(atk.msg.id)?.getFlag(MOD, 'hold')?.status === 'pending');
+      await until(() => game.messages.get(atk.msg.id)?.getFlag(MOD, 'hold')?.status === 'pending',
+        { timeout: 12000, label: 'the hold pending on the stand-in' });
 
       const doc = game.messages.get(atk.msg.id);
       const m = foundry.utils.deepClone(doc.getFlag(MOD, 'hold'));
       m.targets[0].answer = 'cast';
       await doc.setFlag(MOD, 'hold', m);
 
-      const done = await waitFor(() => {
+      const done = await until(() => {
         const h = game.messages.get(atk.msg.id)?.getFlag(MOD, 'hold');
         return h?.status === 'resolved' ? h : null;
-      }, 25000);
-      await sleep(1200);
+      }, { timeout: 25000, label: 'the hold resolved after the effect-less cast answer' });
+      // The miss applies nothing.
+      await afterVerdict(atk.usageId, () => receiptFor(atk.usageId));
       results.safetyNet = {
         verdict: done?.targets?.[0]?.verdict,
         acBefore: vAC,
@@ -672,10 +693,10 @@ const r = await f.evaluate(async ({ sections }) => {
       };
       for (const e of victimActor.effects.filter(e => e.name === 'Imperceptible Barrier')) await e.delete();
       await clearReaction(victimActor);
-    }
+    });
 
     // ---- 4d. A NAME MATCH IS NOT A REACTION: a worn `equipment` "Shield" must never hold
-    if (want('4d')) {
+    if (want('4d')) await section('4d', async () => {
       const victimBase = game.actors.getName('BTB Test Victim');
       const vTokDoc = victimBase ? scene.tokens.find(t => t.actorId === victimBase.id) : null;
       if (!vTokDoc) throw new Error('BTB Test Victim has no token — run smoke-bythebooks.mjs first');
@@ -695,21 +716,23 @@ const r = await f.evaluate(async ({ sections }) => {
       const usageId = usage?.message?.id;
       const rolls = await activity().rollAttack({ advantage: true }, { configure: false },
         { data: { 'system.origin': usageId } });
-      await sleep(2500);
+      // The window a (wrong) hold would stamp in; the unheld damage rolls either way.
+      const strayHold = await watch(() => game.messages.get(rolls?.[0]?.parent?.id)?.getFlag(MOD, 'hold'), { ms: 2500 });
+      await until(() => damageFor(usageId), { timeout: 5000, label: 'the unheld damage card' });
       results.mundaneShield = {
         itemType: mundane.type,
         itemActivation: mundane.system?.activation?.type ?? null,
         // A real Shield SPELL on the fixture would make the test prove nothing.
         strayShieldSpell: vActor.items.some(i => (i.name === 'Shield') && (i.type === 'spell')),
-        held: !!game.messages.get(rolls?.[0]?.parent?.id)?.getFlag(MOD, 'hold'),
+        held: !!(strayHold || game.messages.get(rolls?.[0]?.parent?.id)?.getFlag(MOD, 'hold')),
         damageRolled: !!damageFor(usageId),
         attackTotal: rolls?.[0]?.total,
       };
-    }
+    });
 
     // ---- 4d2. THE MONSTER PATTERN: a spell paid for by x/x uses, with no slots. NPC slots sit
     // at 0/0 and every levelled spell on a 2024 NPC reads prepared: 0; neither may block the hold.
-    if (want('4d2')) {
+    if (want('4d2')) await section('4d2', async () => {
       const victimBase = game.actors.getName('BTB Test Victim');
       const vTokDoc = scene.tokens.find(t => t.actorId === victimBase.id);
       const vActor = vTokDoc.actor;    // unlinked: build on the TOKEN actor or lose the pieces
@@ -737,13 +760,12 @@ const r = await f.evaluate(async ({ sections }) => {
           { data: { 'system.origin': usage?.message?.id } });
         const t = rolls?.[0];
         if (t && !t.isCritical && !t.isFumble && t.total >= 10 && t.total < 15) atk = { msg: t.parent, total: t.total };
-        else await sleep(70);
       }
       if (!atk) throw new Error('no attack in the NPC flip window');
-      const held = await waitFor(() => {
+      const held = await until(() => {
         const h = game.messages.get(atk.msg.id)?.getFlag(MOD, 'hold');
         return h?.status === 'pending' ? h : null;
-      }, 8000).catch(() => null);
+      }, { timeout: 8000 }).catch(() => null);
 
       results.npcUsesSpell = {
         slots: slots.join(' '), itemUses: `${npcShield.system.uses?.value}/${npcShield.system.uses?.max}`,
@@ -751,21 +773,22 @@ const r = await f.evaluate(async ({ sections }) => {
         held: !!held, reaction: held?.targets?.[0]?.reaction ?? null,
       };
 
-      // Answer it so nothing is left pending.
+      // Answer it so nothing is left pending, and let it resolve before the fixture goes.
       if (held) {
         const doc = game.messages.get(atk.msg.id);
         const m = foundry.utils.deepClone(doc.getFlag(MOD, 'hold'));
         m.targets.forEach(t => { t.answer = t.answer ?? 'pass'; });
         await doc.setFlag(MOD, 'hold', m);
-        await sleep(800);
+        await until(() => game.messages.get(atk.msg.id)?.getFlag(MOD, 'hold')?.status === 'resolved',
+          { timeout: 10_000, label: 'the tidied hold resolved' }).catch(() => null);
       }
       await npcShield.delete();
       await clearReaction(vActor);
-    }
+    });
 
     // ---- 4d3. THE STATBLOCK CAST-ACTIVITY PATH, END TO END: hold → recorded ids → the real
     // Cast control → the activity's own use spent → the linked spell's effect → the verdict
-    if (want('4d3')) {
+    if (want('4d3')) await section('4d3', async () => {
       const { actor: npc, token: npcToken, feature, castId } = await ensureCastStatblock();
       const vAC = npc.system.attributes.ac.value;
       const slotsBefore = JSON.stringify(npc.system.spells ?? {});
@@ -776,25 +799,27 @@ const r = await f.evaluate(async ({ sections }) => {
       const atk = await attackIntoFlipWindow(activity, npcToken, vAC);
       if (!atk) throw new Error(`no attack landed in [${vAC}, ${vAC + 4}] against the statblock caster`);
 
-      const pending = await waitFor(() => {
+      const pending = await until(() => {
         const h = game.messages.get(atk.msg.id)?.getFlag(MOD, 'hold');
         return h?.status === 'pending' ? h : null;
-      });
+      }, { timeout: 12000, label: 'the hold pending on the statblock caster' });
       const heldTarget = pending?.targets?.[0] ?? null;
 
       // Exactly two controls, the same two a player gets (deduped: the DOM repeats them).
-      await waitFor(() => popupButtons(atk.msg.id).length, 8000);
+      await until(() => popupButtons(atk.msg.id).length, { timeout: 8000, label: 'the hold popup\'s controls' });
       const buttonShape = buttonShapeOf(atk.msg.id);
 
       const button = pending ? castButtonFor(atk.msg.id) : null;
       if (pending && !button) throw new Error('the hold popup rendered no Cast button for the statblock caster');
       button?.click();
 
-      const done = pending ? await waitFor(() => {
+      const done = pending ? await until(() => {
         const h = game.messages.get(atk.msg.id)?.getFlag(MOD, 'hold');
         return h?.status === 'resolved' ? h : null;
-      }, 25000) : null;
-      await sleep(1200);
+      }, { timeout: 25000, label: 'the hold resolved after the statblock cast' }) : null;
+      // The miss applies nothing, and no slot moves.
+      await afterVerdict(atk.usageId, () => receiptFor(atk.usageId)
+        || (JSON.stringify(npc.system.spells ?? {}) !== slotsBefore), { held: !!done });
       const after = npc.items.get(feature.id)?.system.activities.get(castId)?.uses;
       const spentAfter = after?.spent ?? null;
 
@@ -826,10 +851,10 @@ const r = await f.evaluate(async ({ sections }) => {
       };
       await clearBarriers(npc);
       await clearReaction(npc);
-    }
+    });
 
     // ---- 4d4. THE AT-WILL VARIANT: on a cast activity an empty `uses` means at will, not spent
-    if (want('4d4')) {
+    if (want('4d4')) await section('4d4', async () => {
       const { actor: npc, token: npcToken, feature, castId } = await ensureCastStatblock({ atWill: true });
       const vAC = npc.system.attributes.ac.value;
       const pool = npc.items.get(feature.id).system.activities.get(castId);
@@ -838,10 +863,10 @@ const r = await f.evaluate(async ({ sections }) => {
 
       const atk = await attackIntoFlipWindow(activity, npcToken, vAC);
       if (!atk) throw new Error(`no attack landed in [${vAC}, ${vAC + 4}] against the at-will caster`);
-      const held = await waitFor(() => {
+      const held = await until(() => {
         const h = game.messages.get(atk.msg.id)?.getFlag(MOD, 'hold');
         return h?.status === 'pending' ? h : null;
-      }, 8000);
+      }, { timeout: 8000, label: 'the hold pending on the at-will caster' });
 
       results.atWillCast = {
         usesMax: poolShape.max,
@@ -850,21 +875,22 @@ const r = await f.evaluate(async ({ sections }) => {
         reaction: held?.targets?.[0]?.reaction ?? null,
       };
 
-      // Answer it so nothing is left pending.
+      // Answer it so nothing is left pending, and let it resolve before the next section.
       if (held) {
         const doc = game.messages.get(atk.msg.id);
         const m = foundry.utils.deepClone(doc.getFlag(MOD, 'hold'));
         m.targets.forEach(t => { t.answer = t.answer ?? 'pass'; });
         await doc.setFlag(MOD, 'hold', m);
-        await sleep(800);
+        await until(() => game.messages.get(atk.msg.id)?.getFlag(MOD, 'hold')?.status === 'resolved',
+          { timeout: 10_000, label: 'the tidied hold resolved' }).catch(() => null);
       }
       await clearReaction(npc);
-    }
+    });
 
     // ---- 4d5. A PC ATTACKS A MONSTER THAT HOLDS A REACTION: the mode gate, stamp, answer, verdict
     // ⚠ Not covered: BEING a player's client. continueHold's effect safety net is
     // `actor.isOwner`-gated, always true for the GM harness, a no-op for a real player here.
-    if (want('4d5')) {
+    if (want('4d5')) await section('4d5', async () => {
       const pcAttacker = game.actors.getName('BTB Test PC Attacker');
       if (!pcAttacker) throw new Error('BTB Test PC Attacker missing — run smoke-bythebooks.mjs first');
       const pcWeapon = pcAttacker.items.find(i => i.system.activities?.some?.(a => a.type === 'attack'));
@@ -880,18 +906,19 @@ const r = await f.evaluate(async ({ sections }) => {
       await clearReaction(npc);
       const atk = await attackIntoFlipWindow(pcActivity, npcToken, vAC);
       if (!atk) throw new Error(`no PC attack landed in [${vAC}, ${vAC + 4}] against the statblock caster`);
-      const pending = await waitFor(() => {
+      const pending = await until(() => {
         const h = game.messages.get(atk.msg.id)?.getFlag(MOD, 'hold');
         return h?.status === 'pending' ? h : null;
-      });
-      const button = pending ? await waitFor(() => castButtonFor(atk.msg.id), 8000) : null;
-      if (pending && !button) throw new Error('the hold popup rendered no Cast button on the PC attack');
+      }, { timeout: 12000, label: 'the hold pending on the PC\'s attack' });
+      const button = pending ? await until(() => castButtonFor(atk.msg.id),
+        { timeout: 8000, label: 'the hold popup\'s Cast button on the PC attack' }) : null;
       button?.click();
-      const done = pending ? await waitFor(() => {
+      const done = pending ? await until(() => {
         const h = game.messages.get(atk.msg.id)?.getFlag(MOD, 'hold');
         return h?.status === 'resolved' ? h : null;
-      }, 25000) : null;
-      await sleep(1200);
+      }, { timeout: 25000, label: 'the hold resolved after the monster\'s cast' }) : null;
+      // The miss applies nothing.
+      await afterVerdict(atk.usageId, () => receiptFor(atk.usageId), { held: !!done });
 
       results.pcVsMonster = {
         attackerType: pcAttacker.type,
@@ -908,29 +935,31 @@ const r = await f.evaluate(async ({ sections }) => {
       await clearBarriers(npc);
       await clearReaction(npc);
       await sweepCastFixture(npc);
-    }
+    });
 
     // ---- 4d6. A FLAT AC CANNOT RECEIVE THE REACTION, AND THE CARD MUST SAY SO. dnd5e's
     // prepareArmorClass returns on the flat branch before ac.bonus is added, so the effect lands
     // and the number never moves; the card must name the fixed AC, not "not arrived".
-    if (want('4d6')) {
+    if (want('4d6')) await section('4d6', async () => {
       const { actor: npc, token: npcToken } = await ensureCastStatblock({ flatAC: true });
       const vAC = npc.system.attributes.ac.value;
       const atk = await attackIntoFlipWindow(activity, npcToken, vAC);
       if (!atk) throw new Error(`no attack landed in [${vAC}, ${vAC + 4}] against the flat-AC caster`);
 
-      const pending = await waitFor(() => {
+      const pending = await until(() => {
         const h = game.messages.get(atk.msg.id)?.getFlag(MOD, 'hold');
         return h?.status === 'pending' ? h : null;
-      });
-      const button = pending ? await waitFor(() => castButtonFor(atk.msg.id), 8000) : null;
-      if (pending && !button) throw new Error('the hold popup rendered no Cast button on the flat-AC caster');
+      }, { timeout: 12000, label: 'the hold pending on the flat-AC caster' });
+      const button = pending ? await until(() => castButtonFor(atk.msg.id),
+        { timeout: 8000, label: 'the hold popup\'s Cast button on the flat-AC caster' }) : null;
       button?.click();
-      const done = pending ? await waitFor(() => {
+      // The settle window runs out on an AC that never moves, so the verdict comes late.
+      const done = pending ? await until(() => {
         const h = game.messages.get(atk.msg.id)?.getFlag(MOD, 'hold');
         return h?.status === 'resolved' ? h : null;
-      }, 30000) : null;
-      await sleep(1200);
+      }, { timeout: 30000, label: 'the hold resolved after the flat-AC cast' }) : null;
+      // The window the fixed AC would (wrongly) move in.
+      await afterVerdict(atk.usageId, () => npc.system.attributes.ac.value !== vAC, { held: !!done });
 
       results.flatAC = {
         held: !!pending,
@@ -945,89 +974,99 @@ const r = await f.evaluate(async ({ sections }) => {
       await clearBarriers(npc);
       await clearReaction(npc);
       await sweepCastFixture(npc);
-    }
+    });
 
     // ---- 4e. THE TIMER: an unanswered hold passes itself
-    if (want('4e')) {
+    if (want('4e')) await section('4e', async () => {
       await game.settings.set(MOD, 'holdTimer', 4);
-      const { usageId, msg } = await plainHitOnMage({ window: true });
-      const pending = await waitFor(() => {
-        const h = game.messages.get(msg.id)?.getFlag(MOD, 'hold');
-        return h?.status === 'pending' ? h : null;
-      });
-      // Answer nothing: the continuing client's buzzer must pass it; the deadline rides the flag.
-      const resolved = await waitFor(() => {
-        const h = game.messages.get(msg.id)?.getFlag(MOD, 'hold');
-        return h?.status === 'resolved' ? h : null;
-      }, 20000);
-      const dmg = await waitFor(() => damageFor(usageId), 12000).catch(() => null);
-      results.timer = {
-        hadDeadline: !!pending?.deadline, window: pending?.window ?? null,
-        answer: resolved?.targets?.[0]?.answer ?? null,
-        timedOut: !!resolved?.targets?.[0]?.timedOut,
-        damageRolled: !!dmg,
-      };
-      await game.settings.set(MOD, 'holdTimer', 0);
-      await clearReaction(mage);
-    }
+      // ⚠ The timer comes off in a `finally`: a section that throws must not leave the later holds on a clock.
+      try {
+        const { usageId, msg } = await plainHitOnMage({ window: true });
+        const pending = await until(() => {
+          const h = game.messages.get(msg.id)?.getFlag(MOD, 'hold');
+          return h?.status === 'pending' ? h : null;
+        }, { timeout: 12000, label: 'the timed hold pending' });
+        // Answer nothing: the continuing client's buzzer must pass it; the deadline rides the flag.
+        const resolved = await until(() => {
+          const h = game.messages.get(msg.id)?.getFlag(MOD, 'hold');
+          return h?.status === 'resolved' ? h : null;
+        }, { timeout: 20000, label: 'the buzzer passing the unanswered hold' });
+        const dmg = await until(() => damageFor(usageId), { timeout: 12000 }).catch(() => null);
+        results.timer = {
+          hadDeadline: !!pending?.deadline, window: pending?.window ?? null,
+          answer: resolved?.targets?.[0]?.answer ?? null,
+          timedOut: !!resolved?.targets?.[0]?.timedOut,
+          damageRolled: !!dmg,
+        };
+      } finally {
+        await game.settings.set(MOD, 'holdTimer', 0);
+        await clearReaction(mage);
+      }
+    });
 
     // ---- 4f. HOPELESS HOLDS ARE SKIPPED, only under full disclosure: with the math hidden, a
     // missing prompt would itself leak the margin
-    if (want('4f')) {
+    if (want('4f')) await section('4f', async () => {
       await game.settings.set(MOD, 'holdReveal', true);
-      // Shield adds +5, so AC+5 or more is hopeless.
-      let hopeless = null;
-      for (let i = 0; i < 40 && !hopeless; i++) {
-        const a = await attackMage({ advantage: true });
-        if (!a.crit && !a.fumble && (a.total >= baseAC + 5)) hopeless = a;
-        else await sleep(80);
-      }
-      if (!hopeless) throw new Error(`no attack landed at or past AC ${baseAC + 5}`);
-      await sleep(2500);
-      results.futile = {
-        attackTotal: hopeless.total, needed: baseAC + 5,
-        held: !!game.messages.get(hopeless.msg.id)?.getFlag(MOD, 'hold'),
-        damageRolled: !!damageFor(hopeless.usageId),
-      };
-
-      // With the math hidden it must still hold.
-      await game.settings.set(MOD, 'holdReveal', false);
-      await clearReaction(mage);
-      let hidden = null;
-      for (let i = 0; i < 40 && !hidden; i++) {
-        const a = await attackMage({ advantage: true });
-        if (!a.crit && !a.fumble && (a.total >= baseAC + 5)) hidden = a;
-        else await sleep(80);
-      }
-      if (hidden) {
-        const held = await waitFor(() => {
-          const h = game.messages.get(hidden.msg.id)?.getFlag(MOD, 'hold');
-          return h?.status === 'pending' ? h : null;
-        }, 8000).catch(() => null);
-        results.futileHidden = { attackTotal: hidden.total, held: !!held };
-        if (held) {
-          const doc = game.messages.get(hidden.msg.id);
-          const m = foundry.utils.deepClone(doc.getFlag(MOD, 'hold'));
-          m.targets.forEach(t => { t.answer = t.answer ?? 'pass'; });
-          await doc.setFlag(MOD, 'hold', m);
+      // ⚠ Reveal goes back off in a `finally`: a section that throws must not leave the later hits skipped as hopeless.
+      try {
+        // Shield adds +5, so AC+5 or more is hopeless.
+        let hopeless = null;
+        for (let i = 0; i < 40 && !hopeless; i++) {
+          const a = await attackMage({ advantage: true });
+          if (!a.crit && !a.fumble && (a.total >= baseAC + 5)) hopeless = a;
         }
+        if (!hopeless) throw new Error(`no attack landed at or past AC ${baseAC + 5}`);
+        // The window a (wrong) hold would stamp in; the unheld damage rolls either way.
+        const strayHold = await watch(() => game.messages.get(hopeless.msg.id)?.getFlag(MOD, 'hold'), { ms: 2500 });
+        await until(() => damageFor(hopeless.usageId), { timeout: 5000, label: 'the hopeless hit\'s unheld damage card' });
+        results.futile = {
+          attackTotal: hopeless.total, needed: baseAC + 5,
+          held: !!(strayHold || game.messages.get(hopeless.msg.id)?.getFlag(MOD, 'hold')),
+          damageRolled: !!damageFor(hopeless.usageId),
+        };
+
+        // With the math hidden it must still hold.
+        await game.settings.set(MOD, 'holdReveal', false);
+        await clearReaction(mage);
+        let hidden = null;
+        for (let i = 0; i < 40 && !hidden; i++) {
+          const a = await attackMage({ advantage: true });
+          if (!a.crit && !a.fumble && (a.total >= baseAC + 5)) hidden = a;
+        }
+        if (hidden) {
+          const held = await until(() => {
+            const h = game.messages.get(hidden.msg.id)?.getFlag(MOD, 'hold');
+            return h?.status === 'pending' ? h : null;
+          }, { timeout: 8000 }).catch(() => null);
+          results.futileHidden = { attackTotal: hidden.total, held: !!held };
+          if (held) {
+            const doc = game.messages.get(hidden.msg.id);
+            const m = foundry.utils.deepClone(doc.getFlag(MOD, 'hold'));
+            m.targets.forEach(t => { t.answer = t.answer ?? 'pass'; });
+            await doc.setFlag(MOD, 'hold', m);
+          }
+        }
+      } finally {
+        await game.settings.set(MOD, 'holdReveal', false);
+        await clearReaction(mage);
       }
-      await game.settings.set(MOD, 'holdReveal', false);
-      await clearReaction(mage);
-    }
+    });
 
     // ---- 5. a natural 20 skips an AC-type hold
-    if (want('5')) {
+    if (want('5')) await section(5, async () => {
       let crit = null;
       for (let i = 0; i < 60 && !crit; i++) {
         const a = await attackMage({ advantage: true });
-        if (a.crit) crit = a; else await sleep(80);
+        if (a.crit) crit = a;
       }
       if (crit) {
-        await sleep(2000);
+        // The window a (wrong) hold would stamp in; the damage rolls either way, and `why` says why when it does not.
+        const strayHold = await watch(() => game.messages.get(crit.msg.id)?.getFlag(MOD, 'hold'), { ms: 2000 });
+        await until(() => damageFor(crit.usageId), { timeout: 5000, label: 'the crit\'s damage card' }).catch(() => null);
         results.critSkipsHold = {
           rolled: true,
-          held: !!game.messages.get(crit.msg.id)?.getFlag(MOD, 'hold'),
+          held: !!(strayHold || game.messages.get(crit.msg.id)?.getFlag(MOD, 'hold')),
           damageRolled: !!damageFor(crit.usageId),
           why: diagnose(crit.usageId, crit.total),
         };
@@ -1035,13 +1074,13 @@ const r = await f.evaluate(async ({ sections }) => {
         results.critSkipsHold = { rolled: false }; // no crit in 60 tries; reported, not failed
       }
       await clearReaction(mage);
-    }
+    });
 
     // ---- 6. THE SECOND TRIGGER: Magic Missile has no attack roll, so a spell USAGE stamps a
     // `negate` hold on its usage card and the answer alone is the verdict.
     // ⚠ The load-bearing assert is the last: real damage applied as the native tray applies it,
     // and the shielded HP must not move.
-    if (want('6')) {
+    if (want('6')) await section(6, async () => {
       const MM_UUID = 'Compendium.dnd-players-handbook.spells.Item.phbsplMagicMissi';
 
       // ⚠ No slot cost: NPC slot maxima derive to 0, so a slot-consuming cast is refused.
@@ -1078,15 +1117,14 @@ const r = await f.evaluate(async ({ sections }) => {
       // is born claimed (spellDamage + spellHoldPending, polish.js), so the answer decides it.
       const volleyPopupFor = usageId => LP.get(`${usageId}|volley`) ?? null;
       const fireVolleyOn = async usageMsg => {
-        const dlg = await waitFor(() => volleyPopupFor(usageMsg.id)?.element ? volleyPopupFor(usageMsg.id) : null, 8000);
-        if (!dlg) throw new Error('Magic Missile opened no volley popup to fire');
+        const dlg = await until(() => volleyPopupFor(usageMsg.id)?.element ? volleyPopupFor(usageMsg.id) : null,
+          { timeout: 8000, label: 'Magic Missile\'s volley popup to fire' });
         const fire = dlg.element.querySelector('button[data-action="fire"]');
         if (!fire) throw new Error('the volley popup rendered no Fire button');
         fire.click();
-        const dart = await waitFor(() => game.messages.contents.find(m =>
-          (m.type === 'damage') && (m.getFlag(MOD, 'volleyFor') === usageMsg.id)) ?? null, 12000);
-        if (!dart) throw new Error('the fired volley rolled no dart damage');
-        return dart;
+        return until(() => game.messages.contents.find(m =>
+          (m.type === 'damage') && (m.getFlag(MOD, 'volleyFor') === usageMsg.id)) ?? null,
+        { timeout: 12000, label: 'the fired volley\'s dart damage' });
       };
       // A section that only needs the card: stand the volley down WITHOUT driving darts (fireVolley
       // acts on a pending flag only, and the popup's X routes through it).
@@ -1111,9 +1149,12 @@ const r = await f.evaluate(async ({ sections }) => {
         const damages = partsOf(damageMsg);
         const rolled = damages.reduce((sum, d) => sum + d.value, 0);
         if (expectApply) {
-          await waitFor(() => game.messages.get(damageMsg.id)?.getFlag(MOD, 'receipt') ?? null, 15000);
+          await until(() => game.messages.get(damageMsg.id)?.getFlag(MOD, 'receipt') ?? null,
+            { timeout: 15000, label: 'the receipt on the released dart roll' });
         } else {
-          await sleep(3000);
+          // The window a wrong auto-apply would land in: a receipt, or the HP moving; `hpAfter` reads it.
+          await watch(() => game.messages.get(damageMsg.id)?.getFlag(MOD, 'receipt')
+            || (actor.system.attributes.hp.value !== hpBefore), { ms: 3000 });
           await actor.applyDamage(damages, {
             multiplier: 1, isDelta: true, originatingMessage: damageMsg, origin: damageMsg,
           });
@@ -1133,25 +1174,28 @@ const r = await f.evaluate(async ({ sections }) => {
         const usageMsg = await castMissileAt(shielderToken);
         if (!usageMsg) throw new Error('Magic Missile created no usage card to hold');
 
-        const pending = await waitFor(() => {
+        const pending = await until(() => {
           const h = game.messages.get(usageMsg.id)?.getFlag(MOD, 'hold');
           return h?.status === 'pending' ? h : null;
-        });
+        }, { timeout: 12000, label: 'the spell hold pending on the usage card' });
         const dart = await fireVolleyOn(usageMsg);
         const hpBefore = shielder.system.attributes.hp.value;
 
         // The same Cast/Pass pair an attack hold offers.
-        await waitFor(() => popupButtons(usageMsg.id).length, 8000);
+        await until(() => popupButtons(usageMsg.id).length, { timeout: 8000, label: 'the spell hold popup\'s controls' });
         const buttons = buttonShapeOf(usageMsg.id).split('/');
         const castButton = castButtonFor(usageMsg.id);
         if (!castButton) throw new Error('the spell hold popup rendered no Cast button');
         castButton.click();
 
-        const done = await waitFor(() => {
+        const done = await until(() => {
           const h = game.messages.get(usageMsg.id)?.getFlag(MOD, 'hold');
           return h?.status === 'resolved' ? h : null;
-        }, 25000);
-        await sleep(1200);
+        }, { timeout: 25000, label: 'the spell hold resolved after the cast' });
+        // The table is told: the "does nothing" card follows the verdict.
+        const negatedSaid = () => game.messages.contents.slice(-12).some(m =>
+          m.speaker?.alias === 'By the Books' && /does nothing to/i.test(m.content ?? ''));
+        await until(negatedSaid, { timeout: 10_000, label: 'the "does nothing" card after the negate' });
 
         const applied = await awaitDartFate(dart, shielder, hpBefore, { expectApply: false });
         results.missileNegated = {
@@ -1168,8 +1212,7 @@ const r = await f.evaluate(async ({ sections }) => {
             e.name === 'Imperceptible Barrier' && !e.disabled),
           ...applied,
           // Assert what the table is TOLD, too.
-          announced: game.messages.contents.slice(-12).some(m =>
-            m.speaker?.alias === 'By the Books' && /does nothing to/i.test(m.content ?? '')),
+          announced: negatedSaid(),
         };
         for (const e of shielder.effects.filter(e => e.name === 'Imperceptible Barrier')) await e.delete();
         await clearReaction(shielder);
@@ -1179,23 +1222,22 @@ const r = await f.evaluate(async ({ sections }) => {
       {
         const { actor: shielder, token: shielderToken } = await ensureShielder();
         const usageMsg = await castMissileAt(shielderToken);
-        const pending = await waitFor(() => {
+        const pending = await until(() => {
           const h = game.messages.get(usageMsg.id)?.getFlag(MOD, 'hold');
           return h?.status === 'pending' ? h : null;
-        });
+        }, { timeout: 12000, label: 'the spell hold pending on the usage card' });
         const dart = await fireVolleyOn(usageMsg);
         const hpBefore = shielder.system.attributes.hp.value;
-        const passButton = await waitFor(() => popupButtons(usageMsg.id)
-          .find(b => b.textContent.trim() === 'Pass'), 8000);
-        if (!passButton) throw new Error('the spell hold popup rendered no Pass button');
+        const passButton = await until(() => popupButtons(usageMsg.id)
+          .find(b => b.textContent.trim() === 'Pass'), { timeout: 8000, label: 'the spell hold popup\'s Pass button' });
         passButton.click();
 
-        const done = await waitFor(() => {
+        const done = await until(() => {
           const h = game.messages.get(usageMsg.id)?.getFlag(MOD, 'hold');
           return h?.status === 'resolved' ? h : null;
-        }, 25000);
-        await sleep(800);
+        }, { timeout: 25000, label: 'the spell hold resolved after the pass' });
 
+        // The fate waits on the dart roll's receipt.
         const applied = await awaitDartFate(dart, shielder, hpBefore, { expectApply: true });
         results.missilePassed = {
           pending: !!pending,
@@ -1212,24 +1254,31 @@ const r = await f.evaluate(async ({ sections }) => {
         const { actor: shielder, token: shielderToken } = await ensureShielder();
         const before = new Set(game.messages.contents.map(m => m.id));
         shielderToken.setTarget(true, { releaseOthers: true });
-        await sleep(120);
         await missile().use({ subsequentActions: false }, { configure: false }, {});
         const freshMsgs = () => game.messages.contents.filter(m => !before.has(m.id));
-        const holdMsg = await waitFor(() => freshMsgs().find(m =>
-          m.getFlag(MOD, 'hold')?.status === 'pending') ?? null, 10000);
+        const holdMsg = await until(() => freshMsgs().find(m =>
+          m.getFlag(MOD, 'hold')?.status === 'pending') ?? null,
+        { timeout: 10000, label: 'a pending spell hold on a fresh card' });
         const heldOnUsage = !!holdMsg && (holdMsg.type === 'usage');
         const hpBefore = shielder.system.attributes.hp.value;
         const damageMsg = holdMsg ? await fireVolleyOn(holdMsg) : null;
         // ⚠ Captured AT THE ROLL: after the answer the flag reads released.
         const pendingAtRoll = damageMsg?.getFlag(MOD, 'spellHoldPending') === true;
-        await sleep(1500);
+        // The window a (wrong) application would land in while the claim defers it.
+        await watch(() => (shielder.system.attributes.hp.value !== hpBefore)
+          || game.messages.get(damageMsg?.id)?.getFlag(MOD, 'receipt'), { ms: 1500 });
         const deferredHp = shielder.system.attributes.hp.value;
         const deferredReceipt = !!game.messages.get(damageMsg?.id)?.getFlag(MOD, 'receipt');
-        const castBtn = await waitFor(() => castButtonFor(holdMsg?.id), 8000);
+        const castBtn = await until(() => castButtonFor(holdMsg?.id),
+          { timeout: 8000, label: 'the spell hold popup\'s Cast button' });
         castBtn?.click();
-        await waitFor(() => (game.messages.get(holdMsg?.id)?.getFlag(MOD, 'hold')?.status === 'resolved')
-          ? true : null, 25000);
-        await sleep(3000); // the release write + any (wrong) application get every chance
+        await until(() => (game.messages.get(holdMsg?.id)?.getFlag(MOD, 'hold')?.status === 'resolved')
+          ? true : null, { timeout: 25000, label: 'the spell hold resolved after the cast' });
+        // The release write, then the window any (wrong) application gets.
+        await until(() => game.messages.get(damageMsg?.id)?.getFlag(MOD, 'spellHoldPending') === false,
+          { timeout: 10_000, label: 'the dart roll released by the negate' });
+        await watch(() => (shielder.system.attributes.hp.value !== hpBefore)
+          || game.messages.get(damageMsg?.id)?.getFlag(MOD, 'receipt'), { ms: 3000 });
         results.missileClaim = {
           held: !!holdMsg,
           heldOnUsage,
@@ -1254,11 +1303,12 @@ const r = await f.evaluate(async ({ sections }) => {
           await sweepCastFixture(victimActor);
           const victimTokenObj = canvas.tokens.get(victimDoc.id);
           const usageMsg = await castMissileAt(victimTokenObj);
-          await sleep(2500);
+          // The window a (wrong) hold would stamp in.
+          const strayHold = await watch(() => game.messages.get(usageMsg?.id)?.getFlag(MOD, 'hold'), { ms: 2500 });
           results.missileNoReaction = {
             wearsShield: victimActor.items.some(i => i.name === 'Shield' && i.type !== 'spell'),
             knowsShieldSpell: victimActor.items.some(i => i.name === 'Shield' && i.type === 'spell'),
-            held: !!game.messages.get(usageMsg?.id)?.getFlag(MOD, 'hold'),
+            held: !!(strayHold || game.messages.get(usageMsg?.id)?.getFlag(MOD, 'hold')),
           };
           // The card was the question; no darts at the 11-HP victim.
           await standDownVolley(usageMsg);
@@ -1271,10 +1321,10 @@ const r = await f.evaluate(async ({ sections }) => {
       const leftover = attacker.items
         .filter(i => i.name === 'Magic Missile' && i.type === 'spell').map(i => i.id);
       if (leftover.length) await attacker.deleteEmbeddedDocuments('Item', leftover);
-    }
+    });
 
     // ---- 8. a text-only feature (the 2024 Uncanny Dodge: no activities) found by name
-    if (want('8')) {
+    if (want('8')) await section(8, async () => {
       // The Interrupt list is the code table, and it lists Shield (and Absorb Elements) AHEAD of
       // Uncanny Dodge: with no slot left, the Mage's spells are unusable and the dodge is the reaction found.
       let dodge = null;
@@ -1290,22 +1340,23 @@ const r = await f.evaluate(async ({ sections }) => {
         }]);
         await clearReaction(mage);
         const { usageId, msg } = await plainHitOnMage();
-        const held = await waitFor(() => {
+        const held = await until(() => {
           const h = game.messages.get(msg.id)?.getFlag(MOD, 'hold');
           return h?.status === 'pending' ? h : null;
-        }, 8000);
+        }, { timeout: 8000, label: 'the hold pending on the text-only feature' });
         let resolved = null;
         if (held) {
           const doc = game.messages.get(msg.id);
           const merged = foundry.utils.deepClone(doc.getFlag(MOD, 'hold'));
           merged.targets.find(t => t.uuid === mage.uuid).answer = 'cast';
           await doc.setFlag(MOD, 'hold', merged);
-          resolved = await waitFor(() => {
+          resolved = await until(() => {
             const h = game.messages.get(msg.id)?.getFlag(MOD, 'hold');
             return h?.status === 'resolved' ? h : null;
-          }, 20000);
+          }, { timeout: 20000, label: 'the hold resolved after the dodge' });
         }
-        const applied = held ? await waitFor(() => damageFor(usageId)?.getFlag(MOD, 'receipt') ?? null, 15000) : null;
+        const applied = held ? await until(() => receiptFor(usageId),
+          { timeout: 15000, label: 'the receipt on the halved damage' }) : null;
         const entry = applied?.targets?.find?.(e => e.uuid === mage.uuid) ?? null;
         results.textOnlyHold = {
           multiplier: entry?.multiplier ?? null, note: entry?.note ?? null,
@@ -1319,10 +1370,10 @@ const r = await f.evaluate(async ({ sections }) => {
         if (dodge) await dodge.delete().catch(() => {});
         await clearReaction(mage);
       }
-    }
+    });
 
     // ---- 7. the per-turn clears: the reactionSpent lifecycle (updateCombat, deleteCombat)
-    if (want('7')) {
+    if (want('7')) await section(7, async () => {
       // ⚠ Two rules: the SET refuses out of combat (no turn would ever refresh it), and the CLEARS
       // are not gated on the feature toggle (turning it off mid-combat must not strand flags).
       let combat = null;
@@ -1334,16 +1385,14 @@ const r = await f.evaluate(async ({ sections }) => {
       const castShield = async () => {
         await shieldActivity()?.use({ consume: { spellSlot: false, resources: false, action: false }, subsequentActions: false },
           { configure: false }, { create: false });
-        await sleep(500);
       };
       try {
         await clearReaction(mage);
         if (game.combat) await game.combat.delete();
-        await sleep(300);
 
-        // (a) OUT of combat, the set is REFUSED.
+        // (a) OUT of combat, the set is REFUSED: the window the (wrong) chip would land in.
         await castShield();
-        const outOfCombat = await spent();
+        const outOfCombat = !!(await watch(spent, { ms: 500 }));
 
         // (b) IN a running combat, the same reaction DOES set it.
         // ⚠ Two combatants: with one, there is no turn to advance to and (c) is unobservable.
@@ -1358,39 +1407,38 @@ const r = await f.evaluate(async ({ sections }) => {
         // Activated: the module reads `game.combat`, the ACTIVE encounter.
         await combat.activate();
         await combat.startCombat();
-        await sleep(400);
         // What the module will see; a false here explains a false below.
+        await until(() => (game.combat?.id === combat.id) && combat.started,
+          { timeout: 5000, label: 'our combat active and started' }).catch(() => null);
         const combatSeen = { gameCombatIsOurs: game.combat?.id === combat.id, combatActive: combat.active,
           viewed: canvas.scene?.name ?? null, mageOwner: !!mage.isOwner, mageInTracker: combat.getCombatantsByActor(mage).length };
         // ⚠ Step off the Mage first: updateCombat clears the current combatant's flag, so (c) would
         // pass for the wrong reason.
-        for (let i = 0; (i < 4) && (combat.combatant?.actor?.id === mage.id); i++) {
-          await combat.nextTurn();
-          await sleep(250);
-        }
+        for (let i = 0; (i < 4) && (combat.combatant?.actor?.id === mage.id); i++) await advanceTurn(combat);
         const startedOnMage = combat.combatant?.actor?.id === mage.id;
         await clearReaction(mage);
         await castShield();
         // Wait for the chip (written after the cast resolves); the out-of-combat read asserts absence.
-        const inCombat = !!(await waitFor(spent, 6000));
+        // A miss here is recorded beside what the module saw (`combatSeen`).
+        const inCombat = !!(await until(spent, { timeout: 6000, label: 'the Reaction chip set in combat' })
+          .catch(() => null));
 
         // (c) `updateCombat`: the Mage's own turn comes round and the flag clears.
         let reached = false;
         for (let i = 0; i < 6; i++) {
-          await combat.nextTurn();
-          await sleep(300);
+          await advanceTurn(combat);
           if (combat.combatant?.actor?.id === mage.id) { reached = true; break; }
         }
-        const clearedOnTurn = reached && !(await spent());
+        const clearedOnTurn = reached && !!(await until(async () => !(await spent()),
+          { timeout: 5000, label: 'the Reaction back on the Mage\'s own turn' }));
 
         // (d) `deleteCombat` clears it for every combatant.
         await spendReactionOf(mage);
-        await sleep(200);
         const setBeforeDelete = await spent();
         await combat.delete();
         combat = null;
-        await sleep(600);
-        const clearedOnDelete = !(await spent());
+        const clearedOnDelete = !!(await until(async () => !(await spent()),
+          { timeout: 6000, label: 'the Reaction cleared by the combat\'s delete' }));
 
         results.turnClears = {
           outOfCombatSet: outOfCombat, startedOnMage, inCombatSet: inCombat, ...combatSeen,
@@ -1403,11 +1451,11 @@ const r = await f.evaluate(async ({ sections }) => {
         await clearReaction(mage);
         await clearBarriers(mage);
       }
-    }
+    });
 
     // ---- 9. THE STALE SHIELD: attacker first. r1t0 the barrier lands; r1t1 (the shielder's turn
     // start) the platform marks it expired and the module DELETES it; r2t0 the hold offers again.
-    if (want('9')) {
+    if (want('9')) await section(9, async () => {
       let combat = null;
       const wasMine = [];
       try {
@@ -1426,7 +1474,7 @@ const r = await f.evaluate(async ({ sections }) => {
           { tokenId: shObj.document.id, actorId: sh.id, initiative: 10 }
         ]);
         await combat.startCombat();
-        await sleep(600);
+        await until(() => combat.started, { timeout: 5000, label: '§9: the combat started' });
         const at = () => `r${combat.round}t${combat.turn}`;
         const barrier = () => sh.effects.find(e => e.name === 'Imperceptible Barrier') ?? null;
         const shape = () => { const e = barrier(); return e ? { present: true, active: e.active, expired: e.duration?.expired ?? null,
@@ -1436,24 +1484,34 @@ const r = await f.evaluate(async ({ sections }) => {
 
         const first = await attackIntoFlipWindow(activity, shObj, shAC);
         if (!first) throw new Error(`§9: no attack landed in [${shAC}, ${shAC + 4}]`);
-        const pending = await waitFor(() => { const h = game.messages.get(first.msg.id)?.getFlag(MOD, 'hold'); return h?.status === 'pending' ? h : null; });
-        const castButton = await waitFor(() => castButtonFor(first.msg.id), 8000);
-        if (!castButton) throw new Error('§9: no Cast button');
+        const pending = await until(() => { const h = game.messages.get(first.msg.id)?.getFlag(MOD, 'hold'); return h?.status === 'pending' ? h : null; },
+          { timeout: 12000, label: '§9: the first hold pending' });
+        const castButton = await until(() => castButtonFor(first.msg.id), { timeout: 8000, label: '§9: the Cast button' });
         castButton.click();
-        const resolved = await waitFor(() => { const h = game.messages.get(first.msg.id)?.getFlag(MOD, 'hold'); return h?.status === 'resolved' ? h : null; }, 25000);
-        await sleep(1200);
+        const resolved = await until(() => { const h = game.messages.get(first.msg.id)?.getFlag(MOD, 'hold'); return h?.status === 'resolved' ? h : null; },
+          { timeout: 25000, label: '§9: the first hold resolved after the cast' });
+        // The continuation's last write: the held damage released.
+        await until(() => damageFor(first.usageId)?.getFlag(MOD, 'attackHoldPending') === false,
+          { timeout: 10_000, label: '§9: the first attack\'s held damage released' });
         const landed = { at: at(), pending: !!pending, verdict: resolved?.targets?.[0]?.verdict, ...shape(), shielderCombatant };
 
-        await combat.nextTurn(); await sleep(1500);        // r1t1 — the shielder's own turn start
+        await advanceTurn(combat);                         // r1t1 — the shielder's own turn start
+        // The platform marks the barrier expired, the module tidies it, and the AC follows.
+        await until(() => !barrier() && (sh.system.attributes.ac.value === shAC),
+          { timeout: 8000, label: '§9: the barrier gone and the AC back at the shielder\'s own turn' });
         const ownTurn = { at: at(), ...shape(), reactionSpent: await reactionSpentOf(sh) };
-        await combat.nextTurn(); await sleep(1500);        // r2t0 — the attacker again
+        await advanceTurn(combat);                         // r2t0 — the attacker again
         const second = await attackIntoFlipWindow(activity, shObj, shAC);
         if (!second) throw new Error('§9: no second attack in the window');
-        const held2 = await waitFor(() => { const h = game.messages.get(second.msg.id)?.getFlag(MOD, 'hold'); return h?.status === 'pending' ? h : null; }, 8000);
+        const held2 = await until(() => { const h = game.messages.get(second.msg.id)?.getFlag(MOD, 'hold'); return h?.status === 'pending' ? h : null; },
+          { timeout: 8000, label: '§9: the second hold pending' });
         const again = { at: at(), total: second.total, held: !!held2, ...shape() };
+        // Answer it so nothing is left pending, and let it resolve before the combat goes.
         if (held2) {
           const merged = foundry.utils.deepClone(held2); merged.targets.forEach(t => { if (!t.answer) t.answer = 'pass'; });
-          await game.messages.get(second.msg.id).setFlag(MOD, 'hold', merged); await sleep(1200);
+          await game.messages.get(second.msg.id).setFlag(MOD, 'hold', merged);
+          await until(() => game.messages.get(second.msg.id)?.getFlag(MOD, 'hold')?.status === 'resolved',
+            { timeout: 10_000, label: '§9: the tidied hold resolved' }).catch(() => null);
         }
         results.staleShield = { baseAC: shAC, landed, ownTurn, again };
       } finally {
@@ -1463,17 +1521,19 @@ const r = await f.evaluate(async ({ sections }) => {
         const sh = game.actors.getName('BTB Test Shielder');
         if (sh) { await clearReaction(sh); await clearBarriers(sh); }
       }
-    }
+    });
 
-    return { ok: true, results, log };
+    return { ok: true, results, log, thrown };
   } catch (err) {
-    return { ok: false, why: `${err.message}\n${err.stack}`, results, log };
+    return { ok: false, why: `${err.message}\n${err.stack}`, results, log, thrown };
   } finally {
-    // ---- always: put the world back
+    // ---- always: put the world back, the settings first, each key in its own guard
+    if (settings) {
+      for (const failed of await settings.restore()) console.error(`TEARDOWN settings ERROR: ${failed}`);
+    }
     try {
       const mage = game.actors.getName('BTB Test Mage');
       if (restore) {
-        for (const [k, v] of Object.entries(restore.settings)) await game.settings.set(MOD, k, v);
         await mage?.update({
           'system.attributes.hp.value': restore.mageHP.value,
           'system.attributes.hp.temp': restore.mageHP.temp,
@@ -1535,6 +1595,9 @@ if (!r.ok) {
   process.exit(1);
 }
 const x = r.results;
+// A section that threw (an `until` that ran out) fails by its own name first; the page ran the next
+// section, and the thrown one's lines below read what it recorded before the throw.
+for (const t of r.thrown ?? []) report(t.name, false, t.detail);
 if (want('1')) {
   report('hit on a Shield holder stamps a pending hold',
     x.holdFired?.pending && x.holdFired?.reaction === 'Shield' && x.holdFired?.kind === 'ac',

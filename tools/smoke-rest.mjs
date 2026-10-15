@@ -33,16 +33,8 @@ announcePlan('rest', plan, pulled);
 
 const out = await f.evaluate(async ({ sections, titles }) => {
   const MOD = 'fvtt-mod-bythebooks';
-  const results = [];
-  const log = [];
-  const skips = [];
-  const ok = (name, pass, detail = '') => results.push({ name, pass, detail });
-  const want = id => {
-    if (!sections || sections.includes(String(id))) return true;
-    skips.push(`§${id} ${titles?.[id] ?? ''}`);
-    return false;
-  };
-  const sleep = ms => new Promise(r => setTimeout(r, ms));
+  const { until, watch, canvasReady, tokenOn } = window.__btb;
+  const { results, log, skips, ok, want, section } = window.__btb.begin({ sections, titles });
   const suiteStart = Date.now();
 
   const modDoc = game.modules.get(MOD);
@@ -106,24 +98,25 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     const textOf = id => (document.querySelector(`.message[data-message-id="${id}"]`)?.textContent ?? '').replace(/\s+/g, ' ');
 
     // ================================================== 1. a Long Rest
-    if (want(1)) {
+    if (want(1)) await section(1, async () => {
       await clear();
       await actor.longRest({ dialog: false, chat: true, newDay: false, advanceTime: false });
-      await sleep(800);
+      // The rendered line is the last to land (the inspiration rides the rest's own update).
+      await until(() => /Heroic Inspiration gained/.test(textOf(lastRestCard()?.id)), { label: 'the rest card\'s "Heroic Inspiration gained" line' });
       const card = lastRestCard();
       ok('1a. the Long Rest ticked Heroic Inspiration', inspired(), `inspiration=${actor.system.attributes.inspiration}`);
       ok('1b. the rest card says "Heroic Inspiration gained" (Resourceful)',
         (card?.getFlag(MOD, 'restGrant') ?? []).some(g => g.name === 'Resourceful') && /Heroic Inspiration gained/.test(textOf(card?.id)),
         `flag=${JSON.stringify(card?.getFlag(MOD, 'restGrant'))} text="${textOf(card?.id).slice(-120)}"`);
-    }
+    });
 
     // ================================================== 2. a Short Rest
-    if (want(2)) {
+    if (want(2)) await section(2, async () => {
       await clear();
       await actor.shortRest({ dialog: false, chat: true, advanceTime: false });
-      await sleep(600);
-      ok('2a. a Short Rest gives nothing', !inspired(), `inspiration=${actor.system.attributes.inspiration}`);
-    }
+      const given = await watch(() => inspired(), { ms: 600 });
+      ok('2a. a Short Rest gives nothing', !given && !inspired(), `inspiration=${actor.system.attributes.inspiration}${given ? ' (ticked in the window)' : ''}`);
+    });
 
     // ================================================== 4–7. the song
     // A lent feat taken back, so the next section's rest raises only the row under test.
@@ -148,7 +141,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const scene = game.scenes.getName('By the Books Test Range');
       if (!scene) return { fatal: 'missing fixture: the By the Books Test Range scene — run tools/fixture-suite.mjs', results, log, skips };
       if (canvas.scene?.id !== scene.id) await scene.view();
-      for (let i = 0; i < 40 && !canvas.ready; i++) await sleep(250);
+      await canvasReady();
       const g = scene.grid.size;
       const allies = ['BTB Test Cleric', 'BTB Test Bard', 'BTB Test Fighter'].map(n => game.actors.getName(n));
       if (allies.some(a => !a || (a.type !== 'character'))) return { fatal: `missing fixture characters: ${allies.map(a => a?.name ?? '?').join(', ')}`, results, log, skips };
@@ -169,7 +162,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         const [doc] = await scene.createEmbeddedDocuments('Token', [foundry.utils.mergeObject(a.prototypeToken.toObject(),
           { x: (strip.x + dx) * g, y: strip.y * g, actorId: a.id, actorLink: true, disposition: 1 }, { inplace: false })]);
         placed.push(doc.id);
-        for (let i = 0; i < 40 && !(canvas.ready && canvas.tokens.get(doc.id)); i++) await sleep(250);
+        await tokenOn(doc.id);
         return canvas.tokens.get(doc.id);
       };
       const own = await place(actor, 0);
@@ -180,11 +173,6 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const songCard = (t0, row = 'Musician') => game.messages.contents.filter(m => (m.timestamp >= t0) && (m.getFlag(MOD, 'restSong')?.row === row)).pop() ?? null;
       const songPopup = () => [...foundry.applications.instances.values()]
         .find(app => app.rendered && (app.element?.textContent ?? '').includes('Who gets Heroic Inspiration')) ?? null;
-      const waitFor = async (test, timeout = 8000) => {
-        const until = Date.now() + timeout;
-        while (Date.now() < until) { const v = test(); if (v) return v; await sleep(200); }
-        return test();
-      };
       const boxOf = (app, a) => app?.element?.querySelector(`input[name="bf-rest-song"][value="${a.uuid}"]`) ?? null;
       const prime = async () => {
         await cleric.update({ 'system.attributes.inspiration': false });
@@ -192,49 +180,50 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         await fighter.update({ 'system.attributes.inspiration': false });
       };
 
-      if (want(4)) {
+      if (want(4)) await section(4, async () => {
         await prime();
         const t0 = Date.now();
         await actor.longRest({ dialog: false, chat: true, newDay: false, advanceTime: false });
-        const card = await waitFor(() => songCard(t0), 6000);
+        const card = await until(() => songCard(t0), { timeout: 6000 });
         const flag = card?.getFlag(MOD, 'restSong');
         const names = (flag?.candidates ?? []).map(c => `${c.name}:${c.feet}${c.has ? ':has' : ''}`);
         ok('4a. the card lists the allies within 30 ft — the Cleric (10 ft), the Bard (15 ft, already has it) — and not the Fighter at 40',
           !!flag && flag.candidates.some(c => (c.uuid === cleric.uuid) && !c.has) && flag.candidates.some(c => (c.uuid === bard.uuid) && c.has)
             && !flag.candidates.some(c => c.uuid === fighter.uuid) && (flag.cap === Number(actor.system.attributes.prof)),
           `candidates=${names.join(', ')} cap=${flag?.cap} prof=${actor.system.attributes.prof}`);
-        const app = await waitFor(songPopup, 6000);
+        const app = await until(songPopup, { timeout: 6000 });
         const cb = boxOf(app, cleric), bb = boxOf(app, bard);
         ok('4b. the popup: the Cleric ticked, the Bard greyed and marked "(has it)"',
           !!cb?.checked && !cb?.disabled && !!bb?.disabled && !bb?.checked && /(has it)/.test(bb?.closest('label')?.textContent ?? ''),
           `popup=${!!app} cleric=${cb?.checked}/${cb?.disabled} bard=${bb?.checked}/${bb?.disabled}`);
         app?.element?.querySelector('button[data-action="ok"]')?.click();
-        const landed = await waitFor(() => card?.getFlag(MOD, 'restSong')?.applied, 6000);
+        const landed = await until(() => card?.getFlag(MOD, 'restSong')?.applied, { timeout: 6000 });
         ok('4c. OK gives it: the Cleric has Heroic Inspiration, the Fighter does not, the card names the Cleric',
           !!landed && (cleric.system.attributes.inspiration === true) && (fighter.system.attributes.inspiration !== true)
             && (card.getFlag(MOD, 'restSong').given ?? []).includes(cleric.name),
           `applied=${!!landed} cleric=${cleric.system.attributes.inspiration} fighter=${fighter.system.attributes.inspiration} given=${JSON.stringify(card?.getFlag(MOD, 'restSong')?.given)}`);
-      }
+      });
 
-      if (want(5)) {
+      if (want(5)) await section(5, async () => {
         await prime();
         const t0 = Date.now();
         await actor.shortRest({ dialog: false, chat: true, advanceTime: false });
-        const card = await waitFor(() => songCard(t0), 6000);
+        const card = await until(() => songCard(t0), { timeout: 6000 });
         ok('5a. a Short Rest asks too', !!card, `card=${!!card}`);
-        const app = await waitFor(songPopup, 4000);
+        // Only answered so the next section starts clear: nothing here reads the popup or the landing.
+        const app = await until(songPopup, { timeout: 4000 }).catch(() => null);
         app?.element?.querySelector('button[data-action="ok"]')?.click();
-        await waitFor(() => card?.getFlag(MOD, 'restSong')?.applied, 6000);
-      }
+        await until(() => card?.getFlag(MOD, 'restSong')?.applied, { timeout: 6000 }).catch(() => null);
+      });
 
-      if (want(6)) {
+      if (want(6)) await section(6, async () => {
         await prime();
         await cleric.update({ 'system.attributes.inspiration': true });
         const t0 = Date.now();
         await actor.longRest({ dialog: false, chat: true, newDay: false, advanceTime: false });
-        await sleep(1200);
-        ok('6a. everyone within 30 ft already has it: no card, no popup', !songCard(t0) && !songPopup(), `card=${!!songCard(t0)} popup=${!!songPopup()}`);
-      }
+        const asked = await watch(() => songCard(t0) || songPopup(), { ms: 1200 });
+        ok('6a. everyone within 30 ft already has it: no card, no popup', !asked && !songCard(t0) && !songPopup(), `card=${!!songCard(t0)} popup=${!!songPopup()}${asked ? ' (one rose in the window)' : ''}`);
+      });
 
       // ================================================== 8–11. temp HP grants and the meal
       // The same popup: Temporary Hit Points (Inspiring Leader, Chef's Bolstering Treats) and Chef's
@@ -274,10 +263,10 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         }
       }
 
-      if (want(8)) {
+      if (want(8)) await section(8, async () => {
         await unlend('Musician');
         const feat = await lendFeat('Inspiring Leader');
-        if (!feat) return { fatal: 'the PHB ships no "Inspiring Leader" feat this box can find', results, log, skips };
+        if (!feat) throw new Error('the PHB ships no "Inspiring Leader" feat this box can find');
         // The lent copy has no ASI record, so the higher of Wisdom and Charisma stands; the amount is level + that modifier.
         const mod = Math.max(actor.system.abilities.wis.mod, actor.system.abilities.cha.mod);
         const amount = Number(actor.system.details.level) + mod;
@@ -287,7 +276,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         await actor.update({ 'system.attributes.hp.temp': 0 });
         const t0 = Date.now();
         await actor.shortRest({ dialog: false, chat: true, advanceTime: false });
-        const card = await waitFor(() => songCard(t0, 'Inspiring Leader'), 6000);
+        const card = await until(() => songCard(t0, 'Inspiring Leader'), { timeout: 6000 });
         const flag = card?.getFlag(MOD, 'restSong');
         const names = (flag?.candidates ?? []).map(c => `${c.name}:${c.feet}${c.has ? ':has' : ''}`);
         ok('8a. Inspiring Leader after a Short Rest: the amount is the activity\'s (level + the higher of Wis/Cha), up to six, the owner too, within 30 ft',
@@ -295,13 +284,13 @@ const out = await f.evaluate(async ({ sections, titles }) => {
             && flag.candidates.some(c => (c.uuid === actor.uuid) && c.self) && flag.candidates.some(c => (c.uuid === cleric.uuid) && !c.has)
             && flag.candidates.some(c => (c.uuid === bard.uuid) && c.has) && !flag.candidates.some(c => c.uuid === fighter.uuid),
           `amount=${flag?.amount} expected=${amount} cap=${flag?.cap} candidates=${names.join(', ')}`);
-        const app = await waitFor(() => popupFor(`Who gets ${amount} Temporary Hit Points`), 6000);
+        const app = await until(() => popupFor(`Who gets ${amount} Temporary Hit Points`), { timeout: 6000 });
         const bb = boxOf(app, bard);
         ok('8b. the popup asks "Who gets N Temporary Hit Points?", the Bard greyed with what it holds',
           !!app && !!bb?.disabled && /temp HP/.test(bb?.closest('label')?.textContent ?? ''),
           `popup=${!!app} bard=${bb?.disabled} "${(bb?.closest('label')?.textContent ?? '').replace(/\s+/g, ' ').trim()}"`);
         app?.element?.querySelector('button[data-action="ok"]')?.click();
-        const landed = await waitFor(() => card?.getFlag(MOD, 'restSong')?.applied, 6000);
+        const landed = await until(() => card?.getFlag(MOD, 'restSong')?.applied, { timeout: 6000 });
         ok('8c. OK gives it: the Cleric and the leader hold the amount, the Bard keeps its larger pool, the Fighter (40 ft) nothing',
           !!landed && (tempOf(cleric) === amount) && (tempOf(actor) === amount) && (tempOf(bard) === amount + 5) && (tempOf(fighter) === 0),
           `cleric=${tempOf(cleric)} self=${tempOf(actor)} bard=${tempOf(bard)} fighter=${tempOf(fighter)} amount=${amount}`);
@@ -315,67 +304,80 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         else {
           const was = { wis: actor.system.abilities.wis.value, cha: actor.system.abilities.cha.value };
           await actor.update({ 'system.abilities.wis.value': 16, 'system.abilities.cha.value': 10 });
-          const src = foundry.utils.deepClone(feat.toObject().system.advancement);
-          const row = Array.isArray(src) ? src.find(r => r._id === asi.id) : src[asi.id];
-          foundry.utils.setProperty(row, 'value.assignments', { cha: 1 });
-          await feat.update({ 'system.advancement': src });
-          for (const a of [actor, cleric, bard, fighter]) await a.update({ 'system.attributes.hp.temp': 0 });
-          const want8d = Number(actor.system.details.level) + actor.system.abilities.cha.mod;
-          const t1 = Date.now();
-          await actor.shortRest({ dialog: false, chat: true, advanceTime: false });
-          const card8d = await waitFor(() => songCard(t1, 'Inspiring Leader'), 6000);
-          const f8d = card8d?.getFlag(MOD, 'restSong');
-          const rest = game.messages.contents.find(m => (m.timestamp >= t1) && (m.type === 'rest'));
-          await sleep(500);
-          const rows = [...(document.querySelector(`#chat [data-message-id="${rest?.id}"]`)?.querySelectorAll('.activities li.activity') ?? [])];
-          const subs = rows.map(li => li.querySelector('.subtitle')?.textContent?.trim());
-          ok('8d. the feat’s own Ability Score Improvement names the ability (Charisma, the lower): level + its modifier; the rest card lists ONE row, "Inspire with Performance"',
-            (f8d?.amount === want8d) && (subs.filter(n => /Inspire with/.test(n ?? '')).length === 1) && subs.includes('Inspire with Performance'),
-            `amount=${f8d?.amount} expected=${want8d} rows=[${subs.join(' | ')}] rest=${rest?.id}/${rest?.system?.type}/${rest?.system?.actor?.uuid} lis=[${rows.map(li => li.dataset.activityUuid).join(',')}] acts=[${[...feat.system.activities].map(x => x.uuid).join(',')}]`);
-          const app8d = await waitFor(() => popupFor('Temporary Hit Points'), 6000);
-          app8d?.close?.();
-          await actor.update({ 'system.abilities.wis.value': was.wis, 'system.abilities.cha.value': was.cha });
+          // The scores go back even when a wait below throws: teardown restores the attributes, not the abilities.
+          try {
+            const src = foundry.utils.deepClone(feat.toObject().system.advancement);
+            const row = Array.isArray(src) ? src.find(r => r._id === asi.id) : src[asi.id];
+            foundry.utils.setProperty(row, 'value.assignments', { cha: 1 });
+            await feat.update({ 'system.advancement': src });
+            for (const a of [actor, cleric, bard, fighter]) await a.update({ 'system.attributes.hp.temp': 0 });
+            const want8d = Number(actor.system.details.level) + actor.system.abilities.cha.mod;
+            const t1 = Date.now();
+            await actor.shortRest({ dialog: false, chat: true, advanceTime: false });
+            const card8d = await until(() => songCard(t1, 'Inspiring Leader'), { timeout: 6000 });
+            const f8d = card8d?.getFlag(MOD, 'restSong');
+            // The rest card's rows are drawn after the document: wait for its Inspire row; absent, the
+            // check reads (and its detail names) what the card shows.
+            const restNow = () => game.messages.contents.find(m => (m.timestamp >= t1) && (m.type === 'rest'));
+            const rowsOf = m => [...(document.querySelector(`#chat [data-message-id="${m?.id}"]`)?.querySelectorAll('.activities li.activity') ?? [])];
+            await until(() => rowsOf(restNow()).some(li => /Inspire with/.test(li.querySelector('.subtitle')?.textContent ?? '')),
+              { label: 'the rest card\'s Inspire row drawn' }).catch(() => null);
+            const rest = restNow();
+            const rows = rowsOf(rest);
+            const subs = rows.map(li => li.querySelector('.subtitle')?.textContent?.trim());
+            ok('8d. the feat’s own Ability Score Improvement names the ability (Charisma, the lower): level + its modifier; the rest card lists ONE row, "Inspire with Performance"',
+              (f8d?.amount === want8d) && (subs.filter(n => /Inspire with/.test(n ?? '')).length === 1) && subs.includes('Inspire with Performance'),
+              `amount=${f8d?.amount} expected=${want8d} rows=[${subs.join(' | ')}] rest=${rest?.id}/${rest?.system?.type}/${rest?.system?.actor?.uuid} lis=[${rows.map(li => li.dataset.activityUuid).join(',')}] acts=[${[...feat.system.activities].map(x => x.uuid).join(',')}]`);
+            // Only closed so the next section starts clear: nothing reads it.
+            const app8d = await until(() => popupFor('Temporary Hit Points'), { timeout: 6000 }).catch(() => null);
+            app8d?.close?.();
+          } finally {
+            await actor.update({ 'system.abilities.wis.value': was.wis, 'system.abilities.cha.value': was.cha });
+          }
         }
-      }
+      });
 
-      if (want(9)) {
+      if (want(9)) await section(9, async () => {
         await unlend('Musician');
         await unlend('Inspiring Leader');
         const chef = await lendFeat('Chef');
-        if (!chef) return { fatal: 'the PHB ships no "Chef" feat this box can find', results, log, skips };
+        if (!chef) throw new Error('the PHB ships no "Chef" feat this box can find');
         const prof = Number(actor.system.attributes.prof);
         for (const a of [actor, cleric, bard, fighter]) await a.update({ 'system.attributes.hp.temp': 0 });
         const t0 = Date.now();
         await actor.longRest({ dialog: false, chat: true, newDay: false, advanceTime: false });
-        const card = await waitFor(() => songCard(t0, 'Bolstering Treats'), 6000);
+        const card = await until(() => songCard(t0, 'Bolstering Treats'), { timeout: 6000 });
         const flag = card?.getFlag(MOD, 'restSong');
         ok('9a. Chef after a Long Rest: Bolstering Treats handed out — the Proficiency Bonus as Temporary Hit Points, up to that many, every ally on the scene (the Fighter at 40 ft too)',
           !!flag && (flag.row === 'Bolstering Treats') && (flag.amount === prof) && (flag.cap === prof) && (flag.reach === null)
             && flag.candidates.some(c => c.uuid === fighter.uuid),
           `row=${flag?.row} amount=${flag?.amount} cap=${flag?.cap} reach=${flag?.reach} candidates=${(flag?.candidates ?? []).map(c => c.name).join(', ')}`);
-        const app = await waitFor(() => popupFor(`Who gets ${prof} Temporary Hit Points`), 6000);
+        const app = await until(() => popupFor(`Who gets ${prof} Temporary Hit Points`), { timeout: 6000 });
         const startTicked = [...(app?.element?.querySelectorAll('input[name="bf-rest-song"]:checked') ?? [])].length;
         const mine = [cleric, fighter].slice(0, prof);
         tickOnly(app, mine);
         app?.element?.querySelector('button[data-action="ok"]')?.click();
-        await waitFor(() => card?.getFlag(MOD, 'restSong')?.applied, 6000);
+        await until(() => card?.getFlag(MOD, 'restSong')?.applied, { timeout: 6000 });
         const given = [actor, cleric, bard, fighter].filter(a => tempOf(a) === prof).map(a => a.uuid);
         ok('9b. the first cap-many start ticked; OK gives exactly the picked the treats (the Cleric, the Fighter at 40 ft)',
           (startTicked === Math.min(prof, flag?.candidates?.length ?? 0)) && (given.length === mine.length) && mine.every(a => given.includes(a.uuid)),
           `startTicked=${startTicked} given=${given.length} picked=${mine.length} prof=${prof}`);
         ok('9c. a Long Rest is not Replenishing Meal\'s — no meal card', !game.messages.contents.some(m => (m.timestamp >= t0) && (m.getFlag(MOD, 'restSong')?.row === 'Replenishing Meal')),
           'a meal card appeared on a Long Rest');
-      }
+      });
 
       // The meal in both orders: the Cleric rested (Hit Dice spent), the Fighter rested (none), the
       // Bard has not yet; then the Chef's own Short Rest asks.
       let mealCard = null;
-      if (want(10)) {
+      if (want(10)) await section(10, async () => {
         await unlend('Musician');
         await unlend('Inspiring Leader');
-        if (!await lendFeat('Chef')) return { fatal: 'the PHB ships no "Chef" feat this box can find', results, log, skips };
+        if (!await lendFeat('Chef')) throw new Error('the PHB ships no "Chef" feat this box can find');
+        const tLong = Date.now();
         await actor.longRest({ dialog: false, chat: false, newDay: false, advanceTime: false });   // Hit Dice back, a clean slate
-        await sleep(600);
+        // The Treats this Long Rest raises (their card and popup) are dismissed below: wait for them to rise.
+        await until(() => songCard(tLong, 'Bolstering Treats') && popupFor('Temporary Hit Points'),
+          { label: 'the Long Rest\'s Bolstering Treats ask' }).catch(() => null);
         for (const m of game.messages.contents.filter(m => m.getFlag(MOD, 'restSong') && (m.timestamp >= suiteStart) && (m.getFlag(MOD, 'restSong').status === 'pending'))) await m.delete();
         popupFor('Temporary Hit Points')?.close?.();   // Chef's treats ride that Long Rest too: their ask is dismissed
         for (const a of [cleric, bard, fighter]) await a.longRest({ dialog: false, chat: false, newDay: false, advanceTime: false });
@@ -386,9 +388,13 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         await cleric.update({ 'system.attributes.hp.value': Math.max(1, cleric.system.attributes.hp.max - 20) });
         await bard.update({ 'system.attributes.hp.value': Math.max(1, bard.system.attributes.hp.max - 20) });
         // The Cleric rests first and spends Hit Dice (autoHD, no dialog); the Fighter rests at full HP and spends none.
+        const tShort = Date.now();
         await cleric.shortRest({ dialog: false, chat: true, advanceTime: false, autoHD: true, autoHDThreshold: 1 });
         await fighter.shortRest({ dialog: false, chat: true, advanceTime: false });
-        await sleep(600);
+        // Each Short Rest card's Hit Dice record lands after the card (10a and the meal read both).
+        const restCardOf = a => game.messages.contents.filter(m => (m.timestamp >= tShort) && (m.type === 'rest') && (m.speaker?.actor === a.id)).pop();
+        await until(() => restCardOf(cleric)?.getFlag(MOD, 'restSpent') && restCardOf(fighter)?.getFlag(MOD, 'restSpent'),
+          { label: 'the Cleric\'s and the Fighter\'s Short Rest cards record their Hit Dice' });
         const clericCard = game.messages.contents.filter(m => (m.type === 'rest') && (m.speaker?.actor === cleric.id)).pop();
         const spentCleric = clericCard?.getFlag(MOD, 'restSpent');
         ok('10a. every Short Rest card records the Hit Dice its creature spent (the Cleric\'s, autoHD)',
@@ -396,7 +402,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         const clericHp = hpOf(cleric);
         const t0 = Date.now();
         await actor.shortRest({ dialog: false, chat: true, advanceTime: false });
-        mealCard = await waitFor(() => game.messages.contents.filter(m => (m.timestamp >= t0) && (m.getFlag(MOD, 'restSong')?.row === 'Replenishing Meal')).pop(), 6000);
+        mealCard = await until(() => game.messages.contents.filter(m => (m.timestamp >= t0) && (m.getFlag(MOD, 'restSong')?.row === 'Replenishing Meal')).pop(), { timeout: 6000 });
         const flag = mealCard?.getFlag(MOD, 'restSong');
         const cOf = a => flag?.candidates?.find(c => c.uuid === a.uuid);
         ok('10b. the Chef\'s Short Rest asks who eats — up to 4 + Proficiency Bonus; the Cleric spent Hit Dice, the Fighter spent none (greyed), the Bard is still resting',
@@ -408,13 +414,14 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         for (let i = 0; i < 20 && !popupFor('Who gets an extra 1d8 Hit Points'); i++) {
           const other = [...foundry.applications.instances.values()].find(a => a.rendered && (a instanceof foundry.applications.api.DialogV2) && /— BTB Test Halfling$/.test(a.title ?? ''));
           other?.element?.querySelector('button[data-action="ok"]')?.click();
-          await sleep(300);
+          // Each try waits for the meal's popup, or for the answered one to close.
+          await until(() => popupFor('Who gets an extra 1d8 Hit Points') || (other && !other.rendered), { timeout: 300 }).catch(() => null);
         }
-        const app = await waitFor(() => popupFor('Who gets an extra 1d8 Hit Points'), 6000);
+        const app = await until(() => popupFor('Who gets an extra 1d8 Hit Points'), { timeout: 6000 });
         tickOnly(app, [cleric, bard]);
         app?.element?.querySelector('button[data-action="ok"]')?.click();
-        const landed = await waitFor(() => mealCard?.getFlag(MOD, 'restSong')?.applied, 8000);
-        const served = await waitFor(() => game.messages.contents.find(m => (m.timestamp >= t0) && (m.rolls?.length) && /Replenishing Meal/.test(m.content ?? '') && m.content.includes(cleric.name)), 6000);
+        const landed = await until(() => mealCard?.getFlag(MOD, 'restSong')?.applied, { timeout: 8000 });
+        const served = await until(() => game.messages.contents.find(m => (m.timestamp >= t0) && (m.rolls?.length) && /Replenishing Meal/.test(m.content ?? '') && m.content.includes(cleric.name)), { timeout: 6000 });
         const gain = hpOf(cleric) - clericHp;
         const rolled = served?.rolls?.[0]?.total;
         ok('10c. OK: the Cleric (rested, Hit Dice spent) is healed now by the rolled 1d8, on one card with the dice',
@@ -424,24 +431,24 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         ok('10d. the Bard, still resting, carries the meal to its own rest\'s end; the card says it waits',
           (fed?.formula === '1d8') && ((mealCard?.getFlag(MOD, 'restSong')?.waiting ?? []).join() === bard.name),
           `fed=${JSON.stringify(fed ?? null)} waiting=${JSON.stringify(mealCard?.getFlag(MOD, 'restSong')?.waiting)}`);
-      }
+      });
 
-      if (want(11)) {
+      if (want(11)) await section(11, async () => {
         if (!bard.getFlag(MOD, 'mealFed')) {
           skips.push('§11 needs §10 (the Bard carrying the meal)');
         } else {
           const before = hpOf(bard);
           const t1 = Date.now();
           await bard.shortRest({ dialog: false, chat: true, advanceTime: false, autoHD: true, autoHDThreshold: 1 });
-          const served = await waitFor(() => game.messages.contents.find(m => (m.timestamp >= t1) && (m.rolls?.length) && /Replenishing Meal/.test(m.content ?? '') && m.content.includes(bard.name)), 8000);
-          await waitFor(() => !bard.getFlag(MOD, 'mealFed'), 4000);
+          const served = await until(() => game.messages.contents.find(m => (m.timestamp >= t1) && (m.rolls?.length) && /Replenishing Meal/.test(m.content ?? '') && m.content.includes(bard.name)), { timeout: 8000 });
+          await until(() => !bard.getFlag(MOD, 'mealFed'), { timeout: 4000 });
           const restCard = game.messages.contents.filter(m => (m.type === 'rest') && (m.speaker?.actor === bard.id)).pop();
           const spent = restCard?.getFlag(MOD, 'restSpent')?.hitDice ?? 0;
           ok('11a. the Bard\'s own Short Rest ends with Hit Dice spent: the meal\'s 1d8 heals it then, its card with the dice, and the mark is gone',
             (spent > 0) && !!served && !bard.getFlag(MOD, 'mealFed') && (hpOf(bard) > before),
             `spent=${spent} served=${!!served} fed=${!!bard.getFlag(MOD, 'mealFed')} hp ${before} → ${hpOf(bard)}`);
         }
-      }
+      });
     }
 
     return { log, results, skips };
