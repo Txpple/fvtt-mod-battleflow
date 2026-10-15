@@ -182,6 +182,15 @@ identity })` joins the harness's own client as a declared identity, `gmConfig(en
 config. The harness reads the declaration from the script's text (a suite runs on import, so it is parsed, never
 imported); an undeclared identity or an unknown key refuses the run before anything connects.
 
+**The connect race is measured, not argued: `probe-multi-gm.mjs`** (suite issue #8; the note is
+[audits/plans/multi-gm-measurement.md](../audits/plans/multi-gm-measurement.md)). One GM client on, a Find Familiar
+record armed on its card, a second GM client connecting, and the record answered at an offset from the moment the first
+client hears the second arrive (before it, through the newcomer's load, after it is ready); then what landed per record
+(claims by user, tokens, companion effects, moments, cards) and how long both clients held the elect at once and how
+long neither did, each page sampling `isActiveGM` every 5 ms. Four orderings by role and id (`--list`): the elect stays
+on the client already on, or moves to the newcomer. Fixtures from `fixture-suite.mjs`; teardown per cycle and at the
+end; about 15 s a cycle. A probe, not a battery suite: no `COVERS`, not in ORDER.
+
 ⚠ **A slow run and a hung run must not look the same** (2026-10-10, issue #12: a harness script
 outlived its 400 s watchdog by an hour, and another printed nothing for five minutes). The harness
 now prints a heartbeat every 30 s while an `evaluate` is in flight — how long it has run, the world's
