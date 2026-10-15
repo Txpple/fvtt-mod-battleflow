@@ -259,7 +259,8 @@ dependency and says so.
 change there should re-run me"*; it is judgment from the suite's own sections, and generous.
 `--changed` reads the claims: a changed machine selects its claimants; a changed `decide/` or
 registry file is walked UP the import graph (the layer check's own edge reader) to the machines
-that import it; a changed suite selects itself and a changed seed the suites that need it; docs,
+that import it; a changed suite selects itself, a changed seed the suites that need it, and a changed
+suite kit (`tools/class-kit.mjs`) the suites importing it; docs,
 `tests/` and `package.json` run nothing. ⚠ **A spine change is the full battery, honestly** —
 core, spine, services and entry files (`check-layers.mjs`'s tiers, never a hand list), a
 `decide/` file the walk finds the spine importing, `harness.mjs` / `prelude.mjs` / `args.mjs` / `target.mjs` /

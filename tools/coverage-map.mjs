@@ -155,11 +155,21 @@ export const ORDER = [
     name: "smoke-guards", note: "the guards — Protection's popup beside the defender's own (P1), the bent roll and the card naming the guard, \"Protected — <guard>\" and the gate's Disadvantage within 5 ft; Interception's claim on the attack's damage, the reduction, the pass",
     needs: ["fixture-suite"]
   },
-  // Session 0's classes: BTB Test Bard lent Cutting Words, BTB Test Sorcerer Restore Balance; four tokens placed and removed.
-  {
-    name: "smoke-classes", note: "the PHB classes — §A3 the bystander's bend on a hit: the margin gate, the popup, the quiet road off the damage, Restore Balance's first d20, the reach, \"Not this combat\" and its sweep",
-    needs: ["fixture-suite"]
-  },
+  // The PHB classes, one suite per class on the classes kit (tools/class-kit.mjs): the Bard, Sorcerer, Cleric,
+  // Halfling, PC Attacker and Victim lent the class features they need; their tokens placed and removed.
+  { name: "smoke-class-barbarian", note: "the Barbarian's rows — Frenzy, the Rage reminder, Rage of the Wilds and Power of the Wilds, Persistent Rage, Vitality of the Tree, Brutal Strike, Relentless Rage, Rage of the Gods", needs: ["fixture-suite"] },
+  { name: "smoke-class-bard", note: "the Bard's rows — Cutting Words asked on a hit, a check and the damage, the margin gate, the reach, the mutes, the down guard, Combat Inspiration, Countercharm, Tandem Footwork, Peerless Skill, Battle Magic, Leading Evasion, Unbreakable Majesty, Superior Inspiration", needs: ["fixture-suite"] },
+  { name: "smoke-class-cleric", note: "the Cleric's rows — Guided Strike for an ally and itself, War Priest, Disciple of Life, the spell-damage bonuses, Blessed Healer, Improved Blessed Strikes, Supreme Healing, Improved Duplicity, Corona of Light", needs: ["fixture-suite"] },
+  { name: "smoke-class-druid", note: "the Druid's rows — Starry Form and the Chalice, Cosmic Omen, Lunar Form, Oceanic Gift", needs: ["fixture-suite"] },
+  { name: "smoke-class-fighter", note: "the Fighter's rows — Commanding Presence, Psionic Power, Eldritch Strike, Studied Attacks, Relentless, Tactical Master, the turn grants, Telekinetic Thrust, the reminders and bends, Survivor, Improved War Magic", needs: ["fixture-suite"] },
+  { name: "smoke-class-monk", note: "the Monk's rows — Deflect Attacks, the Focus group, Open Hand Technique, Elemental Attunement, Physician's Touch, Disciplined Survivor, Perfect Focus, Elemental Epitome", needs: ["fixture-suite"] },
+  { name: "smoke-class-paladin", note: "the Paladin's rows — Glorious Defense, Sacred Weapon, Inspiring Smite, Undying Sentinel, Smite of Protection, Soul of Vengeance, the level 20 auras", needs: ["fixture-suite"] },
+  { name: "smoke-class-ranger", note: "the Ranger's rows — Hunter's Prey, Bestial Fury, Superior Hunter's Prey and Defense, Stalker's Flurry, Relentless Hunter", needs: ["fixture-suite"] },
+  { name: "smoke-class-rogue", note: "the Rogue's rows — Versatile Trickster, Elusive, Stroke of Luck", needs: ["fixture-suite"] },
+  { name: "smoke-class-sorcerer", note: "the Sorcerer's rows — Restore Balance on a hit, a miss and a save, Tides of Chaos, Wild Magic Surge, Bend Luck, Bastion of Law, Trance of Order, Controlled Chaos, Tamed Surge", needs: ["fixture-suite"] },
+  { name: "smoke-class-warlock", note: "the Warlock's rows — Repelling Blast, Dark One's Blessing, Psychic Spells, Beguiling Twist and Defenses, Dark One's Own Luck, Eldritch Smite, Lifedrinker, Gift of the Protectors, Searing Vengeance, Hurl Through Hell", needs: ["fixture-suite"] },
+  { name: "smoke-class-wizard", note: "the Wizard's rows — Potent Cantrip on a save and a miss, Arcane Ward, Portent and Portent widened, Greater Portent, Spell Resistance", needs: ["fixture-suite"] },
+  { name: "smoke-class-items", note: "the DMG's worn items on the classes' fixtures — the gate's items, the weapons' riders on a 20, Serpent Venom, the Periapt, Luck Blade", needs: ["fixture-suite"] },
   // The splat books: Ravenloft's Survivor against the Fighter's rows, Arcane Shot's group, the Bloodied rebuke, Instinctive Charm, Ever-Ready Shot.
   {
     name: "smoke-splat", note: "the splat books — the Survivor collision (no Heroic Rally, no Defy Death on a feat), Arcane Shot's group and its one turn chit, Harvest Undead on becoming Bloodied, Instinctive Charm's save at the attacker, Ever-Ready Shot's one use back",
@@ -266,6 +276,17 @@ export function loadCoverageMap(order = ORDER, read = file => readFileSync(file,
   return map;
 }
 
+/**
+ * The ORDER suites whose source imports `tools/<base>`: a suite kit's change re-runs exactly them.
+ * Read from the text, as the claims are (a suite connects on import).
+ */
+export function toolUsers(base, order = ORDER, read = file => readFileSync(file, "utf8")) {
+  const from = new RegExp(`from\\s+["']\\./${base.replace(/\./g, "\\.")}["']`);
+  return suiteRows(order).filter(({ name }) => {
+    try { return from.test(read(suiteFile(name))); } catch { return false; }
+  }).map(r => r.name);
+}
+
 /* --- the graph ----------------------------------------------------------------------------- */
 
 /** Who imports each scripts file — check-layers.mjs's own edge reader, turned around. */
@@ -287,7 +308,8 @@ export function defaultContext() {
     order: ORDER,
     covers: loadCoverageMap(),
     tierOf,
-    importersOf: rel => [...(index.get(rel) ?? [])]
+    importersOf: rel => [...(index.get(rel) ?? [])],
+    toolUsersOf: base => toolUsers(base)
   };
 }
 
@@ -374,8 +396,9 @@ export function rowsFrom(at, order = ORDER) {
  *   (b) a decide/ or registry file selects the claimants of each machine importing it, walked
  *       upward — and the FULL battery if a spine file imports it on the way;
  *   (c) a core / spine / services / entry file, or one the tier map does not know: full battery;
- *   (d) a battery suite selects itself; a seed selects the suites needing it; the harness, its
- *       prelude, target, battery and this map are the full battery; any other tool is inert;
+ *   (d) a battery suite selects itself; a seed selects the suites needing it; a suite kit selects the
+ *       suites importing it; the harness, its prelude, target, battery and this map are the full
+ *       battery; any other tool is inert;
  *   (e) everything else is inert, except module.json.
  */
 export function planFor(changed, ctx = defaultContext()) {
@@ -433,6 +456,8 @@ export function planFor(changed, ctx = defaultContext()) {
         const needers = order.filter(r => !r.reset && (r.needs ?? []).includes(name));
         for (const r of needers) pick(r.name, `needs ${name}, which changed`);
         if (!needers.length) inert.push({ file, why: "a seed no suite declares a need for" });
+      } else if ((ctx.toolUsersOf?.(base) ?? []).length) {
+        for (const n of ctx.toolUsersOf(base)) pick(n, `imports tools/${base}, which changed`);
       } else {
         inert.push({ file, why: /^(smoke|probe)-/.test(name) ? "not in the battery's ORDER — run it by hand" : "a tool, not a battery suite" });
       }
