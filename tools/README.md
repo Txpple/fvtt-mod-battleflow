@@ -179,6 +179,8 @@ the buzzer's second roll landed after the GM rejoined, looking exactly like a re
 second one refuses and names the first; a stale lock (the holder died) is taken over and reported.
 Why the sole-GM preflight cannot do this: NOTES §5.
 
+⚠ **A GM-capable seat that joins mid-run is named** (the seat watch, armed after the preflight): a bridge another session opens for one call outranks the suite identity by id, the elect moves to it, and the writes of that window land nowhere; the suite ends with a failing `seat:` line naming who joined and when, so its reds are read as the seat's, not the module's. A battery wants the sandbox to itself for its whole length, every session's bridges included.
+
 ⚠ **The preflight checks the package too** (3.0.0): every asserting suite refuses unless By the
 Books is active and Battle Flow is not, and names which. `job.mjs --read-only`, the fixture
 builders and the probes are exempt and work in either state.

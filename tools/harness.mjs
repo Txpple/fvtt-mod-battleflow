@@ -20,7 +20,7 @@ import { Foundry, loadEnv } from "fvtt-mcp-dnd5e/client";
 import { strictArgs } from "./args.mjs";
 import { armContractRecorder, dumpContractRecording } from "./contract-recorder.mjs";
 import { installPrelude } from "./prelude.mjs";
-import { declaredGmClients, foundryConfig, preflightSoleGM } from "./target.mjs";
+import { declaredGmClients, foundryConfig, gmIdentity, preflightSoleGM } from "./target.mjs";
 
 const REPO = dirname(dirname(fileURLToPath(import.meta.url)));
 
@@ -403,6 +403,21 @@ export async function connectSuite({ tag, watchdogMs, requireElect = true, allow
   await preflightSoleGM(f, { requireElect, allowBridge, env, gmClients });
   stage = "baseline";
 
+  // THE SEAT WATCH: the preflight sees a second GM-capable seat only at the start. One that joins mid-run (a
+  // bridge another session opens for one call) outranks the suite identity by id, so the elect moves to it
+  // and every elect-driven write in that window lands nowhere; `finish` turns the record into a failing
+  // line that names the joiner, so the run's reds read as the seat's, not the module's.
+  const ownSeats = [...(gmClients ?? ["suite"]).map(k => gmIdentity(env, k)?.user),
+    ...(allowBridge ? [env?.FOUNDRY_USER ?? env?.LOCAL_FOUNDRY_USER] : [])].filter(Boolean);
+  await f.evaluate(async allowed => {
+    window.__btbSeats = [];
+    Hooks.on("userConnected", (user, active) => {
+      if (!user?.isGM || (user.id === game.user.id) || allowed.includes(user.name)) return;
+      window.__btbSeats.push({ name: user.name, role: user.role, active: !!active, at: new Date().toISOString() });
+    });
+    return "installed";
+  }, ownSeats).catch(e => console.warn(`[${tag}] seat watch not armed (${e.message})`));
+
   /**
    * ⚠ THE DOWNED LEFTOVERS, swept on every suite's connect: the module applies the downed conditions out of combat
    * too (dnd5e's own mapping), and the Prone rider OUTLIVES the heal, as written — so a fixture a previous suite
@@ -548,6 +563,14 @@ export async function finish({ tag, out, plan = null, f = null }) {
     for (const r of out.results ?? []) console.log(`  ${r.pass ? "PASS" : "FAIL"} ${r.name}`);
     await f?.disconnect?.();
     process.exit(2);
+  }
+  const seats = await (f?.evaluate?.(async () => window.__btbSeats ?? [], null) ?? Promise.resolve([])).catch(() => []);
+  if (seats.length) {
+    out.results = [...(out.results ?? []), {
+      pass: false,
+      name: "seat: a GM-capable user outside this run's own joined mid-run; the elect moved to it and every elect-driven write in that window is suspect, so the reds above are not the module's until it is explained",
+      detail: seats.map(s => `${s.name} (role ${s.role}) ${s.active ? "joined" : "left"} ${s.at}`).join("; ")
+    }];
   }
   const failures = report({ tag, out, plan });
   await f?.disconnect?.();

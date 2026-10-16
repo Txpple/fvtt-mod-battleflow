@@ -234,7 +234,7 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
           // e. the faces: the sorcerer wears "Elemental Affinity (Fire)" live, the cleric "Blessed Strikes: Potent Spellcasting"
           const face = sorcerer.effects.find(e => e.getFlag(MOD, 'fightingStyle')?.key === 'elemental-affinity') ?? null;
           ok('50e. the face: "Elemental Affinity (Fire)" live on the sorcerer, its word "fire"', !!face && !face.disabled && (face.getFlag(MOD, 'fightingStyle')?.word === 'fire'),
-            `face=${face?.name ?? null} disabled=${face?.disabled} flag=${JSON.stringify(face?.getFlag(MOD, 'fightingStyle') ?? null)}`);
+            `face=${face?.name ?? null} disabled=${face?.disabled} flag=${JSON.stringify(face?.getFlag(MOD, 'fightingStyle') ?? null)} all=${JSON.stringify(sorcerer.effects.map(e => [e.name, e.disabled, e.getFlag(MOD, 'fightingStyle')?.key ?? null]))} items=${JSON.stringify(sorcerer.items.filter(i => i.type === 'feat').map(i => i.name))} actor=${sorcerer.uuid}`);
         }
       } finally {
         await closeA1();
