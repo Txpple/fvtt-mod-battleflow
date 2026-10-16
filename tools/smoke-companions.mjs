@@ -91,7 +91,9 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   };
 
   // ---- the invariant
-  const records = () => game.messages.contents.map(m => ({ id: m.id, flag: m.getFlag(MOD, 'summon') })).filter(r => r.flag);
+  // Only this caster's records: a familiar another caster stands on the table (a hand walk's, a campaign's) is not this suite's.
+  const ownRecord = f => (typeof f?.sourceUuid === 'string') && f.sourceUuid.endsWith(`Actor.${caster.id}`);
+  const records = () => game.messages.contents.map(m => ({ id: m.id, flag: m.getFlag(MOD, 'summon') })).filter(r => ownRecord(r.flag));
   const standingRecords = () => records().filter(({ flag }) => flag.applied && !flag.dismissAsked && !flag.dismissed && (flag.outcome !== 'failed') && flag.companion && (flag.companion.state !== 'gone'));
   const companionEffects = () => caster.effects.filter(e => !!e.getFlag(MOD, 'companion'));
   const state = () => ({ effects: companionEffects().map(e => e.name), tokens: familiarTokens().map(t => t.name), records: standingRecords().map(r => `${r.id}:${r.flag.summonName}:${r.flag.companion.state}`) });
